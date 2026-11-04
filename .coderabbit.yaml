@@ -1,0 +1,33 @@
+language: en-US
+early_access: false
+reviews:
+  profile: chill
+  high_level_summary: true
+  review_status: true
+  poem: false
+  request_changes_workflow: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches: [main]
+  path_filters:
+    - '!**/*lock*'
+    - '!**/dist/**'
+    - '!**/*.min.js'
+  path_instructions:
+    - path: src/core/adapters/**
+      instructions: >-
+        Record identity must survive token updates. Follow the adapter contract for
+        deduplication, event versus cumulative records, inclusive cache fields and
+        reasoning output. Decode all concatenated compressed frames.
+    - path: src/core/pricing/**
+      instructions: >-
+        Catalog entries own IDs, aliases, rates, evidence and conditions. Never infer
+        a rate from a model family. Keep money in integer micro-USD and preserve
+        unknown cache-write prices as unknown.
+    - path: dashboard/**
+      instructions: >-
+        This application is a Vite SPA. Page prose follows the existing Chinese
+        convention; shared shell strings use copy(). Keep instructions specific to Vite.
+chat:
+  auto_reply: true

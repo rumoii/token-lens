@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="title desc">
+  <title id="title">How Token Lens works</title>
+  <desc id="desc">Adapters read the logs that AI coding tools write on this machine, read-only, normalise them into four token kinds and write them to a SQLite ledger, deduplicated by content and priced in micro-dollars. lens serve exposes /api/v1 on 127.0.0.1 only, and the dashboard reads it with a token; lens summary prints a summary in the terminal. It goes online only when the user clicks "Update exchange rates".</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eefbf6"/>
+      <stop offset="1" stop-color="#e7effc"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#1d4a5c" flood-opacity="0.10"/>
+    </filter>
+    <marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2a8f7b"/>
+    </marker>
+    <marker id="head-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8a9bab"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+      .card { fill: #ffffff; filter: url(#shadow); }
+      .name { font-size: 23px; font-weight: 700; fill: #16324a; }
+      .note { font-size: 15px; fill: #5b7083; }
+      .link { stroke: #2a8f7b; stroke-width: 2.5; fill: none; }
+      .muted { stroke: #8a9bab; stroke-width: 2; stroke-dasharray: 6 6; fill: none; }
+      .label-muted { font-size: 15px; font-weight: 600; fill: #6f8293; }
+      .pill { fill: #d9f3ea; }
+      .pill-text { font-size: 16px; font-weight: 700; fill: #22806d; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="480" rx="24" fill="url(#bg)"/>
+
+  <!-- Local logs -->
+  <rect class="card" x="35" y="110" width="190" height="100" rx="18"/>
+  <text class="name" x="130" y="152" text-anchor="middle">Local logs</text>
+  <text class="note" x="130" y="182" text-anchor="middle">27 AI coding tools</text>
+
+  <!-- Adapters -->
+  <rect class="card" x="275" y="110" width="190" height="100" rx="18"/>
+  <text class="name" x="370" y="152" text-anchor="middle">Adapters</text>
+  <text class="note" x="370" y="182" text-anchor="middle">Read-only · 4 token kinds</text>
+
+  <!-- Ledger -->
+  <rect class="card" x="515" y="110" width="190" height="100" rx="18"/>
+  <text class="name" x="610" y="152" text-anchor="middle">Ledger</text>
+  <text class="note" x="610" y="182" text-anchor="middle">SQLite · dedupe · price</text>
+
+  <!-- Local server -->
+  <rect class="card" x="755" y="110" width="190" height="100" rx="18"/>
+  <text class="name" x="850" y="152" text-anchor="middle">lens serve</text>
+  <text class="note" x="850" y="182" text-anchor="middle">/api/v1 · 127.0.0.1 only</text>
+
+  <!-- Dashboard -->
+  <rect class="card" x="995" y="110" width="170" height="100" rx="18"/>
+  <text class="name" x="1080" y="152" text-anchor="middle">Dashboard</text>
+  <text class="note" x="1080" y="182" text-anchor="middle">Browser · bearer token</text>
+
+  <!-- Terminal summary -->
+  <rect class="card" x="515" y="280" width="190" height="90" rx="18"/>
+  <text class="name" x="610" y="318" text-anchor="middle">lens summary</text>
+  <text class="note" x="610" y="346" text-anchor="middle">Terminal summary</text>
+
+  <!-- Exchange rates -->
+  <rect class="card" x="755" y="280" width="190" height="90" rx="18"/>
+  <text class="name" x="850" y="318" text-anchor="middle">Exchange rates</text>
+  <text class="note" x="850" y="346" text-anchor="middle">Online only on click</text>
+
+  <!-- Links -->
+  <path class="link" d="M237 160 H263" marker-end="url(#head)"/>
+  <path class="link" d="M477 160 H503" marker-end="url(#head)"/>
+  <path class="link" d="M717 160 H743" marker-end="url(#head)"/>
+  <path class="link" d="M957 160 H983" marker-start="url(#head)" marker-end="url(#head)"/>
+  <path class="link" d="M610 222 V268" marker-end="url(#head)"/>
+  <path class="muted" d="M1080 222 V325 H957" marker-end="url(#head-muted)"/>
+  <text class="label-muted" x="1094" y="280">manual</text>
+
+  <!-- Pills -->
+  <rect class="pill" x="200" y="412" width="150" height="40" rx="20"/>
+  <text class="pill-text" x="275" y="438" text-anchor="middle">No account</text>
+  <rect class="pill" x="370" y="412" width="190" height="40" rx="20"/>
+  <text class="pill-text" x="465" y="438" text-anchor="middle">No usage upload</text>
+  <rect class="pill" x="580" y="412" width="150" height="40" rx="20"/>
+  <text class="pill-text" x="655" y="438" text-anchor="middle">No telemetry</text>
+  <rect class="pill" x="750" y="412" width="250" height="40" rx="20"/>
+  <text class="pill-text" x="875" y="438" text-anchor="middle">Other tools left untouched</text>
+</svg>

@@ -1,0 +1,191 @@
+name: PR checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 范围判断要算 base 与 head 的合并基点，浅克隆不够。
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide which checks to run
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          code=false
+          if [ "${#changed[@]}" -eq 0 ]; then
+            echo "Empty diff; running code checks so the job cannot pass silently."
+            code=true
+          else
+            printf 'Changed file: %s\n' "${changed[@]}"
+            for file in "${changed[@]}"; do
+              if [[ ! "$file" =~ \.md$ ]] && [[ ! "$file" =~ ^\.github/ISSUE_TEMPLATE/ ]]; then
+                code=true
+                break
+              fi
+            done
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Documentation only
+        if: steps.scope.outputs.code != 'true'
+        run: echo "Only documentation changed; core and dashboard tests, build and typecheck are skipped."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            dashboard/package-lock.json
+
+      - name: Install dependencies
+        if: steps.scope.outputs.code == 'true'
+        run: |
+          npm ci
+          npm --prefix dashboard ci
+
+      - name: Isolated checks
+        if: steps.scope.outputs.code == 'true'
+        run: npm run ci:local
+
+  # 平台分支（发现路径、文件路径处理）在 macOS 上另跑一遍完整检查。
+  core-macos:
+    needs: checks
+    if: needs.checks.outputs.code == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix dashboard ci
+
+      - name: Isolated checks
+        run: npm run ci:local
+
+  # Windows 单 exe；体积上限与 desktop/package.mjs 一致。
+  desktop-windows:
+    needs: checks
+    if: needs.checks.outputs.code == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Build dashboard
+        run: |
+          npm --prefix dashboard ci
+          npm run dashboard:build
+
+      # build.mjs 以 --offline --locked 调用 cargo，依赖先按 Cargo.lock 取到本地。
+      - name: Fetch Rust dependencies
+        working-directory: desktop
+        run: |
+          rustc --version
+          cargo --version
+          cargo fetch --locked
+
+      - name: Build desktop exe
+        env:
+          TOKEN_LENS_DIST_DIR: ${{ github.workspace }}\dashboard\dist
+        run: node desktop/build.mjs
+
+      - name: Check exe size
+        run: |
+          $exe = @(Get-ChildItem desktop/dist -Filter 'token-lens-*.exe')
+          if ($exe.Count -ne 1) { throw "Expected one desktop exe, found $($exe.Count)." }
+          $size = $exe[0].Length
+          Write-Output "$($exe[0].Name): $size bytes"
+          if ($size -gt 30000000) { throw "Desktop exe exceeds 30,000,000 bytes: $size" }
+
+  # macOS arm64 dmg；体积上限在 desktop/macos.mjs 里由构建断言。runner 自带图形会话，冒烟会真正打开窗口。
+  desktop-macos:
+    needs: checks
+    if: needs.checks.outputs.code == 'true'
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Build dashboard
+        run: |
+          npm --prefix dashboard ci
+          npm run dashboard:build
+
+      - name: Fetch Rust dependencies
+        working-directory: desktop
+        run: |
+          rustc --version
+          cargo --version
+          cargo fetch --locked
+
+      - name: Build desktop dmg
+        env:
+          TOKEN_LENS_DIST_DIR: ${{ github.workspace }}/dashboard/dist
+        run: node desktop/build.mjs
+
+      - name: Smoke test
+        run: |
+          dmg=(desktop/dist/token-lens-*-macos-arm64.dmg)
+          if [ "${#dmg[@]}" -ne 1 ]; then echo "Expected one desktop dmg, found ${#dmg[@]}."; exit 1; fi
+          node desktop/smoke-macos.mjs "${dmg[0]}"

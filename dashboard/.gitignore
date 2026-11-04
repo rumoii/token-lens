@@ -1,0 +1,12 @@
+.vercel/
+.netlify/
+.env*
+.mcp.json
+.claude/
+.codex/
+.kimi/
+.qwen/
+.idea/
+.vscode/
+.vite/
+tmp/

@@ -1,0 +1,44 @@
+{
+  "name": "token-lens",
+  "version": "1.0.1",
+  "description": "Lightweight, local-first token usage and cost analytics dashboard for AI coding tools.",
+  "main": "src/core/cli.js",
+  "bin": {
+    "lens": "bin/lens.js",
+    "token-lens": "bin/lens.js"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/core/cli.js serve",
+    "collect": "node src/core/cli.js collect",
+    "summary": "node src/core/cli.js summary",
+    "test": "node scripts/verify-local.mjs core",
+    "test:core": "node scripts/verify-local.mjs core",
+    "dashboard:test": "node scripts/verify-local.mjs dashboard",
+    "dashboard:build": "npm --prefix dashboard run build",
+    "dashboard:typecheck": "npm --prefix dashboard run typecheck",
+    "dashboard:dev": "npm --prefix dashboard run dev",
+    "ci:local": "node scripts/verify-local.mjs all"
+  },
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rumoii/token-lens.git"
+  },
+  "keywords": [
+    "token",
+    "lens",
+    "ai",
+    "claude",
+    "codex",
+    "qwen",
+    "usage",
+    "cost",
+    "local-dashboard"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "private": true
+}

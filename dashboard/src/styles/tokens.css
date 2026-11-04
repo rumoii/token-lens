@@ -1,0 +1,284 @@
+/*
+ * Token Lens 设计令牌。
+ *
+ * 数值取自 Claude Design System（open-claude-ui, MIT, 作者 Caho1）逆向出的
+ * 表面阶梯、透明度阶梯、阴影与圆角矩阵；实现与命名是本仓库自己的。
+ * 只取测量结果，不复制其代码。
+ *
+ * 命名规则：`--lens-*`。浅色为默认，`.dark` 覆盖。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* 表面：0 最底（侧栏），3 最高（浮层） */
+  --lens-surface-0: #f5f5f3;
+  --lens-surface-1: #fbfbf9;
+  --lens-surface-2: #ffffff;
+  --lens-surface-3: #ffffff;
+
+  /* 强调：陶土色。只用在一个页面的一处，多了就变成装饰 */
+  --lens-clay: #d97757;
+  --lens-clay-hover: #c96442;
+  --lens-clay-wash: #fbf1ec;
+  --lens-clay-ink: #b5532f;
+  --lens-clay-glow: rgb(217 119 87 / 0.25);
+
+  /* 陶土色阶：Tailwind 无法给 var() 颜色加透明度，淡色必须写成实色变量 */
+  --lens-clay-20: #f2ded6;
+  --lens-clay-35: #eabda9;
+  --lens-clay-55: #e29b81;
+  --lens-clay-75: #dc8a6c;
+
+  /* 工具磁贴：白底圆角磁贴 + 环；深底给深色 logo，首字母永远白色 */
+  --lens-tile: #ffffff;
+  --lens-tile-ring: hsl(40 6% 10% / 0.10);
+  --lens-tile-dark: #18181b;
+  --lens-tile-dark-ring: hsl(0 0% 100% / 0.14);
+  --lens-tile-ink: #ffffff;
+
+  /* 热力色阶：无用量 → 最热，共四档 */
+  --lens-heat-0: hsl(40 8% 10% / 0.06);
+  --lens-heat-1: #f0d3c5;
+  --lens-heat-2: #e6a98f;
+  --lens-heat-3: #dc8466;
+  --lens-heat-4: #c4603e;
+
+  /* 线：全部走 alpha，保证在任何表面上都不突兀 */
+  --lens-line: hsl(40 6% 10% / 0.09);
+  --lens-line-soft: hsl(40 6% 10% / 0.05);
+  --lens-line-strong: hsl(40 6% 10% / 0.16);
+  --lens-line-heavy: hsl(0 0% 8% / 0.35);
+  --lens-hairline: 1px;
+
+  /* 文本 */
+  --lens-text: #171716;
+  --lens-text-secondary: #55534e;
+  --lens-text-muted: #75736d;
+  --lens-text-faint: #a3a19b;
+
+  /* 品牌标记里的普通柱子：比 faint 实一点，深色下不至于沉进底色 */
+  --lens-mark-bar: #a3a19b;
+  --lens-text-inverse: #fbfbfa;
+
+  /* 语义色：与暖底色相容，不用纯红绿 */
+  --lens-ok: #3f8f5f;
+  --lens-warn: #b07d3c;
+  --lens-danger: #c0533e;
+
+  /* 交互填充 */
+  --lens-fill-hover: hsl(40 6% 10% / 0.045);
+  --lens-fill-active: hsl(40 6% 10% / 0.08);
+
+  /* 阴影：两层（贴地 + 扩散），单层死黑会显廉价 */
+  --lens-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 2px 8px 0 rgb(0 0 0 / 0.04);
+  --lens-shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.05), 0 6px 16px 0 rgb(0 0 0 / 0.06);
+  --lens-shadow-panel: 0 0 0 1px var(--lens-line), 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --lens-shadow-popover: inset 0 0 0 1px var(--lens-line), 0 8px 24px rgb(0 0 0 / 0.10),
+    0 2px 6px rgb(0 0 0 / 0.06);
+  --lens-shadow-card: 0 0 0 1px var(--lens-line), 0 1px 2px rgb(0 0 0 / 0.03),
+    0 4px 14px -6px rgb(0 0 0 / 0.06);
+  --lens-shadow-hover: 0 0 0 1px var(--lens-line-strong), 0 6px 20px -6px rgb(0 0 0 / 0.12);
+  --lens-shadow-pop: 0 0 0 1px var(--lens-line), 0 10px 30px -6px rgb(0 0 0 / 0.16),
+    0 2px 6px rgb(0 0 0 / 0.05);
+  --lens-shadow-thumb: 0 0 0 1px hsl(40 6% 10% / 0.06), 0 1px 3px rgb(0 0 0 / 0.08);
+
+  /* 圆角阶梯：按角色分，不是全局一个值 */
+  --lens-radius-xs: 2px;
+  --lens-radius-sm: 4px;
+  --lens-radius-md: 6px;
+  --lens-radius-lg: 8px;
+  --lens-radius-panel: 10px;
+  --lens-radius-xl: 12px;
+  --lens-radius-2xl: 16px;
+  --lens-radius-pill: 999px;
+
+  /* 动效：只有两种，进场与状态切换 */
+  --lens-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* 快速咬合（近似 SPRING_SNAPPY 320/28）：tab、hover 位移等纯 CSS 过渡。
+     弹簧本体见 motion/presets.ts；需要真实过冲的控件用 motion 驱动。 */
+  --lens-ease-snap: cubic-bezier(0.34, 0.9, 0.3, 1);
+  /* 轻柔展开（近似 SPRING_GENTLE 380/18）：弹窗、抽屉、卡片入场 */
+  --lens-ease-gentle: cubic-bezier(0.22, 0.85, 0.25, 1);
+  --lens-dur-fast: 120ms;
+  --lens-dur: 160ms;
+  --lens-dur-gentle: 480ms;
+
+  /* 首页动效（速度定为 0.7×，下面的时长已经折算好）。弹簧取自 motion/presets.ts 的 SPRING_GENTLE 380/18，采样成 linear() */
+  --lens-spring-gentle: linear(
+    0, 0.11, 0.361, 0.649, 0.899, 1.076, 1.064, 1.016, 0.983, 0.966,
+    0.962, 0.968, 0.978, 0.989, 0.998, 1.004, 1.007, 1.007, 1.006, 1.004, 1
+  );
+  --lens-dur-enter: 900ms;
+  --lens-stagger-enter: 57ms;
+  --lens-dur-grow: 690ms;
+  --lens-dur-morph: 690ms;
+  --lens-dur-hover: 230ms;
+  --lens-dur-heat: 340ms;
+  --lens-dur-tip: 170ms;
+  --lens-dur-pulse: 1000ms;
+
+  /* 焦点环：内环压出边界 + 陶土外环漫反射 */
+  --lens-focus-ring: inset 0 0 0 1px var(--lens-surface-1), 0 0 0 1.5px var(--lens-clay),
+    0 0 6px 1px rgb(217 119 87 / 0.25);
+
+  /* 大数字的衬线字体 */
+  --lens-font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
+
+  /* 工具品牌色：深浅相同，.dark 不覆盖 */
+  --lens-tool-claude: #d97757;
+  --lens-tool-codex: #3b82f6;
+  --lens-tool-qwen: #7c5cff;
+  --lens-tool-dsh: #4d6bfe;
+  --lens-tool-grok: #111111;
+  --lens-tool-aider: #16a34a;
+  --lens-tool-pi: #e0478c;
+  --lens-tool-hermes: #7aa83b;
+  --lens-tool-cline: #6b7280;
+  --lens-tool-gemini: #14a6b8;
+  --lens-tool-cursor: #111111;
+  --lens-tool-opencode: #e9a23b;
+  --lens-tool-kilo: #b39b00;
+  --lens-tool-openhands: #84786b;
+  --lens-tool-goose: #262626;
+  --lens-tool-zed: #084ccf;
+  --lens-tool-continue: #6b5bd6;
+  --lens-tool-trae: #ef4444;
+  --lens-tool-copilot: #6e40c9;
+  --lens-tool-openclaw: #ef4444;
+  --lens-tool-mimo: #ff6900;
+  --lens-tool-kimi: #8b7cf6;
+  --lens-tool-minimax: #f43f5e;
+  --lens-tool-zcode: #000000;
+  --lens-tool-codebuddy: #6c5ce7;
+
+  /*
+   * 图表分类色：工具按第一次出现的先后依次占第 1、2、3… 号（lib/tool-colors.ts），
+   * 第 9 个起用 other。低饱和等明度方案（OKLCH C≈0.11，浅色 L≈0.70，深色 L≈0.66）。
+   * 相邻两色在色盲模拟下 OKLab ΔE×100 ≥ 8.9（深色 8.7），正常视觉 ≥ 16.4（深色 16.3）。
+   * 浅色对白底对比度 2.5–2.8:1，低于 3:1，靠图例和工具名标注兜底。改值或改顺序要重跑校验。
+   * 品牌色只用在 logo 磁贴上。
+   */
+  --lens-cat-1: #62a4e0;
+  --lens-cat-2: #d6895c;
+  --lens-cat-3: #42b599;
+  --lens-cat-4: #c49646;
+  --lens-cat-5: #d081ae;
+  --lens-cat-6: #7fae67;
+  --lens-cat-7: #8f97e3;
+  --lens-cat-8: #db8374;
+  --lens-cat-other: #a8a59e;
+}
+
+/* 视网膜下把 1px 收到物理 0.5px，避免发丝边显厚 */
+@media (min-resolution: 2dppx) {
+  :root { --lens-hairline: 0.5px; }
+}
+@media (min-resolution: 3dppx) {
+  :root { --lens-hairline: calc(1px / 3); }
+}
+
+.dark {
+  color-scheme: dark;
+
+  --lens-surface-0: #121211;
+  --lens-surface-1: #181817;
+  --lens-surface-2: #1e1e1c;
+  --lens-surface-3: #262624;
+
+  --lens-clay: #d97757;
+  --lens-clay-hover: #e3876a;
+  --lens-clay-wash: #2b1e19;
+  --lens-clay-ink: #e8957a;
+  --lens-clay-glow: rgb(217 119 87 / 0.30);
+
+  --lens-clay-20: #3a2a24;
+  --lens-clay-35: #55382e;
+  --lens-clay-55: #7d4a3a;
+  --lens-clay-75: #a35f49;
+
+  --lens-tile: #f3f2ee;
+  --lens-tile-ring: hsl(0 0% 100% / 0.10);
+  --lens-tile-dark: #2e2e33;
+  --lens-tile-dark-ring: hsl(0 0% 100% / 0.32);
+  --lens-tile-ink: #ffffff;
+
+  --lens-heat-0: hsl(0 0% 100% / 0.06);
+  --lens-heat-1: #4a2e24;
+  --lens-heat-2: #7a4433;
+  --lens-heat-3: #b25d43;
+  --lens-heat-4: #e3876a;
+
+  --lens-line: hsl(0 0% 100% / 0.08);
+  --lens-line-soft: hsl(0 0% 100% / 0.045);
+  --lens-line-strong: hsl(0 0% 100% / 0.16);
+  --lens-line-heavy: hsl(0 0% 100% / 0.30);
+
+  --lens-text: #eeede9;
+  --lens-text-secondary: #b3b1ab;
+  --lens-text-muted: #8e8c86;
+  --lens-text-faint: #66645f;
+
+  --lens-mark-bar: #8e8c86;
+  --lens-text-inverse: #151515;
+
+  --lens-ok: #6fb98a;
+  --lens-warn: #d6a663;
+  --lens-danger: #e0806b;
+
+  --lens-fill-hover: hsl(0 0% 100% / 0.05);
+  --lens-fill-active: hsl(0 0% 100% / 0.09);
+
+  --lens-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.40), 0 2px 8px 0 rgb(0 0 0 / 0.40);
+  --lens-shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.40), 0 6px 16px 0 rgb(0 0 0 / 0.40);
+  --lens-shadow-panel: 0 0 0 1px var(--lens-line), 0 1px 2px 0 rgb(0 0 0 / 0.40);
+  --lens-shadow-popover: inset 0 0 0 1px rgb(255 255 255 / 0.10), 0 8px 28px rgb(0 0 0 / 0.65);
+  --lens-shadow-card: 0 0 0 1px var(--lens-line), 0 1px 2px rgb(0 0 0 / 0.30),
+    0 6px 18px -6px rgb(0 0 0 / 0.45);
+  --lens-shadow-hover: 0 0 0 1px var(--lens-line-strong), 0 8px 24px -6px rgb(0 0 0 / 0.60);
+  --lens-shadow-pop: inset 0 0 0 1px hsl(0 0% 100% / 0.09), 0 12px 32px -6px rgb(0 0 0 / 0.70);
+  --lens-shadow-thumb: inset 0 0 0 1px hsl(0 0% 100% / 0.07), 0 1px 3px rgb(0 0 0 / 0.50);
+
+  --lens-focus-ring: inset 0 0 0 1px var(--lens-surface-1), 0 0 0 1.5px var(--lens-clay),
+    0 0 6px 1px rgb(217 119 87 / 0.25);
+
+  --lens-font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
+
+  /* 工具品牌色：与浅色相同 */
+  --lens-tool-claude: #d97757;
+  --lens-tool-codex: #3b82f6;
+  --lens-tool-qwen: #7c5cff;
+  --lens-tool-dsh: #4d6bfe;
+  --lens-tool-grok: #111111;
+  --lens-tool-aider: #16a34a;
+  --lens-tool-pi: #e0478c;
+  --lens-tool-hermes: #7aa83b;
+  --lens-tool-cline: #6b7280;
+  --lens-tool-gemini: #14a6b8;
+  --lens-tool-cursor: #111111;
+  --lens-tool-opencode: #e9a23b;
+  --lens-tool-kilo: #b39b00;
+  --lens-tool-openhands: #84786b;
+  --lens-tool-goose: #262626;
+  --lens-tool-zed: #084ccf;
+  --lens-tool-continue: #6b5bd6;
+  --lens-tool-trae: #ef4444;
+  --lens-tool-copilot: #6e40c9;
+  --lens-tool-openclaw: #ef4444;
+  --lens-tool-mimo: #ff6900;
+  --lens-tool-kimi: #8b7cf6;
+  --lens-tool-minimax: #f43f5e;
+  --lens-tool-zcode: #000000;
+  --lens-tool-codebuddy: #6c5ce7;
+
+  /* 图表分类色：同一组色相按深色背景重新取值，顺序与浅色相同 */
+  --lens-cat-1: #5698d3;
+  --lens-cat-2: #c97c52;
+  --lens-cat-3: #31a88d;
+  --lens-cat-4: #b68a39;
+  --lens-cat-5: #c275a1;
+  --lens-cat-6: #71a25c;
+  --lens-cat-7: #8989d4;
+  --lens-cat-8: #ce7573;
+  --lens-cat-other: #77746d;
+}
