@@ -2,14 +2,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronDown, X } from "lucide-react";
 import { api } from "../../lib/v1";
-import { formatChineseNumber } from "../../lib/format";
 import { periodAxis, periodLabel, periodQuery, periodRange } from "../../lib/period.js";
 import { toolOf } from "../../lib/tools.js";
 import { sortByToolOrder } from "../../lib/tool-colors";
 import { bucketRange, detailSearch, nextDim } from "../../lib/detail-query.js";
 import { Segmented } from "../../ui/lens/Segmented.jsx";
 import { ToolTile } from "../../ui/lens/ToolTile.jsx";
-import { AsyncBlock, Money, useResource, useToolColors } from "./shared.jsx";
+import { AsyncBlock, Money, useFormatTokens, useResource, useToolColors } from "./shared.jsx";
 import { Card, Nt, SecHead, useNarrow } from "./HomeParts.jsx";
 import { TrendChart, buildBuckets } from "./TrendChart.jsx";
 
@@ -49,6 +48,7 @@ async function loadAxis(period, base) {
  *           onPick: (value: string) => void }} props
  */
 function FilterMenu({ label, options, onPick }) {
+  const formatTokens = useFormatTokens();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const buttonRef = useRef(null);
@@ -108,7 +108,7 @@ function FilterMenu({ label, options, onPick }) {
               className="flex h-[34px] w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] text-ink outline-none hover:bg-[var(--lens-fill-hover)] focus-visible:bg-[var(--lens-fill-hover)]"
             >
               <span className="flex min-w-0 flex-1 items-center gap-2 truncate">{option.label}</span>
-              <span className="text-caption tabular-nums text-ink-muted">{formatChineseNumber(option.tokens)}</span>
+              <span className="text-caption tabular-nums text-ink-muted">{formatTokens(option.tokens)}</span>
             </button>
           ))}
         </div>
@@ -142,6 +142,7 @@ function Tag({ label, children, onRemove }) {
  *           controls: React.ReactNode }} props
  */
 export function DetailView({ period, detail, controls }) {
+  const formatTokens = useFormatTokens();
   const navigate = useNavigate();
   const narrow = useNarrow();
   const { order: toolSeq, colorOf } = useToolColors();
@@ -155,10 +156,11 @@ export function DetailView({ period, detail, controls }) {
     ...(detail.project ? { project: detail.project } : {})
   };
   // 选了某个时段时，汇总和表格只看这一段；趋势仍画整个周期，其余柱子变淡
-  const picked = detail.bucket ? bucketRange(detail.bucket) : null;
+  const picked = detail.bucket ? bucketRange(detail.bucket, base) : null;
+  const selectedBucket = picked || detail.bucket.includes("T") ? detail.bucket : "";
   const scoped = picked ? { ...base, ...picked, ...filter } : { ...base, ...filter };
   const pk = JSON.stringify([period, detail.tool, detail.model, detail.project]);
-  const sk = JSON.stringify([pk, detail.bucket]);
+  const sk = JSON.stringify([pk, selectedBucket]);
 
   const options = useResource(
     () => Promise.all([api.breakdown("source_model", base), api.breakdown("project", base)]),
@@ -249,10 +251,10 @@ export function DetailView({ period, detail, controls }) {
         <span title={detail.project}>{projectName(detail.project)}</span>
       </Tag>
     );
-  if (detail.bucket)
+  if (selectedBucket)
     tags.push(
       <Tag key="bucket" label="时间" onRemove={() => setFilter("bucket", "")}>
-        {bucketText(detail.bucket)}
+        {bucketText(selectedBucket)}
       </Tag>
     );
 
@@ -343,7 +345,7 @@ export function DetailView({ period, detail, controls }) {
               colorOf={colorOf}
               granularity={axis.granularity}
               weekdays={period.period === "week"}
-              selected={detail.bucket || null}
+              selected={selectedBucket || null}
               onPick={pickable ? (bucket) => setFilter("bucket", bucket) : null}
             />
           ) : null}
@@ -373,21 +375,23 @@ export function DetailView({ period, detail, controls }) {
           tokens: p.gross_tokens,
           cost: p.cost_usd,
           kinds: kindsOf(p),
-          drill: !detail.bucket && /^\d{4}-\d{2}(-\d{2})?$/.test(p.bucket) ? ["bucket", p.bucket] : null
+          drill: !selectedBucket && /^\d{4}-\d{2}(-\d{2})?$/.test(p.bucket) ? ["bucket", p.bucket] : null
         }));
     }
     if (t.kind === "model") {
       const byModel = new Map();
       for (const g of t.data.groups ?? []) {
         const key = g.model ?? null;
-        const row = byModel.get(key) || { key, tools: new Set(), gross_tokens: 0, cost: 0, priced: false, kinds: [0, 0, 0, 0] };
+        const row = byModel.get(key) || { key, tools: new Set(), gross_tokens: 0, cost: 0, priced: false, kinds: [null, null, null, null] };
         row.tools.add(g.source);
         row.gross_tokens += g.gross_tokens;
         if (g.cost_usd != null) {
           row.cost += Number(g.cost_usd);
           row.priced = true;
         }
-        KINDS.forEach(([field], i) => (row.kinds[i] += g[field] ?? 0));
+        KINDS.forEach(([field], i) => {
+          if (g[field] != null) row.kinds[i] = (row.kinds[i] ?? 0) + g[field];
+        });
         byModel.set(key, row);
       }
       return [...byModel.values()].map((r) => ({
@@ -447,9 +451,9 @@ export function DetailView({ period, detail, controls }) {
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: -1 }));
   const share = (r) => (sum ? r.tokens / sum : 0);
   const shareText = (r) => `${(share(r) * 100).toFixed(share(r) < 0.1 ? 1 : 0)}%`;
-  const kindCell = (v) => (v == null ? <span className="text-ink-muted" title="客户端没有上报">—</span> : formatChineseNumber(v));
+  const kindCell = (v) => (v == null ? <span className="text-ink-muted" title="客户端没有上报">—</span> : formatTokens(v));
   const tableUnallocated = table.data?.kind === "date" ? table.data.data.unallocated?.gross_tokens ?? 0 : 0;
-  const dimFiltered = { date: Boolean(detail.bucket), tool: Boolean(detail.tool), model: Boolean(detail.model), project: Boolean(detail.project) }[detail.dim];
+  const dimFiltered = { date: Boolean(selectedBucket), tool: Boolean(detail.tool), model: Boolean(detail.model), project: Boolean(detail.project) }[detail.dim];
 
   const th = (key, label, hint) => (
     <th className="whitespace-nowrap px-2.5 py-2 text-right text-caption font-normal text-ink-muted shadow-[inset_0_-1px_0_var(--lens-line)]">
@@ -479,7 +483,7 @@ export function DetailView({ period, detail, controls }) {
             >
               <div className="flex items-center justify-between gap-2.5">
                 <span className="min-w-0 truncate">{r.name}</span>
-                <b className="tabular-nums text-ink">{formatChineseNumber(r.tokens)}</b>
+                <b className="tabular-nums text-ink">{formatTokens(r.tokens)}</b>
               </div>
               {r.sub ? <div className="mt-0.5 truncate text-caption text-ink-muted">{r.sub}</div> : null}
               <div className="mt-1 flex flex-wrap gap-3 text-[12.5px] tabular-nums text-ink-secondary">

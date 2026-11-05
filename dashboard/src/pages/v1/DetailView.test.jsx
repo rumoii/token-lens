@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +21,7 @@ function totals(over = {}) {
   };
 }
 
-function stub() {
+function stub({ modelGroups } = {}) {
   const fn = vi.fn(async (url) => {
     const u = new URL(String(url));
     const path = u.pathname.replace("/api/v1", "");
@@ -37,7 +37,7 @@ function stub() {
     } else if (path === "/usage/breakdown" && by === "source_model") {
       body = {
         by,
-        groups: [
+        groups: modelGroups ?? [
           { key: "deepseek-flash", source: "dsh", model: "deepseek-flash", ...totals({ gross_tokens: 200 }) },
           { key: "gpt-6.1-sol", source: "codex", model: "gpt-6.1-sol", ...totals({ gross_tokens: 100 }) }
         ],
@@ -139,6 +139,20 @@ describe("明细视图", () => {
     expect(await screen.findByText(/不在这张表里/)).toBeInTheDocument();
   });
 
+  it.each([
+    ["全部未知的分项", [100, null, null, null], [null, null, null, null], ["100", "—", "—", "—"]],
+    ["部分已知的分项", [100, null, null, 0], [null, 50, null, 0], ["100", "50", "—", "0"]]
+  ])("按模型聚合保留%s", async (_, first, second, expected) => {
+    const group = (source, values) => ({
+      key: "same-model", model: "same-model", source,
+      ...totals({ gross_tokens: 100, input_tokens: values[0], output_tokens: values[1], cache_read_tokens: values[2], cache_write_tokens: values[3] })
+    });
+    stub({ modelGroups: [group("dsh", first), group("codex", second)] });
+    renderAt("/dashboard?period=week&view=detail&dim=model");
+    const row = (await screen.findByText("same-model")).closest("tr");
+    expect(within(row).getAllByRole("cell").slice(-4).map((cell) => cell.textContent)).toEqual(expected);
+  });
+
   it("换周期时保留工具筛选，去掉旧周期里的那个时段", async () => {
     stub();
     renderAt("/dashboard?period=week&view=detail&tool=dsh&bucket=2026-10-20&dim=tool");
@@ -148,6 +162,32 @@ describe("明细视图", () => {
     const q = new URLSearchParams(location.search);
     expect(q.get("tool")).toBe("dsh");
     expect(q.get("bucket")).toBeNull();
+  });
+
+  it.each([
+    ["2026-08", "2026-08-15", "2026-08-31"],
+    ["2026-11", "2026-11-01", "2026-11-04"]
+  ])("自定义周期的 %s 下钻只查询交集", async (bucket, from, to) => {
+    const fn = stub();
+    renderAt(`/dashboard?period=custom&from=2026-08-15&to=2026-11-04&view=detail&bucket=${bucket}&dim=tool`);
+    await screen.findByText("Codex", { selector: "span" });
+    for (const path of ["/usage/summary", "/usage/breakdown"]) {
+      const requests = urls(fn, path).filter((u) => path.endsWith("summary") || u.searchParams.get("by") === "source");
+      expect(requests.length).toBeGreaterThan(0);
+      expect(requests.every((u) => u.searchParams.get("from") === from && u.searchParams.get("to") === to)).toBe(true);
+    }
+    expect(urls(fn, "/usage/matrix").every((u) => u.searchParams.get("from") === "2026-08-15" && u.searchParams.get("to") === "2026-11-04")).toBe(true);
+  });
+
+  it("非法 bucket 不显示时间标签，请求沿用当前周期", async () => {
+    const fn = stub();
+    renderAt("/dashboard?period=custom&from=2026-08-15&to=2026-11-04&view=detail&bucket=garbage");
+    await screen.findByText(/不在这张表里/);
+    expect(screen.queryByRole("button", { name: "去掉时间筛选" })).not.toBeInTheDocument();
+    for (const path of ["/usage/summary", "/usage/timeseries"]) {
+      expect(urls(fn, path).length).toBeGreaterThan(0);
+      expect(urls(fn, path).every((u) => u.searchParams.get("from") === "2026-08-15" && u.searchParams.get("to") === "2026-11-04")).toBe(true);
+    }
   });
 
   it("页头的「概览」切回首页概览", async () => {

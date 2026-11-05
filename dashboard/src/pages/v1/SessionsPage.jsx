@@ -2,14 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, ChevronDown, ChevronRight, X } from "lucide-react";
 import { api } from "../../lib/v1";
-import { formatChineseNumber } from "../../lib/format";
 import { toolOf } from "../../lib/tools.js";
 import { detailSearch } from "../../lib/detail-query.js";
 import { Button } from "../../ui/lens/Button.jsx";
 import { EmptyState } from "../../ui/lens/EmptyState.jsx";
 import { SidePanel } from "../../ui/lens/SidePanel.jsx";
 import { ToolTile } from "../../ui/lens/ToolTile.jsx";
-import { AsyncBlock, Money, PageScroll, useResource, useToolColors, useSyncState } from "./shared.jsx";
+import { AsyncBlock, Money, PageScroll, useFormatTokens, useResource, useToolColors, useSyncState } from "./shared.jsx";
 import { Card, Nt, useNarrow } from "./HomeParts.jsx";
 
 const PAGE_SIZE = 50;
@@ -152,6 +151,7 @@ function SecTitle({ title, sub }) {
  * 只在面板打开时挂载，所以拉取跟着面板走，不给列表页增加请求。
  */
 function SessionDetail({ source, sessionId }) {
+  const formatTokens = useFormatTokens();
   const { colorOf } = useToolColors();
   // 会话通常跨几小时，按小时看分布
   const detail = useResource(
@@ -162,8 +162,9 @@ function SessionDetail({ source, sessionId }) {
     return <AsyncBlock refreshing={detail.refreshing} status={detail.status} error={detail.error} onRetry={detail.reload} rows={6}>{null}</AsyncBlock>;
   }
   const { session, models, timeline, kinds } = detail.data;
-  const cacheBase = Number(session.input_tokens || 0) + Number(session.cache_read_tokens || 0);
-  const hit = cacheBase > 0 && session.cache_read_tokens != null ? session.cache_read_tokens / cacheBase : null;
+  const cacheBase = session.input_tokens != null && session.cache_read_tokens != null
+    ? Number(session.input_tokens) + Number(session.cache_read_tokens) : null;
+  const hit = cacheBase > 0 ? session.cache_read_tokens / cacheBase : null;
   const peak = Math.max(1, ...timeline.map((p) => p.gross_tokens));
   const topModel = Math.max(1, ...models.map((m) => m.gross_tokens));
   const onlyTotals = kinds.cumulative > 0 && kinds.event === 0;
@@ -221,7 +222,7 @@ function SessionDetail({ source, sessionId }) {
                 {timeline.map((p) => (
                   <i
                     key={p.bucket}
-                    title={`${Number(p.bucket.slice(11, 13))}:00 · ${formatChineseNumber(p.gross_tokens)} token`}
+                    title={`${Number(p.bucket.slice(11, 13))}:00 · ${formatTokens(p.gross_tokens)} token`}
                     className="min-w-[2px] flex-1 rounded-t-[3px] bg-clay opacity-85"
                     style={{ height: `${Math.max(6, (p.gross_tokens / peak) * 100)}%` }}
                   />
@@ -251,7 +252,7 @@ function SessionDetail({ source, sessionId }) {
               <span key={KINDS[i][0]} className="inline-flex items-center gap-1.5">
                 <i className="h-[9px] w-[9px] rounded-[3px]" style={{ background: `var(--lens-cat-${i + 1})` }} />
                 {KINDS[i][1]}
-                <b className="font-medium tabular-nums">{v == null ? "—" : formatChineseNumber(v)}</b>
+                <b className="font-medium tabular-nums">{v == null ? "—" : formatTokens(v)}</b>
               </span>
             ))}
           </div>
@@ -303,6 +304,7 @@ function SessionDetail({ source, sessionId }) {
  * `?tool=&project=` 是筛选；`?source=&session=` 直接打开那一条（首页「最近会话」用）。
  */
 export function SessionsPage() {
+  const formatTokens = useFormatTokens();
   const narrow = useNarrow();
   const [params, setParams] = useSearchParams();
   const tool = params.get("tool") || "";
@@ -425,7 +427,7 @@ export function SessionsPage() {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2.5">
                       <span className="truncate text-[14px] font-medium text-ink">{title(row)}</span>
-                      <b className="text-[14px] tabular-nums text-ink">{formatChineseNumber(row.gross_tokens)}</b>
+                      <b className="text-[14px] tabular-nums text-ink">{formatTokens(row.gross_tokens)}</b>
                     </span>
                     <span className="block text-caption text-ink-muted">{toolOf(row.source).name}</span>
                     <span className="mt-1 flex flex-wrap gap-3 text-[12.5px] tabular-nums text-ink-secondary">

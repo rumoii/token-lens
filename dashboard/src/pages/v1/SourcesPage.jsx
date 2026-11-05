@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowRight, Check, ChevronRight, RefreshCw } from "lucide-react";
 import { api } from "../../lib/v1";
-import { formatChineseNumber } from "../../lib/format";
 import { periodRange } from "../../lib/period.js";
 import { TOOLS, toolOf } from "../../lib/tools.js";
 import { syncState } from "../../lib/sync-state.js";
 import { EmptyState } from "../../ui/lens/EmptyState.jsx";
 import { ToolTile } from "../../ui/lens/ToolTile.jsx";
-import { AsyncBlock, RelativeTime, PageScroll, useResource, useSyncState } from "./shared.jsx";
+import { AsyncBlock, RelativeTime, PageScroll, useFormatTokens, useResource, useSyncState } from "./shared.jsx";
 import { Card } from "./HomeParts.jsx";
 
 const RECORD_MODE = {
@@ -55,6 +54,7 @@ function runSentence(run) {
  * 来源一律用友好名；证据等级、累计型这些说法改成人话，原文收进「技术细节」。
  */
 export function SourcesPage() {
+  const formatTokens = useFormatTokens();
   const { hash } = useLocation();
   const sources = useResource(() => api.sources(), []);
   const month = useResource(() => {
@@ -178,7 +178,7 @@ export function SourcesPage() {
               </span>
             </div>
             <div className="text-[12.5px] text-ink-muted">
-              最近一次使用 <RelativeTime iso={item.last_observed_at} /> · 本月 {formatChineseNumber(monthBy.get(item.source) || 0)} token ·{" "}
+              最近一次使用 <RelativeTime iso={item.last_observed_at} /> · 本月 {formatTokens(monthBy.get(item.source) || 0)} token ·{" "}
               {item.records.toLocaleString("en-US")} 条记录
             </div>
           </div>

@@ -3,11 +3,10 @@ import { motion } from "motion/react";
 import { ArrowRight, Check, ChevronRight, Lock } from "lucide-react";
 import { ApiError, api } from "../../lib/v1";
 import { syncState } from "../../lib/sync-state.js";
-import { formatChineseNumber } from "../../lib/format";
 import { toolOf, TOOLS } from "../../lib/tools.js";
 import { Button } from "../../ui/lens/Button.jsx";
 import { ToolTile } from "../../ui/lens/ToolTile.jsx";
-import { AsyncBlock, useResource, useSyncState } from "./shared.jsx";
+import { AsyncBlock, useFormatTokens, useResource, useSyncState } from "./shared.jsx";
 
 function Mark48() {
   return (
@@ -32,6 +31,7 @@ function Mark48() {
  * @param {{ onEnter: () => void }} props
  */
 export function OnboardingPage({ onEnter }) {
+  const formatTokens = useFormatTokens();
   const sync = useSyncState();
   const [step, setStep] = useState("discover");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -115,7 +115,7 @@ export function OnboardingPage({ onEnter }) {
                   className="font-serif text-[20px] font-semibold leading-[1.2] tabular-nums text-ink lg:text-[26px]"
                   title={totals ? `${Math.round(totals.gross_tokens).toLocaleString("en-US")} token` : undefined}
                 >
-                  {totals ? formatChineseNumber(totals.gross_tokens) : "—"}
+                  {totals ? formatTokens(totals.gross_tokens) : "—"}
                 </div>
                 <div className="text-[12.5px] text-ink-muted">token</div>
               </div>

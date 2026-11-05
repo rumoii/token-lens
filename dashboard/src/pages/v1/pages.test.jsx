@@ -107,6 +107,23 @@ describe("v1 pages", () => {
     );
   });
 
+  it.each([
+    [null, 100, "—"],
+    [100, null, "—"],
+    [null, null, "—"],
+    [100, 100, "50%"],
+    [0, 100, "100%"],
+    [0, 0, "—"]
+  ])("会话缓存命中：输入 %s，读缓存 %s 显示 %s", async (input_tokens, cache_read_tokens, expected) => {
+    stubFetch((path) => ({ body: path.includes("/sessions/detail") ? {
+      session: { source: "codex", session_id: "cache-test", ...totals({ input_tokens, cache_read_tokens }) },
+      models: [], timeline: [], kinds: { event: 1, cumulative: 0 }, snapshot: SNAPSHOT
+    } : { items: [], next_cursor: null, snapshot: SNAPSHOT } }));
+    render(<MemoryRouter initialEntries={["/sessions?source=codex&session=cache-test"]}><SessionsPage /></MemoryRouter>);
+    const label = await screen.findByText("缓存命中");
+    expect(label.parentElement.textContent).toBe(`缓存命中${expected}`);
+  });
+
   it("来源页：同步成功后显示计数", async () => {
     stubFetch((path) => {
       if (path.includes("/sync")) {

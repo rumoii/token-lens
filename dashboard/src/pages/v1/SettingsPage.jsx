@@ -2,14 +2,13 @@ import { Fragment, useContext, useState } from "react";
 import { ChevronRight, ExternalLink, RefreshCw } from "lucide-react";
 import { api } from "../../lib/v1";
 import { CURRENCY_CNY, CURRENCY_USD, DEFAULT_RATES } from "../../lib/currency";
-import { formatChineseNumber } from "../../lib/format";
 import { TOKEN_UNIT_SYSTEMS } from "../../lib/token-format.js";
 import { useTheme } from "../../hooks/useTheme";
 import { Segmented } from "../../ui/lens/Segmented.jsx";
 import { EmptyState } from "../../ui/lens/EmptyState.jsx";
 import { useCurrency } from "../../ui/foundation/CurrencyProvider.jsx";
 import { TokenFormatContext } from "../../ui/foundation/TokenFormatProvider.jsx";
-import { AsyncBlock, PageScroll, useResource } from "./shared.jsx";
+import { AsyncBlock, PageScroll, useFormatTokens, useResource } from "./shared.jsx";
 import { Card, SecHead, useNarrow } from "./HomeParts.jsx";
 
 /** 价格状态与接口一致；本地用量的金额为 0。 */
@@ -148,6 +147,7 @@ function SettingRow({ title, hint, children }) {
  * 价格表版本、端口、数据目录收进最底部的「关于」。
  */
 export function SettingsPage() {
+  const formatTokens = useFormatTokens();
   const narrow = useNarrow();
   const tokenFormat = useContext(TokenFormatContext);
   const currency = useCurrency();
@@ -301,7 +301,7 @@ export function SettingsPage() {
               </span>
               <span className="mt-1 flex flex-wrap gap-3 text-[12.5px] text-ink-secondary">
                 {priceLine(model)}
-                <span>累计 {formatChineseNumber(byModel.get(model.model)?.tokens ?? 0)}</span>
+                <span>累计 {formatTokens(byModel.get(model.model)?.tokens ?? 0)}</span>
                 {model.billing === "plan" ? <span>套餐</span> : null}
               </span>
               <ConditionalPriceSummary model={model} />
@@ -353,7 +353,7 @@ export function SettingsPage() {
                   <StateBadge state={model.state} />
                 </td>
                 <td className="whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums text-ink-secondary shadow-[inset_0_-1px_0_var(--lens-line-soft)]">
-                  {formatChineseNumber(byModel.get(model.model)?.tokens ?? 0)}
+                  {formatTokens(byModel.get(model.model)?.tokens ?? 0)}
                 </td>
               </tr>
               {open ? (

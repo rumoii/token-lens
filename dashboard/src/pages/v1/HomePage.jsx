@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowDown, ArrowRight, ArrowUp, RefreshCw } from "lucide-react";
 import { api } from "../../lib/v1";
-import { formatChineseNumber } from "../../lib/format";
 import { useTween } from "../../lib/use-tween";
 import {
   bucketKeys,
@@ -23,7 +22,7 @@ import { SkeletonLines } from "../../ui/lens/EmptyState.jsx";
 import { Button } from "../../ui/lens/Button.jsx";
 import { isSuccessfulRun, syncState } from "../../lib/sync-state.js";
 import { ApiError } from "../../lib/v1";
-import { AsyncBlock, Money, useResource, useToolColors, useSyncState } from "./shared.jsx";
+import { AsyncBlock, Money, useFormatTokens, useResource, useToolColors, useSyncState } from "./shared.jsx";
 import { TrendChart, buildBuckets, nowBucketKey } from "./TrendChart.jsx";
 import { PeriodControl, ViewSwitch } from "./PeriodControl.jsx";
 import { DetailView } from "./DetailView.jsx";
@@ -32,9 +31,8 @@ import { Card, GoLink, Nt, SecHead, TweenNt, exact, useNarrow } from "./HomePart
 /* ---------- 数字与文案的小工具 ---------- */
 
 /** 大数字要拆成「数 + 单位」两段字号渲染。 */
-function zhSplit(value) {
-  const text = formatChineseNumber(value);
-  const matched = /^(-?[\d,.]+)(万亿|亿|万)?$/.exec(text);
+function splitNumber(text) {
+  const matched = /^(-?[\d,.]+)(万亿|亿|万|[KMBT])?$/.exec(text);
   return matched ? [matched[1], matched[2] || ""] : [text, ""];
 }
 
@@ -43,8 +41,9 @@ const enterAt = (n) => ({ animationDelay: `${n * 57}ms` });
 
 /** 会滚动的大数字：拆成「数 + 单位」两段字号渲染。 */
 function TweenBig({ value }) {
+  const formatTokens = useFormatTokens();
   const shown = useTween(value);
-  const [bigValue, bigUnit] = zhSplit(shown);
+  const [bigValue, bigUnit] = splitNumber(formatTokens(shown));
   return (
     <>
       {bigValue}
@@ -97,6 +96,7 @@ function DeltaPill({ value }) {
 /* ---------- 热力图 ---------- */
 
 function HeatCard({ yearMap, yearActive, yearStreak, narrow, recap }) {
+  const formatTokens = useFormatTokens();
   // 当前指着的格子（在 days 里的序号）。悬停记下，再点一下取消，触屏也能用
   const [hot, setHot] = useState(null);
   const today = new Date();
@@ -147,7 +147,7 @@ function HeatCard({ yearMap, yearActive, yearStreak, narrow, recap }) {
           {d.getMonth() + 1}月{d.getDate()}日 周{"日一二三四五六"[d.getDay()]}
         </div>
         <div className="text-ink-secondary tabular-nums">
-          {tokens ? `${formatChineseNumber(tokens)} token` : "没有用量"}
+          {tokens ? `${formatTokens(tokens)} token` : "没有用量"}
         </div>
       </div>
     );
@@ -230,6 +230,7 @@ function HeatCard({ yearMap, yearActive, yearStreak, narrow, recap }) {
 
 /** 热力图下面的年度小结：一共多少、最忙的一天、最长连续、用得最多的工具。 */
 function YearRecap({ recap, yearActive, yearStreak }) {
+  const formatTokens = useFormatTokens();
   const cell = "min-w-0 px-3.5 py-3";
   const busy = recap.busiest ? new Date(`${recap.busiest.key}T00:00:00`) : null;
   return (
@@ -249,7 +250,7 @@ function YearRecap({ recap, yearActive, yearStreak }) {
           {busy ? `${busy.getMonth() + 1}月${busy.getDate()}日` : "—"}
         </div>
         <div className="text-caption text-ink-muted">
-          {recap.busiest ? `${formatChineseNumber(recap.busiest.tokens)} token` : ""}
+          {recap.busiest ? `${formatTokens(recap.busiest.tokens)} token` : ""}
         </div>
       </div>
       <div className={cell}>

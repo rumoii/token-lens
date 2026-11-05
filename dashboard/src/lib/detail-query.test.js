@@ -23,4 +23,23 @@ describe("detail-query", () => {
     expect(bucketRange("2026-02")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
     expect(bucketRange("2026-10-19T08:00:00")).toBeNull();
   });
+
+  it("月桶与当前周期取交集，保留首尾边界", () => {
+    const range = { from: "2026-08-15", to: "2026-11-04" };
+    expect(bucketRange("2026-08", range)).toEqual({ from: "2026-08-15", to: "2026-08-31" });
+    expect(bucketRange("2026-11", range)).toEqual({ from: "2026-11-01", to: "2026-11-04" });
+    expect(bucketRange("2026-09", range)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(bucketRange("2026-07", range)).toBeNull();
+    expect(bucketRange("2026-08", { from: null, to: null })).toEqual({ from: "2026-08-01", to: "2026-08-31" });
+  });
+
+  it.each(["garbage", "2026-13", "2026-00", "2026-02-30"])("非法 bucket %s 当作未选中", (bucket) => {
+    expect(bucketRange(bucket)).toBeNull();
+    expect(readDetail(`?view=detail&bucket=${bucket}`).bucket).toBe("");
+  });
+
+  it("保留已有小时桶的读取语义", () => {
+    expect(readDetail("?bucket=2026-10-19T08:00:00").bucket).toBe("2026-10-19T08:00:00");
+    expect(bucketRange("2024-02-29")).toEqual({ from: "2024-02-29", to: "2024-02-29" });
+  });
 });

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./SettingsPage.jsx";
 import { ThemeProvider } from "../../ui/foundation/ThemeProvider.jsx";
+import { TokenFormatContext } from "../../ui/foundation/TokenFormatProvider.jsx";
 
 const BASE = { input: 2, output: 10, cache_read: 0.1, cache_write_5m: 2.5, cache_write_1h: null };
 const HIGH = { input: 4, output: 15, cache_read: 0.2, cache_write_5m: 5, cache_write_1h: null };
@@ -43,7 +44,7 @@ function showModels(models, narrow, groups = []) {
     else throw new Error(`Unexpected API request: ${path}`);
     return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
   }));
-  return render(<ThemeProvider><SettingsPage /></ThemeProvider>);
+  return render(<ThemeProvider><TokenFormatContext.Provider value={{ unitSystem: "english" }}><SettingsPage /></TokenFormatContext.Provider></ThemeProvider>);
 }
 
 function modelRow(name, narrow) {
@@ -86,6 +87,12 @@ describe.each([["桌面", false], ["窄屏", true]])("设置页条件价格 · %
     expect(row.queryByTitle(/Codex|Pi/)).not.toBeInTheDocument();
     expect(row.getByText(narrow ? "累计 200" : "200")).toBeInTheDocument();
     expect(within(modelRow(screen.getByText("plan-model"), narrow)).getByText("套餐")).toBeInTheDocument();
+  });
+
+  it("模型累计用量遵循英文单位", async () => {
+    showModels([model()], narrow, [{ source: "codex", model: "gpt-6.1-sol", gross_tokens: 1200000 }]);
+    const row = within(modelRow(await screen.findByText("gpt-6.1-sol"), narrow));
+    expect(row.getByText(narrow ? "累计 1.2M" : "1.2M")).toBeInTheDocument();
   });
 
   it("分档摘要常驻，展开所有档位、缺失单价与全部计价标记", async () => {

@@ -38,7 +38,7 @@ function lensDevBridge() {
           proxy: {
             "/api": {
               target: apiTarget,
-              changeOrigin: false,
+              changeOrigin: true,
               // 写入接口要求同源：把 Origin 改写成目标源，避免开发端口被 403
               configure(proxy) {
                 proxy.on("proxyReq", (proxyReq) => {

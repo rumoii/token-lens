@@ -11,12 +11,13 @@ const FILTER_KEYS = ["tool", "model", "project", "bucket"];
 export function readDetail(search) {
   const q = new URLSearchParams(search || "");
   const dim = q.get("dim");
+  const bucket = q.get("bucket") || "";
   return {
     view: q.get("view") === "detail" ? "detail" : "overview",
     tool: q.get("tool") || "",
     model: q.get("model") || "",
     project: q.get("project") || "",
-    bucket: q.get("bucket") || "",
+    bucket: bucketRange(bucket) || /^\d{4}-\d{2}-\d{2}T\d{2}:00:00$/.test(bucket) ? bucket : "",
     dim: DETAIL_DIMS.includes(dim) ? dim : "date"
   };
 }
@@ -47,15 +48,24 @@ export function nextDim(key) {
 }
 
 /**
- * 一个时间桶对应的日期范围。接口只能按天过滤，所以小时桶返回 null（不支持下钻）。
+ * 一个时间桶对应的日期范围，与给定周期取交集。小时桶不支持按天过滤，返回 null。
  *
  * @param {string} bucket "2026-10-19" 或 "2026-10"
+ * @param {{ from: string|null, to: string|null }} [range]
  * @returns {{ from: string, to: string }|null}
  */
-export function bucketRange(bucket) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(bucket)) return { from: bucket, to: bucket };
-  const m = /^(\d{4})-(\d{2})$/.exec(bucket);
-  if (!m) return null;
-  const last = new Date(Number(m[1]), Number(m[2]), 0).getDate();
-  return { from: `${bucket}-01`, to: `${bucket}-${String(last).padStart(2, "0")}` };
+export function bucketRange(bucket, range) {
+  const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(bucket);
+  if (!m || Number(m[2]) < 1 || Number(m[2]) > 12) return null;
+  const end = new Date(`${m[1]}-${m[2]}-01T00:00:00`);
+  end.setMonth(end.getMonth() + 1, 0);
+  const last = end.getDate();
+  if (m[3] && (Number(m[3]) < 1 || Number(m[3]) > last)) return null;
+  const from = m[3] ? bucket : `${bucket}-01`;
+  const to = m[3] ? bucket : `${bucket}-${String(last).padStart(2, "0")}`;
+  const clipped = {
+    from: range?.from && range.from > from ? range.from : from,
+    to: range?.to && range.to < to ? range.to : to
+  };
+  return clipped.from <= clipped.to ? clipped : null;
 }

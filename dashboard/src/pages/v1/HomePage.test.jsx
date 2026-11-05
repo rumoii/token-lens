@@ -5,6 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HomePage } from "./HomePage.jsx";
 import { TrendChart } from "./TrendChart.jsx";
+import { TokenFormatContext } from "../../ui/foundation/TokenFormatProvider.jsx";
+import * as tween from "../../lib/use-tween";
 
 const SNAPSHOT = { generated_at: "2026-10-21T00:00:00.000Z", price_version: "pv", tz: "UTC", filters: {} };
 
@@ -107,6 +109,17 @@ describe("HomePage", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("概览主数字的数值和单位遵循英文设置", async () => {
+    vi.spyOn(tween, "useTween").mockImplementation((value) => value);
+    stubApi((u) => u.pathname.endsWith("/usage/summary") ? summaryOf(1200000) : routes(u));
+    render(<MemoryRouter initialEntries={["/dashboard?period=week"]}>
+      <TokenFormatContext.Provider value={{ unitSystem: "english" }}><HomePage /></TokenFormatContext.Provider>
+    </MemoryRouter>);
+    const number = await screen.findByTitle("1,200,000 token");
+    expect(number.textContent).toBe("1.2Mtoken");
+    expect(number.querySelector("span")).toHaveTextContent("M");
   });
 
   it("占比不过半时不说「大部分」，活跃天数只算到今天，快照用量单独说明", async () => {

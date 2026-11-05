@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { formatChineseNumber } from "../../lib/format";
 import { bucketKeys } from "../../lib/period.js";
 import { toolOf } from "../../lib/tools.js";
-import { Money } from "./shared.jsx";
+import { Money, useFormatTokens } from "./shared.jsx";
 
 const ymd = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -26,10 +25,10 @@ export function buildBuckets(rows, axis, now = new Date()) {
   const nowKey = nowBucketKey(axis.granularity, now);
   const map = new Map();
   for (const row of rows ?? []) {
-    const entry = map.get(row.bucket) || { bucket: row.bucket, by: new Map(), total: 0, cost: 0, future: false };
+    const entry = map.get(row.bucket) || { bucket: row.bucket, by: new Map(), total: 0, cost: null, future: false };
     entry.by.set(row.key, row.gross_tokens);
     entry.total += row.gross_tokens;
-    entry.cost += Number(row.cost_usd || 0);
+    if (row.cost_usd != null) entry.cost = (entry.cost ?? 0) + Number(row.cost_usd);
     map.set(row.bucket, entry);
   }
   for (const key of bucketKeys(axis.granularity, axis)) {
@@ -64,6 +63,7 @@ export function TrendChart({
   grow = false,
   highlight = null
 }) {
+  const formatTokens = useFormatTokens();
   const [hover, setHover] = useState(null);
   const nice = niceCeil(Math.max(...buckets.map((b) => b.total), 1));
   const nonzero = buckets.filter((b) => b.total > 0);
@@ -132,7 +132,7 @@ export function TrendChart({
             className="absolute left-0 w-10 whitespace-nowrap text-right text-[11px] tabular-nums text-ink-faint"
             style={{ top: `calc(8px + (100% - 30px) * ${1 - f})`, transform: "translateY(-50%)" }}
           >
-            {f ? formatChineseNumber(nice * f) : "0"}
+            {f ? formatTokens(nice * f) : "0"}
           </span>
           <span
             className="absolute left-11 right-0 h-px bg-[var(--lens-line-soft)]"
@@ -197,7 +197,7 @@ export function TrendChart({
         >
           <div className="border-t-[1.5px] border-dashed border-ink-secondary opacity-55" />
           <span className="absolute right-0 top-[-20px] rounded bg-surface-2 px-1 text-[11px] text-ink-secondary">
-            平均 {formatChineseNumber(avg)}
+            平均 {formatTokens(avg)}
           </span>
         </div>
       ) : null}
@@ -229,7 +229,7 @@ export function TrendChart({
             <div className="flex items-center justify-between gap-3">
               <b>{tipLabel(tip.bucket)}</b>
               <span className="tabular-nums">
-                {tip.future ? "还没到" : tip.total ? formatChineseNumber(tip.total) : "没有用量"}
+                {tip.future ? "还没到" : tip.total ? formatTokens(tip.total) : "没有用量"}
               </span>
             </div>
             {order
@@ -238,7 +238,7 @@ export function TrendChart({
                 <div key={id} className="mt-1 flex items-center gap-2">
                   <i className="h-2 w-2 shrink-0 rounded-[3px]" style={{ background: colorOf(id) }} />
                   <span className="min-w-0 flex-1 text-ink-secondary">{toolOf(id).name}</span>
-                  <span className="tabular-nums">{formatChineseNumber(tip.by.get(id))}</span>
+                  <span className="tabular-nums">{formatTokens(tip.by.get(id))}</span>
                 </div>
               ))}
             {tip.total ? (

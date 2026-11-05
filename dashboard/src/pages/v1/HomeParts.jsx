@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { formatChineseNumber } from "../../lib/format";
+import { useFormatTokens } from "./shared.jsx";
 import { useTween } from "../../lib/use-tween";
 
 // 首页概览和明细共用的小零件。
@@ -10,19 +10,21 @@ export const exact = (v) => `${Math.round(v).toLocaleString("en-US")} token`;
 
 /** 缩写值。缩写过的 token 数一律带精确值悬停。 */
 export function Nt({ value }) {
+  const formatTokens = useFormatTokens();
   return (
     <span className="tabular-nums" title={exact(value)}>
-      {formatChineseNumber(value)}
+      {formatTokens(value)}
     </span>
   );
 }
 
 /** 会滚动的 token 数。title 给精确的目标值。 */
 export function TweenNt({ value, delayMs }) {
+  const formatTokens = useFormatTokens();
   const shown = useTween(value, delayMs === undefined ? undefined : { delayMs });
   return (
     <span className="tabular-nums" title={exact(value)}>
-      {formatChineseNumber(shown)}
+      {formatTokens(shown)}
     </span>
   );
 }

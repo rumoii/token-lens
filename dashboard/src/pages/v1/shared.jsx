@@ -3,7 +3,8 @@ import { AlertCircle } from "lucide-react";
 import { ApiError, api, invalidateReadRequests } from "../../lib/v1";
 import { OTHER_COLOR, assignToolColors, toolOrder } from "../../lib/tool-colors";
 import { syncState } from "../../lib/sync-state.js";
-import { formatChineseNumber, formatUsdCurrency } from "../../lib/format";
+import { formatUsdCurrency } from "../../lib/format";
+import { formatTokenCount } from "../../lib/token-format.js";
 import { Button } from "../../ui/lens/Button.jsx";
 import { SkeletonLines } from "../../ui/lens/EmptyState.jsx";
 import { useCurrency } from "../../ui/foundation/CurrencyProvider.jsx";
@@ -93,8 +94,7 @@ export function useToolColors() {
  */
 export function useFormatTokens() {
   const tokenFormat = useContext(TokenFormatContext);
-  return (value) =>
-    tokenFormat?.unitSystem === "chinese" ? formatChineseNumber(value, { decimals: 2 }) : compact(value);
+  return (value) => formatTokenCount(value, { unitSystem: tokenFormat?.unitSystem ?? "chinese" });
 }
 
 /**
@@ -145,19 +145,6 @@ export function Tokens({ value, short = false }) {
     return <span className="text-ink-muted" title="客户端没有上报该字段">—</span>;
   }
   return <span className="tabular">{short ? formatTokens(value) : value.toLocaleString("en-US")}</span>;
-}
-
-/**
- * 大数字缩写：1.03M / 4.7K。给空间紧的地方用，精确值仍在 title 里。
- *
- * @param {number} value
- */
-export function compact(value) {
-  const abs = Math.abs(value);
-  if (abs >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-  return String(value);
 }
 
 /**
