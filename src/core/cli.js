@@ -118,9 +118,29 @@ async function handleSummary() {
 async function handleReprice() {
   const { Ledger } = await import('./db/ledger.js');
   const { costOf, PRICE_VERSION } = await import('./pricing/engine.js');
-  const ledger = new Ledger(resolveDataDir().ledgerPath);
-  const changed = ledger.write.reprice(costOf, PRICE_VERSION);
-  ledger.close();
+  const { acquireSyncLock, isSyncBusyError } = await import('./sync-lock.js');
+  const paths = resolveDataDir();
+  let lock = null;
+  let ledger = null;
+  let changed;
+  try {
+    lock = acquireSyncLock(paths.dataDir);
+    ledger = new Ledger(paths.ledgerPath);
+    changed = ledger.write.reprice(costOf, PRICE_VERSION);
+  } catch (err) {
+    if (isSyncBusyError(err)) {
+      console.error('❌ 重定价忙碌：已有同步或采集任务在执行中，本次重定价已中止。');
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  } finally {
+    try {
+      if (ledger) ledger.close();
+    } finally {
+      if (lock) lock.release();
+    }
+  }
   console.log(`已按价格版本 ${PRICE_VERSION} 重算 ${changed} 条记录的金额`);
 }
 

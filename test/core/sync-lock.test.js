@@ -16,6 +16,8 @@ import {
 import { runIngestion } from '../../src/core/ingest.js';
 import { resolveDataDir } from '../../src/core/paths.js';
 import { Ledger } from '../../src/core/db/ledger.js';
+import { openLedger } from '../../src/core/db/open.js';
+import { LedgerWriter } from '../../src/core/db/write.js';
 
 test('旧库与采集账本可在同一目录使用不同文件，并协调同一把锁', { timeout: 60_000 }, () => {
   const dir = createTempDir();
@@ -332,6 +334,47 @@ test('正常结束及持有进程被终止后均可重新获取锁', { timeout: 
   const recoveredLock = acquireSyncLock(dir);
   assert.ok(recoveredLock);
   recoveredLock.release();
+});
+
+test('CLI reprice 遇采集锁时以 1 退出且账本不变，释放锁后可重试', { timeout: 60_000 }, () => {
+  const dir = createTempDir();
+  let db;
+  let lock;
+  try {
+    db = openLedger(join(dir, 'ledger.db'));
+    new LedgerWriter(db).ingestBatch([{
+      source: 'codex', record_key: 'reprice-lock', model: 'gpt-6.1-sol', kind: 'event',
+      observed_at: '2026-10-10T00:00:00.000Z', input_tokens: 1000, output_tokens: 100,
+      cache_read_tokens: 0, cache_write_tokens: 0
+    }], { priceOf: () => ({ cost_micros: 7, price_version: 'old', price_source: 'test' }) });
+    const snapshot = () => ({
+      rows: db.prepare('SELECT * FROM usage_records').all(),
+      prices: db.prepare('SELECT * FROM pricing_snapshot').all(),
+      runs: db.prepare('SELECT * FROM ingest_runs').all()
+    });
+    const before = snapshot();
+    lock = acquireSyncLock(dir);
+    const busy = runNode([CLI, 'reprice', '--data-dir', dir], dir);
+    assert.equal(busy.status, 1, busy.stdout + busy.stderr);
+    assert.match(busy.stderr, /忙碌|已有同步或采集任务/);
+    assert.deepEqual(snapshot(), before, '忙碌时不得改变用量、金额、版本或价格快照');
+    lock.release();
+    lock = null;
+
+    const retry = runNode([CLI, 'reprice', '--data-dir', dir], dir);
+    assert.equal(retry.status, 0, retry.stdout + retry.stderr);
+    assert.match(retry.stdout, /重算 1 条记录/);
+    const after = snapshot();
+    assert.notEqual(after.rows[0].price_version, 'old');
+    assert.equal(after.rows[0].input_tokens, before.rows[0].input_tokens);
+    assert.equal(after.rows[0].revision, before.rows[0].revision);
+    const released = acquireSyncLock(dir);
+    released.release();
+  } finally {
+    lock?.release();
+    db?.close();
+    cleanTempDir(dir);
+  }
 });
 
 test('CLI、HTTP 与启动采集均受内核锁保护', { timeout: 60_000 }, async (t) => {

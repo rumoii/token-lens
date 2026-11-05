@@ -145,12 +145,12 @@ export class LedgerWriter {
       UPDATE usage_records SET project_key = ? WHERE id = ?
     `);
 
-    // 项目与最后活动时间只在这次读到了值时覆盖：解析器这次没给出，不等于原来的值作废
+    // 项目只在这次读到了值时覆盖；最后活动时间由有效记录统一提供
     this.#update = this.#db.prepare(`
       UPDATE usage_records
       SET content_hash = ?, kind = ?,
           session_id = ?, project_key = coalesce(?, project_key), model = ?, provider = ?, observed_at = ?,
-          ended_at = coalesce(?, ended_at),
+          ended_at = ?,
           input_tokens = ?, output_tokens = ?, cache_read_tokens = ?, cache_write_tokens = ?,
           cache_write_5m_tokens = ?, cache_write_1h_tokens = ?,
           revision = revision + 1,
@@ -229,10 +229,11 @@ export class LedgerWriter {
           continue;
         }
 
-        const kind = r.kind || 'event';
-        const hash = payloadHash({ ...r, kind });
         const existing = this.#selectKey.get(r.record_key);
-        const price = priceOf(r) || { cost_micros: null, price_version: null, price_source: null };
+        const effective = existing ? { ...r, ended_at: r.ended_at ?? existing.ended_at } : r;
+        const kind = effective.kind || 'event';
+        const hash = payloadHash({ ...effective, kind });
+        const price = priceOf(effective) || { cost_micros: null, price_version: null, price_source: null };
 
         if (!existing) {
           const info = this.#insert.run(
@@ -297,11 +298,11 @@ export class LedgerWriter {
         }
 
         this.#update.run(
-          hash, kind, r.session_id ?? null, r.project_key ?? null, r.model ?? null, r.provider ?? null, r.observed_at,
-          r.ended_at ?? null,
-          r.input_tokens ?? null, r.output_tokens ?? null,
-          r.cache_read_tokens ?? null, r.cache_write_tokens ?? null,
-          r.cache_write_5m_tokens ?? null, r.cache_write_1h_tokens ?? null,
+          hash, kind, effective.session_id ?? null, effective.project_key ?? null, effective.model ?? null, effective.provider ?? null, effective.observed_at,
+          effective.ended_at ?? null,
+          effective.input_tokens ?? null, effective.output_tokens ?? null,
+          effective.cache_read_tokens ?? null, effective.cache_write_tokens ?? null,
+          effective.cache_write_5m_tokens ?? null, effective.cache_write_1h_tokens ?? null,
           price.price_version, price.cost_micros, price.price_source,
           sourceFile, parserRev,
           existing.id
@@ -439,22 +440,25 @@ export class LedgerWriter {
    * @returns {number} 重算的行数
    */
   reprice(priceOf, version) {
-    const rows = this.#db.prepare(`
-      SELECT id, record_key, model, provider, kind, observed_at, ended_at,
-             input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-             cache_write_5m_tokens, cache_write_1h_tokens
-      FROM usage_records
-      WHERE active = 1 AND (price_version IS NULL OR price_version != ?)
-    `).all(version);
-
-    if (rows.length === 0) return 0;
-
-    const update = this.#db.prepare(`
-      UPDATE usage_records SET price_version = ?, cost_micros = ?, price_source = ? WHERE id = ?
-    `);
-
     this.#db.exec('BEGIN IMMEDIATE');
     try {
+      const rows = this.#db.prepare(`
+        SELECT id, record_key, model, provider, kind, observed_at, ended_at,
+               input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+               cache_write_5m_tokens, cache_write_1h_tokens
+        FROM usage_records
+        WHERE active = 1 AND (price_version IS NULL OR price_version != ?)
+      `).all(version);
+
+      if (rows.length === 0) {
+        this.#db.exec('COMMIT');
+        return 0;
+      }
+
+      const update = this.#db.prepare(`
+        UPDATE usage_records SET price_version = ?, cost_micros = ?, price_source = ? WHERE id = ?
+      `);
+
       for (const r of rows) {
         const price = priceOf({
           record_key: r.record_key,
@@ -481,11 +485,10 @@ export class LedgerWriter {
       `).run(version, JSON.stringify({ version }), new Date().toISOString().slice(0, 10));
 
       this.#db.exec('COMMIT');
+      return rows.length;
     } catch (err) {
       this.#db.exec('ROLLBACK');
       throw err;
     }
-
-    return rows.length;
   }
 }

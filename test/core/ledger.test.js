@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Ledger } from '../../src/core/db/ledger.js';
+import { openLedger } from '../../src/core/db/open.js';
+import { LedgerWriter, payloadHash } from '../../src/core/db/write.js';
 
 const base = {
   source: 'claude',
@@ -53,6 +55,72 @@ test('累计源增长：覆盖不累加', () => {
   assert.equal(totals.record_count, 1);
   assert.equal(totals.input_tokens, 3000);
   ledger.close();
+});
+
+const oldEnd = '2026-10-10T02:00:00.000Z';
+const newEnd = '2026-10-10T03:00:00.000Z';
+const timePrice = (r) => ({
+  cost_micros: r.input_tokens * (r.ended_at === oldEnd ? 2 : r.ended_at === newEnd ? 3 : 7),
+  price_version: 'time-v1', price_source: 'test:ended_at'
+});
+
+function cumulativeFixture(t) {
+  const db = openLedger(':memory:');
+  t.after(() => db.close());
+  const writer = new LedgerWriter(db);
+  const initial = { ...base, source: 'dsh', record_key: 'dsh|s1', kind: 'cumulative', ended_at: oldEnd };
+  const grown = { ...initial, input_tokens: 200, ended_at: null };
+  const options = { priceOf: timePrice };
+  writer.ingestBatch([initial], options);
+  return { db, writer, grown, options, read: () => db.prepare('SELECT * FROM usage_records').get() };
+}
+
+test('累计快照：null 结束时间沿用旧值，金额与 hash 对应同一条有效记录', (t) => {
+  const { writer, grown, options, read } = cumulativeFixture(t);
+  assert.equal(writer.ingestBatch([grown], options).updated, 1);
+  const stored = read();
+  const effective = { ...grown, ended_at: oldEnd };
+  assert.deepEqual(
+    { ended_at: stored.ended_at, cost_micros: stored.cost_micros, content_hash: stored.content_hash },
+    { ended_at: oldEnd, cost_micros: timePrice(effective).cost_micros, content_hash: payloadHash(effective) }
+  );
+  assert.equal(stored.revision, 2);
+  assert.equal(grown.ended_at, null, '不修改适配器的输入记录');
+});
+
+test('累计快照：相同 null 输入再次采集为 unchanged，revision 不变', (t) => {
+  const { writer, grown, options, read } = cumulativeFixture(t);
+  writer.ingestBatch([grown], options);
+  const before = read();
+  const stats = writer.ingestBatch([grown], options);
+  assert.equal(stats.unchanged, 1);
+  assert.equal(stats.updated, 0);
+  assert.deepEqual(read(), before);
+});
+
+test('累计快照：后来给出的新结束时间覆盖旧值，并重新计算金额和 hash', (t) => {
+  const { writer, grown, options, read } = cumulativeFixture(t);
+  writer.ingestBatch([grown], options);
+  const later = { ...grown, ended_at: newEnd };
+  assert.equal(writer.ingestBatch([later], options).updated, 1);
+  const stored = read();
+  assert.equal(stored.ended_at, newEnd);
+  assert.equal(stored.cost_micros, timePrice(later).cost_micros);
+  assert.equal(stored.content_hash, payloadHash(later));
+  assert.equal(stored.revision, 3);
+});
+
+test('累计快照：旧版按 null 时间存下的 hash 和金额在重读时修正一次', (t) => {
+  const { db, writer, grown, options, read } = cumulativeFixture(t);
+  db.prepare('UPDATE usage_records SET input_tokens = ?, content_hash = ?, cost_micros = ?, revision = 2')
+    .run(grown.input_tokens, payloadHash(grown), timePrice(grown).cost_micros);
+  assert.equal(writer.ingestBatch([grown], options).updated, 1);
+  const effective = { ...grown, ended_at: oldEnd };
+  assert.equal(read().cost_micros, timePrice(effective).cost_micros);
+  assert.equal(read().content_hash, payloadHash(effective));
+  assert.equal(read().revision, 3);
+  assert.equal(writer.ingestBatch([grown], options).unchanged, 1);
+  assert.equal(read().revision, 3);
 });
 
 test('累计源下降：不覆盖、记为异常', () => {
