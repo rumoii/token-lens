@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { discoverAll } from '../../src/core/discovery.js';
@@ -358,6 +358,12 @@ const absoluteRootCases = [
   ['LOCALAPPDATA', 'kimi', 'AppData/Local', 'kimi/sessions/p/a.jsonl']
 ];
 
+// Glob can return different case spellings for the same file on Windows or macOS.
+const fileIds = paths => [...new Set(paths.map(path => {
+  const { dev, ino } = statSync(path, { bigint: true });
+  return `${dev}:${ino}`;
+}))].sort();
+
 for (const [key, source, fallback, suffix] of absoluteRootCases) {
   test(`R2b paths: relative ${key} falls back independently of cwd`, () => isolated(({ home, file }) => {
     const expected = file(`${fallback}/${suffix}`);
@@ -368,7 +374,7 @@ for (const [key, source, fallback, suffix] of absoluteRootCases) {
         process.chdir(join(home, directory));
         for (const value of ['relative-root', 'relative-root\r\n', '', '\r\n']) {
           process.env[key] = value;
-          assert.deepEqual(normalize(discoverAll()[source]), normalize([expected]), `${key}=${JSON.stringify(value)}`);
+          assert.deepEqual(fileIds(discoverAll()[source]), fileIds([expected]), `${key}=${JSON.stringify(value)}`);
         }
       }
     } finally { process.chdir(savedCwd); }
@@ -379,7 +385,7 @@ for (const [key, source, fallback, suffix] of absoluteRootCases) {
     const expected = file(`absolute-root/${suffix}`);
     for (const value of [join(home, 'absolute-root'), `${join(home, 'absolute-root')}\r\n`]) {
       process.env[key] = value;
-      assert.deepEqual(normalize(discoverAll()[source]), normalize([expected]));
+      assert.deepEqual(fileIds(discoverAll()[source]), fileIds([expected]));
     }
   }));
 }
