@@ -25,6 +25,7 @@ function params(search) {
     from: search.get('from') || '',
     to: search.get('to') || '',
     tz: search.get('tz') || '',
+    fresh: search.get('fresh') || null,
     source: search.get('source') || null,
     model: search.get('model') || null,
     project: search.get('project') || null,

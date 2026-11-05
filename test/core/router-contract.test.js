@@ -93,3 +93,40 @@ test('路由实例各自持有发现缓存，不把扫描文件路径传给页�
   assert.equal(await discover(second), 2);
   assert.equal(await discover(first), 1);
 });
+
+test('路由契约：discovery fresh=1 立即重扫并更新缓存，重复参数只取首值', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000 });
+  let calls = 0;
+  let files = [];
+  const router = createRouter({
+    discover: () => { calls += 1; return { codex: files }; },
+    json: (_req, res, body, status = 200) => Object.assign(res, { body, status })
+  });
+  const get = async (query = '') => {
+    const res = {};
+    const url = `/api/v1/discovery${query}`;
+    assert.equal(await router({ url, method: 'GET' }, res, new URL(url, 'http://localhost').pathname), true);
+    assert.equal(res.status, 200);
+    assert.equal(JSON.stringify(res.body).includes('/private/'), false);
+    return res.body.sources;
+  };
+
+  assert.deepEqual(await get(), []);
+  assert.equal(calls, 1);
+  files = ['/private/session.jsonl'];
+  assert.deepEqual(await get(), []);
+  assert.equal(calls, 1, '普通请求在缓存期内不重扫');
+  const refreshed = await get('?fresh=1');
+  assert.equal(calls, 2, 'fresh=1 必须穿过路由参数解析并触发第二次扫描');
+  assert.deepEqual(refreshed, [{ source: 'codex', files: 1 }]);
+  assert.deepEqual(await get(), refreshed);
+  assert.equal(calls, 2, '强制重扫的结果必须成为后续普通请求的缓存');
+
+  files = [...files, '/private/second.jsonl'];
+  for (const query of ['?fresh=', '?fresh=0', '?fresh=true', '?fresh=0&fresh=1']) {
+    assert.deepEqual(await get(query), refreshed, query);
+    assert.equal(calls, 2, `${query} 不应强制扫描`);
+  }
+  assert.deepEqual(await get('?fresh=1&fresh=0'), [{ source: 'codex', files: 2 }]);
+  assert.equal(calls, 3, '重复参数只取首值 1，必须强制扫描');
+});
