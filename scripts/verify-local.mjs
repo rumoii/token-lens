@@ -4,6 +4,17 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// From process.env reads in src/core/discovery.js and src/core/adapters, plus legacy
+// oracle path overrides. Keep this list in sync when adding discovery variables.
+export const CLIENT_ENV_OVERRIDES = Object.freeze([
+  'XDG_DATA_HOME', 'OPENCODE_DB', 'KILO_DB', 'GEMINI_HOME', 'GOOSE_PATH_ROOT', 'COPILOT_HOME',
+  'OPENCLAW_HOME', 'OPENCLAW_STATE_DIR', 'KIMI_SHARE_DIR', 'MINIMAX_DATA_DIR',
+  'MIMOCODE_HOME', 'MIMOCODE_DB', 'MIMOCODE_DISABLE_CHANNEL_DB',
+  'OPENHANDS_CONVERSATIONS_DIR', 'OPENHANDS_PERSISTENCE_DIR',
+  'MAVIS_DATA_DIR', 'ZCODE_DATA_BASE_DIR', 'ZCODE_SESSION_DB_PATH', 'ZCODE_SESSION_DB',
+  'KIMI_HOME', 'CODEBUDDY_HOME', 'WORKBUDDY_HOME'
+]);
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dashboard = join(root, 'dashboard');
 const checks = {
@@ -63,7 +74,8 @@ function verify() {
     // A nested node --test must not inherit the caller's test-worker marker and skip its files.
     // Windows treats environment keys case-insensitively, including inherited variants.
     for (const key of Object.keys(env)) {
-      if (['DB_PATH', 'NODE_TEST_CONTEXT'].includes(key.toUpperCase()) || Object.hasOwn(overrides, key.toUpperCase())) delete env[key];
+      if (['DB_PATH', 'NODE_TEST_CONTEXT'].includes(key.toUpperCase()) ||
+          CLIENT_ENV_OVERRIDES.includes(key.toUpperCase()) || Object.hasOwn(overrides, key.toUpperCase())) delete env[key];
     }
     Object.assign(env, overrides);
 
@@ -90,9 +102,11 @@ function verify() {
   return status;
 }
 
-try {
-  process.exitCode = verify();
-} catch (error) {
-  console.error(`[verify] ${error.message}`);
-  process.exitCode = 1;
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    process.exitCode = verify();
+  } catch (error) {
+    console.error(`[verify] ${error.message}`);
+    process.exitCode = 1;
+  }
 }

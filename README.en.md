@@ -167,8 +167,9 @@ npm run summary    # print a terminal usage summary
 npm start          # start the local dashboard
 ```
 
-CLI usage: `lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`
+CLI usage: `lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>] [--strict-port] [--desktop-logs] [--exit-on-stdin-end] [--help|-h]`
 
+- `--help` / `-h` prints usage and exits with code 0 without creating a data directory. Missing or empty values, unknown options and extra positional arguments fail with code 2 before accessing the data directory; `--port` must be an integer from 1 to 65535.
 - `serve` falls through to the next free port when 3456 is occupied (the desktop app stays on 3456).
 - `serve` runs one backfill collect on start (skipped when the ledger is empty), then incremental sync every 5 minutes.
 - Data directory resolution: `--data-dir` > `TOKEN_LENS_DATA_DIR` > `DB_PATH` > `~/.token-lens`; an error is raised when `DB_PATH` points at a different directory than `--data-dir`/`TOKEN_LENS_DATA_DIR`.

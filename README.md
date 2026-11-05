@@ -167,8 +167,9 @@ npm run summary    # 打印终端用量摘要
 npm start          # 启动本地看板
 ```
 
-CLI 用法：`lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`
+CLI 用法：`lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>] [--strict-port] [--desktop-logs] [--exit-on-stdin-end] [--help|-h]`
 
+- `--help` / `-h` 只打印用法并以 0 退出，不创建数据目录。缺值、空值、未知选项和多余的位置参数在访问数据目录前报错并以 2 退出；`--port` 必须是 1–65535 的整数。
 - `serve` 的端口 3456 被占用时自动顺延（桌面版固定 3456，不顺延）。
 - `serve` 启动时补采一次（账本为空时不补采），运行中每 5 分钟增量同步。
 - 数据目录裁决顺序：`--data-dir` > `TOKEN_LENS_DATA_DIR` > `DB_PATH` > `~/.token-lens`；`DB_PATH` 与 `--data-dir`/`TOKEN_LENS_DATA_DIR` 指向不同目录时报错。

@@ -21,7 +21,7 @@ function launch(t, args = [], setup = () => {}) {
     if (['HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'DB_PATH', 'TOKEN_LENS_DATA_DIR', 'NODE_TEST_CONTEXT'].includes(key.toUpperCase())) delete env[key];
   }
   Object.assign(env, { HOME: home, USERPROFILE: home, APPDATA: join(home, 'roaming'), LOCALAPPDATA: join(home, 'local'), TOKEN_LENS_DATA_DIR: data });
-  const child = spawn(process.execPath, [resolve('bin/lens.js'), 'serve', ...args], { env, windowsHide: true });
+  const child = spawn(process.execPath, [resolve('bin/lens.js'), 'serve', '--port', '19220', ...args], { env, windowsHide: true });
   let output = '';
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
@@ -38,7 +38,7 @@ function launch(t, args = [], setup = () => {}) {
 }
 
 test('serve：监听成功后输出一次就绪 JSON，字段与真实服务一致', { timeout: 12000 }, async t => {
-  const run = launch(t, ['--port', '0']);
+  const run = launch(t);
   await run.until(text => text.includes('TOKEN_LENS_READY '));
   const lines = () => run.output().split(/\r?\n/).filter(line => line.startsWith('TOKEN_LENS_READY '));
   const ready = JSON.parse(lines()[0].slice('TOKEN_LENS_READY '.length));
@@ -73,7 +73,11 @@ test('serve --strict-port：占用时退出且没有就绪行，默认仍顺延'
 });
 
 test('serve --desktop-logs：stdout/stderr 写入日志并按 5MB × 3 轮转', { timeout: 12000 }, async t => {
-  const run = launch(t, ['--port', '-1', '--desktop-logs'], data => {
+  const blocker = createServer();
+  blocker.listen(0, '127.0.0.1');
+  await once(blocker, 'listening');
+  t.after(() => new Promise(resolve => blocker.close(resolve)));
+  const run = launch(t, ['--port', String(blocker.address().port), '--strict-port', '--desktop-logs'], data => {
     const logs = join(data, 'logs');
     mkdirSync(logs);
     writeFileSync(join(logs, 'kernel.log'), Buffer.alloc(5 * 1024 * 1024, 120));
@@ -91,7 +95,7 @@ test('serve --desktop-logs：stdout/stderr 写入日志并按 5MB × 3 轮转', 
 });
 
 test('serve --exit-on-stdin-end：stdin 关闭后内核退出（壳退出即管道关闭）', { timeout: 12000 }, async t => {
-  const run = launch(t, ['--port', '0', '--exit-on-stdin-end']);
+  const run = launch(t, ['--exit-on-stdin-end']);
   await run.until(text => text.includes('TOKEN_LENS_READY '));
   run.child.stdin.end();
   const timer = setTimeout(() => run.child.kill(), 3000);
@@ -101,7 +105,7 @@ test('serve --exit-on-stdin-end：stdin 关闭后内核退出（壳退出即管�
 });
 
 test('serve：不加 --exit-on-stdin-end 时关闭 stdin 不影响服务', { timeout: 12000 }, async t => {
-  const run = launch(t, ['--port', '0']);
+  const run = launch(t);
   await run.until(text => text.includes('TOKEN_LENS_READY '));
   run.child.stdin.end();
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -122,7 +126,7 @@ function seedLedger(data) {
 }
 
 test('serve：有数据的账本先监听再在后台补采，就绪行早于启动同步完成', { timeout: 12000 }, async t => {
-  const run = launch(t, ['--port', '0'], seedLedger);
+  const run = launch(t, [], seedLedger);
   await run.until(text => text.includes('[启动同步] 完成'));
   const text = run.output();
   assert.ok(text.indexOf('TOKEN_LENS_READY ') >= 0 && text.indexOf('TOKEN_LENS_READY ') < text.indexOf('[启动同步] 完成'), text);
@@ -134,7 +138,7 @@ test('serve：有数据的账本先监听再在后台补采，就绪行早于启
 
 test('serve：启动时采集锁被占，跳过补采但仍然就绪并提供服务', { timeout: 12000 }, async t => {
   let lock;
-  const run = launch(t, ['--port', '0'], data => { seedLedger(data); lock = acquireSyncLock(data); });
+  const run = launch(t, [], data => { seedLedger(data); lock = acquireSyncLock(data); });
   t.after(() => lock.release());
   await run.until(text => text.includes('TOKEN_LENS_READY ') && text.includes('[启动同步]'));
   assert.match(run.output(), /\[启动同步\] 跳过/);

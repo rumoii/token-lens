@@ -1,11 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const RUNNER = join(process.cwd(), 'scripts', 'verify-local.mjs');
+const ENV_EXEMPTIONS = new Set(['HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA']);
+
+function discoveryEnvNames() {
+  const adapters = join(process.cwd(), 'src/core/adapters');
+  const files = [join(process.cwd(), 'src/core/discovery.js'),
+    ...readdirSync(adapters, { recursive: true }).filter(name => name.endsWith('.js')).map(name => join(adapters, name))];
+  return [...new Set(files.flatMap(file => [...readFileSync(file, 'utf8').matchAll(/process\.env\.([A-Z_][A-Z_0-9]*)/g)]
+    .map(match => match[1])))].sort();
+}
 
 function fixture(t, failAt = '') {
   const root = mkdtempSync(join(tmpdir(), 'tl-verify-fixture with spaces-'));
@@ -28,7 +38,7 @@ function fixture(t, failAt = '') {
         assert.ok(fs.existsSync(process.env.TOKEN_LENS_DATA_DIR));
         assert.ok(!Object.keys(process.env).some(key => key.toUpperCase() === 'DB_PATH'));
         assert.notEqual(home, path.join(__dirname, 'caller-home'));
-        fs.appendFileSync(path.join(__dirname, 'checks.jsonl'), JSON.stringify({ step, sandbox, cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');
+        fs.appendFileSync(path.join(__dirname, 'checks.jsonl'), JSON.stringify({ step, sandbox, cwd: process.cwd(), args: process.argv.slice(2), envKeys: Object.keys(process.env) }) + '\\n');
         fs.writeFileSync(path.join(home, 'probe'), step);
         if (step === ${JSON.stringify(failAt)}) process.exit(23);
       };
@@ -48,16 +58,45 @@ function fixture(t, failAt = '') {
   return root;
 }
 
-function run(root, args = []) {
+function run(root, args = [], overrides = {}) {
   return spawnSync(process.execPath, [join(root, 'scripts', 'verify-local.mjs'), ...args], {
     // The entry point must locate its checkout independently of the caller's cwd.
     cwd: tmpdir(), encoding: 'utf8', timeout: 30_000, windowsHide: true,
     env: {
       ...process.env, HOME: join(root, 'caller-home'), USERPROFILE: join(root, 'caller-home'),
-      TOKEN_LENS_DATA_DIR: join(root, 'caller-data'), DB_PATH: join(root, 'caller.db')
+      TOKEN_LENS_DATA_DIR: join(root, 'caller-data'), DB_PATH: join(root, 'caller.db'), ...overrides
     }
   });
 }
+
+test('验证入口：子进程看不到调用方的客户端路径覆盖变量', (t) => {
+  const names = discoveryEnvNames().filter(name => !ENV_EXEMPTIONS.has(name));
+  for (const lowerCase of [false, true]) {
+    const root = fixture(t);
+    const overrides = Object.fromEntries(names.map(name => [lowerCase ? name.toLowerCase() : name, join(root, 'client-path')]));
+    const result = run(root, ['all'], overrides);
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const steps = records(root);
+    assert.equal(steps.length, 4);
+    for (const step of steps) {
+      assert.deepEqual(step.envKeys.filter(key => names.includes(key.toUpperCase())), [], step.step);
+    }
+  }
+});
+
+test('验证入口：发现和适配器的环境变量必须在清理名单或明确豁免名单中', (t) => {
+  const root = fixture(t);
+  const url = pathToFileURL(join(root, 'scripts/verify-local.mjs')).href;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    const runner = await import(${JSON.stringify(url)});
+    console.log(JSON.stringify(runner.CLIENT_ENV_OVERRIDES || []));
+  `], { encoding: 'utf8', timeout: 30_000, windowsHide: true });
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const cleanup = JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
+  const missing = discoveryEnvNames().filter(name => !ENV_EXEMPTIONS.has(name) && !cleanup.includes(name));
+  assert.deepEqual(missing, [], '新增发现变量时要同步 CLIENT_ENV_OVERRIDES 或明确列出豁免原因');
+  assert.deepEqual(records(root), [], '导入清理名单不能执行验证任务');
+});
 
 function records(root) {
   const log = join(root, 'checks.jsonl');

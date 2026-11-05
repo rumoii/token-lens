@@ -2,14 +2,15 @@
 
 import { resolveDataDir } from './paths.js';
 
+const USAGE = 'Usage: lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>] [--strict-port] [--desktop-logs] [--exit-on-stdin-end] [--help|-h]';
+
 /**
  * 解析命令行参数。
  *
  * @param {string[]} argv
- * @returns {{ command: string, dataDir: string|null, port: number|null, strictPort: boolean, desktopLogs: boolean, exitOnStdinEnd: boolean, rest: string[] }}
+ * @returns {{ command: string, dataDir: string|null, port: number|null, strictPort: boolean, desktopLogs: boolean, exitOnStdinEnd: boolean }}
  */
 function parseArgs(argv) {
-  const rest = [];
   let dataDir = null;
   let port = null;
   let command = null;
@@ -19,28 +20,40 @@ function parseArgs(argv) {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--data-dir') {
-      dataDir = argv[++i] || null;
-    } else if (arg.startsWith('--data-dir=')) {
-      dataDir = arg.slice('--data-dir='.length);
-    } else if (arg === '--port') {
-      port = parseInt(argv[++i], 10);
-    } else if (arg.startsWith('--port=')) {
-      port = parseInt(arg.slice('--port='.length), 10);
+    if (arg === '--data-dir' || arg.startsWith('--data-dir=') || arg === '--port' || arg.startsWith('--port=')) {
+      const name = arg.startsWith('--data-dir') ? '--data-dir' : '--port';
+      const inline = arg.startsWith(`${name}=`);
+      const value = inline ? arg.slice(name.length + 1) : argv[++i];
+      if (value === undefined || value === '' || (!inline && value.startsWith('-'))) {
+        throw new Error(`${name} requires a non-empty value`);
+      }
+      if (name === '--data-dir') {
+        dataDir = value;
+      } else {
+        if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 65535) {
+          throw new Error('--port must be an integer from 1 to 65535');
+        }
+        port = Number(value);
+      }
     } else if (arg === '--strict-port') {
       strictPort = true;
     } else if (arg === '--desktop-logs') {
       desktopLogs = true;
     } else if (arg === '--exit-on-stdin-end') {
       exitOnStdinEnd = true;
-    } else if (!command && !arg.startsWith('-')) {
+    } else if (arg.startsWith('-')) {
+      throw new Error(`Unknown option: ${arg}`);
+    } else if (command === null) {
       command = arg;
     } else {
-      rest.push(arg);
+      throw new Error(`Unexpected argument: ${arg}`);
     }
   }
 
-  return { command: command || 'collect', dataDir, port, strictPort, desktopLogs, exitOnStdinEnd, rest };
+  if (command !== null && !['collect', 'summary', 'reprice', 'serve'].includes(command)) {
+    throw new Error(`Unknown command: ${command}`);
+  }
+  return { command: command ?? 'collect', dataDir, port, strictPort, desktopLogs, exitOnStdinEnd };
 }
 
 function formatNumber(n) {
@@ -151,7 +164,21 @@ async function handleServe(port, strictPort, exitOnStdinEnd) {
 }
 
 async function main() {
-  const { command, dataDir, port, strictPort, desktopLogs, exitOnStdinEnd } = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(USAGE);
+    return;
+  }
+  let options;
+  try {
+    options = parseArgs(argv);
+  } catch (err) {
+    console.error(`Argument error: ${err.message}`);
+    console.error(USAGE);
+    process.exitCode = 2;
+    return;
+  }
+  const { command, dataDir, port, strictPort, desktopLogs, exitOnStdinEnd } = options;
 
   // 数据目录只有一个权威来源：把命令行参数落成环境变量，后续模块统一走 paths.js。
   if (dataDir) {
@@ -174,9 +201,6 @@ async function main() {
     await handleReprice();
   } else if (command === 'serve') {
     await handleServe(port, strictPort, exitOnStdinEnd);
-  } else {
-    console.log('Usage: lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>] [--strict-port] [--desktop-logs] [--exit-on-stdin-end]');
-    process.exit(1);
   }
 }
 

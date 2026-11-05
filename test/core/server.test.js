@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect } from 'node:net';
 import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 
 // 必须在 import server 之前设定数据目录，避免落到真实 home
 const DATA_DIR = mkdtempSync(join(tmpdir(), 'tl-server-'));
@@ -19,9 +21,10 @@ const DIST_INDEX = join(process.cwd(), 'dashboard', 'dist', 'index.html');
  *
  * @param {number} port
  * @param {string} requestLine
- * @returns {Promise<string>} 首行状态
+ * @param {boolean} [fullResponse]
+ * @returns {Promise<string>} 首行状态或完整响应
  */
-function rawRequest(port, requestLine) {
+function rawRequest(port, requestLine, fullResponse = false) {
   return new Promise((resolve, reject) => {
     const socket = connect(port, '127.0.0.1', () => {
       socket.write(requestLine);
@@ -29,15 +32,65 @@ function rawRequest(port, requestLine) {
     let buffer = '';
     socket.on('data', (chunk) => {
       buffer += chunk.toString();
-      if (buffer.includes('\r\n')) {
+      if (!fullResponse && buffer.includes('\r\n')) {
         socket.destroy();
         resolve(buffer.split('\r\n')[0]);
       }
     });
+    socket.on('end', () => resolve(buffer));
     socket.on('error', reject);
     socket.setTimeout(3000, () => { socket.destroy(); reject(new Error('timeout')); });
   });
 }
+
+test('畸形请求返回 400 JSON，服务进程继续响应 health', async (t) => {
+  const child = spawn(process.execPath, ['--input-type=module', '-e', `
+    const { startServer } = await import('./src/core/server.js');
+    const { port, token } = await startServer(0);
+    process.send({ port, token });
+  `], { env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
+  let stderr = '';
+  child.stderr.on('data', chunk => { stderr += chunk; });
+  child.stdout.resume();
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, 'exit');
+      child.kill();
+      await exited;
+    }
+    if (stderr) t.diagnostic(stderr);
+  });
+  const [{ port, token }] = await once(child, 'message', { signal: AbortSignal.timeout(5000) });
+  const response = await rawRequest(port,
+    `GET //[/ HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`, true);
+  assert.match(response.split('\r\n')[0], /^HTTP\/1\.1 400\b/, stderr);
+  assert.match(response, /Content-Type: application\/json/i);
+  const body = JSON.parse(response.split('\r\n\r\n')[1]);
+  assert.equal(body.error.code, 'bad_request');
+  assert.equal(typeof body.error.message, 'string');
+  assert.ok(body.error.message.length > 0);
+  const health = await fetch(`http://127.0.0.1:${port}/api/v1/health`, {
+    headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3000)
+  });
+  assert.equal(health.status, 200);
+  assert.equal((await health.json()).ok, true);
+  assert.equal(child.exitCode, null);
+});
+
+test('OPTIONS 也必须经过 Host 和 bearer gate', async (t) => {
+  const { server, port, token } = await startServer(0);
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const badHost = await rawRequest(port,
+    'OPTIONS / HTTP/1.1\r\nHost: evil.example.com\r\nConnection: close\r\n\r\n');
+  assert.match(badHost, /421/);
+  const noAuth = await fetch(`http://127.0.0.1:${port}/api/v1/health`, { method: 'OPTIONS' });
+  assert.equal(noAuth.status, 401);
+  const authed = await fetch(`http://127.0.0.1:${port}/api/v1/health`, {
+    method: 'OPTIONS', headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(authed.status, 204);
+  assert.equal(authed.headers.get('access-control-allow-origin'), null);
+});
 
 test('服务：/api/v1 需要令牌，旧入口已下线，静态页注入令牌', async (t) => {
   const { server, port, token } = await startServer(19101);

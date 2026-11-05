@@ -101,22 +101,26 @@ export async function startServer(preferredPort = DEFAULT_PORT, { strictPort = f
   };
 
   const server = createServer(async (req, res) => {
-    if (!ready) {
-      reject(req, res, 503, 'starting', '服务尚未就绪');
-      return;
-    }
-
-    const pathname = new URL(req.url || '/', 'http://127.0.0.1').pathname;
-
-    if ((req.method || 'GET').toUpperCase() === 'OPTIONS') {
-      // 不下发任何 CORS 头；预检不应出现在同源场景
-      res.writeHead(204);
-      res.end();
+    let pathname;
+    try {
+      pathname = new URL(req.url || '/', 'http://127.0.0.1').pathname;
+    } catch {
+      reject(req, res, 400, 'bad_request', '无法解析请求目标');
       return;
     }
 
     try {
       if (!ctx.gate(req, res, pathname)) return;
+      if (!ready) {
+        reject(req, res, 503, 'starting', '服务尚未就绪');
+        return;
+      }
+      if ((req.method || 'GET').toUpperCase() === 'OPTIONS') {
+        // 不下发任何 CORS 头；预检不应出现在同源场景
+        res.writeHead(204);
+        res.end();
+        return;
+      }
       const handled = await ctx.router(req, res, pathname);
       if (handled) return;
 

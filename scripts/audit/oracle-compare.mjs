@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { CLIENT_ENV_OVERRIDES } from '../verify-local.mjs';
 import { aggregate, discover, fields } from './oracle/common.mjs';
 import { oracle as claude } from './oracle/claude.mjs';
 import { oracle as codex } from './oracle/codex.mjs';
@@ -108,7 +109,7 @@ function isolate(dataDir) {
   for (const directory of [home, cwd, temp, overrides.APPDATA, overrides.LOCALAPPDATA]) mkdirSync(directory, { recursive: true });
   for (const name of Object.keys(process.env)) {
     if (Object.hasOwn(overrides, name.toUpperCase()) || name.toUpperCase() === 'DB_PATH' ||
-        /^(GEMINI_HOME|GOOSE_PATH_ROOT|COPILOT_HOME|OPENCLAW_HOME|OPENCLAW_STATE_DIR|XDG_DATA_HOME|KILO_DB|OPENHANDS_CONVERSATIONS_DIR|OPENHANDS_PERSISTENCE_DIR|MIMOCODE_HOME|MIMOCODE_DB|MIMOCODE_DISABLE_CHANNEL_DB|MINIMAX_DATA_DIR|MAVIS_DATA_DIR|ZCODE_DATA_BASE_DIR|ZCODE_SESSION_DB_PATH|ZCODE_SESSION_DB|KIMI_HOME|CODEBUDDY_HOME|WORKBUDDY_HOME)$/i.test(name)) delete process.env[name];
+        CLIENT_ENV_OVERRIDES.includes(name.toUpperCase())) delete process.env[name];
   }
   Object.assign(process.env, overrides);
   process.chdir(cwd);
