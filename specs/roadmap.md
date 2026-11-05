@@ -13,6 +13,7 @@
 - MiniMax M3.1 无官方或网关价（官方未列独立型号），保持未定价。
 - 启动补采期间接口最长可能卡约 2.8 秒。
 - Continue / Gemini 的同一会话在顶层汇总与逐条明细之间切换时，旧身份仍计入，可能重复计数。单向 `replaces` 无法处理来回切换，已被替代的 key 再次出现会触发 `superseded_reproduced`；等待真实样本后再确定方案。
+- Kimi 在 APPDATA / LOCALAPPDATA 下的发现规则是 `{kimi,Kimi}/...`，在不区分大小写的文件系统上，同一个文件会以两种拼写各发现一次。普通记录的 key 不含路径，由 `settleCopies` 合并；`usage.record` 形态的 key 含路径哈希（`kimi.js` 的 `fileTag`），两种拼写得到不同的 key，会重复计数。目前只在合成样本上复现过，尚未在真实日志中确认。
 
 ---
 
