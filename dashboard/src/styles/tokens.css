@@ -149,7 +149,7 @@
   --lens-tool-mimo: #ff6900;
   --lens-tool-kimi: #8b7cf6;
   --lens-tool-minimax: #f43f5e;
-  --lens-tool-zcode: #000000;
+  --lens-tool-zcode: #111111;
   --lens-tool-codebuddy: #6c5ce7;
 
   /*
@@ -268,7 +268,7 @@
   --lens-tool-mimo: #ff6900;
   --lens-tool-kimi: #8b7cf6;
   --lens-tool-minimax: #f43f5e;
-  --lens-tool-zcode: #000000;
+  --lens-tool-zcode: #111111;
   --lens-tool-codebuddy: #6c5ce7;
 
   /* 图表分类色：同一组色相按深色背景重新取值，顺序与浅色相同 */

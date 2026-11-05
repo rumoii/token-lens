@@ -4,7 +4,7 @@
 
 当前状态（2026-11-04）：A1、A2、A4 完成，A3 挂起（并入 L3）；B1、B2、B4、B5 完成，B3 并入 P1 完成；C0–C9 完成；D3 由 C3 覆盖、D4 完成、D1 和 D2 未做；F1–F4 完成；R1–R4 完成，R5 实现完成、浏览器人工验收未做，R6 推迟；L0–L6 完成，A3 仍未关闭；N1–N5 完成，Factory Droid、cline 搁置，等待真实样本，N4/N5 新接客户端均为 B 级；P0–P4 与价格页完成；W1–W4 完成，Windows exe 约 25MB，未装 Node 的干净 Windows 上运行尚未验收；macOS arm64 的 M0–M4 完成。当前仓库从单个初始提交开始，尚未运行任何远端 CI，`pr-checks.yml` 仅由 PR 触发。
 
-下一步：当前无进行中阶段，候选为未装 Node 的干净 Windows 验收、R5 浏览器人工验收、N4/N5 客户端（ZCode、MiniMax、MiMo、Command Code、AnythingLLM、CodeBuddy）的真实样本验证与 B 级升 A，以及已知缺陷修复：价表缺少 MiniMax M3.1、MiMo 实际默认模型不明、`getKiloDbPath` 将相对 `XDG_DATA_HOME` 按 cwd 解释、`--lens-tool-zcode` 为 `#000000` 而其他黑色品牌用 `#111111`、启动补采期间接口最长可能卡约 2.8 秒。下一步由用户选定；R6 继续推迟，Factory Droid、cline 等待真实样本，CI 上传 exe 产物暂不做。
+下一步：当前无进行中阶段，候选为未装 Node 的干净 Windows 验收、R5 浏览器人工验收、N4/N5 客户端（ZCode、MiniMax、MiMo、Command Code、AnythingLLM、CodeBuddy）的真实样本验证与 B 级升 A，以及已知缺陷修复：MiniMax M3.1 无官方或网关价（官方未列独立型号）、启动补采期间接口最长可能卡约 2.8 秒。下一步由用户选定；R6 继续推迟，Factory Droid、cline 等待真实样本，CI 上传 exe 产物暂不做。
 
 ---
 
@@ -256,7 +256,7 @@ R4 只完成 L2 的采集互斥部分，L2 的发现确定性等剩余项继续�
 | # | 小阶段 | 内容 | 验证 | 状态 |
 |---|---|---|---|---|
 | P0 | 计价输入 | `priceRecord` 增加 `kind`、`observed_at`、`ended_at` 输入；写入、重定价与 `costRows` 逐行核对用同一组字段；`PRICE_VERSION` 纳入分档、时段与计费方式 | 现有条目金额逐条不变（沿用 R3 的 416 组对比）；同版本重复计算逐字节相同 | 已实现（与 P3 一起）：副本上未分档模型逐行不变，两次独立重算逐行一致；`provider` 输入随 P2 加 |
-| P1 | 价表扩充（原 B3） | 先补账本里未定价的模型（Kimi Code 的 k3.1-pro、moonshot-v1-8k、grok-4.7），再补 N 阶段客户端的常用模型；现有 aggregate 条目能在厂商页核到的升 verified | 每条有来源 URL 与核验日期；副本上未定价条数的下降可量化 | 已实现：新增 13 条、4 条升 verified，全部取官网 USD 价；kimi-code/k3.1-pro 经官方材料对应 kimi-k3.1-pro；gemini-3.8-flash-n 官网无对应，保持 aggregate；2026-11-01 补 MiniMax-M2.7、M2.7-highspeed（官方页旧快照，aggregate），M3.1 官网无独立价未加 |
+| P1 | 价表扩充（原 B3） | 先补账本里未定价的模型（Kimi Code 的 k3.1-pro、moonshot-v1-8k、grok-4.7），再补 N 阶段客户端的常用模型；现有 aggregate 条目能在厂商页核到的升 verified | 每条有来源 URL 与核验日期；副本上未定价条数的下降可量化 | 已实现：新增 13 条、4 条升 verified，全部取官网 USD 价；kimi-code/k3.1-pro 经官方材料对应 kimi-k3.1-pro；gemini-3.8-flash-n 官网无对应，保持 aggregate；2026-11-01 补 MiniMax-M2.7、M2.7-highspeed（官方页旧快照，aggregate），M3.1 官方未列独立型号，公开网关亦未找到对应条目，保持未定价 |
 | P2 | 本地模型 | 适配器带出日志写明的 provider（schema v5 加 `provider` 列）；本地 provider 名单写在目录里，命中时金额 0、`billing: 'local'`，不计入未定价 | 迁移只加列；本地记录不出现在未定价计数里 | 已实现：schema v5，provider 为 NULL 时指纹与 v4 相同；本地名单 ollama、lmstudio；codex、pi、opencode、kilo、goose、openclaw 带出 provider。原始日志已删的历史本地模型记录保持未定价 |
 | P3 | 长上下文分档 | 目录条目带 `tiers`，逐条请求按单次提示长度选档；累计快照用基础档并标明 | 阈值两侧各一条用例；副本上列出受影响条数与金额 | 已实现：OpenAI 四个模型 272K、Haiku 5.5 100K，阈值按官网核验；副本上 gpt-6.1-sol 1,037 条改按长档 |
 | P4 | 峰谷分时 | 目录条目带 `timeOfDay`；逐条请求按时间戳取高峰或低谷价，累计快照按起止区间内的时长占比混合，结束时间未知用一周平均占比 | 高峰、低谷、跨段快照、`ended_at` 为 NULL 各一条用例；副本上列出金额变化 | 已实现：deepseek-flash 按北京时间时段与 2026 年法定节假日；副本上 DeepSeek 173 条金额下降，其余模型逐行不变 |

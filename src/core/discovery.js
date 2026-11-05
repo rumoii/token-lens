@@ -107,7 +107,8 @@ function getKimiShareDir(home) {
 
 /** Kilo 的 xdg-basedir 在 Windows 也使用 ~/.local/share；KILO_HOME 不参与数据路径。 */
 function getKiloDbPath(home) {
-  const data = join((process.env.XDG_DATA_HOME || join(home, '.local', 'share')).replace(/[\r\n]+/g, ''), 'kilo');
+  const xdgData = (process.env.XDG_DATA_HOME || '').replace(/[\r\n]+/g, '');
+  const data = join(isAbsolute(xdgData) ? xdgData : join(home, '.local', 'share'), 'kilo');
   const override = process.env.KILO_DB;
   if (override === ':memory:') return null;
   if (override) return isAbsolute(override) ? override : join(data, override);

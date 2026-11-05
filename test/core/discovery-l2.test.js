@@ -205,6 +205,40 @@ test('L2 pi: specification and discovery include observed one- and three-directo
   assert.ok(pi.includes('file_pattern: "**/*.jsonl"'), 'spec must describe the observed recursive layout');
 }));
 
+test('L2 kilo: relative XDG_DATA_HOME is ignored in favor of ~/.local/share regardless of cwd', () => isolated(({ home, file }) => {
+  const main = file('.local/share/kilo/kilo.db');
+  file('cwd/relative-xdg/kilo/kilo.db');
+  file('other/relative-xdg/kilo/kilo.db');
+  const savedCwd = process.cwd();
+  try {
+    for (const directory of ['cwd', 'other']) {
+      process.chdir(join(home, directory));
+      for (const xdg of ['relative-xdg', 'relative-xdg\r\n']) {
+        process.env.XDG_DATA_HOME = xdg;
+        assert.deepEqual(discoverAll().kilo, [main], '忽略相对 XDG，默认库不随 cwd 变化');
+      }
+    }
+  } finally { process.chdir(savedCwd); }
+}));
+
+test('L2 kilo: relative KILO_DB uses the fallback data directory when XDG_DATA_HOME is relative', () => isolated(({ home, file }) => {
+  file('.local/share/kilo/kilo.db');
+  const custom = file('.local/share/kilo/nested/custom.db');
+  file('cwd/relative-xdg/kilo/nested/custom.db');
+  file('other/relative-xdg/kilo/nested/custom.db');
+  process.env.KILO_DB = 'nested/custom.db';
+  const savedCwd = process.cwd();
+  try {
+    for (const directory of ['cwd', 'other']) {
+      process.chdir(join(home, directory));
+      for (const xdg of ['relative-xdg', 'relative-xdg\r\n']) {
+        process.env.XDG_DATA_HOME = xdg;
+        assert.deepEqual(discoverAll().kilo, [custom], '相对库名相对回退后的数据目录，不随 cwd 变化');
+      }
+    }
+  } finally { process.chdir(savedCwd); }
+}));
+
 const mimoEnv = ['XDG_DATA_HOME', 'MIMOCODE_HOME', 'MIMOCODE_DB', 'MIMOCODE_DISABLE_CHANNEL_DB'];
 
 test('L2 mimo: empty MIMOCODE_HOME falls back to the XDG data directory', () => isolated(({ home, file }) => {

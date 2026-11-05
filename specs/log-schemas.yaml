@@ -281,7 +281,7 @@ kilo_code:
     win32: "%USERPROFILE%\\.local\\share\\kilo\\kilo.db"
     darwin: "~/.local/share/kilo/kilo.db"
     linux: "~/.local/share/kilo/kilo.db"
-  overrides: "XDG_DATA_HOME 替代 ~/.local/share（去掉 CR/LF）；KILO_DB 绝对路径直接用，相对路径相对 data/kilo，:memory: 不发现；KILO_HOME 不参与路径"
+  overrides: "XDG_DATA_HOME 替代 ~/.local/share（去掉 CR/LF 后仅采用绝对路径，相对 XDG_DATA_HOME 忽略，回退 ~/.local/share）；KILO_DB 绝对路径直接用，相对路径相对 data/kilo，:memory: 不发现；KILO_HOME 不参与路径"
   channels: "latest/beta/prod 默认 kilo.db；开发 channel 为 kilo-<channel>.db，可回退已有 opencode-<channel>.db；本适配器仅自动发现 kilo.db，其他文件需 KILO_DB"
   file_pattern: "kilo.db（或显式 KILO_DB）"
   format: "SQLite，只读打开，不执行迁移或 checkpoint"
