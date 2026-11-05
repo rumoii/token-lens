@@ -4,7 +4,7 @@ Local-first token usage and cost analytics: a Node CLI (`bin/lens.js`, `src/core
 
 ## Current work
 
-Work follows `specs/roadmap.md` in this order: the remaining stage L work (ledger accuracy), stage N (more clients), stage P (pricing; contract in `specs/pricing.md` section 9), then stage W (desktop app: Windows, then macOS arm64). R5 and R6 are deferred until after W. `specs/ledger-trust.md` lists each L step with file locations and acceptance checks; `specs/desktop.md` records the desktop constraints and the chosen shell: a Rust + wry window around the unchanged Node kernel, shipped as a self-extracting portable exe on Windows and a dmg on macOS arm64. Work one sub-stage at a time and stop for review after each. Any step that changes the real ledger in `~/.token-lens` needs a backup, a dry run on a copy, and the user's confirmation first.
+Stages L (L0–L6), N (N1–N5), P (P0–P4 and the pricing page), W (W1–W4 on Windows), and macOS arm64 (M0–M4) are complete. No development stage is in progress; the user selects the next task. See `specs/roadmap.md` for pending Windows/R5 acceptance and real client samples, deferred R6 and adapters, known defects, and CI status. `specs/ledger-trust.md` lists each L step with file locations and acceptance checks; `specs/pricing.md` section 9 defines the pricing contract; `specs/desktop.md` records the desktop constraints and the chosen shell: a Rust + wry window around the unchanged Node kernel, shipped as a self-extracting portable exe on Windows and a dmg on macOS arm64. Work one sub-stage at a time and stop for review after each. Any step that changes the real ledger in `~/.token-lens` needs a backup, a dry run on a copy, and the user's confirmation first.
 
 ## Red lines
 
