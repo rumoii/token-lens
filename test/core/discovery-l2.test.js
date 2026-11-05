@@ -347,3 +347,67 @@ test('L2 mimo: MIMOCODE_DISABLE_CHANNEL_DB=false or 0 also discovers mimocode-*.
   process.env.MIMOCODE_DISABLE_CHANNEL_DB = '0';
   assert.deepEqual(normalize(discoverAll().mimo), normalize(both), '0 同样打开 channel 库');
 }, mimoEnv));
+
+const absoluteRootCases = [
+  ['GEMINI_HOME', 'gemini', '.gemini', 'sessions/a.json'],
+  ['GOOSE_PATH_ROOT', 'goose', '.goose', 'data/sessions/sessions.db'],
+  ['COPILOT_HOME', 'copilot', '.copilot', 'session-store.db'],
+  ['OPENCLAW_HOME', 'openclaw', '.openclaw', 'agents/a/sessions/a.jsonl'],
+  ['OPENCLAW_STATE_DIR', 'openclaw', '.openclaw', 'agents/a/sessions/a.jsonl'],
+  ['APPDATA', 'mimo', 'AppData/Roaming', 'Xiaomi MiMo/mimocode/mimocode.db'],
+  ['LOCALAPPDATA', 'kimi', 'AppData/Local', 'kimi/sessions/p/a.jsonl']
+];
+
+for (const [key, source, fallback, suffix] of absoluteRootCases) {
+  test(`R2b paths: relative ${key} falls back independently of cwd`, () => isolated(({ home, file }) => {
+    const expected = file(`${fallback}/${suffix}`);
+    for (const directory of ['cwd', 'other']) file(`${directory}/relative-root/${suffix}`);
+    const savedCwd = process.cwd();
+    try {
+      for (const directory of ['cwd', 'other']) {
+        process.chdir(join(home, directory));
+        for (const value of ['relative-root', 'relative-root\r\n', '', '\r\n']) {
+          process.env[key] = value;
+          assert.deepEqual(normalize(discoverAll()[source]), normalize([expected]), `${key}=${JSON.stringify(value)}`);
+        }
+      }
+    } finally { process.chdir(savedCwd); }
+  }));
+
+  test(`R2b paths: absolute ${key} removes CR/LF and selects the override`, () => isolated(({ home, file }) => {
+    file(`${fallback}/${suffix}`);
+    const expected = file(`absolute-root/${suffix}`);
+    for (const value of [join(home, 'absolute-root'), `${join(home, 'absolute-root')}\r\n`]) {
+      process.env[key] = value;
+      assert.deepEqual(normalize(discoverAll()[source]), normalize([expected]));
+    }
+  }));
+}
+
+test('R2b paths: invalid OPENCLAW_HOME allows a valid STATE_DIR, with HOME taking priority when valid', () => isolated(({ home, file }) => {
+  const fallback = file('.openclaw/agents/a/sessions/a.jsonl');
+  const state = file('state/agents/a/sessions/a.jsonl');
+  const own = file('own/agents/a/sessions/a.jsonl');
+  process.env.OPENCLAW_HOME = 'relative-root';
+  process.env.OPENCLAW_STATE_DIR = `${join(home, 'state')}\r\n`;
+  assert.deepEqual(discoverAll().openclaw, [state]);
+  process.env.OPENCLAW_HOME = `${join(home, 'own')}\r\n`;
+  assert.deepEqual(discoverAll().openclaw, [own]);
+  process.env.OPENCLAW_HOME = 'relative-root';
+  process.env.OPENCLAW_STATE_DIR = 'another-relative-root';
+  assert.deepEqual(discoverAll().openclaw, [fallback]);
+}));
+
+test('R2b goose Windows: discovers LOCALAPPDATA data.db alone or alongside APPDATA sessions.db', () => isolated(({ home, file }) => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  try {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    process.env.LOCALAPPDATA = join(home, 'goose-local');
+    const local = file('goose-local/block/goose/data.db');
+    assert.deepEqual(discoverAll().goose, [local]);
+    const roaming = file('roaming/goose/sessions/sessions.db');
+    assert.deepEqual(normalize(discoverAll().goose), normalize([roaming, local]));
+    process.env.LOCALAPPDATA = join(home, 'empty');
+    assert.deepEqual(discoverAll().goose, [roaming]);
+  } finally { Object.defineProperty(process, 'platform', platform); }
+}));

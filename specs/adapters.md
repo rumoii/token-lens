@@ -103,6 +103,8 @@ OpenHands 只计能在本会话自己的事件里关联到的逐次用量。task
 
 L5 键迁移经 `replaces` 指向旧键，沿用 schema v4 的停用与 `superseded_by`。无 id 的文件位置键不含用量，追加或原位增长不会新增身份；移动、截断或重排不能保证身份延续。已经丢失日志的旧键不能靠重采修复。
 
+Goose 的 `sessions` 表缺 `provider_name` 列时，provider 存 NULL；Windows 同时发现 `%APPDATA%\goose\sessions\sessions.db` 与 `%LOCALAPPDATA%\block\goose\data.db`。`data.db` 的表结构未确认，适配器只读 `sessions`；只有 `usage_ledger` 的库不产出，尚未接入该表。
+
 Goose 文件若只有 total，修正后整文件不产出；L1 的空产出保护不会停用其中的历史行。历史纠错仍须单独在账本副本上核对，不能用空产出来推断旧用量应当删除。
 
 OpenClaw 的内容身份对规范化时间、原始 `row.id` / `message.id`、角色、正文（`content` / `text`）与 `tool_calls` 组成的数组做 SHA-256；编号仅作为原始内容参与指纹，不改变 `row.id` 的会话回退含义。用量和模型补录不改变键；同一身份跨文件的取舍沿用 `settleCopies`，合并副本的旧键。

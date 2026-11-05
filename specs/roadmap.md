@@ -4,7 +4,15 @@
 
 当前状态（2026-11-04）：A1、A2、A4 完成，A3 挂起（并入 L3）；B1、B2、B4、B5 完成，B3 并入 P1 完成；C0–C9 完成；D3 由 C3 覆盖、D4 完成、D1 和 D2 未做；F1–F4 完成；R1–R4 完成，R5 实现完成、浏览器人工验收未做，R6 推迟；L0–L6 完成，A3 仍未关闭；N1–N5 完成，Factory Droid、cline 搁置，等待真实样本，N4/N5 新接客户端均为 B 级；P0–P4 与价格页完成；W1–W4 完成，Windows exe 约 25MB，未装 Node 的干净 Windows 上运行尚未验收；macOS arm64 的 M0–M4 完成。当前仓库从单个初始提交开始，尚未运行任何远端 CI，`pr-checks.yml` 仅由 PR 触发。
 
-下一步：当前无进行中阶段，候选为未装 Node 的干净 Windows 验收、R5 浏览器人工验收、N4/N5 客户端（ZCode、MiniMax、MiMo、Command Code、AnythingLLM、CodeBuddy）的真实样本验证与 B 级升 A，以及已知缺陷修复：MiniMax M3.1 无官方或网关价（官方未列独立型号）、启动补采期间接口最长可能卡约 2.8 秒。下一步由用户选定；R6 继续推迟，Factory Droid、cline 等待真实样本，CI 上传 exe 产物暂不做。
+下一步：当前无进行中阶段，候选为未装 Node 的干净 Windows 验收、R5 浏览器人工验收、N4/N5 客户端（ZCode、MiniMax、MiMo、Command Code、AnythingLLM、CodeBuddy）的真实样本验证与 B 级升 A，以及下节「已知缺陷」的修复。下一步由用户选定；R6 继续推迟，Factory Droid、cline 等待真实样本，CI 上传 exe 产物暂不做。
+
+---
+
+## 已知缺陷
+
+- MiniMax M3.1 无官方或网关价（官方未列独立型号），保持未定价。
+- 启动补采期间接口最长可能卡约 2.8 秒。
+- Continue / Gemini 的同一会话在顶层汇总与逐条明细之间切换时，旧身份仍计入，可能重复计数。单向 `replaces` 无法处理来回切换，已被替代的 key 再次出现会触发 `superseded_reproduced`；等待真实样本后再确定方案。
 
 ---
 

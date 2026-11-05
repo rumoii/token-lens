@@ -181,3 +181,47 @@ test('C4 goose invalid-config: missing model stays NULL', async () => {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+for (const accumulated of [false, true]) {
+  test(`R2b goose provider: missing provider_name with accumulated=${accumulated} reads usage and keeps provider NULL`, async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'tl-test-goose-provider-'));
+    const dbPath = join(tmp, 'sessions.db');
+    try {
+      const db = new DatabaseSync(dbPath);
+      try {
+        db.exec(`CREATE TABLE sessions (
+          id TEXT, model_config_json TEXT, created_at TEXT,
+          input_tokens INTEGER, output_tokens INTEGER, total_tokens INTEGER
+          ${accumulated ? ', accumulated_input_tokens INTEGER, accumulated_output_tokens INTEGER, accumulated_total_tokens INTEGER' : ''}
+        )`);
+        db.prepare('INSERT INTO sessions (id, model_config_json, created_at, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?)').run(
+          'legacy-no-provider', JSON.stringify({ model_name: 'gpt-4o', provider: 'do-not-infer' }),
+          '2026-11-04T12:00:00.000Z', 10, 2, 12
+        );
+        if (accumulated) db.exec('UPDATE sessions SET accumulated_input_tokens = 100, accumulated_output_tokens = 20, accumulated_total_tokens = 120');
+      } finally { db.close(); }
+      const records = [];
+      for await (const record of parseGoose(dbPath)) records.push(record);
+      assert.equal(records.length, 1);
+      assert.equal(records[0].record_key, 'goose|legacy-no-provider');
+      assert.equal(records[0].provider, null);
+      assert.equal(records[0].model, 'gpt-4o');
+      assert.equal(records[0].input_tokens, accumulated ? 100 : 10);
+      assert.equal(records[0].output_tokens, accumulated ? 20 : 2);
+    } finally { rmSync(tmp, { recursive: true, force: true }); }
+  });
+}
+
+test('R2b goose data.db: usage_ledger without sessions emits no records', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'tl-test-goose-data-'));
+  const dbPath = join(tmp, 'data.db');
+  try {
+    const db = new DatabaseSync(dbPath);
+    try {
+      db.exec('CREATE TABLE usage_ledger (input_tokens INTEGER, output_tokens INTEGER); INSERT INTO usage_ledger VALUES (10, 2)');
+    } finally { db.close(); }
+    const records = [];
+    for await (const record of parseGoose(dbPath)) records.push(record);
+    assert.deepEqual(records, []);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});

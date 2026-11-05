@@ -28,12 +28,18 @@ function unique(list) {
   return [...new Set(list)];
 }
 
+/** 路径覆盖值只接受去掉 CR/LF 后的绝对路径，避免跟随采集进程的 cwd。 */
+function absoluteEnvPath(name, fallback) {
+  const value = (process.env[name] || '').replace(/[\r\n]+/g, '');
+  return isAbsolute(value) ? value : fallback;
+}
+
 /**
  * @param {string} home
  */
 function getHermesDbPath(home) {
   if (process.platform === 'win32') {
-    const localAppData = process.env.LOCALAPPDATA || join(home, 'AppData', 'Local');
+    const localAppData = absoluteEnvPath('LOCALAPPDATA', join(home, 'AppData', 'Local'));
     return join(localAppData, 'hermes', 'state.db');
   }
   return join(home, '.hermes', 'state.db');
@@ -48,7 +54,7 @@ function getHermesDbPath(home) {
  */
 function getGlobalStorageBases(home, ideDirs = ['Code', 'Code - Insiders', 'VSCodium', 'Cursor']) {
   if (process.platform === 'win32') {
-    const appData = process.env.APPDATA || join(home, 'AppData', 'Roaming');
+    const appData = absoluteEnvPath('APPDATA', join(home, 'AppData', 'Roaming'));
     return ideDirs.map(ide => join(appData, ide, 'User', 'globalStorage'));
   }
   if (process.platform === 'darwin') {
@@ -62,7 +68,7 @@ function getGlobalStorageBases(home, ideDirs = ['Code', 'Code - Insiders', 'VSCo
  */
 function getCursorStateDbPath(home) {
   if (process.platform === 'win32') {
-    const appData = process.env.APPDATA || join(home, 'AppData', 'Roaming');
+    const appData = absoluteEnvPath('APPDATA', join(home, 'AppData', 'Roaming'));
     return join(appData, 'Cursor', 'User', 'globalStorage', 'state.vscdb');
   }
   if (process.platform === 'darwin') {
@@ -180,15 +186,16 @@ function getOpenhandsFiles(root) {
 /**
  * @param {string} home
  */
-function getGooseDbPath(home) {
+function getGooseDbPaths(home) {
   if (process.platform === 'win32') {
-    const appData = process.env.APPDATA || join(home, 'AppData', 'Roaming');
-    return join(appData, 'goose', 'sessions', 'sessions.db');
+    const appData = absoluteEnvPath('APPDATA', join(home, 'AppData', 'Roaming'));
+    const localAppData = absoluteEnvPath('LOCALAPPDATA', join(home, 'AppData', 'Local'));
+    return [join(appData, 'goose', 'sessions', 'sessions.db'), join(localAppData, 'block', 'goose', 'data.db')];
   }
   if (process.platform === 'darwin') {
-    return join(home, 'Library', 'Application Support', 'goose', 'sessions', 'sessions.db');
+    return [join(home, 'Library', 'Application Support', 'goose', 'sessions', 'sessions.db')];
   }
-  return join(home, '.local', 'share', 'goose', 'sessions', 'sessions.db');
+  return [join(home, '.local', 'share', 'goose', 'sessions', 'sessions.db')];
 }
 
 /**
@@ -196,7 +203,7 @@ function getGooseDbPath(home) {
  */
 function getZedDbPath(home) {
   if (process.platform === 'win32') {
-    const localAppData = process.env.LOCALAPPDATA || join(home, 'AppData', 'Local');
+    const localAppData = absoluteEnvPath('LOCALAPPDATA', join(home, 'AppData', 'Local'));
     return join(localAppData, 'Zed', 'threads', 'threads.db');
   }
   if (process.platform === 'darwin') {
@@ -211,7 +218,7 @@ function getZcodeDbPath(home) {
 
 /** Prisma fixes SQLite to server/storage; STORAGE_DIR controls other storage, not its DB URL. */
 function getAnythingllmDbPath(home) {
-  const base = process.platform === 'win32' ? (process.env.APPDATA || join(home, 'AppData', 'Roaming'))
+  const base = process.platform === 'win32' ? absoluteEnvPath('APPDATA', join(home, 'AppData', 'Roaming'))
     : process.platform === 'darwin' ? join(home, 'Library', 'Application Support') : join(home, '.config');
   return join(base, 'anythingllm-desktop', 'storage', 'anythingllm.db');
 }
@@ -233,7 +240,7 @@ function getCodebuddyFiles(home) {
     }
   };
   for (const name of ['.codebuddy', '.workbuddy', '.workbuddy-ai']) walk(join(home, name, 'projects'), false);
-  const base = process.platform === 'win32' ? (process.env.LOCALAPPDATA || join(home, 'AppData', 'Local'))
+  const base = process.platform === 'win32' ? absoluteEnvPath('LOCALAPPDATA', join(home, 'AppData', 'Local'))
     : process.platform === 'darwin' ? join(home, 'Library', 'Application Support') : join(home, '.local', 'share');
   walk(join(base, 'CodeBuddyExtension', 'Data'), true);
   return files;
@@ -279,7 +286,7 @@ export function discoverAll() {
   const kimiShare = getKimiShareDir(home);
   const kiloDb = getKiloDbPath(home);
   const openhandsRoot = getOpenhandsRoot(home);
-  const gooseDbDefault = getGooseDbPath(home);
+  const gooseDbDefaults = getGooseDbPaths(home);
   const zedDbDefault = getZedDbPath(home);
   const globalBases = getGlobalStorageBases(home);
   const anythingllmDb = getAnythingllmDbPath(home);
@@ -304,7 +311,7 @@ export function discoverAll() {
     hermes: existsSync(hermesDefault) ? [hermesDefault] : [],
     cline: clineFiles,
     gemini: [
-      ...safeGlob(process.env.GEMINI_HOME || join(home, '.gemini'), 'sessions/**/*.{json,jsonl}'),
+      ...safeGlob(absoluteEnvPath('GEMINI_HOME', join(home, '.gemini')), 'sessions/**/*.{json,jsonl}'),
       ...safeGlob(join(home, '.config', 'gemini'), 'sessions/**/*.{json,jsonl}')
     ],
     cursor: [
@@ -315,8 +322,8 @@ export function discoverAll() {
     kilo: kiloDb && existsSync(kiloDb) ? [kiloDb] : [],
     openhands: getOpenhandsFiles(openhandsRoot),
     goose: [
-      ...(existsSync(gooseDbDefault) ? [gooseDbDefault] : []),
-      ...safeGlob(process.env.GOOSE_PATH_ROOT || join(home, '.goose'), 'data/sessions/sessions.db')
+      ...gooseDbDefaults.filter(file => existsSync(file)),
+      ...safeGlob(absoluteEnvPath('GOOSE_PATH_ROOT', join(home, '.goose')), 'data/sessions/sessions.db')
     ],
     zed: [
       ...(existsSync(zedDbDefault) ? [zedDbDefault] : []),
@@ -328,18 +335,18 @@ export function discoverAll() {
       ...getGlobalStorageBases(home, ['TRAE SOLO', 'Trae CN', 'TRAE SOLO CN', 'trae'])
         .flatMap(base => safeGlob(base, '**/*trae*.{json,jsonl}'))
     ],
-    copilot: safeGlob(process.env.COPILOT_HOME || join(home, '.copilot'), '{session-store.db,data.db}'),
-    openclaw: safeGlob(process.env.OPENCLAW_HOME || process.env.OPENCLAW_STATE_DIR || join(home, '.openclaw'), 'agents/*/{sessions,session-sqlite-import-archive}/*.jsonl*'),
+    copilot: safeGlob(absoluteEnvPath('COPILOT_HOME', join(home, '.copilot')), '{session-store.db,data.db}'),
+    openclaw: safeGlob(absoluteEnvPath('OPENCLAW_HOME', absoluteEnvPath('OPENCLAW_STATE_DIR', join(home, '.openclaw'))), 'agents/*/{sessions,session-sqlite-import-archive}/*.jsonl*'),
     mimo: [
       ...getMimocodeDbPaths(home),
       // Windows MiMo Desktop 的库位置来自第三方工具（iCxin/xiaomi-mimo-usage）的说明：第三方说法，未核实。
-      ...safeGlob(process.env.APPDATA || join(home, 'AppData', 'Roaming'), 'Xiaomi MiMo/mimocode/mimocode.db')
+      ...safeGlob(absoluteEnvPath('APPDATA', join(home, 'AppData', 'Roaming')), 'Xiaomi MiMo/mimocode/mimocode.db')
     ],
     kimi: [
       ...safeGlob(join(home, '.kimi-code'), 'sessions/*/*/agents/*/wire.jsonl'),
       ...(kimiShare ? safeGlob(kimiShare, '{sessions,logs}/**/*.{json,jsonl}') : []),
-      ...safeGlob(process.env.APPDATA || join(home, 'AppData', 'Roaming'), '{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}'),
-      ...safeGlob(process.env.LOCALAPPDATA || join(home, 'AppData', 'Local'), '{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}'),
+      ...safeGlob(absoluteEnvPath('APPDATA', join(home, 'AppData', 'Roaming')), '{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}'),
+      ...safeGlob(absoluteEnvPath('LOCALAPPDATA', join(home, 'AppData', 'Local')), '{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}'),
       ...safeGlob(join(home, '.config', 'kimi'), '{sessions,logs}/**/*.{json,jsonl}')
     ],
     minimax: minimaxDataDir ? (

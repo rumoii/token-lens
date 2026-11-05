@@ -80,7 +80,7 @@ export async function* parseGoose(filePath, notes) {
       SELECT
         id,
         model_config_json,
-        provider_name,
+        ${cols.has('provider_name') ? 'provider_name' : 'NULL AS provider_name'},
         created_at,
         ${inputCol} AS input_tokens,
         ${outputCol} AS output_tokens,
