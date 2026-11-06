@@ -1,0 +1,12 @@
+[
+  {
+    "id": 4,
+    "name": "alpha",
+    "tag_name": "v2.0.0-alpha",
+    "html_url": "https://github.com/openai/codex/releases/tag/v2.0.0-alpha",
+    "published_at": "2026-11-05T22:55:03Z",
+    "draft": false,
+    "prerelease": true,
+    "body": "prerelease"
+  }
+]

@@ -1,0 +1,137 @@
+[
+ {
+  "_id": "6acb9de53f4c63e4914dab3c",
+  "id": "a-test-user-in-the-wrold/qwen-image-21-uncensored",
+  "likes": 288,
+  "trendingScore": 164,
+  "private": false,
+  "sdk": "gradio",
+  "tags": [
+   "gradio",
+   "mcp-server",
+   "region:us"
+  ],
+  "createdAt": "2026-10-11T14:32:05.000Z"
+ },
+ {
+  "_id": "6a5773bc1a6fb3f3c05e149e",
+  "id": "kulkas2pintu/wan777",
+  "likes": 1326,
+  "trendingScore": 140,
+  "private": false,
+  "sdk": "gradio",
+  "tags": [
+   "gradio",
+   "mcp-server",
+   "region:us"
+  ],
+  "createdAt": "2026-07-15T11:49:16.000Z"
+ },
+ {
+  "_id": "6ae21d2d649cd1a27cb038a9",
+  "id": "speridlabs/idol",
+  "likes": 151,
+  "trendingScore": 129,
+  "private": false,
+  "sdk": "gradio",
+  "tags": [
+   "gradio",
+   "region:us"
+  ],
+  "createdAt": "2026-10-28T16:05:01.000Z"
+ },
+ {
+  "_id": "6ae3c1e3b986102111fd89e7",
+  "id": "LiquidAI/LFM3-Omni-2B-WebGPU",
+  "likes": 117,
+  "trendingScore": 110,
+  "private": false,
+  "sdk": "static",
+  "tags": [
+   "static",
+   "region:us"
+  ],
+  "createdAt": "2026-10-29T22:00:03.000Z"
+ },
+ {
+  "_id": "6ab95fcbd57d1d5d5de3409d",
+  "id": "hugging-apps/bfs-best-face-swap",
+  "likes": 770,
+  "trendingScore": 100,
+  "private": false,
+  "sdk": "gradio",
+  "tags": [
+   "gradio",
+   "mcp-server",
+   "region:us"
+  ],
+  "createdAt": "2026-09-27T18:26:19.000Z"
+ },
+ {
+  "_id": "6abaa43202007344336a78f9",
+  "id": "JCisHERE/wan2-2-i2v-v3",
+  "likes": 224,
+  "trendingScore": 93,
+  "private": false,
+  "sdk": "gradio",
+  "tags": [
+   "gradio",
+   "mcp-server",
+   "region:us"
+  ],
+  "createdAt": "2026-09-28T17:30:26.000Z"
+ },
+ {
+  "_id": "6adb5812ccdedfc86d135f4c",
+  "id": "linoyts/qwen-image-2-1-realtime",
+  "likes": 177,
+  "trendingScore": 86,
+  "private": false,
+  "sdk": "gradio",
+  "tags": [
+   "gradio",
+   "mcp-server",
+   "region:us"
+  ],
+  "createdAt": "2026-10-23T12:50:26.000Z"
+ },
+ {
+  "_id": "6aba7f1be72aa5d5f662023c",
+  "id": "nvidia/simready-central",
+  "likes": 377,
+  "trendingScore": 78,
+  "private": false,
+  "sdk": "docker",
+  "tags": [
+   "docker",
+   "region:us"
+  ],
+  "createdAt": "2026-09-28T14:52:11.000Z"
+ },
+ {
+  "_id": "6ac907290fdd3575a69e0c14",
+  "id": "huggingface/moe-blogpost",
+  "likes": 74,
+  "trendingScore": 73,
+  "private": false,
+  "sdk": "docker",
+  "tags": [
+   "docker",
+   "region:us"
+  ],
+  "createdAt": "2026-10-09T15:24:25.000Z"
+ },
+ {
+  "_id": "6ad6228c9d300685a62adb0f",
+  "id": "briaai/Fibo-2.0-editing",
+  "likes": 226,
+  "trendingScore": 70,
+  "private": false,
+  "sdk": "gradio",
+  "tags": [
+   "gradio",
+   "region:us"
+  ],
+  "createdAt": "2026-10-19T14:00:44.000Z"
+ }
+]

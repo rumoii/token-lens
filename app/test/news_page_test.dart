@@ -20,15 +20,18 @@ void main() {
     final controller = NewsController(
       FakeNewsGateway(
         cached: const NewsSnapshot(
+          sources: [openaiSource],
           items: [
             NewsItem(
               id: 'short',
+              sourceId: 'openai',
               title: 'Short article',
               url: 'https://openai.com/index/short/',
               description: 'A short excerpt.',
             ),
             NewsItem(
               id: 'long',
+              sourceId: 'openai',
               title: 'Long article',
               url: 'https://openai.com/index/long/',
               description:
@@ -229,9 +232,9 @@ void main() {
   ) async {
     final controller = NewsController(
       FakeNewsGateway(
-        cached: const NewsSnapshot(
+        cached: NewsSnapshot(
+          sources: [openaiSource.copyWith(lastSuccessMs: 9223372036854775807)],
           items: [cachedItem],
-          lastSuccessMs: 9223372036854775807,
         ),
       ),
     );

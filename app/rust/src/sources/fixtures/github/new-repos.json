@@ -1,0 +1,22 @@
+{
+  "total_count": 2,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 101,
+      "full_name": "example/ai-helper",
+      "html_url": "https://github.com/example/ai-helper",
+      "description": "A local AI helper",
+      "created_at": "2026-11-05T15:00:00Z",
+      "stargazers_count": 321
+    },
+    {
+      "id": 102,
+      "full_name": "example/llm-tools",
+      "html_url": "https://github.com/example/llm-tools",
+      "description": null,
+      "created_at": "2026-11-04T12:00:00Z",
+      "stargazers_count": 100
+    }
+  ]
+}

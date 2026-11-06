@@ -1,0 +1,1 @@
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Test</title><entry><id>one</id><title>One</title><link rel="self" href="https://example.com/api"/><link rel="alternate" href="https://example.com/one"/><summary>Summary</summary><published>2026-11-05T10:00:00-05:00</published></entry></feed>

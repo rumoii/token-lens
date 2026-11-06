@@ -1,6 +1,6 @@
 # Token Lens 桌面预览
 
-Flutter + Rust 重写的 D1：OpenAI 新闻的手动刷新、本地缓存、取消和错误反馈。统计功能尚未迁移，继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)。
+Flutter + Rust 重写的 D2：16 个新闻与工具更新来源、按来源手动刷新、启停、本地缓存、取消和错误反馈。统计功能尚未迁移，继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)。
 
 ## 环境
 
@@ -46,6 +46,6 @@ macOS 使用 `flutter run -d macos` 和 `flutter build macos --release`；Window
 
 Windows release 必须保留构建输出中的 exe、DLL 与 `data/`，不能只复制 exe。此阶段提供开发预览，尚未制作替换旧版的自解压安装包或 dmg。
 
-启动不联网。点击刷新才读取 OpenAI RSS；失败保留旧内容，取消终止当前请求。列表／卡片切换仅改变显示；原文在系统浏览器打开。关闭退出，不留常驻进程。一个缓存目录只允许一个写入者。
+启动不联网。点击刷新才请求全部已启用来源或选定单一来源；单来源失败保留其旧内容，取消保留已经完成的提交。分类、搜索、来源筛选和列表／卡片切换只处理本地数据；原文在系统浏览器打开。关闭退出，不留常驻进程。一个缓存目录只允许一个写入者。
 
 预览默认使用系统应用支持目录下的 `news-preview`，可以用 `TOKEN_LENS_PREVIEW_DATA_DIR` 覆盖为绝对路径。它忽略旧版 `TOKEN_LENS_DATA_DIR` 与 `DB_PATH`，不读取或修改旧账本。回退只需退出预览并继续使用原版。

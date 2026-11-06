@@ -1,4 +1,75 @@
 use super::*;
+use crate::engine;
+impl NewsSnapshot {
+    fn failure(&self) -> Option<&NewsError> {
+        self.error
+            .as_ref()
+            .or_else(|| self.sources.iter().find_map(|s| s.error.as_ref()))
+    }
+}
+use std::fs::OpenOptions;
+const MAX_BYTES: usize = 4 * 1024 * 1024;
+
+#[derive(Serialize)]
+struct Cache {
+    version: u32,
+    items: Vec<NewsItem>,
+    last_success_ms: i64,
+}
+fn persist_cache(path: &Path, cache: &Cache, fail_before_replace: bool) -> Result<(), NewsError> {
+    let value = serde_json::json!({"version": cache.version, "last_success_ms": cache.last_success_ms,
+        "items": cache.items.iter().map(|item| serde_json::json!({
+            "id": item.id.strip_prefix("openai:").unwrap_or(&item.id), "title": item.title, "url": item.url,
+            "published_at": item.published_at, "description": item.description
+        })).collect::<Vec<_>>()});
+    let temp = engine::prepare_cache(path, &value)?;
+    if fail_before_replace {
+        return Err(engine::error(
+            "cache",
+            "Injected failure before atomic replace.",
+        ));
+    }
+    engine::replace_cache(path, temp)
+}
+fn parse_feed(bytes: &[u8]) -> Result<Vec<NewsItem>, NewsError> {
+    let source = rss::feeds().remove(0);
+    let raw = source
+        .parse(bytes)
+        .map_err(|_| engine::error("parse", "Invalid feed."))?;
+    engine::normalise_items("openai", raw, source.text_is_html())
+}
+fn cached_items(path: &Path) -> Vec<NewsItem> {
+    NewsClient::new(path.parent().unwrap().to_string_lossy().into_owned())
+        .unwrap()
+        .snapshot()
+        .items
+}
+
+#[tokio::test]
+async fn d2_success_writes_v2_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let (url, seen, reply) = server().await;
+    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let task = tokio::spawn(async move { client.refresh(None).await });
+    seen.await.unwrap();
+    reply.send(response("200 OK", &rss(""))).unwrap();
+    assert!(task.await.unwrap().error.is_none());
+    let json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.path().join("news-cache.json")).unwrap())
+            .unwrap();
+    assert_eq!(json["version"], 2);
+    assert!(json["sources"]["openai"].is_object());
+}
+
+#[test]
+fn d2_atom_and_utc_dates() {
+    let atom = include_bytes!("../../sources/fixtures/rss/atom-normal.xml");
+    let items = parse_feed(atom).unwrap();
+    assert_eq!(
+        items[0].published_at.as_deref(),
+        Some("2026-11-05T15:00:00Z")
+    );
+}
 
 #[test]
 fn accepts_empty_rss_but_rejects_html() {
@@ -21,7 +92,11 @@ fn rss_boundary_rejects_all_invalid_items_but_accepts_empty_and_mixed() {
     assert_eq!(parse_feed(mixed.as_bytes()).unwrap().len(), 1);
 }
 
-async fn assert_rejected_response_preserves_cache(body: &str, content_type: Option<&str>) {
+async fn assert_rejected_response_preserves_cache(
+    body: &str,
+    content_type: Option<&str>,
+    expected_kind: &str,
+) {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("news-cache.json");
     let items =
@@ -41,7 +116,7 @@ async fn assert_rejected_response_preserves_cache(body: &str, content_type: Opti
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     let header = content_type
@@ -54,9 +129,9 @@ async fn assert_rejected_response_preserves_cache(body: &str, content_type: Opti
         ))
         .unwrap();
     let result = running.await.unwrap();
-    assert_eq!(result.error.unwrap().kind, "parse");
+    assert_eq!(result.failure().unwrap().kind, expected_kind);
     assert_eq!(result.items, items);
-    assert_eq!(result.last_success_ms, Some(1234));
+    assert_eq!(result.sources[0].last_success_ms, Some(1234));
     assert_eq!(std::fs::read(path).unwrap(), previous);
 }
 
@@ -65,6 +140,7 @@ async fn rss_boundary_malformed_items_preserve_cache() {
     assert_rejected_response_preserves_cache(
         &rss("<item><title>No link</title></item>"),
         Some("application/rss+xml"),
+        "parse",
     )
     .await;
 }
@@ -78,6 +154,7 @@ async fn rss_boundary_html_content_type_preserves_cache() {
             "Looks valid",
         )),
         Some("text/html; charset=UTF-8"),
+        "content_type",
     )
     .await;
 }
@@ -95,7 +172,7 @@ async fn rss_boundary_accepts_xml_content_types_and_missing_header() {
         let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
         let running = {
             let client = client.clone();
-            tokio::spawn(async move { client.refresh().await })
+            tokio::spawn(async move { client.refresh(None).await })
         };
         seen.await.unwrap();
         let body = rss("");
@@ -115,7 +192,7 @@ async fn rss_boundary_accepts_xml_content_types_and_missing_header() {
             result.error
         );
         assert!(result.items.is_empty());
-        assert!(result.last_success_ms.is_some());
+        assert!(result.sources[0].last_success_ms.is_some());
     }
 }
 
@@ -155,14 +232,14 @@ fn sanitizes_deduplicates_and_limits_feed() {
         );
     }
     let items = parse_feed(rss(&input).as_bytes()).unwrap();
-    assert_eq!(items.len(), 100);
+    assert_eq!(items.len(), 50);
     assert_eq!(items[0].title, "One");
     assert_eq!(items[0].description.as_deref(), Some("Hello & world"));
     assert_eq!(
         items[0].published_at.as_deref(),
-        Some("2026-11-03T12:00:00+00:00")
+        Some("2026-11-03T12:00:00Z")
     );
-    assert!(!items.iter().any(|v| v.id == "unsafe"));
+    assert!(!items.iter().any(|v| v.id == "openai:unsafe"));
 }
 
 #[test]
@@ -170,7 +247,7 @@ fn malformed_cache_is_visible_and_does_not_fetch() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("news-cache.json"), b"broken").unwrap();
     let client = NewsClient::new(dir.path().to_string_lossy().into_owned()).unwrap();
-    assert_eq!(client.snapshot().error.unwrap().kind, "cache");
+    assert_eq!(client.snapshot().failure().unwrap().kind, "cache");
 }
 
 async fn server() -> (
@@ -210,7 +287,7 @@ async fn refresh_cache_reload_and_failed_fetch_preserves_success() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     reply
@@ -228,16 +305,19 @@ async fn refresh_cache_reload_and_failed_fetch_preserves_success() {
     assert_eq!(client.snapshot().items, first.items);
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     reply
         .send(response("429 Too Many Requests", "slow down"))
         .unwrap();
     let failed = running.await.unwrap();
-    assert_eq!(failed.error.unwrap().kind, "rate_limited");
+    assert_eq!(failed.failure().unwrap().kind, "rate_limited");
     assert_eq!(failed.items, first.items);
-    assert_eq!(failed.last_success_ms, first.last_success_ms);
+    assert_eq!(
+        failed.sources[0].last_success_ms,
+        first.sources[0].last_success_ms
+    );
 }
 
 #[tokio::test]
@@ -247,11 +327,11 @@ async fn cancellation_duplicate_start_shutdown_and_late_reply() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     assert!(client.snapshot().refreshing);
-    assert_eq!(client.refresh().await.error.unwrap().kind, "busy");
+    assert_eq!(client.refresh(None).await.failure().unwrap().kind, "busy");
     client.cancel_refresh();
     reply
         .send(response(
@@ -260,12 +340,12 @@ async fn cancellation_duplicate_start_shutdown_and_late_reply() {
         ))
         .unwrap();
     let cancelled = running.await.unwrap();
-    assert_eq!(cancelled.error.unwrap().kind, "cancelled");
+    assert_eq!(cancelled.failure().unwrap().kind, "cancelled");
     assert!(cancelled.items.is_empty());
     assert!(!dir.path().join("news-cache.json").exists());
     client.shutdown();
     client.shutdown();
-    assert_eq!(client.refresh().await.error.unwrap().kind, "closed");
+    assert_eq!(client.refresh(None).await.failure().unwrap().kind, "closed");
 }
 
 #[tokio::test]
@@ -275,22 +355,22 @@ async fn timeout_and_invalid_response_are_visible() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_millis(100)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
-    assert_eq!(running.await.unwrap().error.unwrap().kind, "timeout");
+    assert_eq!(running.await.unwrap().failure().unwrap().kind, "timeout");
     client.shutdown();
     let (url, seen, reply) = server().await;
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     reply
         .send(response("200 OK", "<html>not rss</html>"))
         .unwrap();
-    assert_eq!(running.await.unwrap().error.unwrap().kind, "parse");
+    assert_eq!(running.await.unwrap().failure().unwrap().kind, "parse");
 }
 
 #[test]
@@ -334,7 +414,7 @@ fn cache_roundtrip_preserves_literal_angle_brackets() {
         false,
     )
     .unwrap();
-    assert_eq!(load_cache(&path).unwrap().unwrap().items, items);
+    assert_eq!(cached_items(&path), items);
 }
 
 #[test]
@@ -361,9 +441,9 @@ fn unicode_url_boundary_survives_cache_roundtrip() {
         false,
     )
     .unwrap();
-    assert_eq!(load_cache(&path).unwrap().unwrap().items, items);
+    assert_eq!(cached_items(&path), items);
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0].id, "valid");
+    assert_eq!(items[0].id, "openai:valid");
     assert_eq!(
         parse_feed(rss(&item("oversized", &oversized, "Oversized")).as_bytes())
             .unwrap_err()
@@ -384,7 +464,7 @@ fn unicode_url_boundary_survives_cache_roundtrip() {
         false,
     )
     .unwrap();
-    assert_eq!(load_cache(&path).unwrap().unwrap().items, items);
+    assert_eq!(cached_items(&path), items);
 }
 
 #[tokio::test]
@@ -394,12 +474,12 @@ async fn dropped_refresh_and_shutdown_prevent_late_commit() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     running.abort();
     assert!(running.await.unwrap_err().is_cancelled());
-    assert_eq!(client.snapshot().error.unwrap().kind, "cancelled");
+    assert_eq!(client.snapshot().failure().unwrap().kind, "cancelled");
     assert!(!client.snapshot().refreshing);
     let _ = reply.send(response(
         "200 OK",
@@ -410,7 +490,7 @@ async fn dropped_refresh_and_shutdown_prevent_late_commit() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     client.shutdown();
@@ -421,7 +501,7 @@ async fn dropped_refresh_and_shutdown_prevent_late_commit() {
             &rss(&item("late", "https://openai.com/late", "Late")),
         ))
         .unwrap();
-    assert_eq!(running.await.unwrap().error.unwrap().kind, "closed");
+    assert_eq!(running.await.unwrap().failure().unwrap().kind, "closed");
     assert!(replacement.snapshot().items.is_empty());
     assert!(!dir.path().join("news-cache.json").exists());
 }
@@ -433,17 +513,17 @@ async fn redirects_and_oversized_responses_are_rejected() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     reply.send("HTTP/1.1 302 Found\r\nLocation: https://example.invalid/unwanted\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_owned()).unwrap();
-    assert_eq!(running.await.unwrap().error.unwrap().kind, "network");
+    assert_eq!(running.await.unwrap().failure().unwrap().kind, "http");
     client.shutdown();
     let (url, seen, reply) = server().await;
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     reply
@@ -452,7 +532,7 @@ async fn redirects_and_oversized_responses_are_rejected() {
             MAX_BYTES + 1
         ))
         .unwrap();
-    assert_eq!(running.await.unwrap().error.unwrap().kind, "parse");
+    assert_eq!(running.await.unwrap().failure().unwrap().kind, "too_large");
     assert!(!dir.path().join("news-cache.json").exists());
 }
 
@@ -461,8 +541,8 @@ fn latest_dates_and_link_fallback_identity() {
     let input = rss(&format!("{}{}<item><title>Latest</title><link>https://openai.com/latest</link><pubDate>Wed, 04 Nov 2026 12:00:00 GMT</pubDate></item>",
         item("old", "https://openai.com/old", "Old"), item("duplicate-url", "https://openai.com/old", "Duplicate")));
     let items = parse_feed(input.as_bytes()).unwrap();
-    assert_eq!(items.len(), 2);
-    assert_eq!(items[0].id, "https://openai.com/latest");
+    assert_eq!(items.len(), 3);
+    assert_eq!(items[0].id, "openai:https://openai.com/latest");
 }
 
 #[cfg(windows)]
@@ -494,7 +574,7 @@ fn windows_atomic_replace_failure_preserves_old_file() {
 #[tokio::test]
 async fn every_fetch_failure_and_cancellation_keep_existing_cache() {
     let cases = [
-        ("network", Some(response("500 Internal Server Error", "no"))),
+        ("http", Some(response("500 Internal Server Error", "no"))),
         ("parse", Some(response("200 OK", "<html>no</html>"))),
         ("timeout", None),
         ("cancelled", None),
@@ -519,7 +599,7 @@ async fn every_fetch_failure_and_cancellation_keep_existing_cache() {
         let client = NewsClient::new_for_test(dir.path(), url, Duration::from_millis(100)).unwrap();
         let running = {
             let client = client.clone();
-            tokio::spawn(async move { client.refresh().await })
+            tokio::spawn(async move { client.refresh(None).await })
         };
         seen.await.unwrap();
         let mut reply = Some(reply);
@@ -530,9 +610,9 @@ async fn every_fetch_failure_and_cancellation_keep_existing_cache() {
         }
         let result = running.await.unwrap();
         drop(reply);
-        assert_eq!(result.error.unwrap().kind, kind);
+        assert_eq!(result.failure().unwrap().kind, kind);
         assert_eq!(result.items, items);
-        assert_eq!(result.last_success_ms, Some(1234));
+        assert_eq!(result.sources[0].last_success_ms, Some(1234));
         assert_eq!(std::fs::read(&path).unwrap(), previous_bytes);
     }
 }
@@ -544,7 +624,7 @@ async fn missing_content_length_still_enforces_body_limit() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     reply
@@ -553,7 +633,7 @@ async fn missing_content_length_still_enforces_body_limit() {
             "x".repeat(MAX_BYTES + 1)
         ))
         .unwrap();
-    assert_eq!(running.await.unwrap().error.unwrap().kind, "parse");
+    assert_eq!(running.await.unwrap().failure().unwrap().kind, "too_large");
 }
 
 #[cfg(windows)]
@@ -584,7 +664,7 @@ async fn cache_commit_failure_preserves_memory_and_disk() {
     let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
     let running = {
         let client = client.clone();
-        tokio::spawn(async move { client.refresh().await })
+        tokio::spawn(async move { client.refresh(None).await })
     };
     seen.await.unwrap();
     reply
@@ -594,8 +674,8 @@ async fn cache_commit_failure_preserves_memory_and_disk() {
         ))
         .unwrap();
     let result = running.await.unwrap();
-    assert_eq!(result.error.unwrap().kind, "cache");
+    assert_eq!(result.failure().unwrap().kind, "cache");
     assert_eq!(result.items, items);
-    assert_eq!(result.last_success_ms, Some(1234));
+    assert_eq!(result.sources[0].last_success_ms, Some(1234));
     assert_eq!(std::fs::read(path).unwrap(), previous);
 }

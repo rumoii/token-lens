@@ -1,0 +1,42 @@
+[
+  {
+    "id": 435979892,
+    "name": "0.167.0",
+    "tag_name": "rust-v0.167.0",
+    "html_url": "https://github.com/openai/codex/releases/tag/rust-v0.167.0",
+    "published_at": "2026-11-06T01:40:00Z",
+    "draft": false,
+    "prerelease": false,
+    "body": "## New Features\n\n- Open the agent command center."
+  },
+  {
+    "id": 2,
+    "name": "",
+    "tag_name": "v2.0.0",
+    "html_url": "https://github.com/openai/codex/releases/tag/v2.0.0",
+    "published_at": "2026-11-05T23:00:00+08:00",
+    "draft": false,
+    "prerelease": false,
+    "body": null
+  },
+  {
+    "id": 3,
+    "name": "draft",
+    "tag_name": "draft",
+    "html_url": "https://github.com/openai/codex/releases/tag/draft",
+    "published_at": null,
+    "draft": true,
+    "prerelease": false,
+    "body": "not published"
+  },
+  {
+    "id": 4,
+    "name": "alpha",
+    "tag_name": "v2.0.0-alpha",
+    "html_url": "https://github.com/openai/codex/releases/tag/v2.0.0-alpha",
+    "published_at": "2026-11-05T22:55:03Z",
+    "draft": false,
+    "prerelease": true,
+    "body": "prerelease"
+  }
+]

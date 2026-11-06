@@ -67,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -93531125;
+  int get rustContentHash => -1769736022;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -83,8 +83,20 @@ abstract class RustLibApi extends BaseApi {
 
   Future<NewsClient> crateApiNewsNewsClientNew({required String dataDir});
 
+  Future<NewsClient> crateApiNewsNewsClientNewForLocalTest({
+    required String dataDir,
+    required List<String> endpoints,
+  });
+
   Future<NewsSnapshot> crateApiNewsNewsClientRefresh({
     required NewsClient that,
+    List<String>? sourceIds,
+  });
+
+  Future<NewsSnapshot> crateApiNewsNewsClientSetSourceEnabled({
+    required NewsClient that,
+    required String id,
+    required bool enabled,
   });
 
   Future<void> crateApiNewsNewsClientShutdown({required NewsClient that});
@@ -176,8 +188,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "NewsClient_new", argNames: ["dataDir"]);
 
   @override
+  Future<NewsClient> crateApiNewsNewsClientNewForLocalTest({
+    required String dataDir,
+    required List<String> endpoints,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dataDir, serializer);
+          sse_encode_list_String(endpoints, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiNewsNewsClientNewForLocalTestConstMeta,
+        argValues: [dataDir, endpoints],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNewsNewsClientNewForLocalTestConstMeta =>
+      const TaskConstMeta(
+        debugName: "NewsClient_new_for_local_test",
+        argNames: ["dataDir", "endpoints"],
+      );
+
+  @override
   Future<NewsSnapshot> crateApiNewsNewsClientRefresh({
     required NewsClient that,
+    List<String>? sourceIds,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -187,10 +236,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
+          sse_encode_opt_list_String(sourceIds, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -199,14 +249,57 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiNewsNewsClientRefreshConstMeta,
-        argValues: [that],
+        argValues: [that, sourceIds],
         apiImpl: this,
       ),
     );
   }
 
   TaskConstMeta get kCrateApiNewsNewsClientRefreshConstMeta =>
-      const TaskConstMeta(debugName: "NewsClient_refresh", argNames: ["that"]);
+      const TaskConstMeta(
+        debugName: "NewsClient_refresh",
+        argNames: ["that", "sourceIds"],
+      );
+
+  @override
+  Future<NewsSnapshot> crateApiNewsNewsClientSetSourceEnabled({
+    required NewsClient that,
+    required String id,
+    required bool enabled,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          sse_encode_bool(enabled, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_news_snapshot,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNewsNewsClientSetSourceEnabledConstMeta,
+        argValues: [that, id, enabled],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNewsNewsClientSetSourceEnabledConstMeta =>
+      const TaskConstMeta(
+        debugName: "NewsClient_set_source_enabled",
+        argNames: ["that", "id", "enabled"],
+      );
 
   @override
   Future<void> crateApiNewsNewsClientShutdown({required NewsClient that}) {
@@ -221,7 +314,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 6,
             port: port_,
           );
         },
@@ -254,7 +347,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 7,
             port: port_,
           );
         },
@@ -281,7 +374,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 8,
             port: port_,
           );
         },
@@ -367,6 +460,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
   List<NewsItem> dco_decode_list_news_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_news_item).toList();
@@ -376,6 +475,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<SourceState> dco_decode_list_source_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_source_state).toList();
   }
 
   @protected
@@ -394,14 +499,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NewsItem dco_decode_news_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return NewsItem(
       id: dco_decode_String(arr[0]),
-      title: dco_decode_String(arr[1]),
-      url: dco_decode_String(arr[2]),
-      publishedAt: dco_decode_opt_String(arr[3]),
-      description: dco_decode_opt_String(arr[4]),
+      sourceId: dco_decode_String(arr[1]),
+      title: dco_decode_String(arr[2]),
+      url: dco_decode_String(arr[3]),
+      publishedAt: dco_decode_opt_String(arr[4]),
+      description: dco_decode_opt_String(arr[5]),
+      popularityKind: dco_decode_opt_String(arr[6]),
+      popularity: dco_decode_opt_CastedPrimitive_i_64(arr[7]),
+      alsoIn: dco_decode_list_String(arr[8]),
     );
   }
 
@@ -412,8 +521,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return NewsSnapshot(
-      items: dco_decode_list_news_item(arr[0]),
-      lastSuccessMs: dco_decode_opt_CastedPrimitive_i_64(arr[1]),
+      sources: dco_decode_list_source_state(arr[0]),
+      items: dco_decode_list_news_item(arr[1]),
       refreshing: dco_decode_bool(arr[2]),
       error: dco_decode_opt_box_autoadd_news_error(arr[3]),
     );
@@ -435,6 +544,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NewsError? dco_decode_opt_box_autoadd_news_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_news_error(raw);
+  }
+
+  @protected
+  List<String>? dco_decode_opt_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_String(raw);
+  }
+
+  @protected
+  SourceState dco_decode_source_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return SourceState(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      category: dco_decode_String(arr[2]),
+      homeUrl: dco_decode_String(arr[3]),
+      enabled: dco_decode_bool(arr[4]),
+      refreshing: dco_decode_bool(arr[5]),
+      lastSuccessMs: dco_decode_opt_CastedPrimitive_i_64(arr[6]),
+      error: dco_decode_opt_box_autoadd_news_error(arr[7]),
+    );
   }
 
   @protected
@@ -524,6 +657,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <String>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<NewsItem> sse_decode_list_news_item(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -543,6 +688,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<SourceState> sse_decode_list_source_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SourceState>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_source_state(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   NewsError sse_decode_news_error(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_kind = sse_decode_String(deserializer);
@@ -554,29 +711,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NewsItem sse_decode_news_item(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
+    var var_sourceId = sse_decode_String(deserializer);
     var var_title = sse_decode_String(deserializer);
     var var_url = sse_decode_String(deserializer);
     var var_publishedAt = sse_decode_opt_String(deserializer);
     var var_description = sse_decode_opt_String(deserializer);
+    var var_popularityKind = sse_decode_opt_String(deserializer);
+    var var_popularity = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_alsoIn = sse_decode_list_String(deserializer);
     return NewsItem(
       id: var_id,
+      sourceId: var_sourceId,
       title: var_title,
       url: var_url,
       publishedAt: var_publishedAt,
       description: var_description,
+      popularityKind: var_popularityKind,
+      popularity: var_popularity,
+      alsoIn: var_alsoIn,
     );
   }
 
   @protected
   NewsSnapshot sse_decode_news_snapshot(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_sources = sse_decode_list_source_state(deserializer);
     var var_items = sse_decode_list_news_item(deserializer);
-    var var_lastSuccessMs = sse_decode_opt_CastedPrimitive_i_64(deserializer);
     var var_refreshing = sse_decode_bool(deserializer);
     var var_error = sse_decode_opt_box_autoadd_news_error(deserializer);
     return NewsSnapshot(
+      sources: var_sources,
       items: var_items,
-      lastSuccessMs: var_lastSuccessMs,
       refreshing: var_refreshing,
       error: var_error,
     );
@@ -615,6 +780,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  List<String>? sse_decode_opt_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  SourceState sse_decode_source_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_category = sse_decode_String(deserializer);
+    var var_homeUrl = sse_decode_String(deserializer);
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_refreshing = sse_decode_bool(deserializer);
+    var var_lastSuccessMs = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_error = sse_decode_opt_box_autoadd_news_error(deserializer);
+    return SourceState(
+      id: var_id,
+      name: var_name,
+      category: var_category,
+      homeUrl: var_homeUrl,
+      enabled: var_enabled,
+      refreshing: var_refreshing,
+      lastSuccessMs: var_lastSuccessMs,
+      error: var_error,
+    );
   }
 
   @protected
@@ -713,6 +912,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_news_item(
     List<NewsItem> self,
     SseSerializer serializer,
@@ -735,6 +943,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_source_state(
+    List<SourceState> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_source_state(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_news_error(NewsError self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.kind, serializer);
@@ -745,17 +965,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_news_item(NewsItem self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
+    sse_encode_String(self.sourceId, serializer);
     sse_encode_String(self.title, serializer);
     sse_encode_String(self.url, serializer);
     sse_encode_opt_String(self.publishedAt, serializer);
     sse_encode_opt_String(self.description, serializer);
+    sse_encode_opt_String(self.popularityKind, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.popularity, serializer);
+    sse_encode_list_String(self.alsoIn, serializer);
   }
 
   @protected
   void sse_encode_news_snapshot(NewsSnapshot self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_source_state(self.sources, serializer);
     sse_encode_list_news_item(self.items, serializer);
-    sse_encode_opt_CastedPrimitive_i_64(self.lastSuccessMs, serializer);
     sse_encode_bool(self.refreshing, serializer);
     sse_encode_opt_box_autoadd_news_error(self.error, serializer);
   }
@@ -794,6 +1018,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_box_autoadd_news_error(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_opt_list_String(
+    List<String>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_source_state(SourceState self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.category, serializer);
+    sse_encode_String(self.homeUrl, serializer);
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_bool(self.refreshing, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.lastSuccessMs, serializer);
+    sse_encode_opt_box_autoadd_news_error(self.error, serializer);
   }
 
   @protected
@@ -842,8 +1092,19 @@ class NewsClientImpl extends RustOpaque implements NewsClient {
   Future<void> cancelRefresh() =>
       RustLib.instance.api.crateApiNewsNewsClientCancelRefresh(that: this);
 
-  Future<NewsSnapshot> refresh() =>
-      RustLib.instance.api.crateApiNewsNewsClientRefresh(that: this);
+  Future<NewsSnapshot> refresh({List<String>? sourceIds}) => RustLib
+      .instance
+      .api
+      .crateApiNewsNewsClientRefresh(that: this, sourceIds: sourceIds);
+
+  Future<NewsSnapshot> setSourceEnabled({
+    required String id,
+    required bool enabled,
+  }) => RustLib.instance.api.crateApiNewsNewsClientSetSourceEnabled(
+    that: this,
+    id: id,
+    enabled: enabled,
+  );
 
   Future<void> shutdown() =>
       RustLib.instance.api.crateApiNewsNewsClientShutdown(that: this);

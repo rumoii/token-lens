@@ -4,9 +4,6 @@
 //! URL and parse a response body. The client owns requests, limits, plain-text normalisation, URL
 //! validation, ids, de-duplication, caching and state.
 
-// The client wires these modules in at D2 integration; until then nothing calls them.
-#![allow(dead_code)]
-
 pub mod deepseek;
 pub mod github;
 pub mod hackernews;
@@ -85,6 +82,58 @@ pub trait Source: Send + Sync {
     /// `parse` runs.
     fn accepts(&self) -> &'static [&'static str];
 
-    /// Parses an HTTP 200 body of at most 4 MiB. No I/O and no clock.
+    /// Maximum response body size. Sources may declare a documented exception.
+    fn max_body_bytes(&self) -> usize {
+        4 * 1024 * 1024
+    }
+
+    /// Whether titles and descriptions contain HTML. Plain-text sources must opt out of parsing.
+    fn text_is_html(&self) -> bool {
+        true
+    }
+
+    /// Parses an HTTP 200 body within max_body_bytes(). No I/O and no clock.
     fn parse(&self, body: &[u8]) -> Result<Vec<RawItem>, ParseError>;
+}
+
+/// Ordered registry shared by refresh state, URL de-duplication and the desktop UI.
+pub fn registry() -> Vec<Box<dyn Source>> {
+    let mut feeds = rss::feeds();
+    let qbitai = feeds.pop().expect("RSS registry includes QbitAI");
+    feeds.push(deepseek::news());
+    feeds.extend(github::releases());
+    feeds.push(github::new_repos());
+    feeds.extend(huggingface::sources());
+    feeds.push(hackernews::ai());
+    feeds.push(qbitai);
+    feeds
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn registry_contains_all_sixteen_sources_in_contract_order() {
+        let ids: Vec<_> = super::registry().iter().map(|s| s.info().id).collect();
+        assert_eq!(
+            ids,
+            [
+                "openai",
+                "deepmind",
+                "google-ai",
+                "deepseek",
+                "gh-release:anthropics/claude-code",
+                "gh-release:openai/codex",
+                "gh-release:google-gemini/gemini-cli",
+                "gh-release:anomalyco/opencode",
+                "gh-release:earendil-works/pi",
+                "gh-release:ollama/ollama",
+                "github-new",
+                "hf-models",
+                "hf-spaces",
+                "hf-papers",
+                "hn-ai",
+                "qbitai"
+            ]
+        );
+    }
 }

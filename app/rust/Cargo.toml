@@ -11,7 +11,7 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 flutter_rust_bridge = "=2.13.0"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 fs2 = "0.4"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "gzip"] }
 roxmltree = "0.20"
 scraper = "0.24"
 serde = { version = "1", features = ["derive"] }

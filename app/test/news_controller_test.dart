@@ -33,11 +33,14 @@ void main() {
       failed.completeError(StateError('transport failed'));
       await first;
       expect(controller.snapshot.items.single.title, 'Cached article');
-      expect(controller.snapshot.lastSuccessMs, 1700000000000);
+      expect(controller.snapshot.sources.first.lastSuccessMs, 1700000000000);
       expect(controller.snapshot.error, isNotNull);
       expect(controller.snapshot.refreshing, isFalse);
       gateway.nextRefresh = Future.value(
-        const NewsSnapshot(items: [freshItem], lastSuccessMs: 1800000000000),
+        NewsSnapshot(
+          items: [freshItem],
+          sources: [openaiSource.copyWith(lastSuccessMs: 1800000000000)],
+        ),
       );
       await controller.refresh();
       expect(controller.snapshot.items.single.title, 'Fresh article');
@@ -57,7 +60,10 @@ void main() {
     );
     await controller.refresh();
     expect(controller.snapshot.items.single.id, 'cached');
-    expect(controller.snapshot.lastSuccessMs, cachedNews.lastSuccessMs);
+    expect(
+      controller.snapshot.sources.first.lastSuccessMs,
+      cachedNews.sources.first.lastSuccessMs,
+    );
     controller.dispose();
   });
 
@@ -65,7 +71,7 @@ void main() {
     final gateway = FakeNewsGateway(cached: cachedNews);
     gateway.cancelSnapshot = NewsSnapshot(
       items: cachedNews.items,
-      lastSuccessMs: cachedNews.lastSuccessMs,
+      sources: cachedNews.sources,
       error: const NewsError(kind: 'cancelled', message: 'Refresh cancelled.'),
     );
     final controller = NewsController(gateway);
@@ -93,14 +99,19 @@ void main() {
     final pending = Completer<NewsSnapshot>();
     gateway.nextRefresh = pending.future;
     final refresh = controller.refresh();
-    const committed = NewsSnapshot(lastSuccessMs: 1800000000000);
+    final committed = NewsSnapshot(
+      sources: [openaiSource.copyWith(lastSuccessMs: 1800000000000)],
+    );
     gateway.cached = committed;
     final cancel = controller.cancelRefresh();
     pending.complete(committed);
     await refresh;
     await cancel;
     expect(controller.snapshot.items, isEmpty);
-    expect(controller.snapshot.lastSuccessMs, committed.lastSuccessMs);
+    expect(
+      controller.snapshot.sources.first.lastSuccessMs,
+      committed.sources.first.lastSuccessMs,
+    );
     expect(controller.snapshot.error, isNull);
     expect(controller.snapshot.refreshing, isFalse);
     controller.dispose();

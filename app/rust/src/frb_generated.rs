@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -93531125;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1769736022;
 
 // Section: executor
 
@@ -132,6 +132,43 @@ fn wire__crate__api__news__NewsClient_new_impl(
         },
     )
 }
+fn wire__crate__api__news__NewsClient_new_for_local_test_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "NewsClient_new_for_local_test",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_endpoints = <Vec<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::news::NewsClient::new_for_local_test(
+                        api_data_dir,
+                        api_endpoints,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__news__NewsClient_refresh_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -157,6 +194,7 @@ fn wire__crate__api__news__NewsClient_refresh_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NewsClient>,
             >>::sse_decode(&mut deserializer);
+            let api_source_ids = <Option<Vec<String>>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, ()>(
@@ -179,12 +217,68 @@ fn wire__crate__api__news__NewsClient_refresh_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Ok::<_, ()>(
-                            crate::api::news::NewsClient::refresh(&*api_that_guard).await,
+                            crate::api::news::NewsClient::refresh(&*api_that_guard, api_source_ids)
+                                .await,
                         )?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__news__NewsClient_set_source_enabled_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "NewsClient_set_source_enabled",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NewsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_id = <String>::sse_decode(&mut deserializer);
+            let api_enabled = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Ok::<_, ()>(crate::api::news::NewsClient::set_source_enabled(
+                        &*api_that_guard,
+                        api_id,
+                        api_enabled,
+                    ))?;
+                    std::result::Result::Ok(output_ok)
+                })())
             }
         },
     )
@@ -373,6 +467,18 @@ impl SseDecode for i64 {
     }
 }
 
+impl SseDecode for Vec<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<String>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::news::NewsItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -397,6 +503,18 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::news::SourceState> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::news::SourceState>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for crate::api::news::NewsError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -413,16 +531,24 @@ impl SseDecode for crate::api::news::NewsItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_sourceId = <String>::sse_decode(deserializer);
         let mut var_title = <String>::sse_decode(deserializer);
         let mut var_url = <String>::sse_decode(deserializer);
         let mut var_publishedAt = <Option<String>>::sse_decode(deserializer);
         let mut var_description = <Option<String>>::sse_decode(deserializer);
+        let mut var_popularityKind = <Option<String>>::sse_decode(deserializer);
+        let mut var_popularity = <Option<i64>>::sse_decode(deserializer);
+        let mut var_alsoIn = <Vec<String>>::sse_decode(deserializer);
         return crate::api::news::NewsItem {
             id: var_id,
+            source_id: var_sourceId,
             title: var_title,
             url: var_url,
             published_at: var_publishedAt,
             description: var_description,
+            popularity_kind: var_popularityKind,
+            popularity: var_popularity,
+            also_in: var_alsoIn,
         };
     }
 }
@@ -430,13 +556,13 @@ impl SseDecode for crate::api::news::NewsItem {
 impl SseDecode for crate::api::news::NewsSnapshot {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_sources = <Vec<crate::api::news::SourceState>>::sse_decode(deserializer);
         let mut var_items = <Vec<crate::api::news::NewsItem>>::sse_decode(deserializer);
-        let mut var_lastSuccessMs = <Option<i64>>::sse_decode(deserializer);
         let mut var_refreshing = <bool>::sse_decode(deserializer);
         let mut var_error = <Option<crate::api::news::NewsError>>::sse_decode(deserializer);
         return crate::api::news::NewsSnapshot {
+            sources: var_sources,
             items: var_items,
-            last_success_ms: var_lastSuccessMs,
             refreshing: var_refreshing,
             error: var_error,
         };
@@ -473,6 +599,41 @@ impl SseDecode for Option<crate::api::news::NewsError> {
         } else {
             return None;
         }
+    }
+}
+
+impl SseDecode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<String>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for crate::api::news::SourceState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_category = <String>::sse_decode(deserializer);
+        let mut var_homeUrl = <String>::sse_decode(deserializer);
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_refreshing = <bool>::sse_decode(deserializer);
+        let mut var_lastSuccessMs = <Option<i64>>::sse_decode(deserializer);
+        let mut var_error = <Option<crate::api::news::NewsError>>::sse_decode(deserializer);
+        return crate::api::news::SourceState {
+            id: var_id,
+            name: var_name,
+            category: var_category,
+            home_url: var_homeUrl,
+            enabled: var_enabled,
+            refreshing: var_refreshing,
+            last_success_ms: var_lastSuccessMs,
+            error: var_error,
+        };
     }
 }
 
@@ -518,10 +679,22 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         2 => wire__crate__api__news__NewsClient_new_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__news__NewsClient_refresh_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__news__NewsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__news__NewsClient_snapshot_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__news__NewsClient_new_for_local_test_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        4 => wire__crate__api__news__NewsClient_refresh_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__news__NewsClient_set_source_enabled_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        6 => wire__crate__api__news__NewsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__news__NewsClient_snapshot_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -578,10 +751,14 @@ impl flutter_rust_bridge::IntoDart for crate::api::news::NewsItem {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
+            self.source_id.into_into_dart().into_dart(),
             self.title.into_into_dart().into_dart(),
             self.url.into_into_dart().into_dart(),
             self.published_at.into_into_dart().into_dart(),
             self.description.into_into_dart().into_dart(),
+            self.popularity_kind.into_into_dart().into_dart(),
+            self.popularity.into_into_dart().into_dart(),
+            self.also_in.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -596,8 +773,8 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::news::NewsItem> for crate::ap
 impl flutter_rust_bridge::IntoDart for crate::api::news::NewsSnapshot {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.sources.into_into_dart().into_dart(),
             self.items.into_into_dart().into_dart(),
-            self.last_success_ms.into_into_dart().into_dart(),
             self.refreshing.into_into_dart().into_dart(),
             self.error.into_into_dart().into_dart(),
         ]
@@ -612,6 +789,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::news::NewsSnapshot>
     for crate::api::news::NewsSnapshot
 {
     fn into_into_dart(self) -> crate::api::news::NewsSnapshot {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::news::SourceState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.category.into_into_dart().into_dart(),
+            self.home_url.into_into_dart().into_dart(),
+            self.enabled.into_into_dart().into_dart(),
+            self.refreshing.into_into_dart().into_dart(),
+            self.last_success_ms.into_into_dart().into_dart(),
+            self.error.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::news::SourceState {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::news::SourceState>
+    for crate::api::news::SourceState
+{
+    fn into_into_dart(self) -> crate::api::news::SourceState {
         self
     }
 }
@@ -655,6 +856,16 @@ impl SseEncode for i64 {
     }
 }
 
+impl SseEncode for Vec<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <String>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::news::NewsItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -675,6 +886,16 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::news::SourceState> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::news::SourceState>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::news::NewsError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -687,18 +908,22 @@ impl SseEncode for crate::api::news::NewsItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.source_id, serializer);
         <String>::sse_encode(self.title, serializer);
         <String>::sse_encode(self.url, serializer);
         <Option<String>>::sse_encode(self.published_at, serializer);
         <Option<String>>::sse_encode(self.description, serializer);
+        <Option<String>>::sse_encode(self.popularity_kind, serializer);
+        <Option<i64>>::sse_encode(self.popularity, serializer);
+        <Vec<String>>::sse_encode(self.also_in, serializer);
     }
 }
 
 impl SseEncode for crate::api::news::NewsSnapshot {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::news::SourceState>>::sse_encode(self.sources, serializer);
         <Vec<crate::api::news::NewsItem>>::sse_encode(self.items, serializer);
-        <Option<i64>>::sse_encode(self.last_success_ms, serializer);
         <bool>::sse_encode(self.refreshing, serializer);
         <Option<crate::api::news::NewsError>>::sse_encode(self.error, serializer);
     }
@@ -731,6 +956,30 @@ impl SseEncode for Option<crate::api::news::NewsError> {
         if let Some(value) = self {
             <crate::api::news::NewsError>::sse_encode(value, serializer);
         }
+    }
+}
+
+impl SseEncode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<String>>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for crate::api::news::SourceState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.category, serializer);
+        <String>::sse_encode(self.home_url, serializer);
+        <bool>::sse_encode(self.enabled, serializer);
+        <bool>::sse_encode(self.refreshing, serializer);
+        <Option<i64>>::sse_encode(self.last_success_ms, serializer);
+        <Option<crate::api::news::NewsError>>::sse_encode(self.error, serializer);
     }
 }
 

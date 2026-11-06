@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "id": 101,
+      "full_name": "example/ai-helper",
+      "html_url": "https://github.com/example/ai-helper",
+      "description": "A local AI helper",
+      "created_at": null,
+      "stargazers_count": 321
+    }
+  ]
+}

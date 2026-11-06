@@ -7,20 +7,34 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `error`, `fetch`, `http_error`, `load_cache`, `open`, `parse_feed`, `plain_text`, `prepare_cache`, `replace_cache`, `safe_url`, `valid_cached_text`, `with_error`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Cache`, `Inner`, `RefreshGuard`, `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `plain_text`, `safe_url`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NewsClient>>
 abstract class NewsClient implements RustOpaqueInterface {
   Future<void> cancelRefresh();
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
-  /// Opens only the explicit cache directory. Network requests require refresh().
+  /// Opens the cache without making source requests.
   static Future<NewsClient> newInstance({required String dataDir}) =>
       RustLib.instance.api.crateApiNewsNewsClientNew(dataDir: dataDir);
 
-  Future<NewsSnapshot> refresh();
+  /// Controlled FFI test ingress. Only numeric HTTP loopback endpoints are accepted.
+  /// The desktop entry point always uses `new` and the fixed public-source registry.
+  static Future<NewsClient> newForLocalTest({
+    required String dataDir,
+    required List<String> endpoints,
+  }) => RustLib.instance.api.crateApiNewsNewsClientNewForLocalTest(
+    dataDir: dataDir,
+    endpoints: endpoints,
+  );
+
+  Future<NewsSnapshot> refresh({List<String>? sourceIds});
+
+  Future<NewsSnapshot> setSourceEnabled({
+    required String id,
+    required bool enabled,
+  });
 
   Future<void> shutdown();
 
@@ -47,26 +61,38 @@ class NewsError {
 
 class NewsItem {
   final String id;
+  final String sourceId;
   final String title;
   final String url;
   final String? publishedAt;
   final String? description;
+  final String? popularityKind;
+  final int? popularity;
+  final List<String> alsoIn;
 
   const NewsItem({
     required this.id,
+    required this.sourceId,
     required this.title,
     required this.url,
     this.publishedAt,
     this.description,
+    this.popularityKind,
+    this.popularity,
+    required this.alsoIn,
   });
 
   @override
   int get hashCode =>
       id.hashCode ^
+      sourceId.hashCode ^
       title.hashCode ^
       url.hashCode ^
       publishedAt.hashCode ^
-      description.hashCode;
+      description.hashCode ^
+      popularityKind.hashCode ^
+      popularity.hashCode ^
+      alsoIn.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -74,21 +100,25 @@ class NewsItem {
       other is NewsItem &&
           runtimeType == other.runtimeType &&
           id == other.id &&
+          sourceId == other.sourceId &&
           title == other.title &&
           url == other.url &&
           publishedAt == other.publishedAt &&
-          description == other.description;
+          description == other.description &&
+          popularityKind == other.popularityKind &&
+          popularity == other.popularity &&
+          alsoIn == other.alsoIn;
 }
 
 class NewsSnapshot {
+  final List<SourceState> sources;
   final List<NewsItem> items;
-  final int? lastSuccessMs;
   final bool refreshing;
   final NewsError? error;
 
   const NewsSnapshot({
+    required this.sources,
     required this.items,
-    this.lastSuccessMs,
     required this.refreshing,
     this.error,
   });
@@ -98,18 +128,62 @@ class NewsSnapshot {
 
   @override
   int get hashCode =>
-      items.hashCode ^
-      lastSuccessMs.hashCode ^
-      refreshing.hashCode ^
-      error.hashCode;
+      sources.hashCode ^ items.hashCode ^ refreshing.hashCode ^ error.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is NewsSnapshot &&
           runtimeType == other.runtimeType &&
+          sources == other.sources &&
           items == other.items &&
-          lastSuccessMs == other.lastSuccessMs &&
           refreshing == other.refreshing &&
+          error == other.error;
+}
+
+class SourceState {
+  final String id;
+  final String name;
+  final String category;
+  final String homeUrl;
+  final bool enabled;
+  final bool refreshing;
+  final int? lastSuccessMs;
+  final NewsError? error;
+
+  const SourceState({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.homeUrl,
+    required this.enabled,
+    required this.refreshing,
+    this.lastSuccessMs,
+    this.error,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      category.hashCode ^
+      homeUrl.hashCode ^
+      enabled.hashCode ^
+      refreshing.hashCode ^
+      lastSuccessMs.hashCode ^
+      error.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SourceState &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          category == other.category &&
+          homeUrl == other.homeUrl &&
+          enabled == other.enabled &&
+          refreshing == other.refreshing &&
+          lastSuccessMs == other.lastSuccessMs &&
           error == other.error;
 }

@@ -1,0 +1,971 @@
+[
+ {
+  "paper": {
+   "id": "2611.06425",
+   "authors": [
+    {
+     "_id": "6aec0610870269964d13ac8b",
+     "user": {
+      "_id": "65d6b754c4a1e6b8676db0dc",
+      "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/65d6b754c4a1e6b8676db0dc/Dv618H-liUHZb-tQ3kD3s.jpeg",
+      "isPro": false,
+      "fullname": "Baoyou Chen",
+      "user": "cbyzju",
+      "type": "user",
+      "name": "cbyzju"
+     },
+     "name": "Baoyou Chen",
+     "status": "admin_assigned",
+     "statusLastChangedAt": "2026-11-05T20:27:58.039Z",
+     "hidden": false
+    },
+    {
+     "_id": "6aec0610870269964d13ac8c",
+     "name": "Ruiqiao Mei",
+     "hidden": false
+    },
+    {
+     "_id": "6aec0610870269964d13ac8d",
+     "name": "Guancong Lin",
+     "hidden": false
+    },
+    {
+     "_id": "6aec0610870269964d13ac8e",
+     "name": "Tao Song",
+     "hidden": false
+    },
+    {
+     "_id": "6aec0610870269964d13ac8f",
+     "name": "Weihao Yuan",
+     "hidden": false
+    },
+    {
+     "_id": "6aec0610870269964d13ac90",
+     "name": "Qun Liu",
+     "hidden": false
+    },
+    {
+     "_id": "6aec0610870269964d13ac91",
+     "name": "Siyu Zhu",
+     "hidden": false
+    }
+   ],
+   "publishedAt": "2026-11-04T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "D3D: Decoupled Diffusion Drafting for Asynchronous Speculative Decoding",
+   "submittedOnDailyBy": {
+    "_id": "65d6b754c4a1e6b8676db0dc",
+    "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/65d6b754c4a1e6b8676db0dc/Dv618H-liUHZb-tQ3kD3s.jpeg",
+    "isPro": false,
+    "fullname": "Baoyou Chen",
+    "user": "cbyzju",
+    "type": "user",
+    "name": "cbyzju"
+   },
+   "summary": "Target-conditioned diffusion drafters predict candidate tokens in parallel, yet each new block must wait for updated target-model hidden states. This forces drafting and verification to run sequentially, limiting speedup even though each block is generated in one pass. We introduce D3D, a standalone diffusion drafter that removes this inter-round dependency. D3D combines blockwise denoising with auxiliary autoregressive supervision to achieve long accepted prefixes without target hidden states. This independence lets D3D draft successor blocks during verification in one packed pass, enabling asynchronous speculative decoding. We progressively prune layers according to their effect on acceptance length to reduce the cost of packed drafting. Removing five of 36 layers retains over 99\\% of mean acceptance length across three benchmarks with Qwen3-8B as the target. Across seven benchmarks, D3D averages 5.00times and 5.71times decoding speedup with Qwen3-8B and Qwen3-32B targets, compared with 4.03times and 3.67times for DFlash. On GSM8K with Qwen3-32B, speedup reaches 7.48times. Code is publicly available at https://github.com/fudan-generative-vision/D3D.",
+   "upvotes": 5,
+   "discussionId": "6aec0610870269964d13ac92",
+   "githubRepo": "https://github.com/fudan-generative-vision/D3D",
+   "githubRepoAddedBy": "user",
+   "ai_summary": "D3D is a standalone diffusion drafter that removes target-model hidden-state dependencies to enable asynchronous speculative decoding with high speedup.",
+   "ai_keywords": [
+    "target-conditioned diffusion drafters",
+    "blockwise denoising",
+    "auxiliary autoregressive supervision",
+    "asynchronous speculative decoding",
+    "layer pruning",
+    "acceptance length"
+   ],
+   "ai_summary_model": "thinkingmachines/Inkling-Small",
+   "githubStars": 9,
+   "organization": {
+    "_id": "643cb0625fcffe09fb6ca688",
+    "name": "Fudan-University",
+    "fullname": "Fudan University",
+    "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/6437eca0819f3ab20d162e14/kWv0cGlAhAG3iNWVxowkJ.png"
+   }
+  },
+  "publishedAt": "2026-11-03T19:00:00.000Z",
+  "title": "D3D: Decoupled Diffusion Drafting for Asynchronous Speculative Decoding",
+  "summary": "Target-conditioned diffusion drafters predict candidate tokens in parallel, yet each new block must wait for updated target-model hidden states. This forces drafting and verification to run sequentially, limiting speedup even though each block is generated in one pass. We introduce D3D, a standalone diffusion drafter that removes this inter-round dependency. D3D combines blockwise denoising with auxiliary autoregressive supervision to achieve long accepted prefixes without target hidden states. This independence lets D3D draft successor blocks during verification in one packed pass, enabling asynchronous speculative decoding. We progressively prune layers according to their effect on acceptance length to reduce the cost of packed drafting. Removing five of 36 layers retains over 99\\% of mean acceptance length across three benchmarks with Qwen3-8B as the target. Across seven benchmarks, D3D averages 5.00times and 5.71times decoding speedup with Qwen3-8B and Qwen3-32B targets, compared with 4.03times and 3.67times for DFlash. On GSM8K with Qwen3-32B, speedup reaches 7.48times. Code is publicly available at https://github.com/fudan-generative-vision/D3D.",
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.06425.png",
+  "numComments": 1,
+  "submittedBy": {
+   "_id": "65d6b754c4a1e6b8676db0dc",
+   "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/65d6b754c4a1e6b8676db0dc/Dv618H-liUHZb-tQ3kD3s.jpeg",
+   "fullname": "Baoyou Chen",
+   "name": "cbyzju",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "followerCount": 1,
+   "isUserFollowing": false
+  },
+  "organization": {
+   "_id": "643cb0625fcffe09fb6ca688",
+   "name": "Fudan-University",
+   "fullname": "Fudan University",
+   "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/6437eca0819f3ab20d162e14/kWv0cGlAhAG3iNWVxowkJ.png"
+  },
+  "isAuthorParticipating": true
+ },
+ {
+  "paper": {
+   "id": "2611.03768",
+   "authors": [
+    {
+     "_id": "6aecbe9b0962bbebb014f0d1",
+     "user": {
+      "_id": "6540dbae7857a3efd4607ac1",
+      "avatarUrl": "/avatars/18ed22e907c764b4abc1e3f2ca8308b6.svg",
+      "isPro": false,
+      "fullname": "serdarcan dilbaz",
+      "user": "sdilbaz",
+      "type": "user",
+      "name": "sdilbaz"
+     },
+     "name": "Serdarcan Dilbaz",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-06T00:45:04.949Z",
+     "hidden": false
+    },
+    {
+     "_id": "6aecbe9b0962bbebb014f0d2",
+     "user": {
+      "_id": "662b4796e5d910dd72ae17de",
+      "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/noauth/lgA6Mzo8QGLFhAoPPy5Jn.jpeg",
+      "isPro": false,
+      "fullname": "Arjun Krishna",
+      "user": "ArjunKrishnaK",
+      "type": "user",
+      "name": "ArjunKrishnaK"
+     },
+     "name": "Arjun Krishna",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-06T00:45:04.940Z",
+     "hidden": false
+    },
+    {
+     "_id": "6aecbe9b0962bbebb014f0d3",
+     "user": {
+      "_id": "621d6f532165dc431641e438",
+      "avatarUrl": "/avatars/701eefabae1bda8d0bd3c2de59e44c18.svg",
+      "isPro": false,
+      "fullname": "Kiran Kamble",
+      "user": "kiranr",
+      "type": "user",
+      "name": "kiranr"
+     },
+     "name": "Kiran Kamble",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-06T00:45:04.932Z",
+     "hidden": false
+    },
+    {
+     "_id": "6aecbe9b0962bbebb014f0d4",
+     "name": "Daniel M. Bikel",
+     "hidden": false
+    }
+   ],
+   "publishedAt": "2026-11-02T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "Multi-layer Indexer: Overlapping Selection and Attention in DeepSeek Sparse Attention",
+   "submittedOnDailyBy": {
+    "_id": "621d6f532165dc431641e438",
+    "avatarUrl": "/avatars/701eefabae1bda8d0bd3c2de59e44c18.svg",
+    "isPro": false,
+    "fullname": "Kiran Kamble",
+    "user": "kiranr",
+    "type": "user",
+    "name": "kiranr"
+   },
+   "summary": "Sparse attention cuts the cost of long-context inference by making the attention matrix sparse: each query attends only a subset of the sequence, chosen by a fixed pattern or, in recent production LLMs, learned per query. In DeepSeek Sparse Attention (DSA), the attention of DeepSeek-V3.2 and the GLM-5 family, every layer is preceded by a lightning indexer that scores the whole cache and keeps the k=2048 highest-scoring tokens for the layer to attend. At long context this indexer scan, not the sparse attention it feeds, is where the decode time goes. But adjacent layers select nearly the same tokens, so a layer can attend the selection of the previous indexer layer instead of its own. This removes the dependency: each indexer then runs concurrently with the attention of its layer. The resulting Multi-layer Indexer (MLI) needs no retraining and no new weights. Its default realization changes no kernel, running inside SGLang's production decode graph; an optional fused decode kernel accelerates it further on DeepSeek-V3.2. MLI composes with IndexCache (the cross-layer reuse GLM-5.2 ships as IndexShare): IndexCache drops the indexer from some layers, and MLI hides the scan on the rest. We serve DeepSeek-V3.2 and GLM-5 under IndexCache's protocol at retentions 1/2 to 1/32 (the fraction of layers that keep an indexer) and contexts 10K to 195K. At equal retention the composition decodes faster than IndexCache: up to 14.5% faster on DeepSeek-V3.2 and 9.8% on GLM-5 at 1/2, and 7.9% and 5.1% at 1/4, largest where IndexCache keeps the most indexers and growing with context. At retention 1/r it is faster still than IndexCache at 1/(2r) while keeping twice the fresh selections: at 128K it reaches 1.32x the unmodified model's decode throughput at 1/4, above IndexCache's 1.28x at 1/8. Its LongBench, RULER and LongBench v2 accuracy stays within a few percentage points of IndexCache's.",
+   "upvotes": 3,
+   "discussionId": "6aecbe9b0962bbebb014f0d5",
+   "githubRepo": "https://github.com/ArjunKrishnak/dsa-multi-layer-indexer",
+   "githubRepoAddedBy": "user",
+   "ai_summary": "A multi-layer indexer reuses adjacent layers’ token selections to overlap indexer scans with attention, improving long-context decode throughput when combined with cross-layer indexer reuse while maintaining accuracy.",
+   "ai_keywords": [
+    "sparse attention",
+    "long-context inference",
+    "attention matrix",
+    "DeepSeek Sparse Attention (DSA)",
+    "lightning indexer",
+    "Multi-layer Indexer (MLI)",
+    "IndexCache",
+    "IndexShare",
+    "cross-layer reuse",
+    "fused decode kernel",
+    "SGLang production decode graph",
+    "retention",
+    "decode throughput",
+    "LongBench",
+    "RULER",
+    "LongBench v2",
+    "DeepSeek-V3.2",
+    "GLM-5",
+    "GLM-5.2"
+   ],
+   "ai_summary_model": "deepseek-ai/DeepSeek-V4.1-Flash",
+   "githubStars": 1,
+   "organization": {
+    "_id": "60db8e8014bcc1d453e28d6e",
+    "name": "Writer",
+    "fullname": "Writer",
+    "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/1625001569797-60db8b5ad8b4797b129145d5.png"
+   }
+  },
+  "publishedAt": "2026-11-01T19:00:00.000Z",
+  "title": "Multi-layer Indexer: Overlapping Selection and Attention in DeepSeek Sparse Attention",
+  "summary": "Sparse attention cuts the cost of long-context inference by making the attention matrix sparse: each query attends only a subset of the sequence, chosen by a fixed pattern or, in recent production LLMs, learned per query. In DeepSeek Sparse Attention (DSA), the attention of DeepSeek-V3.2 and the GLM-5 family, every layer is preceded by a lightning indexer that scores the whole cache and keeps the k=2048 highest-scoring tokens for the layer to attend. At long context this indexer scan, not the sparse attention it feeds, is where the decode time goes. But adjacent layers select nearly the same tokens, so a layer can attend the selection of the previous indexer layer instead of its own. This removes the dependency: each indexer then runs concurrently with the attention of its layer. The resulting Multi-layer Indexer (MLI) needs no retraining and no new weights. Its default realization changes no kernel, running inside SGLang's production decode graph; an optional fused decode kernel accelerates it further on DeepSeek-V3.2. MLI composes with IndexCache (the cross-layer reuse GLM-5.2 ships as IndexShare): IndexCache drops the indexer from some layers, and MLI hides the scan on the rest. We serve DeepSeek-V3.2 and GLM-5 under IndexCache's protocol at retentions 1/2 to 1/32 (the fraction of layers that keep an indexer) and contexts 10K to 195K. At equal retention the composition decodes faster than IndexCache: up to 14.5% faster on DeepSeek-V3.2 and 9.8% on GLM-5 at 1/2, and 7.9% and 5.1% at 1/4, largest where IndexCache keeps the most indexers and growing with context. At retention 1/r it is faster still than IndexCache at 1/(2r) while keeping twice the fresh selections: at 128K it reaches 1.32x the unmodified model's decode throughput at 1/4, above IndexCache's 1.28x at 1/8. Its LongBench, RULER and LongBench v2 accuracy stays within a few percentage points of IndexCache's.",
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.03768.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "621d6f532165dc431641e438",
+   "avatarUrl": "/avatars/701eefabae1bda8d0bd3c2de59e44c18.svg",
+   "fullname": "Kiran Kamble",
+   "name": "kiranr",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "followerCount": 8,
+   "isUserFollowing": false
+  },
+  "organization": {
+   "_id": "60db8e8014bcc1d453e28d6e",
+   "name": "Writer",
+   "fullname": "Writer",
+   "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/1625001569797-60db8b5ad8b4797b129145d5.png"
+  },
+  "isAuthorParticipating": false
+ },
+ {
+  "paper": {
+   "id": "2611.04408",
+   "authors": [
+    {
+     "_id": "6aec702c88bab272fc8d6046",
+     "user": {
+      "_id": "6aec6f9abe8d8cacb1526d43",
+      "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/no-auth/OqP142CrvTCx_fktXeDRU.png",
+      "isPro": false,
+      "fullname": "Manav Mishra",
+      "user": "Manav77",
+      "type": "user",
+      "name": "Manav77"
+     },
+     "name": "Manav Mishra",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-05T16:45:04.509Z",
+     "hidden": false
+    },
+    {
+     "_id": "6aec702c88bab272fc8d6047",
+     "name": "Krishna M. Sivalingam",
+     "hidden": false
+    }
+   ],
+   "mediaUrls": [
+    "https://cdn-uploads.huggingface.co/production/uploads/6aec6f9abe8d8cacb1526d43/5nI5aXamrHb2HYTE-T3ZE.mp4"
+   ],
+   "publishedAt": "2026-11-03T06:45:50.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "Halley: A Predictive Control Plane for Optical AI Data Center Networks",
+   "submittedOnDailyBy": {
+    "_id": "6aec6f9abe8d8cacb1526d43",
+    "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/no-auth/OqP142CrvTCx_fktXeDRU.png",
+    "isPro": false,
+    "fullname": "Manav Mishra",
+    "user": "Manav77",
+    "type": "user",
+    "name": "Manav77"
+   },
+   "summary": "A frontier AI model is trained in an AI data center, on tens of thousands of accelerators joined by a dedicated network, and every training step ends with all of them exchanging data at once. Between racks, that network is optical, and each of its four layers, from lasers to switches, runs a fixed or after-the-fact policy. Lasers sharing an enclosure, cooling, and power can fail together. At a fixed spare ratio, correlated failure provably caps a pool's availability however large it grows. In this paper, we present a comprehensive predictive control plane framework, called Halley, that reads each resource's next state and acts before the failure occurs. It has four components, each carrying a formal guarantee: LightReserve that sizes the laser pool to provide a coverage bound, FoldFit that schedules the switch within 11/9 of the optimal, ThermaLead that holds a microring with one-step-ahead control, and TriageGuard that protects the highest-risk modules first. Halley gives each layer a predictive controller that defers to the deployed policy when unsure. Composed from simulations at that point, effective goodput, the share of ideal throughput kept, rises from 65.2\\% to 76.5\\% if a window that exhausts its spares is lost. If only the dark channels' bandwidth is lost, it reaches 67.4\\%. Per megawatt, that is up to 1.03--1.17 times the training; for the same training, up to 3.3--14.7\\% less data center capacity. Halley's fallback circuits are formally verified and are shown to achieve close timing on a commercial FPGA, and pass a 130~nm signoff.",
+   "upvotes": 30,
+   "discussionId": "6aec702c88bab272fc8d6048",
+   "ai_summary": "Halley is a predictive control framework for AI data center optical networks that improves effective throughput and reduces capacity needs by forecasting failures and controlling resources with formal guarantees.",
+   "ai_keywords": [
+    "predictive control plane",
+    "optical network",
+    "correlated failure",
+    "laser pool",
+    "LightReserve",
+    "FoldFit",
+    "ThermaLead",
+    "TriageGuard",
+    "goodput",
+    "FPGA verification"
+   ],
+   "ai_summary_model": "thinkingmachines/Inkling-Small"
+  },
+  "publishedAt": "2026-11-03T01:45:50.000Z",
+  "title": "Halley: A Predictive Control Plane for Optical AI Data Center Networks",
+  "summary": "A frontier AI model is trained in an AI data center, on tens of thousands of accelerators joined by a dedicated network, and every training step ends with all of them exchanging data at once. Between racks, that network is optical, and each of its four layers, from lasers to switches, runs a fixed or after-the-fact policy. Lasers sharing an enclosure, cooling, and power can fail together. At a fixed spare ratio, correlated failure provably caps a pool's availability however large it grows. In this paper, we present a comprehensive predictive control plane framework, called Halley, that reads each resource's next state and acts before the failure occurs. It has four components, each carrying a formal guarantee: LightReserve that sizes the laser pool to provide a coverage bound, FoldFit that schedules the switch within 11/9 of the optimal, ThermaLead that holds a microring with one-step-ahead control, and TriageGuard that protects the highest-risk modules first. Halley gives each layer a predictive controller that defers to the deployed policy when unsure. Composed from simulations at that point, effective goodput, the share of ideal throughput kept, rises from 65.2\\% to 76.5\\% if a window that exhausts its spares is lost. If only the dark channels' bandwidth is lost, it reaches 67.4\\%. Per megawatt, that is up to 1.03--1.17 times the training; for the same training, up to 3.3--14.7\\% less data center capacity. Halley's fallback circuits are formally verified and are shown to achieve close timing on a commercial FPGA, and pass a 130~nm signoff.",
+  "mediaUrls": [
+   "https://cdn-uploads.huggingface.co/production/uploads/6aec6f9abe8d8cacb1526d43/5nI5aXamrHb2HYTE-T3ZE.mp4"
+  ],
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.04408.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "6aec6f9abe8d8cacb1526d43",
+   "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/no-auth/OqP142CrvTCx_fktXeDRU.png",
+   "fullname": "Manav Mishra",
+   "name": "Manav77",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "isUserFollowing": false
+  },
+  "isAuthorParticipating": true
+ },
+ {
+  "paper": {
+   "id": "2611.03394",
+   "authors": [
+    {
+     "_id": "6ae9a1274b63b3479c38a94b",
+     "user": {
+      "_id": "64ec0c43cfa36c8ac2f00ca9",
+      "avatarUrl": "/avatars/cee276fea48e7279bc856ffdfc412539.svg",
+      "isPro": false,
+      "fullname": "Qijun Gan",
+      "user": "agnJason",
+      "type": "user",
+      "name": "agnJason"
+     },
+     "name": "Qijun Gan",
+     "status": "admin_assigned",
+     "statusLastChangedAt": "2026-11-05T16:24:37.518Z",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9a1274b63b3479c38a94c",
+     "name": "Chenwei Zhang",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9a1274b63b3479c38a94d",
+     "user": {
+      "_id": "6735a0751b792db99a6cdc49",
+      "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/no-auth/RKlQYXVL2Q4IOCRmmO1qp.png",
+      "isPro": false,
+      "fullname": "xinyang",
+      "user": "lixinyizju",
+      "type": "user",
+      "name": "lixinyizju"
+     },
+     "name": "Xinyang Li",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-04T20:33:35.344Z",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9a1274b63b3479c38a94e",
+     "name": "Meiguang Jin",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9a1274b63b3479c38a94f",
+     "name": "Junfeng Ma",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9a1274b63b3479c38a950",
+     "name": "Shen Qiu",
+     "hidden": false
+    }
+   ],
+   "publishedAt": "2026-11-02T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "TaoMate-HD: Progressive-Resolution Autoregressive Audio-Video Generation",
+   "submittedOnDailyBy": {
+    "_id": "64ec0c43cfa36c8ac2f00ca9",
+    "avatarUrl": "/avatars/cee276fea48e7279bc856ffdfc412539.svg",
+    "isPro": false,
+    "fullname": "Qijun Gan",
+    "user": "agnJason",
+    "type": "user",
+    "name": "agnJason"
+   },
+   "summary": "Streaming digital humans produce detailed video while continuing speech as new text arrives. High-resolution denoising is costly, and text updates can cause repeated or interrupted speech. We present TaoMate-HD, an autoregressive model for high-resolution audio-video streaming. For each short segment, or chunk, two denoising steps establish coarse video structure at low resolution. A final step refines the video to high resolution, with audio generated throughout the same trajectory. Each stage passes its audiovisual predictions to the same stage of the next chunk as history. Across text updates, the model retains this history to infer what has already been spoken. Continuation training utilizes asymmetric text conditioning, with separate text windows for generation and distillation. Experiments show a 1.6x speedup over direct high-resolution generation with the same model and hardware. Optimized stage-parallel deployment provides a further 1.9x overall speedup over serial progressive generation. Our continuation training reduces character error rate by 11.18 percentage points relative to the baseline. The model also supports hour-long audiovisual generation. Our project page is https://taoliveaigc.github.io/TaoMate-HD.",
+   "upvotes": 2,
+   "discussionId": "6ae9a1274b63b3479c38a951",
+   "projectPage": "https://taoliveaigc.github.io/TaoMate-HD/",
+   "githubRepo": "https://github.com/TaoLiveAIGC/TaoMate-HD",
+   "githubRepoAddedBy": "user",
+   "ai_summary": "TaoMate-HD is an autoregressive streaming model that generates high-resolution audiovisual content in chunks with progressive denoising, history-based continuation, and optimized parallel deployment for faster, coherent long-form output.",
+   "ai_keywords": [
+    "autoregressive model",
+    "denoising",
+    "high-resolution",
+    "audio-video streaming",
+    "chunk",
+    "progressive generation",
+    "asymmetric text conditioning",
+    "continuation training",
+    "stage-parallel deployment"
+   ],
+   "ai_summary_model": "thinkingmachines/Inkling-Small",
+   "githubStars": 10,
+   "organization": {
+    "_id": "6a6205cbc80c71fffa0d91c0",
+    "name": "TaoLiveAIGC",
+    "fullname": "TaoLive AIGC",
+    "avatar": "https://www.gravatar.com/avatar/6ad8c78ff1fe4f98ab8ae0c6fe81f1e4?d=retro&size=100"
+   }
+  },
+  "publishedAt": "2026-11-01T19:00:00.000Z",
+  "title": "TaoMate-HD: Progressive-Resolution Autoregressive Audio-Video Generation",
+  "summary": "Streaming digital humans produce detailed video while continuing speech as new text arrives. High-resolution denoising is costly, and text updates can cause repeated or interrupted speech. We present TaoMate-HD, an autoregressive model for high-resolution audio-video streaming. For each short segment, or chunk, two denoising steps establish coarse video structure at low resolution. A final step refines the video to high resolution, with audio generated throughout the same trajectory. Each stage passes its audiovisual predictions to the same stage of the next chunk as history. Across text updates, the model retains this history to infer what has already been spoken. Continuation training utilizes asymmetric text conditioning, with separate text windows for generation and distillation. Experiments show a 1.6x speedup over direct high-resolution generation with the same model and hardware. Optimized stage-parallel deployment provides a further 1.9x overall speedup over serial progressive generation. Our continuation training reduces character error rate by 11.18 percentage points relative to the baseline. The model also supports hour-long audiovisual generation. Our project page is https://taoliveaigc.github.io/TaoMate-HD.",
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.03394.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "64ec0c43cfa36c8ac2f00ca9",
+   "avatarUrl": "/avatars/cee276fea48e7279bc856ffdfc412539.svg",
+   "fullname": "Qijun Gan",
+   "name": "agnJason",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "followerCount": 2,
+   "isUserFollowing": false
+  },
+  "organization": {
+   "_id": "6a6205cbc80c71fffa0d91c0",
+   "name": "TaoLiveAIGC",
+   "fullname": "TaoLive AIGC",
+   "avatar": "https://www.gravatar.com/avatar/6ad8c78ff1fe4f98ab8ae0c6fe81f1e4?d=retro&size=100"
+  },
+  "isAuthorParticipating": true
+ },
+ {
+  "paper": {
+   "id": "2611.03330",
+   "authors": [
+    {
+     "_id": "6ae9b0384b63b3479c38a9de",
+     "user": {
+      "_id": "673ca724bad5462aeed61dc1",
+      "avatarUrl": "/avatars/43970cfddb5f238df7044457923b5620.svg",
+      "isPro": false,
+      "fullname": "Hiari Pizzini Cavagna",
+      "user": "hiarpc",
+      "type": "user",
+      "name": "hiarpc"
+     },
+     "name": "Hiari Pizzini Cavagna",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-05T11:34:25.028Z",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9b0384b63b3479c38a9df",
+     "user": {
+      "_id": "65f8194c99c842dd939da505",
+      "avatarUrl": "/avatars/c67474e5087bba8d953113cf45199f4b.svg",
+      "isPro": false,
+      "fullname": "Andrea Proia",
+      "user": "aproia",
+      "type": "user",
+      "name": "aproia"
+     },
+     "name": "Andrea Proia",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-05T11:34:26.900Z",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9b0384b63b3479c38a9e0",
+     "name": "Daniele Cesarini",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9b0384b63b3479c38a9e1",
+     "name": "Zeynep Kiziltan",
+     "hidden": false
+    },
+    {
+     "_id": "6ae9b0384b63b3479c38a9e2",
+     "name": "Andrea Bartolini",
+     "hidden": false
+    }
+   ],
+   "mediaUrls": [
+    "https://cdn-uploads.huggingface.co/production/uploads/65f8194c99c842dd939da505/QHvZyCIMcGutlsIydZ75o.qt"
+   ],
+   "publishedAt": "2026-11-02T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "The SIMPLE Law for Energy Cost of LLM Inference",
+   "submittedOnDailyBy": {
+    "_id": "65f8194c99c842dd939da505",
+    "avatarUrl": "/avatars/c67474e5087bba8d953113cf45199f4b.svg",
+    "isPro": false,
+    "fullname": "Andrea Proia",
+    "user": "aproia",
+    "type": "user",
+    "name": "aproia"
+   },
+   "summary": "Generative AI is billed per token, yet tokens are not equally expensive. Each token enters the KV-cache and raises the cost of those that follow, so energy grows non-linearly along a sequence whose tokens look identical. No analytical model states what a token costs, and the most accurate SOTA model is a fit, not a law: it absorbs architecture into fitted coefficients, requiring per-LLM fitting. We derive closed-form expressions of the computational and memory-access complexity of LLM inference in terms of architectural hyperparameters, covering MHA and GQA, and compare a family of analytical models of increasing granularity. From these, we obtain the SIMPLE Inference Model to Predict LLMs Energy (SIMPLE), a four-parameter law that separates prefill from decode, and decode into KV-cache cost and next-token computation. Over traces of 13 dense LLMs from six families on NVIDIA H100 GPUs, it attains R2 = 0.969 and 11.97% MAPE, 3.1-3.5x below the SOTA, without per-LLM calibration. The SIMPLE law explains as well as predicts: prefill energy grows quadratically with the hidden dimension, so larger LLMs suffer most from long inputs; and more aggressive GQA KV grouping reduces the per-token energy by up to 3x relative to standard MHA. Increasing the reasoning token budget pushes output length beyond the analytically derived energy minimum, driving super-linear energy growth; although accuracy grows with the budget, energy grows faster, so Intelligence per Joule peaks at an intermediate budget and falls by up to 3.14x across a 4.0x reasoning-budget range. Agentic serving raises energy per request by 13.0x relative to non-agentic ones, driven by the growth of both the prefill and the KV-cache terms with input length; while prefix caching removes most of the prefill cost (-93%), the KV-cache term is unaffected, so even a cached agentic request costs 4.8x more.",
+   "upvotes": 9,
+   "discussionId": "6ae9b0384b63b3479c38a9e3",
+   "projectPage": "https://huggingface.co/spaces/ecs-lab/SIMPLE",
+   "ai_summary": "A four-parameter analytical law predicts LLM inference energy across architectures, revealing quadratic prefill costs, GQA savings, and super-linear growth from reasoning budgets and agentic serving.",
+   "ai_keywords": [
+    "KV-cache",
+    "MHA",
+    "GQA",
+    "LLM inference",
+    "prefill",
+    "decode",
+    "SIMPLE law",
+    "energy complexity",
+    "group-query attention",
+    "multi-head attention"
+   ],
+   "ai_summary_model": "thinkingmachines/Inkling-Small",
+   "organization": {
+    "_id": "6ae0c0821476686d531a002b",
+    "name": "ecs-lab",
+    "fullname": "ECS Lab",
+    "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/673ca724bad5462aeed61dc1/3H3gu2f6yVgz4BX7AMlZQ.png"
+   }
+  },
+  "publishedAt": "2026-11-01T19:00:00.000Z",
+  "title": "The SIMPLE Law for Energy Cost of LLM Inference",
+  "summary": "Generative AI is billed per token, yet tokens are not equally expensive. Each token enters the KV-cache and raises the cost of those that follow, so energy grows non-linearly along a sequence whose tokens look identical. No analytical model states what a token costs, and the most accurate SOTA model is a fit, not a law: it absorbs architecture into fitted coefficients, requiring per-LLM fitting. We derive closed-form expressions of the computational and memory-access complexity of LLM inference in terms of architectural hyperparameters, covering MHA and GQA, and compare a family of analytical models of increasing granularity. From these, we obtain the SIMPLE Inference Model to Predict LLMs Energy (SIMPLE), a four-parameter law that separates prefill from decode, and decode into KV-cache cost and next-token computation. Over traces of 13 dense LLMs from six families on NVIDIA H100 GPUs, it attains R2 = 0.969 and 11.97% MAPE, 3.1-3.5x below the SOTA, without per-LLM calibration. The SIMPLE law explains as well as predicts: prefill energy grows quadratically with the hidden dimension, so larger LLMs suffer most from long inputs; and more aggressive GQA KV grouping reduces the per-token energy by up to 3x relative to standard MHA. Increasing the reasoning token budget pushes output length beyond the analytically derived energy minimum, driving super-linear energy growth; although accuracy grows with the budget, energy grows faster, so Intelligence per Joule peaks at an intermediate budget and falls by up to 3.14x across a 4.0x reasoning-budget range. Agentic serving raises energy per request by 13.0x relative to non-agentic ones, driven by the growth of both the prefill and the KV-cache terms with input length; while prefix caching removes most of the prefill cost (-93%), the KV-cache term is unaffected, so even a cached agentic request costs 4.8x more.",
+  "mediaUrls": [
+   "https://cdn-uploads.huggingface.co/production/uploads/65f8194c99c842dd939da505/QHvZyCIMcGutlsIydZ75o.qt"
+  ],
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.03330.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "65f8194c99c842dd939da505",
+   "avatarUrl": "/avatars/c67474e5087bba8d953113cf45199f4b.svg",
+   "fullname": "Andrea Proia",
+   "name": "aproia",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "isUserFollowing": false
+  },
+  "organization": {
+   "_id": "6ae0c0821476686d531a002b",
+   "name": "ecs-lab",
+   "fullname": "ECS Lab",
+   "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/673ca724bad5462aeed61dc1/3H3gu2f6yVgz4BX7AMlZQ.png"
+  },
+  "isAuthorParticipating": true
+ },
+ {
+  "paper": {
+   "id": "2611.04949",
+   "authors": [
+    {
+     "_id": "6aeab1de870269964d13a560",
+     "user": {
+      "_id": "68353399566e5abee86de78d",
+      "avatarUrl": "/avatars/3d29d1f5e79cce7f5a108aa4a9e5503f.svg",
+      "isPro": false,
+      "fullname": "JeongDayeon",
+      "user": "dandamdandam",
+      "type": "user",
+      "name": "dandamdandam"
+     },
+     "name": "Dayeon Jeong",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-04T08:45:05.337Z",
+     "hidden": false
+    },
+    {
+     "_id": "6aeab1de870269964d13a561",
+     "name": "Kyeongpil Kang",
+     "hidden": false
+    }
+   ],
+   "mediaUrls": [
+    "https://cdn-uploads.huggingface.co/production/uploads/68353399566e5abee86de78d/Ktag3_KwFBtRi6LFuBqHM.gif"
+   ],
+   "publishedAt": "2026-11-03T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "HERIT: Enabling Global Access to Hanja-to-English Historical Translation by Mitigating Temporal Bias",
+   "submittedOnDailyBy": {
+    "_id": "68353399566e5abee86de78d",
+    "avatarUrl": "/avatars/3d29d1f5e79cce7f5a108aa4a9e5503f.svg",
+    "isPro": false,
+    "fullname": "JeongDayeon",
+    "user": "dandamdandam",
+    "type": "user",
+    "name": "dandamdandam"
+   },
+   "summary": "Historical archives are invaluable for multidisciplinary research but remain inaccessible globally due to severe language barriers. While manual translation is prohibitively expensive and time-consuming, simply applying existing machine translation models is inadequate due to unique linguistic nuances and the temporal bias inherent in scarce human-labeled corpora. To address these challenges, we propose HERIT, a systematic domain-adaptation pipeline that leverages retrieval-augmented generation (RAG) to generate high-quality pseudo-labeled data from abundant Hanja-Korean corpora. This approach substantially expands the training dataset, mitigating both data scarcity and temporal overfitting across different historical periods. Extensive automated and human evaluations demonstrate that HERIT consistently outperforms baselines. Finally, we translate previously untranslated portions of the archives using our model, thereby enabling global access to these resources for researchers.",
+   "upvotes": 1,
+   "discussionId": "6aeab1de870269964d13a562",
+   "githubRepo": "https://github.com/dandamdandam/HERIT",
+   "githubRepoAddedBy": "user",
+   "ai_summary": "HERIT adapts machine translation to historical archives via retrieval-augmented pseudo-labeling, improving accuracy across time periods and unlocking global access.",
+   "ai_keywords": [
+    "retrieval-augmented generation",
+    "pseudo-labeled data",
+    "domain-adaptation",
+    "temporal overfitting",
+    "Hanja-Korean"
+   ],
+   "ai_summary_model": "thinkingmachines/Inkling-Small",
+   "githubStars": 1,
+   "organization": {
+    "_id": "6928385c2bdfe01b54d7c80c",
+    "name": "DAMI-Lab",
+    "fullname": "DAMI Lab",
+    "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/63bbd400b8c61b8aa492f961/IL_7g8P6HBF8RLjLQqxt_.png"
+   }
+  },
+  "publishedAt": "2026-11-02T19:00:00.000Z",
+  "title": "HERIT: Enabling Global Access to Hanja-to-English Historical Translation by Mitigating Temporal Bias",
+  "summary": "Historical archives are invaluable for multidisciplinary research but remain inaccessible globally due to severe language barriers. While manual translation is prohibitively expensive and time-consuming, simply applying existing machine translation models is inadequate due to unique linguistic nuances and the temporal bias inherent in scarce human-labeled corpora. To address these challenges, we propose HERIT, a systematic domain-adaptation pipeline that leverages retrieval-augmented generation (RAG) to generate high-quality pseudo-labeled data from abundant Hanja-Korean corpora. This approach substantially expands the training dataset, mitigating both data scarcity and temporal overfitting across different historical periods. Extensive automated and human evaluations demonstrate that HERIT consistently outperforms baselines. Finally, we translate previously untranslated portions of the archives using our model, thereby enabling global access to these resources for researchers.",
+  "mediaUrls": [
+   "https://cdn-uploads.huggingface.co/production/uploads/68353399566e5abee86de78d/Ktag3_KwFBtRi6LFuBqHM.gif"
+  ],
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.04949.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "68353399566e5abee86de78d",
+   "avatarUrl": "/avatars/3d29d1f5e79cce7f5a108aa4a9e5503f.svg",
+   "fullname": "JeongDayeon",
+   "name": "dandamdandam",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "followerCount": 2,
+   "isUserFollowing": false
+  },
+  "organization": {
+   "_id": "6928385c2bdfe01b54d7c80c",
+   "name": "DAMI-Lab",
+   "fullname": "DAMI Lab",
+   "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/63bbd400b8c61b8aa492f961/IL_7g8P6HBF8RLjLQqxt_.png"
+  },
+  "isAuthorParticipating": true
+ },
+ {
+  "paper": {
+   "id": "2610.36544",
+   "authors": [
+    {
+     "_id": "6aecaf710962bbebb014f0a8",
+     "name": "Siddharth Jain",
+     "hidden": false
+    },
+    {
+     "_id": "6aecaf710962bbebb014f0a9",
+     "name": "Venkat N. Vedam",
+     "hidden": false
+    }
+   ],
+   "publishedAt": "2026-10-27T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "Monitor Accuracy Isn't the Answer: A Decision-Value Framework for Evaluating AI Agent Restart Monitors",
+   "submittedOnDailyBy": {
+    "_id": "6418a84922270b3ccf145d6d",
+    "avatarUrl": "/avatars/4a5258a9a71f8d4dff8bcfc7e98d2ca8.svg",
+    "isPro": false,
+    "fullname": "Sid",
+    "user": "jainsid24",
+    "type": "user",
+    "name": "jainsid24"
+   },
+   "summary": "Classification accuracy and true-positive and false-positive rates alone do not determine whether restarting an AI agent improves success. Using an exact alarm-to-action identity for an independent clean restart with zero monitoring overhead, we show analytically that a monitor with fixed 90% accuracy can swing from a five-percentage-point loss to a 35-point gain in success rate, depending solely on the replacement attempt's residual-budget success probability. We introduce two techniques for evaluating monitors and progress signals in decision terms. First, a decision-sufficiency criterion, a binary-action specialization of Blackwell's comparison of experiments, identifies which progress representations or context compressions preserve the information needed to choose optimally between the specified actions, independent of trace reconstruction fidelity. Second, a finite-sample, model-free decision audit uses simultaneous binomial intervals over existing agent traces, without additional model calls, to certify a preference for \"restart\" or \"continue\" under stated sampling assumptions, or return \"abstain\" when evidence is insufficient. In a study of 194 externally evaluated model executions on 19 selected SymPy issues from SWE-bench Verified, with a retrospective audit of 130 of these traces, we find a 2.29-point apparent restart gain traced to a single surviving failed attempt, a 42.29-point loss on a second model, no positive replication of the initial gain on prospective task cohorts, and zero of 103 live comparisons meeting the specified certification bar. These results motivate evaluating agent monitors through recovery opportunity, decision value, and statistical support, rather than classification performance alone.",
+   "upvotes": 2,
+   "discussionId": "6aecaf710962bbebb014f0aa",
+   "organization": {
+    "_id": "64e917fc662874dbc9b6a828",
+    "name": "intuit",
+    "fullname": "Intuit",
+    "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/61ac8f8a00d01045fca0ad2f/AGLb0CFLiqEd5BBKLvtPO.jpeg"
+   }
+  },
+  "publishedAt": "2026-10-26T20:00:00.000Z",
+  "title": "Monitor Accuracy Isn't the Answer: A Decision-Value Framework for Evaluating AI Agent Restart Monitors",
+  "summary": "Classification accuracy and true-positive and false-positive rates alone do not determine whether restarting an AI agent improves success. Using an exact alarm-to-action identity for an independent clean restart with zero monitoring overhead, we show analytically that a monitor with fixed 90% accuracy can swing from a five-percentage-point loss to a 35-point gain in success rate, depending solely on the replacement attempt's residual-budget success probability. We introduce two techniques for evaluating monitors and progress signals in decision terms. First, a decision-sufficiency criterion, a binary-action specialization of Blackwell's comparison of experiments, identifies which progress representations or context compressions preserve the information needed to choose optimally between the specified actions, independent of trace reconstruction fidelity. Second, a finite-sample, model-free decision audit uses simultaneous binomial intervals over existing agent traces, without additional model calls, to certify a preference for \"restart\" or \"continue\" under stated sampling assumptions, or return \"abstain\" when evidence is insufficient. In a study of 194 externally evaluated model executions on 19 selected SymPy issues from SWE-bench Verified, with a retrospective audit of 130 of these traces, we find a 2.29-point apparent restart gain traced to a single surviving failed attempt, a 42.29-point loss on a second model, no positive replication of the initial gain on prospective task cohorts, and zero of 103 live comparisons meeting the specified certification bar. These results motivate evaluating agent monitors through recovery opportunity, decision value, and statistical support, rather than classification performance alone.",
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2610.36544.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "6418a84922270b3ccf145d6d",
+   "avatarUrl": "/avatars/4a5258a9a71f8d4dff8bcfc7e98d2ca8.svg",
+   "fullname": "Sid",
+   "name": "jainsid24",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "isUserFollowing": false
+  },
+  "organization": {
+   "_id": "64e917fc662874dbc9b6a828",
+   "name": "intuit",
+   "fullname": "Intuit",
+   "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/61ac8f8a00d01045fca0ad2f/AGLb0CFLiqEd5BBKLvtPO.jpeg"
+  },
+  "isAuthorParticipating": false
+ },
+ {
+  "paper": {
+   "id": "2611.03517",
+   "authors": [
+    {
+     "_id": "6aec87e40962bbebb014f006",
+     "name": "Gabriele Oliaro",
+     "hidden": false
+    },
+    {
+     "_id": "6aec87e40962bbebb014f007",
+     "name": "Jaeseong Lee",
+     "hidden": false
+    },
+    {
+     "_id": "6aec87e40962bbebb014f008",
+     "name": "Zhaoyuan Su",
+     "hidden": false
+    },
+    {
+     "_id": "6aec87e40962bbebb014f009",
+     "name": "Sreeram Vennam",
+     "hidden": false
+    },
+    {
+     "_id": "6aec87e40962bbebb014f00a",
+     "name": "Zhihao Jia",
+     "hidden": false
+    },
+    {
+     "_id": "6aec87e40962bbebb014f00b",
+     "name": "Samyam Rajbhandari",
+     "hidden": false
+    }
+   ],
+   "publishedAt": "2026-11-02T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "Ask, Don't Equip: Question-Driven Coding Agents for Deep Kernel Optimization",
+   "submittedOnDailyBy": {
+    "_id": "6345cc4b4947a01c6b0597bc",
+    "avatarUrl": "/avatars/01e5be032e4d36d7a33dec77938f6133.svg",
+    "isPro": false,
+    "fullname": "Gabriele Oliaro",
+    "user": "goliaro",
+    "type": "user",
+    "name": "goliaro"
+   },
+   "summary": "LLM agents for GPU kernel optimization sit at two ends of a structure-freedom tradeoff. Scripted agents fix what the model does at each step, via a learned policy, an optimization menu, or fixed roles, and are sample-efficient where the recipe applies and stall where it does not. Open-ended agents let a self-directed model mutate a population of kernels and pay for the freedom in trials: thousands of evaluations, repeated edits, and wrong candidates. Both respond to hard targets by equipping the agent with more: parsed profiler output, disassembly analysis, retrieval over documentation and libraries, and stores of lessons. We argue that both lack direction, a hypothesis about where the remaining gap is, and that a short question asked at the right moment supplies it without narrowing what the agent may do next. We present KernelSeek, a question-driven agent that makes an existing CUDA kernel faster with no operator-specific knowledge and no faster implementation to imitate: a general-purpose coding agent, a minimal harness that enforces a verifiable goal, and questions at decision points, first from a human, then from a bank the agent applies to itself. On the same task, evaluator, hardware, and week, a tool-rich autonomous agent built in the prevailing style plateaued at 0.50x FlashAttention-3 after 133 model-driven steps; KernelSeek reached 1.13x. It then produced dependency-free FlashAttention forward kernels for Hopper and Blackwell, single CUDA files with no CUTLASS, CuTe, cuBLAS, or cuDNN, correct on all 182 scenarios per architecture and 1.16x FlashAttention-3 and 1.46x FlashAttention-4 (geometric mean). Across 162 human messages and 11.5K agent tool calls, every large gain followed a question that moved the agent to a different layer of the system or rejected a claimed limit, never one that supplied information. We release the kernels, harness, question bank, and all traces.",
+   "upvotes": 2,
+   "discussionId": "6aec87e50962bbebb014f00c",
+   "ai_summary": "A question-driven LLM agent improves CUDA kernels by asking targeted questions at decision points, achieving faster FlashAttention implementations than a tool-rich autonomous baseline.",
+   "ai_keywords": [
+    "LLM agents",
+    "GPU kernel optimization",
+    "structure-freedom tradeoff",
+    "scripted agents",
+    "learned policy",
+    "optimization menu",
+    "fixed roles",
+    "sample-efficient",
+    "open-ended agents",
+    "self-directed model",
+    "population of kernels",
+    "profiler output",
+    "disassembly analysis",
+    "retrieval over documentation and libraries",
+    "CUDA kernel",
+    "KernelSeek",
+    "question-driven agent",
+    "verifiable goal",
+    "question bank",
+    "decision points",
+    "FlashAttention-3",
+    "FlashAttention-4",
+    "Hopper",
+    "Blackwell",
+    "CUTLASS",
+    "CuTe",
+    "cuBLAS",
+    "cuDNN",
+    "dependency-free FlashAttention forward kernels"
+   ],
+   "ai_summary_model": "deepseek-ai/DeepSeek-V4.1-Flash",
+   "organization": {
+    "_id": "62cece4aa3a23014aca72499",
+    "name": "Snowflake",
+    "fullname": "Snowflake",
+    "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/64dc52cf858f8a41c12fc819/O9-MWzRjWzbNP_DQlMb-7.png"
+   }
+  },
+  "publishedAt": "2026-11-01T19:00:00.000Z",
+  "title": "Ask, Don't Equip: Question-Driven Coding Agents for Deep Kernel Optimization",
+  "summary": "LLM agents for GPU kernel optimization sit at two ends of a structure-freedom tradeoff. Scripted agents fix what the model does at each step, via a learned policy, an optimization menu, or fixed roles, and are sample-efficient where the recipe applies and stall where it does not. Open-ended agents let a self-directed model mutate a population of kernels and pay for the freedom in trials: thousands of evaluations, repeated edits, and wrong candidates. Both respond to hard targets by equipping the agent with more: parsed profiler output, disassembly analysis, retrieval over documentation and libraries, and stores of lessons. We argue that both lack direction, a hypothesis about where the remaining gap is, and that a short question asked at the right moment supplies it without narrowing what the agent may do next. We present KernelSeek, a question-driven agent that makes an existing CUDA kernel faster with no operator-specific knowledge and no faster implementation to imitate: a general-purpose coding agent, a minimal harness that enforces a verifiable goal, and questions at decision points, first from a human, then from a bank the agent applies to itself. On the same task, evaluator, hardware, and week, a tool-rich autonomous agent built in the prevailing style plateaued at 0.50x FlashAttention-3 after 133 model-driven steps; KernelSeek reached 1.13x. It then produced dependency-free FlashAttention forward kernels for Hopper and Blackwell, single CUDA files with no CUTLASS, CuTe, cuBLAS, or cuDNN, correct on all 182 scenarios per architecture and 1.16x FlashAttention-3 and 1.46x FlashAttention-4 (geometric mean). Across 162 human messages and 11.5K agent tool calls, every large gain followed a question that moved the agent to a different layer of the system or rejected a claimed limit, never one that supplied information. We release the kernels, harness, question bank, and all traces.",
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.03517.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "6345cc4b4947a01c6b0597bc",
+   "avatarUrl": "/avatars/01e5be032e4d36d7a33dec77938f6133.svg",
+   "fullname": "Gabriele Oliaro",
+   "name": "goliaro",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "followerCount": 3,
+   "isUserFollowing": false
+  },
+  "organization": {
+   "_id": "62cece4aa3a23014aca72499",
+   "name": "Snowflake",
+   "fullname": "Snowflake",
+   "avatar": "https://cdn-avatars.huggingface.co/v1/production/uploads/64dc52cf858f8a41c12fc819/O9-MWzRjWzbNP_DQlMb-7.png"
+  },
+  "isAuthorParticipating": false
+ },
+ {
+  "paper": {
+   "id": "2611.03852",
+   "authors": [
+    {
+     "_id": "6aeaf3ad870269964d13a7db",
+     "user": {
+      "_id": "6892472e15bb11fff268b2d8",
+      "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/6892472e15bb11fff268b2d8/_u5U0n0HvIyBfon6OScfF.jpeg",
+      "isPro": false,
+      "fullname": "Anton Hristov",
+      "user": "bonanc",
+      "type": "user",
+      "name": "bonanc"
+     },
+     "name": "Anton Hristov",
+     "status": "claimed_verified",
+     "statusLastChangedAt": "2026-11-04T16:45:04.581Z",
+     "hidden": false
+    }
+   ],
+   "publishedAt": "2026-11-02T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "Why Pay for Long Reasoning When Rewrite Do Trick? Causal Effects of Reasoning History Compaction on Future Generation and Agent Cost",
+   "submittedOnDailyBy": {
+    "_id": "6892472e15bb11fff268b2d8",
+    "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/6892472e15bb11fff268b2d8/_u5U0n0HvIyBfon6OScfF.jpeg",
+    "isPro": false,
+    "fullname": "Anton Hristov",
+    "user": "bonanc",
+    "type": "user",
+    "name": "bonanc"
+   },
+   "summary": "Reasoning substantially improves language models' ability to solve difficult problems, but long reasoning traces make these gains expensive. Efficient reasoning should express useful analysis in fewer tokens by reducing repetition and text that adds little value to solving the problem. Progress in proprietary models motivates this goal, yet their hidden scratchpads limit direct study of how it is achieved. We investigate whether open-weight models can generate less verbose reasoning by changing the form of their own earlier thoughts, without retraining. Our intervention rewrites prior reasoning into compact state records before pending tool results are revealed, then compares continuations from original and compact histories. Across the tested models, accepted compact histories usually shorten future reasoning; a coding case study also shows less repeated verification after a shared candidate solution. In software-agent deployments, compaction can reduce total spending, although task quality and rewrite-inclusive time depend on the target and compressor. These findings identify reasoning history as one way to reduce future reasoning-token use and motivate model-specific compaction policies evaluated for both efficiency and retained capability.",
+   "upvotes": 4,
+   "discussionId": "6aeaf3ad870269964d13a7dc",
+   "projectPage": "https://debeltoni.github.io/ShortReasoning/",
+   "ai_summary": "Rewriting reasoning histories into compact state records reduces future reasoning length and token costs in open-weight models without retraining.",
+   "ai_keywords": [
+    "reasoning traces",
+    "open-weight models",
+    "reasoning history",
+    "state records",
+    "tool results",
+    "reasoning-token use",
+    "compaction policies"
+   ],
+   "ai_summary_model": "thinkingmachines/Inkling-Small"
+  },
+  "publishedAt": "2026-11-01T19:00:00.000Z",
+  "title": "Why Pay for Long Reasoning When Rewrite Do Trick? Causal Effects of Reasoning History Compaction on Future Generation and Agent Cost",
+  "summary": "Reasoning substantially improves language models' ability to solve difficult problems, but long reasoning traces make these gains expensive. Efficient reasoning should express useful analysis in fewer tokens by reducing repetition and text that adds little value to solving the problem. Progress in proprietary models motivates this goal, yet their hidden scratchpads limit direct study of how it is achieved. We investigate whether open-weight models can generate less verbose reasoning by changing the form of their own earlier thoughts, without retraining. Our intervention rewrites prior reasoning into compact state records before pending tool results are revealed, then compares continuations from original and compact histories. Across the tested models, accepted compact histories usually shorten future reasoning; a coding case study also shows less repeated verification after a shared candidate solution. In software-agent deployments, compaction can reduce total spending, although task quality and rewrite-inclusive time depend on the target and compressor. These findings identify reasoning history as one way to reduce future reasoning-token use and motivate model-specific compaction policies evaluated for both efficiency and retained capability.",
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.03852.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "6892472e15bb11fff268b2d8",
+   "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/6892472e15bb11fff268b2d8/_u5U0n0HvIyBfon6OScfF.jpeg",
+   "fullname": "Anton Hristov",
+   "name": "bonanc",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "followerCount": 4,
+   "isUserFollowing": false
+  },
+  "isAuthorParticipating": true
+ },
+ {
+  "paper": {
+   "id": "2611.05029",
+   "authors": [
+    {
+     "_id": "6aec7caa88bab272fc8d606f",
+     "name": "Oswaldo Ludwig",
+     "hidden": false
+    }
+   ],
+   "publishedAt": "2026-11-03T15:05:06.000Z",
+   "submittedOnDailyAt": "2026-11-05T00:00:00.000Z",
+   "title": "DRAP: Dynamics-Risk Adaptive Plasticity for Continual Learning in Physical AI",
+   "submittedOnDailyBy": {
+    "_id": "637e522caa60aba6d5a602b5",
+    "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/637e522caa60aba6d5a602b5/fhNDKPYwXyx4y_uPJIJ-F.png",
+    "isPro": false,
+    "fullname": "Oswaldo Ludwig",
+    "user": "oswaldoludwig",
+    "type": "user",
+    "name": "oswaldoludwig"
+   },
+   "summary": "Continual learning in physical AI differs from conventional continual learning because small per-step policy errors can accumulate over a trajectory. Each deviation may move the agent outside the training distribution, increase subsequent prediction errors, and ultimately cause closed-loop task failure. This work introduces Dynamics-Risk Adaptive Plasticity (DRAP), a replay-free method that estimates the historical importance of adaptable model tensors from sample-level action gradients weighted by local trajectory-amplification risk. A ridge-regularized local linear model is fitted to expert state-action transitions, and the largest singular value of its state-transition matrix provides a policy-independent, Lyapunov-inspired estimate of one-step perturbation amplification. After each task, risk-weighted squared gradients are accumulated in a tensor-level importance memory. During subsequent tasks, DRAP uses normalized cumulative importance to scale the effective AdamW learning rate of each tensor, immediately reducing the plasticity of components that supported previous behavior at dynamically sensitive trajectory points. We instantiate DRAP on a fixed KappaTune-selected subnetwork of OpenVLA and evaluate replay-free sequential adaptation across the LIBERO Spatial, Object, and Goal suites. Compared with standard AdamW fine-tuning and EWC, the results show substantially improved retention of previously learned behaviors while preserving strong new-suite acquisition.",
+   "upvotes": 0,
+   "discussionId": "6aec7caa88bab272fc8d6070",
+   "githubRepo": "https://github.com/oswaldoludwig/DRAP-Dynamics-Risk-Adaptive-Plasticity",
+   "githubRepoAddedBy": "user",
+   "ai_summary": "DRAP improves replay-free continual learning for physical AI by adaptively reducing plasticity of critical model components based on trajectory-amplification risk, enhancing retention of past behaviors without sacrificing new task learning.",
+   "ai_keywords": [
+    "Dynamics-Risk Adaptive Plasticity",
+    "replay-free continual learning",
+    "action gradients",
+    "trajectory-amplification risk",
+    "ridge-regularized local linear model",
+    "Lyapunov-inspired",
+    "singular value",
+    "tensor-level importance memory",
+    "AdamW",
+    "OpenVLA",
+    "LIBERO"
+   ],
+   "ai_summary_model": "thinkingmachines/Inkling-Small",
+   "githubStars": 0
+  },
+  "publishedAt": "2026-11-03T10:05:06.000Z",
+  "title": "DRAP: Dynamics-Risk Adaptive Plasticity for Continual Learning in Physical AI",
+  "summary": "Continual learning in physical AI differs from conventional continual learning because small per-step policy errors can accumulate over a trajectory. Each deviation may move the agent outside the training distribution, increase subsequent prediction errors, and ultimately cause closed-loop task failure. This work introduces Dynamics-Risk Adaptive Plasticity (DRAP), a replay-free method that estimates the historical importance of adaptable model tensors from sample-level action gradients weighted by local trajectory-amplification risk. A ridge-regularized local linear model is fitted to expert state-action transitions, and the largest singular value of its state-transition matrix provides a policy-independent, Lyapunov-inspired estimate of one-step perturbation amplification. After each task, risk-weighted squared gradients are accumulated in a tensor-level importance memory. During subsequent tasks, DRAP uses normalized cumulative importance to scale the effective AdamW learning rate of each tensor, immediately reducing the plasticity of components that supported previous behavior at dynamically sensitive trajectory points. We instantiate DRAP on a fixed KappaTune-selected subnetwork of OpenVLA and evaluate replay-free sequential adaptation across the LIBERO Spatial, Object, and Goal suites. Compared with standard AdamW fine-tuning and EWC, the results show substantially improved retention of previously learned behaviors while preserving strong new-suite acquisition.",
+  "thumbnail": "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2611.05029.png",
+  "numComments": 2,
+  "submittedBy": {
+   "_id": "637e522caa60aba6d5a602b5",
+   "avatarUrl": "https://cdn-avatars.huggingface.co/v1/production/uploads/637e522caa60aba6d5a602b5/fhNDKPYwXyx4y_uPJIJ-F.png",
+   "fullname": "Oswaldo Ludwig",
+   "name": "oswaldoludwig",
+   "type": "user",
+   "isPro": false,
+   "isHf": false,
+   "isHfAdmin": false,
+   "isMod": false,
+   "isUserFollowing": false
+  },
+  "isAuthorParticipating": false
+ }
+]
