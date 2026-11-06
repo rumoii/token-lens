@@ -4,7 +4,9 @@
 
 当前状态（2026-11-04）：A1、A2、A4 完成，A3 挂起（并入 L3）；B1、B2、B4、B5 完成，B3 并入 P1 完成；C0–C9 完成；D3 由 C3 覆盖、D4 完成、D1 和 D2 未做；F1–F4 完成；R1–R4 完成，R5 实现完成、浏览器人工验收未做，R6 推迟；L0–L6 完成，A3 仍未关闭；N1–N5 完成，Factory Droid、cline 搁置，等待真实样本，N4/N5 新接客户端均为 B 级；P0–P4 与价格页完成；W1–W4 完成，Windows exe 约 25MB，未装 Node 的干净 Windows 上运行尚未验收；macOS arm64 的 M0–M4 完成。当前仓库从单个初始提交开始，尚未运行任何远端 CI，`pr-checks.yml` 仅由 PR 触发。
 
-下一步：当前无进行中阶段，候选为未装 Node 的干净 Windows 验收、R5 浏览器人工验收、N4/N5 客户端（ZCode、MiniMax、MiMo、Command Code、AnythingLLM、CodeBuddy）的真实样本验证与 B 级升 A，以及下节「已知缺陷」的修复。下一步由用户选定；R6 继续推迟，Factory Droid、cline 等待真实样本，CI 上传 exe 产物暂不做。
+当前进行桌面重写 D1：在 `app/` 建立 Flutter + Rust 新闻预览，先接 OpenAI RSS。D1 的 Windows release 桌面验收已完成（2026-11-05），macOS 尚未构建验证。D1 验收后停审，再接完整首批来源（D2）、迁移统计核心与适配器（D3）、完成数据副本迁移和发行切换（D4）。路线与回退边界见 [desktop.md](desktop.md)，来源与缓存契约见 [news.md](news.md)。旧版继续可用；真实账本迁移另行确认。
+
+旧版未装 Node 的干净 Windows 验收、R5 浏览器人工验收、N4/N5 真实样本和下节缺陷仍保留原状态。R6 继续推迟，Factory Droid、cline 等待真实样本，CI 上传 exe 产物暂不做。
 
 ---
 

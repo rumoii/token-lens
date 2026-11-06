@@ -20,6 +20,8 @@ Token Lens 读取 Claude Code、Codex CLI、Qwen Code 等 27 款 AI 编码工具
 
 ## 功能
 
+Flutter + Rust 桌面重写正在进行。独立新闻预览的开发与运行方式见 [app/README.md](app/README.md)；下文描述现有统计版本，迁移验收前继续可用。
+
 - **100% 本地隐私**：只读解析本地日志，零上传、零遥测、无账号。
 - **零重依赖**：核心只用 Node 内置模块（`node:sqlite` + `node:http`），`dependencies` 为空。
 - **原子去重**：SHA-256 内容哈希幂等入库，金额以整数微美元存储。

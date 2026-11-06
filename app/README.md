@@ -1,0 +1,51 @@
+# Token Lens 桌面预览
+
+Flutter + Rust 重写的 D1：OpenAI 新闻的手动刷新、本地缓存、取消和错误反馈。统计功能尚未迁移，继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)。
+
+## 环境
+
+- Flutter stable 3.47.9（Dart 3.13.7）。
+- Rust 1.98.0；Windows 构建需要 Visual Studio Desktop development with C++ 和符号链接权限（通常通过 Windows Developer Mode 提供），macOS 构建需要 Xcode。
+- flutter_rust_bridge 与 codegen 2.13.0；代码生成另需 cargo-expand。
+- Flutter/Rust 依赖分别由 `pubspec.lock`、`rust/Cargo.lock` 锁定。生产包不要求用户安装 Flutter、Rust 或 Node。
+
+已批准的 Windows 开发环境：SDK `<flutter-sdk>`（Flutter SDK 的绝对目录），Pub 缓存 `<pub-cache>`（Pub 依赖缓存的绝对目录），代码生成工具 `<frb-tools>`（FRB 代码生成工具所在的 bin 目录，使用绝对路径）。PATH 只在开发进程内设置，不修改系统 PATH。工具和依赖缓存按正常安装保留。
+
+```powershell
+$env:PATH = "<flutter-sdk>\bin;<frb-tools>;$env:PATH"
+$env:PUB_CACHE = '<pub-cache>'
+$env:FLUTTER_SUPPRESS_ANALYTICS = 'true'
+cd app
+flutter pub get --enforce-lockfile
+```
+
+## 开发与检查
+
+调试运行必须提供独立的绝对目录；未设置时显示说明并停止初始化。不要把目录指向真实 home、旧账本或已安装应用的数据目录。`<独立的预览目录>` 表示满足这些条件的预览数据绝对目录。
+
+```powershell
+$env:TOKEN_LENS_PREVIEW_DATA_DIR = '<独立的预览目录>'
+flutter run -d windows
+```
+
+修改 Rust 公共接口后，在 `app/` 重新生成桥接，再检查：
+
+```sh
+flutter_rust_bridge_codegen generate
+cargo fmt --manifest-path rust/Cargo.toml -- --check
+cargo test --manifest-path rust/Cargo.toml --locked
+cargo clippy --manifest-path rust/Cargo.toml --locked --all-targets -- -D warnings
+flutter analyze
+flutter test
+flutter build windows --release
+```
+
+macOS 使用 `flutter run -d macos` 和 `flutter build macos --release`；Windows 不能验证 macOS 构建。Flutter native-assets hook 编译并打包 Rust 动态库；测试与发行不需要额外启动 Rust 服务。测试使用合成缓存、临时目录与 loopback HTTP server，不自动请求公共来源。
+
+## 运行与回退
+
+Windows release 必须保留构建输出中的 exe、DLL 与 `data/`，不能只复制 exe。此阶段提供开发预览，尚未制作替换旧版的自解压安装包或 dmg。
+
+启动不联网。点击刷新才读取 OpenAI RSS；失败保留旧内容，取消终止当前请求。列表／卡片切换仅改变显示；原文在系统浏览器打开。关闭退出，不留常驻进程。一个缓存目录只允许一个写入者。
+
+预览默认使用系统应用支持目录下的 `news-preview`，可以用 `TOKEN_LENS_PREVIEW_DATA_DIR` 覆盖为绝对路径。它忽略旧版 `TOKEN_LENS_DATA_DIR` 与 `DB_PATH`，不读取或修改旧账本。回退只需退出预览并继续使用原版。
