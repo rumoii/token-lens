@@ -1,5 +1,21 @@
 use super::*;
 use crate::engine;
+
+#[test]
+fn d25_r4_plain_text_joins_inline_nodes_and_separates_blocks() {
+    assert_eq!(
+        plain_text("<p>We’<!-- -->ve updated <a>Opus 5.5</a>.</p><div>Next<br>line.</div>Tail<ul><li>One</li><li>Two</li></ul>", 4000),
+        "We’ve updated Opus 5.5. Next line. Tail One Two"
+    );
+    assert_eq!(
+        plain_text(
+            "<p>A<script>hidden()</script><style>hidden</style><span>B</span></p>",
+            4000
+        ),
+        "AB"
+    );
+}
+
 impl NewsSnapshot {
     fn failure(&self) -> Option<&NewsError> {
         self.error
@@ -36,7 +52,13 @@ fn parse_feed(bytes: &[u8]) -> Result<Vec<NewsItem>, NewsError> {
     let raw = source
         .parse(bytes)
         .map_err(|_| engine::error("parse", "Invalid feed."))?;
-    engine::normalise_items("openai", raw, source.text_is_html())
+    engine::normalise_items(
+        "openai",
+        raw,
+        source.text_is_html(),
+        source.info().category,
+        source.default_kind(),
+    )
 }
 fn cached_items(path: &Path) -> Vec<NewsItem> {
     NewsClient::new(path.parent().unwrap().to_string_lossy().into_owned())
@@ -59,6 +81,39 @@ async fn d2_success_writes_v2_cache() {
             .unwrap();
     assert_eq!(json["version"], 2);
     assert!(json["sources"]["openai"].is_object());
+}
+
+#[tokio::test]
+async fn d25_refresh_exposes_kind_and_persists_it_across_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let (url, seen, reply) = server().await;
+    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let worker = client.clone();
+    let task = tokio::spawn(async move { worker.refresh(None).await });
+    seen.await.unwrap();
+    reply
+        .send(response(
+            "200 OK",
+            &rss(&item(
+                "change",
+                "https://example.com/change",
+                "Pricing update",
+            )),
+        ))
+        .unwrap();
+    let snapshot = task.await.unwrap();
+    assert!(snapshot.error.is_none());
+    assert_eq!(snapshot.items[0].kind, "pricing");
+    client.shutdown();
+    let json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.path().join("news-cache.json")).unwrap())
+            .unwrap();
+    assert_eq!(json["version"], 2);
+    assert_eq!(json["sources"]["openai"]["items"][0]["kind"], "pricing");
+    let reopened = NewsClient::new(dir.path().to_string_lossy().into_owned()).unwrap();
+    assert!(reopened.snapshot().error.is_none());
+    assert_eq!(reopened.snapshot().items[0].kind, "pricing");
+    reopened.shutdown();
 }
 
 #[test]

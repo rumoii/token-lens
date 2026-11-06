@@ -50,6 +50,7 @@ class NewsItem {
     this.popularityKind,
     this.popularity,
     this.alsoIn = const [],
+    this.kind = 'general',
   });
 
   final String id;
@@ -61,6 +62,7 @@ class NewsItem {
   final String? popularityKind;
   final int? popularity;
   final List<String> alsoIn;
+  final String kind;
 }
 
 class NewsError {

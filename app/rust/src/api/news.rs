@@ -23,6 +23,7 @@ pub struct NewsItem {
     pub popularity_kind: Option<String>,
     pub popularity: Option<i64>,
     pub also_in: Vec<String>,
+    pub kind: String,
 }
 
 #[derive(Clone, Debug)]
@@ -147,18 +148,61 @@ pub(crate) fn safe_url(raw: &str) -> Option<String> {
 
 pub(crate) fn plain_text(raw: &str, limit: usize) -> String {
     let fragment = scraper::Html::parse_fragment(raw);
+    element_text(fragment.root_element())
+        .chars()
+        .take(limit)
+        .collect()
+}
+
+/// Inline nodes preserve adjacency; block boundaries separate words and sentences.
+pub(crate) fn element_text(element: scraper::ElementRef<'_>) -> String {
     let mut value = String::new();
-    for node in fragment.tree.nodes() {
-        if let scraper::Node::Text(text) = node.value() {
-            let hidden = node.ancestors().any(|ancestor| {
-                ancestor.value().as_element().is_some_and(|v| {
-                    matches!(v.name(), "script" | "style" | "noscript" | "template")
-                })
-            });
-            if !hidden {
-                value.push_str(text);
-                value.push(' ');
+    let mut pending = vec![(*element, false)];
+    while let Some((node, closing)) = pending.pop() {
+        if closing {
+            value.push(' ');
+            continue;
+        }
+        match node.value() {
+            scraper::Node::Text(text) => value.push_str(text),
+            scraper::Node::Element(element) => {
+                if matches!(element.name(), "script" | "style" | "noscript" | "template") {
+                    continue;
+                }
+                if matches!(
+                    element.name(),
+                    "p" | "li"
+                        | "div"
+                        | "br"
+                        | "hr"
+                        | "ul"
+                        | "ol"
+                        | "dl"
+                        | "dt"
+                        | "dd"
+                        | "blockquote"
+                        | "pre"
+                        | "section"
+                        | "article"
+                        | "header"
+                        | "footer"
+                        | "h1"
+                        | "h2"
+                        | "h3"
+                        | "h4"
+                        | "h5"
+                        | "h6"
+                        | "table"
+                        | "tr"
+                        | "td"
+                        | "th"
+                ) {
+                    value.push(' ');
+                    pending.push((node, true));
+                }
+                pending.extend(node.children().rev().map(|child| (child, false)));
             }
+            _ => {}
         }
     }
     value
@@ -167,7 +211,6 @@ pub(crate) fn plain_text(raw: &str, limit: usize) -> String {
         .join(" ")
         .chars()
         .filter(|c| !c.is_control())
-        .take(limit)
         .collect()
 }
 

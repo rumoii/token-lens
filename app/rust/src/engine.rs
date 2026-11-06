@@ -13,7 +13,7 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use crate::api::news::{plain_text, safe_url, NewsError, NewsItem, NewsSnapshot, SourceState};
-use crate::sources::{PopularityKind, RawItem, Source};
+use crate::sources::{Category, ItemKind, PopularityKind, RawItem, Source};
 
 const MAX_ITEMS: usize = 50;
 const MAX_CACHE_BYTES: usize = 32 * 1024 * 1024;
@@ -94,7 +94,7 @@ impl NewsEngine {
         lock.try_lock_exclusive()
             .map_err(|_| "busy: Cache directory is in use.")?;
         let cache_path = data_dir.join("news-cache.json");
-        let (cache, error) = match load_cache(&cache_path) {
+        let (cache, error) = match load_cache(&cache_path, &sources) {
             Ok(cache) => (cache, None),
             Err(err) => (Cache::default(), Some(err)),
         };
@@ -347,7 +347,14 @@ impl Inner {
         let raw = source
             .parse(&body)
             .map_err(|_| error("parse", "Cannot parse this source's news response."))?;
-        normalise_items(&source.info().id, raw, source.text_is_html())
+        let info = source.info();
+        normalise_items(
+            &info.id,
+            raw,
+            source.text_is_html(),
+            info.category,
+            source.default_kind(),
+        )
     }
 
     fn commit(&self, generation: u64, index: usize, result: Result<Vec<NewsItem>, NewsError>) {
@@ -421,10 +428,62 @@ fn literal_text(raw: &str, limit: usize) -> String {
         .collect()
 }
 
+fn keyword_kind(title: &str, category: Category) -> Option<ItemKind> {
+    if !matches!(category, Category::Official | Category::Tools) {
+        return None;
+    }
+    let title = title.to_lowercase();
+    let word_char = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    for (kind, keywords) in [
+        (
+            ItemKind::Deprecation,
+            &[
+                "deprecate",
+                "deprecated",
+                "deprecation",
+                "retire",
+                "retired",
+                "retirement",
+                "retiring",
+                "shut down",
+                "shutdown",
+                "sunset",
+                "end of life",
+                "弃用",
+                "下线",
+                "停用",
+                "退役",
+            ][..],
+        ),
+        (
+            ItemKind::Pricing,
+            &[
+                "price", "prices", "pricing", "priced", "价格", "定价", "降价", "涨价", "计费",
+            ][..],
+        ),
+    ] {
+        if keywords.iter().any(|keyword| {
+            title.match_indices(keyword).any(|(start, matched)| {
+                !keyword.is_ascii()
+                    || (!title[..start].chars().next_back().is_some_and(word_char)
+                        && !title[start + matched.len()..]
+                            .chars()
+                            .next()
+                            .is_some_and(word_char))
+            })
+        }) {
+            return Some(kind);
+        }
+    }
+    None
+}
+
 pub(crate) fn normalise_items(
     source_id: &str,
     raw: Vec<RawItem>,
     text_is_html: bool,
+    category: Category,
+    default_kind: ItemKind,
 ) -> Result<Vec<NewsItem>, NewsError> {
     let normalise_text: fn(&str, usize) -> String = if text_is_html {
         plain_text
@@ -474,7 +533,11 @@ pub(crate) fn normalise_items(
                 )
             })
             .unwrap_or_default();
+        let kind = keyword_kind(&title, category)
+            .or(item.kind)
+            .unwrap_or(default_kind);
         items.push(NewsItem {
+            kind: kind.as_str().into(),
             id: format!("{source_id}:{}", item.native_id),
             source_id: source_id.into(),
             title,
@@ -540,17 +603,22 @@ fn assemble(state: &State) -> NewsSnapshot {
     let mut urls = BTreeMap::new();
     for (index, source) in ordered {
         if let Some(cache) = state.cache.sources.get(&source.id) {
-            for item in &cache.items {
+            let mut sorted: Vec<_> = cache.items.iter().collect();
+            sorted.sort_by_cached_key(|item| std::cmp::Reverse(item_time(item)));
+            for item in sorted {
                 let key = canonical_url(&item.url);
                 if let Some(&position) = urls.get(&key) {
                     let (_, kept): &mut (usize, NewsItem) = &mut items[position];
-                    if kept.source_id != source.id && !kept.also_in.contains(&source.id) {
-                        kept.also_in.push(source.id.clone());
+                    if kept.source_id != source.id {
+                        if !kept.also_in.contains(&source.id) {
+                            kept.also_in.push(source.id.clone());
+                        }
+                        continue;
                     }
                 } else {
                     urls.insert(key, items.len());
-                    items.push((index, item.clone()));
                 }
+                items.push((index, item.clone()));
             }
         }
     }
@@ -591,7 +659,7 @@ fn valid_text(value: &str, limit: usize) -> bool {
     value.chars().count() <= limit && !value.chars().any(char::is_control)
 }
 
-fn load_cache(path: &Path) -> Result<Cache, NewsError> {
+fn load_cache(path: &Path, sources: &[Box<dyn Source>]) -> Result<Cache, NewsError> {
     let invalid = || {
         error(
             "cache",
@@ -610,9 +678,28 @@ fn load_cache(path: &Path) -> Result<Cache, NewsError> {
     if bytes.len() > MAX_CACHE_BYTES {
         return Err(invalid());
     }
-    let json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+    let mut json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
     let cache: Cache = match json.get("version").and_then(|v| v.as_u64()) {
-        Some(2) => serde_json::from_value(json).map_err(|_| invalid())?,
+        Some(2) => {
+            if let Some(cached_sources) = json.get_mut("sources").and_then(|v| v.as_object_mut()) {
+                for (id, cached) in cached_sources {
+                    let default_kind = sources
+                        .iter()
+                        .find(|s| s.info().id == *id)
+                        .map_or(ItemKind::General, |s| s.default_kind());
+                    if let Some(items) = cached.get_mut("items").and_then(|v| v.as_array_mut()) {
+                        for item in items {
+                            if let Some(fields) = item.as_object_mut() {
+                                fields
+                                    .entry("kind")
+                                    .or_insert_with(|| default_kind.as_str().into());
+                            }
+                        }
+                    }
+                }
+            }
+            serde_json::from_value(json).map_err(|_| invalid())?
+        }
         Some(1) => {
             #[derive(Deserialize)]
             struct LegacyItem {
@@ -641,6 +728,7 @@ fn load_cache(path: &Path) -> Result<Cache, NewsError> {
                     return Err(invalid());
                 }
                 items.push(NewsItem {
+                    kind: ItemKind::General.as_str().into(),
                     id: format!("openai:{}", item.id),
                     source_id: "openai".into(),
                     title: item.title,
@@ -694,7 +782,17 @@ fn load_cache(path: &Path) -> Result<Cache, NewsError> {
 }
 
 fn validate_cached_item(source: &str, item: &NewsItem) -> Result<(), ()> {
-    if item.source_id != source
+    if ![
+        ItemKind::Release,
+        ItemKind::Api,
+        ItemKind::Deprecation,
+        ItemKind::Pricing,
+        ItemKind::Model,
+        ItemKind::General,
+    ]
+    .iter()
+    .any(|kind| kind.as_str() == item.kind)
+        || item.source_id != source
         || !item.id.starts_with(&format!("{source}:"))
         || item.id.len() <= source.len() + 1
         || item.id.chars().count() > source.chars().count() + 8193

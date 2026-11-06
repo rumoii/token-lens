@@ -55,6 +55,7 @@ class RustNewsGateway implements NewsGateway {
           popularityKind: item.popularityKind,
           popularity: item.popularity,
           alsoIn: List.unmodifiable(item.alsoIn),
+          kind: item.kind,
         ),
       ),
     ),

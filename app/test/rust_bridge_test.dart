@@ -41,7 +41,8 @@ void main() {
         final gateway = RustNewsGateway(first);
         final snapshot = await gateway.snapshot();
         expect(snapshot.items.single.title, 'A cached <example>');
-        expect(snapshot.sources, hasLength(16));
+        expect(snapshot.items.single.kind, 'general');
+        expect(snapshot.sources, hasLength(19));
         expect(snapshot.sources.first.id, 'openai');
         expect(snapshot.sources.first.lastSuccessMs, 1700000000000);
         expect(snapshot.items.single.id, 'openai:fixture-1');
@@ -88,6 +89,7 @@ void main() {
         String id,
         String url, {
         String? kind,
+        String? itemKind,
         int? popularity,
       }) => {
         'id': '$source:$id',
@@ -99,6 +101,7 @@ void main() {
         'popularity_kind': kind,
         'popularity': popularity,
         'also_in': <String>[],
+        'kind': ?itemKind,
       };
       try {
         await File('${directory.path}/news-cache.json').writeAsString(
@@ -108,7 +111,12 @@ void main() {
             'sources': {
               'openai': {
                 'items': [
-                  item('openai', 'official', 'https://example.com/shared'),
+                  item(
+                    'openai',
+                    'official',
+                    'https://example.com/shared',
+                    itemKind: 'pricing',
+                  ),
                 ],
                 'last_success_ms': 123,
               },
@@ -150,12 +158,24 @@ void main() {
             },
           }),
         );
-        gateway = RustNewsGateway(
-          await native.NewsClient.newInstance(dataDir: directory.path),
+        final client = await native.NewsClient.newInstance(
+          dataDir: directory.path,
+        );
+        gateway = RustNewsGateway(client);
+        final nativeSnapshot = await client.snapshot();
+        expect(
+          nativeSnapshot.items.singleWhere((i) => i.sourceId == 'openai').kind,
+          'pricing',
+        );
+        expect(
+          nativeSnapshot.items
+              .singleWhere((i) => i.sourceId == 'gh-release:openai/codex')
+              .kind,
+          'release',
         );
         final snapshot = await gateway.snapshot();
         expect(snapshot.error, isNull);
-        expect(snapshot.sources, hasLength(16));
+        expect(snapshot.sources, hasLength(19));
         expect(
           snapshot.sources.map((s) => s.category).toSet(),
           SourceCategory.values.toSet(),
@@ -166,11 +186,19 @@ void main() {
         );
         expect(official.alsoIn, ['github-new']);
         expect(official.description, 'Literal <example>');
+        expect(official.kind, 'pricing');
+        expect(
+          snapshot.items
+              .singleWhere((i) => i.sourceId == 'gh-release:openai/codex')
+              .kind,
+          'release',
+        );
         final project = snapshot.items.singleWhere(
           (i) => i.id == 'github-new:unique',
         );
         expect(project.popularityKind, 'stars');
         expect(project.popularity, 42);
+        expect(project.kind, 'general');
         expect(
           snapshot.sources.singleWhere((s) => s.id == 'qbitai').lastSuccessMs,
           126,

@@ -69,6 +69,7 @@ class NewsItem {
   final String? popularityKind;
   final int? popularity;
   final List<String> alsoIn;
+  final String kind;
 
   const NewsItem({
     required this.id,
@@ -80,6 +81,7 @@ class NewsItem {
     this.popularityKind,
     this.popularity,
     required this.alsoIn,
+    required this.kind,
   });
 
   @override
@@ -92,7 +94,8 @@ class NewsItem {
       description.hashCode ^
       popularityKind.hashCode ^
       popularity.hashCode ^
-      alsoIn.hashCode;
+      alsoIn.hashCode ^
+      kind.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -107,7 +110,8 @@ class NewsItem {
           description == other.description &&
           popularityKind == other.popularityKind &&
           popularity == other.popularity &&
-          alsoIn == other.alsoIn;
+          alsoIn == other.alsoIn &&
+          kind == other.kind;
 }
 
 class NewsSnapshot {

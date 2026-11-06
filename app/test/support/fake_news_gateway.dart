@@ -313,7 +313,9 @@ class FakeNewsGateway implements NewsGateway {
     items: cached.items
         .where(
           (item) => cached.sources.any(
-            (source) => source.id == item.sourceId && source.enabled,
+            (source) =>
+                source.enabled &&
+                (source.id == item.sourceId || item.alsoIn.contains(source.id)),
           ),
         )
         .toList(),

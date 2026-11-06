@@ -194,7 +194,7 @@ async fn declared_body_limit_applies_to_content_length_and_streaming() {
                 );
                 assert_eq!(snapshot.items.len(), 3);
                 assert_eq!(
-                    load_cache(&dir.path().join("news-cache.json"))
+                    load_cache(&dir.path().join("news-cache.json"), &[])
                         .unwrap()
                         .sources["test"]
                         .items
@@ -238,7 +238,7 @@ async fn four_concurrent_sources_commit_independently_and_refill_slots() {
     let snapshot = engine.snapshot();
     assert!(snapshot.sources[0].last_success_ms.is_some());
     assert!(!snapshot.sources[0].refreshing);
-    let disk = load_cache(&dir.path().join("news-cache.json")).unwrap();
+    let disk = load_cache(&dir.path().join("news-cache.json"), &[]).unwrap();
     assert_eq!(disk.sources.len(), 1);
     assert!(disk.sources.contains_key("s0"));
     servers[1].ok();
@@ -253,7 +253,7 @@ async fn four_concurrent_sources_commit_independently_and_refill_slots() {
         .iter()
         .all(|s| s.last_success_ms.is_some() && s.error.is_none()));
     assert_eq!(
-        load_cache(&dir.path().join("news-cache.json"))
+        load_cache(&dir.path().join("news-cache.json"), &[])
             .unwrap()
             .sources
             .len(),
@@ -270,6 +270,8 @@ async fn partial_failure_does_not_affect_other_sources() {
         "b",
         vec![raw("kept", "https://example.com/old-b", None)],
         true,
+        Category::Official,
+        ItemKind::General,
     )
     .unwrap();
     save_cache(
@@ -311,7 +313,7 @@ async fn partial_failure_does_not_affect_other_sources() {
             .unwrap();
     assert_eq!(json["sources"]["b"]["last_success_ms"], 55);
     assert_eq!(
-        load_cache(&dir.path().join("news-cache.json"))
+        load_cache(&dir.path().join("news-cache.json"), &[])
             .unwrap()
             .sources["b"]
             .items,
@@ -526,10 +528,14 @@ fn cache_v1_migration_is_in_memory_until_commit_and_unknown_versions_are_visible
     assert_eq!(snapshot.items[0].id, "openai:old");
     assert_eq!(snapshot.items[0].source_id, "openai");
     assert_eq!(snapshot.items[0].title, "A <literal>");
+    assert_eq!(
+        serde_json::to_value(&snapshot.items[0]).unwrap()["kind"],
+        "general"
+    );
     assert_eq!(snapshot.sources[0].last_success_ms, Some(123));
     assert_eq!(std::fs::read(&path).unwrap(), legacy);
     engine.set_source_enabled("qbitai", false);
-    assert_eq!(load_cache(&path).unwrap().version, 2);
+    assert_eq!(load_cache(&path, &[]).unwrap().version, 2);
     engine.shutdown();
     for invalid in [
         br#"{"version":99}"#.as_slice(),
@@ -558,6 +564,358 @@ fn raw(id: &str, url: &str, date: Option<&str>) -> RawItem {
     }
 }
 
+fn old_v2_cache() -> serde_json::Value {
+    let entry = |id: &str| {
+        serde_json::json!({
+            "items": [{"id": format!("{id}:old"), "source_id": id,
+                "title": "Deprecated pricing", "url": "https://example.com/old",
+                "published_at": null, "description": null,
+                "popularity_kind": null, "popularity": null, "also_in": []}],
+            "last_success_ms": 123
+        })
+    };
+    serde_json::json!({"version": 2, "disabled": [], "sources": {
+        "openai": entry("openai"),
+        "gh-release:openai/codex": entry("gh-release:openai/codex")
+    }})
+}
+
+fn normalised_kind(
+    title: &str,
+    category: Category,
+    structured: Option<ItemKind>,
+    default: ItemKind,
+) -> String {
+    let mut item = raw("kind", "https://example.com/kind", None);
+    item.title = title.into();
+    item.description = Some("deprecated pricing 弃用 定价".into());
+    item.kind = structured;
+    normalise_items("kind", vec![item], true, category, default)
+        .unwrap()
+        .remove(0)
+        .kind
+}
+
+#[test]
+fn d25_r4_english_keyword_boundaries_allow_adjacent_chinese() {
+    for category in [Category::Official, Category::Tools] {
+        for (title, expected) in [
+            ("priceless", "general"),
+            ("price_v2", "general"),
+            ("price2", "general"),
+            ("xprice", "general"),
+            ("price调整", "pricing"),
+            ("API price下调", "pricing"),
+            ("调整price", "pricing"),
+        ] {
+            assert_eq!(
+                normalised_kind(title, category, None, ItemKind::General),
+                expected,
+                "{title}"
+            );
+        }
+    }
+}
+
+#[test]
+fn d25_keywords_match_contract_in_official_and_tools_titles() {
+    for category in [Category::Official, Category::Tools] {
+        for title in [
+            "deprecate",
+            "deprecated",
+            "deprecation",
+            "retire",
+            "retired",
+            "retirement",
+            "retiring",
+            "shut down",
+            "shutdown",
+            "sunset",
+            "end of life",
+            "弃用",
+            "下线",
+            "停用",
+            "退役",
+        ] {
+            assert_eq!(
+                normalised_kind(
+                    &format!("Update: {}!", title.to_uppercase()),
+                    category,
+                    None,
+                    ItemKind::General
+                ),
+                "deprecation",
+                "{title}"
+            );
+        }
+        for title in [
+            "price", "prices", "pricing", "priced", "价格", "定价", "降价", "涨价", "计费",
+        ] {
+            assert_eq!(
+                normalised_kind(
+                    &format!("Update: {}!", title.to_uppercase()),
+                    category,
+                    None,
+                    ItemKind::General
+                ),
+                "pricing",
+                "{title}"
+            );
+        }
+        assert_eq!(
+            normalised_kind(
+                "PRICING sunset",
+                category,
+                Some(ItemKind::Model),
+                ItemKind::Release
+            ),
+            "deprecation"
+        );
+        assert_eq!(
+            normalised_kind("定价并下线", category, None, ItemKind::General),
+            "deprecation"
+        );
+    }
+}
+
+#[test]
+fn d25_keywords_respect_boundaries_categories_and_normalised_title_only() {
+    for title in [
+        "priceless",
+        "overpriced",
+        "prices_v2",
+        "xshutdown",
+        "sunsetting",
+        "New model",
+        "<script>deprecated</script>Update",
+        "Update",
+    ] {
+        assert_eq!(
+            normalised_kind(title, Category::Official, None, ItemKind::General),
+            "general",
+            "{title}"
+        );
+    }
+    for category in [Category::Community, Category::Chinese] {
+        assert_eq!(
+            normalised_kind(
+                "deprecated pricing 弃用 定价",
+                category,
+                None,
+                ItemKind::General
+            ),
+            "general"
+        );
+        assert_eq!(
+            normalised_kind(
+                "deprecated pricing",
+                category,
+                Some(ItemKind::Model),
+                ItemKind::Release
+            ),
+            "model"
+        );
+    }
+    for (title, expected) in [
+        ("shutdown", "deprecation"),
+        ("<b>SHUT</b>\n down", "deprecation"),
+        ("Price &amp; details", "pricing"),
+        ("版本降价了", "pricing"),
+    ] {
+        assert_eq!(
+            normalised_kind(title, Category::Official, None, ItemKind::General),
+            expected
+        );
+    }
+    assert_eq!(
+        normalised_kind(
+            &format!("{} pricing", "a".repeat(512)),
+            Category::Official,
+            None,
+            ItemKind::General
+        ),
+        "general"
+    );
+}
+
+#[test]
+fn d25_kind_precedence_is_keyword_then_structure_then_source_default() {
+    assert_eq!(
+        normalised_kind(
+            "Model update",
+            Category::Official,
+            Some(ItemKind::Model),
+            ItemKind::Release
+        ),
+        "model"
+    );
+    assert_eq!(
+        normalised_kind(
+            "Pricing update",
+            Category::Official,
+            Some(ItemKind::Model),
+            ItemKind::Release
+        ),
+        "pricing"
+    );
+    for kind in [
+        ItemKind::Release,
+        ItemKind::Api,
+        ItemKind::Deprecation,
+        ItemKind::Pricing,
+        ItemKind::Model,
+        ItemKind::General,
+    ] {
+        assert_eq!(
+            normalised_kind("Update", Category::Official, None, kind),
+            kind.as_str()
+        );
+        assert_eq!(
+            normalised_kind("Update", Category::Official, Some(kind), ItemKind::Release),
+            kind.as_str()
+        );
+    }
+}
+
+#[test]
+fn d25_all_valid_cache_kinds_survive_roundtrip_without_reclassification() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    for kind in [
+        "release",
+        "api",
+        "deprecation",
+        "pricing",
+        "model",
+        "general",
+    ] {
+        let mut json = old_v2_cache();
+        json["sources"]["openai"]["items"][0]["kind"] = kind.into();
+        std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
+        let cache = load_cache(&path, &crate::sources::registry()).unwrap();
+        assert_eq!(cache.sources["openai"].items[0].kind, kind);
+        save_cache(&path, &cache).unwrap();
+        assert_eq!(
+            load_cache(&path, &crate::sources::registry())
+                .unwrap()
+                .sources["openai"]
+                .items[0]
+                .kind,
+            kind
+        );
+    }
+}
+
+#[test]
+fn d25_old_v2_cache_uses_source_defaults_without_reclassification_or_disk_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    let bytes = serde_json::to_vec(&old_v2_cache()).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    assert!(engine.snapshot().error.is_none());
+    let state = engine.inner.state.lock().unwrap();
+    for (id, expected) in [
+        ("openai", "general"),
+        ("gh-release:openai/codex", "release"),
+    ] {
+        assert_eq!(
+            serde_json::to_value(&state.cache.sources[id].items[0]).unwrap()["kind"],
+            expected
+        );
+    }
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+}
+
+#[test]
+fn d25_invalid_cache_kinds_are_visible_and_preserve_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    for invalid in [
+        serde_json::json!("unknown"),
+        serde_json::json!(""),
+        serde_json::json!("Release"),
+        serde_json::Value::Null,
+        serde_json::json!(12),
+    ] {
+        let mut cache = old_v2_cache();
+        cache["sources"]["openai"]["items"][0]["kind"] = invalid;
+        let bytes = serde_json::to_vec(&cache).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+        assert_eq!(engine.snapshot().error.unwrap().kind, "cache");
+        assert!(engine.snapshot().items.is_empty());
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        engine.shutdown();
+    }
+}
+
+#[test]
+fn d25_same_source_urls_survive_and_cross_source_duplicates_join_first_sorted_item() {
+    let dir = tempfile::tempdir().unwrap();
+    let sources = ["openai", "deepmind"].map(|id| {
+        Box::new(RssSource::new(
+            id,
+            id,
+            Category::Official,
+            "https://example.com/",
+            "https://example.invalid/",
+        )) as Box<dyn Source>
+    });
+    let engine = NewsEngine::new(dir.path(), sources.into()).unwrap();
+    {
+        let mut state = engine.inner.state.lock().unwrap();
+        for id in ["openai", "deepmind"] {
+            let mut items = normalise_items(
+                id,
+                vec![
+                    raw(
+                        "older",
+                        "https://example.com/shared",
+                        Some("2026-11-04T00:00:00Z"),
+                    ),
+                    raw(
+                        "newer",
+                        "https://example.com/shared/?utm_source=test#top",
+                        Some("2026-11-05T00:00:00Z"),
+                    ),
+                ],
+                true,
+                Category::Official,
+                ItemKind::General,
+            )
+            .unwrap();
+            // A valid cache need not arrive in display order.
+            items.reverse();
+            state.cache.sources.insert(
+                id.into(),
+                SourceCache {
+                    items,
+                    last_success_ms: Some(1),
+                },
+            );
+        }
+    }
+    let snapshot = engine.snapshot();
+    assert_eq!(
+        snapshot
+            .items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
+        ["openai:newer", "openai:older"]
+    );
+    assert_eq!(snapshot.items[0].also_in, ["deepmind"]);
+    assert!(snapshot.items[1].also_in.is_empty());
+    let state = engine.inner.state.lock().unwrap();
+    assert!(state
+        .cache
+        .sources
+        .values()
+        .all(|source| source.items.len() == 2
+            && source.items.iter().all(|item| item.also_in.is_empty())));
+}
+
 #[test]
 fn release_plain_text_survives_normalisation() {
     let source = crate::sources::github::releases()
@@ -570,11 +928,19 @@ fn release_plain_text_survives_normalisation() {
     let raw = source
         .parse(&serde_json::to_vec(&fixture).unwrap())
         .unwrap();
-    let items = normalise_items(&source.info().id, raw, source.text_is_html()).unwrap();
+    let items = normalise_items(
+        &source.info().id,
+        raw,
+        source.text_is_html(),
+        source.info().category,
+        source.default_kind(),
+    )
+    .unwrap();
     assert_eq!(
         items[0].description.as_deref(),
         Some("Supports Vec<String> now.")
     );
+    assert_eq!(items[0].kind, "release");
 }
 
 #[test]
@@ -588,7 +954,14 @@ fn hn_script_literal_survives_normalisation() {
     let raw = source
         .parse(&serde_json::to_vec(&fixture).unwrap())
         .unwrap();
-    let items = normalise_items(&source.info().id, raw, source.text_is_html()).unwrap();
+    let items = normalise_items(
+        &source.info().id,
+        raw,
+        source.text_is_html(),
+        source.info().category,
+        source.default_kind(),
+    )
+    .unwrap();
     let item = items
         .iter()
         .find(|item| item.id == "hn-ai:50385272")
@@ -609,7 +982,14 @@ fn html_feed_tags_are_removed_during_normalisation() {
             "<description><![CDATA[<p>Summary</p><script>hidden</script>]]></description>",
         );
     let raw = source.parse(fixture.as_bytes()).unwrap();
-    let items = normalise_items(&source.info().id, raw, source.text_is_html()).unwrap();
+    let items = normalise_items(
+        &source.info().id,
+        raw,
+        source.text_is_html(),
+        source.info().category,
+        source.default_kind(),
+    )
+    .unwrap();
     assert_eq!(items[0].title, "Title & text");
     assert_eq!(items[0].description.as_deref(), Some("Summary"));
 }
@@ -636,6 +1016,8 @@ fn json_text_normalisation_preserves_literals_and_limits() {
             &source.info().id,
             vec![literal, long, controls],
             source.text_is_html(),
+            source.info().category,
+            source.default_kind(),
         )
         .unwrap();
         assert_eq!(
@@ -672,7 +1054,8 @@ fn per_source_limits_identity_and_framework_validation() {
             Some("2026-11-05T10:00:00-05:00"),
         ));
     }
-    let items = normalise_items("source", input, true).unwrap();
+    let items =
+        normalise_items("source", input, true, Category::Official, ItemKind::General).unwrap();
     assert_eq!(items.len(), 50);
     assert_eq!(items[0].id, "source:0");
     assert_eq!(items[0].title, "Title & text");
@@ -690,17 +1073,29 @@ fn per_source_limits_identity_and_framework_validation() {
             raw("same", "https://example.com/2", None),
         ],
         true,
+        Category::Official,
+        ItemKind::General,
     )
     .unwrap();
     assert_eq!(duplicates.len(), 1);
     assert_eq!(duplicates[0].id, "s:same");
     assert_eq!(
-        normalise_items("s", vec![raw("bad", "file:///bad", None)], true)
-            .unwrap_err()
-            .kind,
+        normalise_items(
+            "s",
+            vec![raw("bad", "file:///bad", None)],
+            true,
+            Category::Official,
+            ItemKind::General
+        )
+        .unwrap_err()
+        .kind,
         "parse"
     );
-    assert!(normalise_items("s", vec![], true).unwrap().is_empty());
+    assert!(
+        normalise_items("s", vec![], true, Category::Official, ItemKind::General)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -713,7 +1108,14 @@ fn normalised_text_can_always_be_reloaded_from_cache() {
         sources: BTreeMap::from([(
             "s".into(),
             SourceCache {
-                items: normalise_items("s", vec![item], true).unwrap(),
+                items: normalise_items(
+                    "s",
+                    vec![item],
+                    true,
+                    Category::Official,
+                    ItemKind::General,
+                )
+                .unwrap(),
                 last_success_ms: Some(1),
             },
         )]),
@@ -721,7 +1123,7 @@ fn normalised_text_can_always_be_reloaded_from_cache() {
     };
     let path = dir.path().join("news-cache.json");
     save_cache(&path, &cache).unwrap();
-    assert!(load_cache(&path).is_ok());
+    assert!(load_cache(&path, &[]).is_ok());
 }
 
 #[test]
@@ -761,6 +1163,8 @@ fn snapshot_url_dedup_priority_also_in_and_date_sorting() {
                     raw("undated", &format!("https://example.com/{id}"), None),
                 ],
                 true,
+                Category::Official,
+                ItemKind::General,
             )
             .unwrap();
             state.cache.sources.insert(
@@ -782,6 +1186,8 @@ fn snapshot_url_dedup_priority_also_in_and_date_sorting() {
                     Some("2026-11-05T08:00:01-05:00"),
                 )],
                 true,
+                Category::Official,
+                ItemKind::General,
             )
             .unwrap()
             .remove(0),

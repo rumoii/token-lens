@@ -34,6 +34,10 @@ pub fn releases() -> Vec<Box<dyn Source>> {
 }
 
 impl Source for ReleaseSource {
+    fn default_kind(&self) -> super::ItemKind {
+        super::ItemKind::Release
+    }
+
     fn text_is_html(&self) -> bool {
         false
     }

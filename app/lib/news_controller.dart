@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import 'news_gateway.dart';
 
+enum NewsSort { latest, hot }
+
 class NewsController extends ChangeNotifier {
   NewsController(this.gateway);
 
@@ -22,6 +24,8 @@ class NewsController extends ChangeNotifier {
   String? _updatingSourceId;
   SourceCategory? _category;
   Set<String> _sourceIds = {};
+  final Set<String> _kindIds = {};
+  NewsSort _sort = NewsSort.latest;
   String _query = '';
   int _generation = 0;
 
@@ -32,22 +36,106 @@ class NewsController extends ChangeNotifier {
   SourceCategory? get category => _category;
   Set<String> get sourceIds => Set.unmodifiable(_sourceIds);
   String get query => _query;
+  Set<String> get kindIds => Set.unmodifiable(_kindIds);
+  NewsSort get sort => _sort;
 
-  List<NewsItem> get visibleItems {
+  List<NewsItem> _filteredItems(SourceCategory? category) {
     final sources = {for (final source in _snapshot.sources) source.id: source};
     final query = _query.trim().toLowerCase();
     return _snapshot.items
         .where((item) {
-          final source = sources[item.sourceId];
-          return source != null &&
-              source.enabled &&
-              (_category == null || source.category == _category) &&
-              (_sourceIds.isEmpty || _sourceIds.contains(item.sourceId)) &&
+          final matchesSource = [item.sourceId, ...item.alsoIn].any((id) {
+            final source = sources[id];
+            return source != null &&
+                source.enabled &&
+                (category == null || source.category == category) &&
+                (_sourceIds.isEmpty || _sourceIds.contains(id));
+          });
+          return sources.containsKey(item.sourceId) &&
+              matchesSource &&
+              (_kindIds.isEmpty || _kindIds.contains(item.kind)) &&
               (query.isEmpty ||
                   item.title.toLowerCase().contains(query) ||
                   (item.description?.toLowerCase().contains(query) ?? false));
         })
         .toList(growable: false);
+  }
+
+  int categoryCount(SourceCategory? category) =>
+      _filteredItems(category).length;
+
+  Set<String> get _heatUnits => _filteredItems(_category)
+      .where((item) => item.popularity != null && item.popularityKind != null)
+      .map((item) => item.popularityKind!)
+      .toSet();
+
+  bool get hotSortAvailable => _heatUnits.length == 1;
+
+  String get sortExplanation {
+    final units = _heatUnits;
+    if (units.isEmpty) return '当前结果没有热度数据，暂不能按热度排序。';
+    if (units.length > 1) {
+      return '当前结果包含 ${units.join('、')}，不同热度单位无法比较。';
+    }
+    return '按 ${units.single} 降序；无热度排在最后，同热度按时间。';
+  }
+
+  List<NewsItem> get visibleItems {
+    final items = _filteredItems(_category);
+    final sourceOrder = {
+      for (var i = 0; i < _snapshot.sources.length; i++)
+        _snapshot.sources[i].id: i,
+    };
+    final itemOrder = {
+      for (var i = 0; i < _snapshot.items.length; i++) _snapshot.items[i].id: i,
+    };
+    int byTime(NewsItem a, NewsItem b) {
+      final aTime = DateTime.tryParse(a.publishedAt ?? '');
+      final bTime = DateTime.tryParse(b.publishedAt ?? '');
+      if (aTime == null && bTime != null) return 1;
+      if (aTime != null && bTime == null) return -1;
+      final timeOrder = aTime == null ? 0 : bTime!.compareTo(aTime);
+      if (timeOrder != 0) return timeOrder;
+      final registrationOrder = sourceOrder[a.sourceId]!.compareTo(
+        sourceOrder[b.sourceId]!,
+      );
+      return registrationOrder != 0
+          ? registrationOrder
+          : itemOrder[a.id]!.compareTo(itemOrder[b.id]!);
+    }
+
+    items.sort((a, b) {
+      if (_sort == NewsSort.hot) {
+        final aHeat = a.popularityKind == null ? null : a.popularity;
+        final bHeat = b.popularityKind == null ? null : b.popularity;
+        if (aHeat == null && bHeat != null) return 1;
+        if (aHeat != null && bHeat == null) return -1;
+        if (aHeat != null && bHeat != null) {
+          final heatOrder = bHeat.compareTo(aHeat);
+          if (heatOrder != 0) return heatOrder;
+        }
+      }
+      return byTime(a, b);
+    });
+    return items;
+  }
+
+  void toggleKindFilter(String kind) {
+    if (_closed) return;
+    if (!_kindIds.remove(kind)) _kindIds.add(kind);
+    _emit();
+  }
+
+  void clearKindFilters() {
+    if (_closed) return;
+    _kindIds.clear();
+    _emit();
+  }
+
+  void setSort(NewsSort sort) {
+    if (_closed) return;
+    _sort = sort;
+    _emit();
   }
 
   void setCategory(SourceCategory? category) {
@@ -72,6 +160,7 @@ class NewsController extends ChangeNotifier {
     if (_closed) return;
     _category = null;
     _sourceIds = {};
+    _kindIds.clear();
     _query = '';
     _emit();
   }
@@ -263,6 +352,7 @@ class NewsController extends ChangeNotifier {
   }
 
   void _emit() {
+    if (_sort == NewsSort.hot && !hotSortAvailable) _sort = NewsSort.latest;
     if (!_closed && !_disposed) notifyListeners();
   }
 

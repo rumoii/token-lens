@@ -2,7 +2,7 @@
 
 ## 阶段与联网边界
 
-D2 桌面预览接入下列 16 个来源。Rust 是来源访问和缓存的唯一所有者；Flutter 通过生成的 FFI 调用，不发送来源请求。预览不读取客户端日志或统计账本，统计功能继续使用原有版本。
+D2.5 桌面预览接入 19 个来源：D2 多来源契约中的 16 个基础来源，以及「D2.5 开发者变更」中的 3 个新来源。Rust 是来源访问和缓存的唯一所有者；Flutter 通过生成的 FFI 调用，不发送来源请求。预览不读取客户端日志或统计账本，统计功能继续使用原有版本。
 
 启动只读取缓存。全量或单来源请求只在用户点击刷新后发生，没有定时刷新、后台补抓、自动重试、追踪像素或远程图片。打开原文需用户点击，交给系统浏览器。搜索、分类和来源筛选只处理本地快照。
 
@@ -104,18 +104,21 @@ D2.5 在 D2 契约上增加官方 API 变更来源、中文日报来源、条目
 
 | id | 名称 | 分类 | 请求 |
 | --- | --- | --- | --- |
-| `anthropic-api` | Anthropic API | official | Claude 平台 API release notes 页 |
-| `openai-api` | OpenAI API | official | OpenAI API changelog 页 |
-| `aibase` | AIbase 日报 | chinese | AIbase 中文日报列表页 |
+| `anthropic-api` | Anthropic API | official | `https://platform.claude.com/docs/en/release-notes/overview` |
+| `openai-api` | OpenAI API | official | `https://developers.openai.com/api/docs/changelog` |
+| `aibase` | AIbase 日报 | chinese | `https://www.aibase.com/zh/daily` |
 
-- 实现时用固定 User-Agent `TokenLens-News/0.1` 核实最终地址，写回本表。不跟随重定向，所以表中必须是最终 200 的地址。不伪装浏览器 User-Agent，不带 Cookie，不执行 JavaScript，不用无头浏览器。
-- 站点拒绝固定 User-Agent，或正文要执行脚本才能得到时，该来源不进入注册表。把状态码和响应特征写进「已知限制」，D2.5 的其他部分照常交付。
+地址于 2026-11-06 使用固定 User-Agent `TokenLens-News/0.1` 核实为 HTTP 200。Anthropic 的 `/docs/en/release-notes/api` 返回 307，因此直接请求表中的 overview 地址。不跟随重定向，不伪装浏览器 User-Agent，不带 Cookie，不执行 JavaScript，不用无头浏览器。
+
+注册来源必须允许固定 User-Agent 直接读取服务端正文；拒绝该 User-Agent 或必须执行脚本的来源不进入注册表。
+
 - 更新日志页按条目拆分：日期标题下的每个独立条目（段落或列表项）各算一条，不把整天合成一条。
   - `published_at` 取该日期的 `T00:00:00Z`。日期只精确到天，界面不显示时刻。
   - 标题取条目正文的第一句，最多 160 字符；描述取条目全文。两者都按 HTML 文本规范化。
   - `native_id` 为 `<YYYY-MM-DD>#<条目规范化正文的 FNV-1a 64 位哈希，16 位小写十六进制>`。哈希在模块内实现，保证跨 Rust 版本稳定，不使用 `DefaultHasher`。正文改动会产生新 id，这是可接受的。
   - 条目没有自己的链接时，`url` 用页面地址；页面提供日期锚点时加上锚点。
 - AIbase 日报：列表页每一期为一条。标题和日期取列表展示的内容；描述取列表摘要，没有摘要时为空。不再请求每期的详情页。
+  - 日期只取列表显示的日历日，存为当天 UTC 零点（例如 `2026年11月5号 16:39` 存为 `2026-11-05T00:00:00Z`）。列表时刻没有时区，不使用该时刻。这是只有日期的来源的统一约定：AIbase 与两个更新日志来源均存 UTC 零点，界面取 UTC 日期且不显示时刻。
 
 ### 跨来源去重的修订
 
@@ -125,11 +128,13 @@ D2.5 在 D2 契约上增加官方 API 变更来源、中文日报来源、条目
 
 `NewsItem` 增加 `kind`，取值为 `release`、`api`、`deprecation`、`pricing`、`model`、`general` 之一。Rust 在规范化时按下面的顺序决定，先命中的生效：
 
-1. **关键词**：只用于 official 和 tools 分类，只看规范化后的标题，不区分大小写；英文按词边界匹配。
+1. **关键词**：只用于 official 和 tools 分类，只看规范化后的标题，不区分大小写；英文按词边界匹配，单词字符仅为 ASCII 字母、数字和 `_`，汉字不算单词字符。
    - `deprecation`：`deprecate`、`deprecated`、`deprecation`、`retire`、`retired`、`retirement`、`retiring`、`shut down`、`shutdown`、`sunset`、`end of life`、`弃用`、`下线`、`停用`、`退役`。
    - `pricing`：`price`、`prices`、`pricing`、`priced`、`价格`、`定价`、`降价`、`涨价`、`计费`。
    - 两类都命中时取 `deprecation`。
 2. **来源结构**：`RawItem.kind` 来自页面明确给出的标签，比如更新日志条目上的类别标签。映射关系写在来源模块和本节里；不从自由文本推断。
+   - Anthropic 没有条目级标签，保持 `None`。
+   - OpenAI 的模型徽标（secondary soft 徽标，排除 `v1/...` endpoint）及显式 `Model: ...` 标签映射为 `model`；显式 `Deprecation`、`Deprecated`、`Retirement`、`Retired`、`Shutdown`、`Sunset`、`End of life` 标签映射为 `deprecation`，优先于模型徽标。`Feature`、`Update`、`Fix`、`Announcement` 不映射，保持 `None`。
 3. **来源默认**：`Source::default_kind()`。GitHub Releases 为 `release`；`anthropic-api` 和 `openai-api` 为 `api`；其他来源为 `general`。
 
 `model` 只来自来源结构，官方新闻里的新模型发布不靠猜测标成 `model`。
@@ -151,6 +156,10 @@ D2.5 在 D2 契约上增加官方 API 变更来源、中文日报来源、条目
 - DeepSeek 没有独立新闻索引页，依赖固定入口文章的侧边栏；该文章被删除时请求会返回 404，需要核实新的入口后更新注册地址。
 - HN 的 `model` / `agent` 关键词较宽，`business model`、`user agent` 等标题可能误中；当前保留已验收规则。
 - HF Spaces 列表没有描述，标题使用 id；不追加详情请求补齐。
+- AIbase 日报列表没有摘要，描述为空。
+- OpenAI API changelog 条目没有锚点，原文链接指向整页。
+- OpenAI API changelog 依赖 CSS Modules 类名前缀（`_ChangelogPage_`、`_ChangelogMarkdown_`）定位；站点改版导致结构无法识别时返回 `parse`，保留旧缓存。
+- Anthropic API 页面约 1.3 MB，包含全部历史；每次刷新在本地只保留最新 50 条。
 
 ## 验证
 

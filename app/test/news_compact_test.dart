@@ -176,7 +176,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      expect(controller.visibleItems.map((item) => item.id), ['h']);
+      expect(controller.visibleItems.map((item) => item.id), ['o', 'h']);
       final row = find.byKey(const Key('source-row-hn-ai'));
       await tester.ensureVisible(row);
       await tester.tap(row);

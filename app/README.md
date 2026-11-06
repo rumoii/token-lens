@@ -1,6 +1,6 @@
 # Token Lens 桌面预览
 
-Flutter + Rust 重写的 D2：16 个新闻与工具更新来源、按来源手动刷新、启停、本地缓存、取消和错误反馈。统计功能尚未迁移，继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)。
+Flutter + Rust 重写的 D2.5：19 个新闻与工具更新来源、条目类型筛选、来源内热度排序、按来源手动刷新、启停、本地缓存、取消和错误反馈。统计功能尚未迁移，继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)。
 
 ## 环境
 

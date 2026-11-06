@@ -3,6 +3,15 @@ import 'package:flutter/material.dart';
 import 'news_controller.dart';
 import 'news_gateway.dart';
 
+const _kindNames = {
+  'release': '版本',
+  'api': 'API',
+  'deprecation': '弃用',
+  'pricing': '价格',
+  'model': '模型',
+  'general': '常规（无标签）',
+};
+
 class NewsPage extends StatefulWidget {
   const NewsPage({super.key, required this.controller, required this.openLink});
 
@@ -20,6 +29,9 @@ class _NewsPageState extends State<NewsPage> {
   final _sourceMenu = MenuController();
   final _sourceButtonFocus = FocusNode();
   final _allSourcesFocus = FocusNode();
+  final _kindMenu = MenuController();
+  final _kindButtonFocus = FocusNode();
+  final _allKindsFocus = FocusNode();
 
   @override
   void initState() {
@@ -38,6 +50,8 @@ class _NewsPageState extends State<NewsPage> {
     _search.dispose();
     _sourceButtonFocus.dispose();
     _allSourcesFocus.dispose();
+    _kindButtonFocus.dispose();
+    _allKindsFocus.dispose();
     super.dispose();
   }
 
@@ -315,53 +329,7 @@ class _NewsPageState extends State<NewsPage> {
       children: [
         _categoryTabs(colors),
         const SizedBox(height: 14),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: TextField(
-                key: const Key('news-search'),
-                controller: _search,
-                onChanged: controller.setQuery,
-                style: TextStyle(color: colors.ink, fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: '搜索标题和描述',
-                  labelStyle: TextStyle(color: colors.secondary, fontSize: 13),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    size: 18,
-                    color: colors.secondary,
-                  ),
-                  suffixIcon: _search.text.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: '清除搜索',
-                          onPressed: () {
-                            _search.clear();
-                            controller.setQuery('');
-                          },
-                          icon: const Icon(Icons.close, size: 18),
-                        ),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 14,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: colors.line),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: colors.secondary),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _sourceFilter(colors),
-          ],
-        ),
+        _filters(colors),
         const SizedBox(height: 14),
         if (controller.loadingSnapshot) ...[
           const Text('正在读取本地缓存…'),
@@ -400,38 +368,56 @@ class _NewsPageState extends State<NewsPage> {
           ),
           const SizedBox(height: 10),
         ],
-        Row(
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
           children: [
-            Expanded(
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  '${items.length} 条动态 · 本地缓存',
-                  style: _small(colors),
+            Semantics(
+              liveRegion: true,
+              child: Text('${items.length} 条动态 · 本地缓存', style: _small(colors)),
+            ),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              runSpacing: 8,
+              children: [
+                _sortControls(colors),
+                const SizedBox(width: 8),
+                _viewButton(
+                  colors,
+                  '信息流布局',
+                  Icons.view_list_outlined,
+                  !_cards,
+                  () => setState(() => _cards = false),
                 ),
-              ),
-            ),
-            _viewButton(
-              colors,
-              '信息流布局',
-              Icons.view_list_outlined,
-              !_cards,
-              () => setState(() => _cards = false),
-            ),
-            _viewButton(
-              colors,
-              '卡片布局',
-              Icons.grid_view_rounded,
-              _cards,
-              () => setState(() => _cards = true),
+                _viewButton(
+                  colors,
+                  '卡片布局',
+                  Icons.grid_view_rounded,
+                  _cards,
+                  () => setState(() => _cards = true),
+                ),
+              ],
             ),
           ],
+        ),
+        const SizedBox(height: 6),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            controller.sortExplanation,
+            key: const Key('sort-explanation'),
+            style: _small(colors),
+          ),
         ),
         const SizedBox(height: 12),
         if (items.isEmpty && !controller.loadingSnapshot)
           snapshot.items.isEmpty &&
                   controller.category == null &&
                   controller.sourceIds.isEmpty &&
+                  controller.kindIds.isEmpty &&
                   controller.query.isEmpty
               ? _empty(
                   colors,
@@ -501,22 +487,216 @@ class _NewsPageState extends State<NewsPage> {
     );
   }
 
+  Widget _filters(_NewsColors colors) => LayoutBuilder(
+    builder: (context, constraints) {
+      final search = TextField(
+        key: const Key('news-search'),
+        controller: _search,
+        onChanged: widget.controller.setQuery,
+        style: TextStyle(color: colors.ink, fontSize: 13),
+        decoration: InputDecoration(
+          labelText: '搜索标题和描述',
+          labelStyle: TextStyle(color: colors.secondary, fontSize: 13),
+          prefixIcon: Icon(Icons.search, size: 18, color: colors.secondary),
+          suffixIcon: _search.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: '清除搜索',
+                  onPressed: () {
+                    _search.clear();
+                    widget.controller.setQuery('');
+                  },
+                  icon: const Icon(Icons.close, size: 18),
+                ),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 14,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: colors.line),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: colors.secondary),
+            borderRadius: BorderRadius.circular(7),
+          ),
+        ),
+      );
+      final menus = Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [_sourceFilter(colors), _kindFilter(colors)],
+      );
+      if (constraints.maxWidth >= 560 &&
+          MediaQuery.textScalerOf(context).scale(14) <= 21) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: search),
+            const SizedBox(width: 8),
+            menus,
+          ],
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [search, const SizedBox(height: 8), menus],
+      );
+    },
+  );
+
+  Widget _sortControls(_NewsColors colors) {
+    final controller = widget.controller;
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: colors.panel,
+        border: Border.all(color: colors.line),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final sort in NewsSort.values)
+            Semantics(
+              selected: controller.sort == sort,
+              child: TextButton(
+                key: Key('sort-${sort.name}'),
+                onPressed: sort == NewsSort.hot && !controller.hotSortAvailable
+                    ? null
+                    : () => controller.setSort(sort),
+                style: TextButton.styleFrom(
+                  foregroundColor: colors.secondary,
+                  disabledForegroundColor: colors.secondary,
+                  backgroundColor: controller.sort == sort
+                      ? colors.hover
+                      : Colors.transparent,
+                  minimumSize: const Size(0, 32),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  textStyle: TextStyle(
+                    fontFamily: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.fontFamily,
+                    fontSize: 12,
+                    fontWeight: controller.sort == sort
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+                child: Text(sort == NewsSort.latest ? '最新' : '热度'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kindFilter(_NewsColors colors) {
+    final controller = widget.controller;
+    return CheckboxTheme(
+      data: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? colors.secondary
+              : Colors.transparent,
+        ),
+        checkColor: WidgetStatePropertyAll(colors.panel),
+        side: BorderSide(color: colors.secondary),
+      ),
+      child: MenuAnchor(
+        controller: _kindMenu,
+        childFocusNode: _kindButtonFocus,
+        crossAxisUnconstrained: false,
+        onOpen: _allKindsFocus.requestFocus,
+        onClose: () {
+          if (mounted) _kindButtonFocus.requestFocus();
+        },
+        style: MenuStyle(
+          elevation: const WidgetStatePropertyAll(0),
+          backgroundColor: WidgetStatePropertyAll(colors.panel),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          maximumSize: const WidgetStatePropertyAll(Size(300, 440)),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: colors.line),
+            ),
+          ),
+        ),
+        menuChildren: [
+          for (final kind in [null, ..._kindNames.keys])
+            CheckboxMenuButton(
+              key: Key('kind-filter-${kind ?? 'all'}'),
+              focusNode: kind == null ? _allKindsFocus : null,
+              value: kind == null
+                  ? controller.kindIds.isEmpty
+                  : controller.kindIds.contains(kind),
+              closeOnActivate: false,
+              onChanged: (_) => kind == null
+                  ? controller.clearKindFilters()
+                  : controller.toggleKindFilter(kind),
+              style: MenuItemButton.styleFrom(
+                foregroundColor: colors.secondary,
+                minimumSize: const Size(0, 36),
+                textStyle: TextStyle(
+                  fontFamily: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.fontFamily,
+                  fontSize: 13,
+                ),
+              ),
+              child: Text(kind == null ? '全部类型' : _kindNames[kind]!),
+            ),
+        ],
+        builder: (context, menu, child) => OutlinedButton(
+          key: const Key('kind-filter-menu'),
+          focusNode: _kindButtonFocus,
+          onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.secondary,
+            backgroundColor: colors.panel,
+            side: BorderSide(color: colors.line),
+            minimumSize: const Size(0, 46),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            textStyle: TextStyle(
+              fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+              fontSize: 13,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(7),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                controller.kindIds.isEmpty
+                    ? '全部类型'
+                    : '类型（${controller.kindIds.length}）',
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.expand_more, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _categoryTabs(_NewsColors colors) {
     final controller = widget.controller;
-    final snapshot = controller.snapshot;
-    final enabled = {
-      for (final source in snapshot.sources.where((source) => source.enabled))
-        source.id: source,
-    };
     Widget tab(SourceCategory? category, String label) {
-      final count = snapshot.items
-          .where(
-            (item) =>
-                enabled.containsKey(item.sourceId) &&
-                (category == null ||
-                    enabled[item.sourceId]!.category == category),
-          )
-          .length;
+      final count = controller.categoryCount(category);
       final selected = controller.category == category;
       return Semantics(
         selected: selected,
@@ -940,7 +1120,7 @@ class _NewsPageState extends State<NewsPage> {
                 ),
               ),
               Text(
-                '发布日期：${_publishedTime(item.publishedAt)}',
+                '发布日期：${_publishedTime(item.publishedAt, dateOnly: item.sourceId == 'openai-api' || item.sourceId == 'anthropic-api' || item.sourceId == 'aibase')}',
                 style: _small(colors),
               ),
               if (item.popularity != null && item.popularityKind != null)
@@ -948,29 +1128,49 @@ class _NewsPageState extends State<NewsPage> {
             ],
           ),
           const SizedBox(height: 10),
-          Semantics(
-            link: true,
-            label: '在默认浏览器中打开原文：${item.title}',
-            onTap: _opening.contains(item.id) ? null : () => _open(item),
-            excludeSemantics: true,
-            child: InkWell(
-              onTap: _opening.contains(item.id) ? null : () => _open(item),
-              borderRadius: BorderRadius.circular(4),
-              focusColor: colors.focus,
-              hoverColor: colors.hover,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  item.title,
-                  style: TextStyle(
-                    color: colors.ink,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    height: 1.55,
+          Wrap(
+            spacing: 9,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Semantics(
+                link: true,
+                label: '在默认浏览器中打开原文：${item.title}',
+                onTap: _opening.contains(item.id) ? null : () => _open(item),
+                excludeSemantics: true,
+                child: InkWell(
+                  onTap: _opening.contains(item.id) ? null : () => _open(item),
+                  borderRadius: BorderRadius.circular(4),
+                  focusColor: colors.focus,
+                  hoverColor: colors.hover,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      item.title,
+                      style: TextStyle(
+                        color: colors.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        height: 1.55,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+              if (item.kind != 'general' && _kindNames.containsKey(item.kind))
+                Container(
+                  key: Key('item-kind-${item.kind}'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.hover,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(_kindNames[item.kind]!, style: _small(colors)),
+                ),
+            ],
           ),
           const SizedBox(height: 9),
           if (item.description?.trim().isNotEmpty ?? false) ...[
@@ -1187,8 +1387,11 @@ class _NewsPageState extends State<NewsPage> {
     _ => '刷新失败，请稍后手动重试。',
   };
 
-  String _publishedTime(String? value) {
+  String _publishedTime(String? value, {bool dateOnly = false}) {
     final date = value == null ? null : DateTime.tryParse(value);
+    if (date != null && dateOnly) {
+      return date.toUtc().toIso8601String().split('T').first;
+    }
     return date == null ? '未提供' : _formatTime(date.millisecondsSinceEpoch);
   }
 

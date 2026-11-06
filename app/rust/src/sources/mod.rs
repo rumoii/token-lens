@@ -4,10 +4,13 @@
 //! URL and parse a response body. The client owns requests, limits, plain-text normalisation, URL
 //! validation, ids, de-duplication, caching and state.
 
+pub mod aibase;
+pub mod anthropic_api;
 pub mod deepseek;
 pub mod github;
 pub mod hackernews;
 pub mod huggingface;
+pub mod openai_api;
 pub mod rss;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,8 +56,6 @@ pub struct Popularity {
 }
 
 /// What an entry asks of a developer (specs/news.md, "D2.5"). `General` when nothing decides it.
-// D2.5 skeleton: the client wires kinds in during D2.5 integration.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemKind {
     Release,
@@ -65,7 +66,6 @@ pub enum ItemKind {
     General,
 }
 
-#[allow(dead_code)]
 impl ItemKind {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -123,7 +123,6 @@ pub trait Source: Send + Sync {
     }
 
     /// Kind for entries that neither carry a `kind` nor match a keyword rule.
-    #[allow(dead_code)]
     fn default_kind(&self) -> ItemKind {
         ItemKind::General
     }
@@ -137,18 +136,35 @@ pub fn registry() -> Vec<Box<dyn Source>> {
     let mut feeds = rss::feeds();
     let qbitai = feeds.pop().expect("RSS registry includes QbitAI");
     feeds.push(deepseek::news());
+    feeds.push(Box::new(anthropic_api::AnthropicApi));
+    feeds.push(Box::new(openai_api::OpenAiApi));
     feeds.extend(github::releases());
     feeds.push(github::new_repos());
     feeds.extend(huggingface::sources());
     feeds.push(hackernews::ai());
     feeds.push(qbitai);
+    feeds.push(aibase::daily());
     feeds
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn registry_contains_all_sixteen_sources_in_contract_order() {
+    fn registry_defaults_follow_source_contract() {
+        for source in super::registry() {
+            let expected = if source.info().id.starts_with("gh-release:") {
+                super::ItemKind::Release
+            } else if matches!(source.info().id.as_str(), "anthropic-api" | "openai-api") {
+                super::ItemKind::Api
+            } else {
+                super::ItemKind::General
+            };
+            assert_eq!(source.default_kind(), expected, "{}", source.info().id);
+        }
+    }
+
+    #[test]
+    fn registry_contains_all_nineteen_sources_in_contract_order() {
         let ids: Vec<_> = super::registry().iter().map(|s| s.info().id).collect();
         assert_eq!(
             ids,
@@ -157,6 +173,8 @@ mod tests {
                 "deepmind",
                 "google-ai",
                 "deepseek",
+                "anthropic-api",
+                "openai-api",
                 "gh-release:anthropics/claude-code",
                 "gh-release:openai/codex",
                 "gh-release:google-gemini/gemini-cli",
@@ -168,7 +186,8 @@ mod tests {
                 "hf-spaces",
                 "hf-papers",
                 "hn-ai",
-                "qbitai"
+                "qbitai",
+                "aibase"
             ]
         );
     }
