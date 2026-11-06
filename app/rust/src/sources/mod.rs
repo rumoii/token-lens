@@ -52,6 +52,33 @@ pub struct Popularity {
     pub value: i64,
 }
 
+/// What an entry asks of a developer (specs/news.md, "D2.5"). `General` when nothing decides it.
+// D2.5 skeleton: the client wires kinds in during D2.5 integration.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemKind {
+    Release,
+    Api,
+    Deprecation,
+    Pricing,
+    Model,
+    General,
+}
+
+#[allow(dead_code)]
+impl ItemKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ItemKind::Release => "release",
+            ItemKind::Api => "api",
+            ItemKind::Deprecation => "deprecation",
+            ItemKind::Pricing => "pricing",
+            ItemKind::Model => "model",
+            ItemKind::General => "general",
+        }
+    }
+}
+
 /// One entry as the source reports it. The client turns title and description into plain text and
 /// rejects entries whose URL is not HTTP(S).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,6 +91,9 @@ pub struct RawItem {
     pub published_at: Option<String>,
     pub description: Option<String>,
     pub popularity: Option<Popularity>,
+    /// Set only from explicit source structure, such as a changelog entry's label. Never guessed
+    /// from free text here; the client applies the contract's keyword rules.
+    pub kind: Option<ItemKind>,
 }
 
 /// The body could not be read as this source's format. An empty `Ok` list means the source has no
@@ -90,6 +120,12 @@ pub trait Source: Send + Sync {
     /// Whether titles and descriptions contain HTML. Plain-text sources must opt out of parsing.
     fn text_is_html(&self) -> bool {
         true
+    }
+
+    /// Kind for entries that neither carry a `kind` nor match a keyword rule.
+    #[allow(dead_code)]
+    fn default_kind(&self) -> ItemKind {
+        ItemKind::General
     }
 
     /// Parses an HTTP 200 body within max_body_bytes(). No I/O and no clock.

@@ -92,6 +92,7 @@ fn parse_news(body: &[u8]) -> Result<Vec<RawItem>, ParseError> {
             .or_else(|| date_in_text(&title).map(format_date))
             .or_else(|| date_in_path(&native_id).map(format_date));
         items.push(RawItem {
+            kind: None,
             native_id,
             title,
             url: url.to_string(),
@@ -240,6 +241,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                kind: None,
                 native_id: "/news/news261017".to_owned(),
                 title: "DeepSeek-V4.1-Flash-1017 Release 2026/10/17".to_owned(),
                 url: "https://api-docs.deepseek.com/news/news261017".to_owned(),
@@ -251,6 +253,7 @@ mod tests {
         assert_eq!(
             items.last().unwrap(),
             &RawItem {
+                kind: None,
                 native_id: "/news/news0725".to_owned(),
                 title: "New API Features 2024/07/25".to_owned(),
                 url: "https://api-docs.deepseek.com/news/news0725".to_owned(),

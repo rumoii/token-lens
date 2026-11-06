@@ -93,6 +93,7 @@ impl Source for ReleaseSource {
                 continue;
             };
             items.push(RawItem {
+                kind: None,
                 native_id: id.to_string(),
                 title,
                 url,
@@ -260,6 +261,7 @@ impl Source for NewRepos {
                     return None;
                 };
                 Some(RawItem {
+                    kind: None,
                     native_id: id.to_string(),
                     title,
                     url,
@@ -463,6 +465,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                kind: None,
                 native_id: "435979892".to_owned(),
                 title: "0.167.0".to_owned(),
                 url: "https://github.com/openai/codex/releases/tag/rust-v0.167.0".to_owned(),
@@ -531,6 +534,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                kind: None,
                 native_id: "101".to_owned(),
                 title: "example/ai-helper".to_owned(),
                 url: "https://github.com/example/ai-helper".to_owned(),

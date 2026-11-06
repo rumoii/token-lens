@@ -77,6 +77,7 @@ impl Source for HackerNews {
                 .filter(|url| !url.is_empty())
                 .unwrap_or_else(|| format!("https://news.ycombinator.com/item?id={native_id}"));
             items.push(RawItem {
+                kind: None,
                 native_id,
                 title,
                 url,
@@ -168,6 +169,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                kind: None,
                 native_id: "50385272".to_owned(),
                 title: "Claude Code sends your email address to websites".to_owned(),
                 url: "https://github.com/anthropics/claude-code/issues/107757".to_owned(),

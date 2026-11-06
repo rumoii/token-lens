@@ -6,7 +6,7 @@ D2 桌面预览接入下列 16 个来源。Rust 是来源访问和缓存的唯�
 
 启动只读取缓存。全量或单来源请求只在用户点击刷新后发生，没有定时刷新、后台补抓、自动重试、追踪像素或远程图片。打开原文需用户点击，交给系统浏览器。搜索、分类和来源筛选只处理本地快照。
 
-Anthropic 官网动态、Qwen 与机器之心待后续接入；X 不进入本阶段。Claude Code 的 GitHub 版本更新不等同于 Anthropic 官网动态。
+D2.5 增加 3 个来源和条目类型，见「D2.5 开发者变更」。Anthropic 官网新闻、Qwen、机器之心、arXiv、Reddit 待后续接入；X 和 Discord 不接入。Claude Code 的 GitHub 版本更新不等同于 Anthropic 官网动态。
 
 ## D2 多来源契约
 
@@ -93,6 +93,58 @@ HTTP 429 和 GitHub 来源带 `x-ratelimit-remaining: 0` 的 HTTP 403 报 `rate_
 ### Flutter
 
 Flutter 通过 `NewsGateway` 读取快照，搜索、分类和来源多选在本地叠加。列表与卡片展示同一数据，按来源呈现刷新状态、上次成功时间和错误；部分失败时其他来源内容继续显示。全量刷新和单来源刷新只在用户点击时触发。
+
+## D2.5 开发者变更
+
+D2.5 在 D2 契约上增加官方 API 变更来源、中文日报来源、条目类型和来源内热度排序。除下面写明的变化外，D2 的联网边界、请求限制、缓存、FFI 生命周期和错误类别不变。
+
+### 新来源
+
+注册顺序插入 D2 表：official 末尾依次为 `anthropic-api`、`openai-api`；chinese 在 `qbitai` 之后为 `aibase`。共 19 个来源。
+
+| id | 名称 | 分类 | 请求 |
+| --- | --- | --- | --- |
+| `anthropic-api` | Anthropic API | official | Claude 平台 API release notes 页 |
+| `openai-api` | OpenAI API | official | OpenAI API changelog 页 |
+| `aibase` | AIbase 日报 | chinese | AIbase 中文日报列表页 |
+
+- 实现时用固定 User-Agent `TokenLens-News/0.1` 核实最终地址，写回本表。不跟随重定向，所以表中必须是最终 200 的地址。不伪装浏览器 User-Agent，不带 Cookie，不执行 JavaScript，不用无头浏览器。
+- 站点拒绝固定 User-Agent，或正文要执行脚本才能得到时，该来源不进入注册表。把状态码和响应特征写进「已知限制」，D2.5 的其他部分照常交付。
+- 更新日志页按条目拆分：日期标题下的每个独立条目（段落或列表项）各算一条，不把整天合成一条。
+  - `published_at` 取该日期的 `T00:00:00Z`。日期只精确到天，界面不显示时刻。
+  - 标题取条目正文的第一句，最多 160 字符；描述取条目全文。两者都按 HTML 文本规范化。
+  - `native_id` 为 `<YYYY-MM-DD>#<条目规范化正文的 FNV-1a 64 位哈希，16 位小写十六进制>`。哈希在模块内实现，保证跨 Rust 版本稳定，不使用 `DefaultHasher`。正文改动会产生新 id，这是可接受的。
+  - 条目没有自己的链接时，`url` 用页面地址；页面提供日期锚点时加上锚点。
+- AIbase 日报：列表页每一期为一条。标题和日期取列表展示的内容；描述取列表摘要，没有摘要时为空。不再请求每期的详情页。
+
+### 跨来源去重的修订
+
+同一来源内只按 `native_id` 去重，不再按 URL 合并，所以更新日志里共用同一页面地址的多个条目都会保留。跨来源时，规范化 URL 命中别的来源的主项，就写入该主项的 `also_in`；同一 URL 命中多个主项时，只写入排序最靠前的那一个。
+
+### 条目类型
+
+`NewsItem` 增加 `kind`，取值为 `release`、`api`、`deprecation`、`pricing`、`model`、`general` 之一。Rust 在规范化时按下面的顺序决定，先命中的生效：
+
+1. **关键词**：只用于 official 和 tools 分类，只看规范化后的标题，不区分大小写；英文按词边界匹配。
+   - `deprecation`：`deprecate`、`deprecated`、`deprecation`、`retire`、`retired`、`retirement`、`retiring`、`shut down`、`shutdown`、`sunset`、`end of life`、`弃用`、`下线`、`停用`、`退役`。
+   - `pricing`：`price`、`prices`、`pricing`、`priced`、`价格`、`定价`、`降价`、`涨价`、`计费`。
+   - 两类都命中时取 `deprecation`。
+2. **来源结构**：`RawItem.kind` 来自页面明确给出的标签，比如更新日志条目上的类别标签。映射关系写在来源模块和本节里；不从自由文本推断。
+3. **来源默认**：`Source::default_kind()`。GitHub Releases 为 `release`；`anthropic-api` 和 `openai-api` 为 `api`；其他来源为 `general`。
+
+`model` 只来自来源结构，官方新闻里的新模型发布不靠猜测标成 `model`。
+
+缓存仍是 v2，条目多一个 `kind`。读到缺少 `kind` 的条目时，用该来源的 `default_kind()` 补上；`kind` 不在六个取值之内时，按损坏缓存报 `cache`。FFI 的 `NewsItem` 增加 `kind: String`。
+
+价格变动：本阶段只通过更新日志条目的 `pricing` 类型呈现，不抓取或比对价格页。
+
+### Flutter
+
+- 条目旁显示类型标签，`general` 不显示。标签用低饱和中性色，不用品牌色。
+- 筛选新增“全部类型”下拉，支持多选，和分类、来源、搜索叠加。
+- 来源筛选和分类筛选同时匹配主项来源和 `also_in`：条目的主项来源或 `also_in` 里任一已启用来源符合条件，就保留这条。分类计数按同一规则统计。条目仍然只显示主项来源。
+- 排序有“最新”（默认）和“热度”两种。只有当前筛选结果里带热度的条目全部属于同一个 `popularity_kind` 时，“热度”才可选。这时按热度降序，没有热度的排在最后，同热度按时间。筛选变化导致条件不再满足时，自动回到“最新”。排序选择不持久化。
+- 不跨平台换算热度，也不显示统一分数。
 
 ## 已知限制
 

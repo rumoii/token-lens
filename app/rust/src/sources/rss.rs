@@ -230,6 +230,7 @@ fn parse(body: &[u8]) -> Result<Vec<RawItem>, ParseError> {
         });
         let description = text(entry, if atom { "summary" } else { "description" });
         items.push(RawItem {
+            kind: None,
             native_id: if identity.is_empty() {
                 url.clone()
             } else {
@@ -316,6 +317,7 @@ mod tests {
                 assert_eq!(
                     items,
                     vec![RawItem {
+                        kind: None,
                         native_id: "one".into(),
                         title: "One".into(),
                         url: "https://example.com/one".into(),

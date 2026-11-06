@@ -545,6 +545,7 @@ fn cache_v1_migration_is_in_memory_until_commit_and_unknown_versions_are_visible
 
 fn raw(id: &str, url: &str, date: Option<&str>) -> RawItem {
     RawItem {
+        kind: None,
         native_id: id.into(),
         title: "<b>Title &amp; text</b><script>hidden</script>".into(),
         url: url.into(),
