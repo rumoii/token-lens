@@ -4,7 +4,7 @@ ESM modules under `src/core` (the root `package.json` declares `commonjs`; `src/
 
 ## Current work
 
-Desktop rewrite stage D1 is in progress in `app/`: Flutter UI + Rust core, starting with a manually refreshed OpenAI RSS preview. See `specs/desktop.md` for the rewrite decision, `specs/news.md` for the source/cache contract, and `app/README.md` for development commands. The existing Node/React/wry release remains usable until statistics migration is accepted; the new application is desktop-only. D1 uses a separate preview directory and never reads or migrates the real ledger. Anthropic website news is deferred.
+The desktop rewrite lives in `app/`: Flutter UI and a Rust core. Stages D1, D2 and D2.5 are complete. The news preview has 19 manually refreshed sources, item kinds, and popularity sorting within each source. The next stage is D3, migrating statistics. See `specs/desktop.md` for the rewrite decision, `specs/news.md` for the source/cache contract, and `app/README.md` for development commands. The existing Node/React/wry release remains usable until statistics migration is accepted; the new application is desktop-only. The preview uses a separate directory and never reads or migrates the real ledger. D3 touches the real ledger only after a backup, a dry run on a copy, and the user's confirmation.
 
 Stages L, N, P, W and M are complete. See `specs/roadmap.md` for pending acceptance, samples, defects and CI status, `specs/ledger-trust.md` for ledger steps, and `specs/pricing.md` section 9 for pricing. Work one sub-stage at a time and stop for review after each. Any step that changes the real ledger in `~/.token-lens` needs a backup, a dry run on a copy, and the user's confirmation first.
 
