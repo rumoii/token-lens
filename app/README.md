@@ -1,6 +1,12 @@
 # Token Lens 桌面预览
 
-Flutter + Rust 重写的 D2.5：19 个新闻与工具更新来源、条目类型筛选、来源内热度排序、按来源手动刷新、启停、本地缓存、取消和错误反馈。统计功能尚未迁移，继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)。
+Flutter + Rust 重写的 D3.1：19 个新闻与工具更新来源、条目类型筛选、来源内热度排序、按来源手动刷新、启停、本地缓存、取消和错误反馈，以及 Claude/Codex 统计总览。其余统计功能继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)。
+
+统计总览可在「新闻 / 统计」间切换。统计在窗口打开时采集一次，每 5 分钟采集一次，也可点击「同步」；新闻仍只在点击刷新后联网。账本是预览目录下的 `ledger.db`，不读取旧版数据目录变量。
+
+开发和冒烟须同时隔离账本与日志根目录：`TOKEN_LENS_PREVIEW_DATA_DIR` 指定独立的预览目录，`TOKEN_LENS_PREVIEW_HOME` 指定合成日志根目录（其下为 `.claude/projects/**/*.jsonl`、`.codex/sessions/**/rollout-*.jsonl[.zst]`）。未覆盖日志根目录时，发行运行读取系统用户目录的客户端日志；开发检查始终设置合成根。
+
+在仓库根目录、隔离环境下运行 `node scripts/parity/generate.mjs` 重建 `app/rust/tests/golden/*.jsonl`。生成器只 import 旧版生产入口；固定 Date 为 `2026-01-15T12:00:00.000Z`，主时区为 `Asia/Shanghai`，另含 UTC 向量。只有 SQLite 默认时间和采集耗时使用明确的 volatile 占位。`cargo test --manifest-path app/rust/Cargo.toml --locked` 读取相同静态夹具，验证适配器、身份字节、写入、迁移、计价与查询。
 
 ## 环境
 

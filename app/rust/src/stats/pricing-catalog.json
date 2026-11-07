@@ -1,0 +1,755 @@
+{
+  "entries": [
+    {
+      "id": "claude-fable-5-1",
+      "aliases": [
+        "claude-fable-5.1"
+      ],
+      "perMTok": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5,
+        "cacheWrite1h": 20
+      },
+      "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "conditions": "标准按需；缓存写分 5 分钟档（12.50）与 1 小时档（20.00），按实际上报档位计价",
+      "currency": "USD",
+      "verifiedAt": "2026-10-18",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "claude-opus-5-5",
+      "aliases": [
+        "claude-opus-5.5"
+      ],
+      "perMTok": {
+        "input": 4,
+        "output": 20,
+        "cacheRead": 0.2,
+        "cacheWrite": 5,
+        "cacheWrite1h": 8
+      },
+      "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "conditions": "标准按需；缓存写分 5 分钟档（5.00）与 1 小时档（8.00），按实际上报档位计价",
+      "currency": "USD",
+      "verifiedAt": "2026-10-18",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "aliases": [
+        "claude-sonnet-5.5"
+      ],
+      "perMTok": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.1,
+        "cacheWrite": 2.5,
+        "cacheWrite1h": 4
+      },
+      "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "conditions": "标准按需；缓存写分 5 分钟档（2.50）与 1 小时档（4.00），按实际上报档位计价",
+      "currency": "USD",
+      "verifiedAt": "2026-10-18",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "claude-haiku-5-5",
+      "aliases": [
+        "claude-haiku-5.5"
+      ],
+      "perMTok": {
+        "input": 0.1,
+        "output": 0.5,
+        "cacheRead": 0.01,
+        "cacheWrite": 0.125,
+        "cacheWrite1h": 0.2
+      },
+      "tiers": [
+        {
+          "above": 100000,
+          "perMTok": {
+            "input": 0.5,
+            "output": 2.5,
+            "cacheRead": 0.05,
+            "cacheWrite": 0.625,
+            "cacheWrite1h": 1
+          }
+        }
+      ],
+      "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "标准按需；单次请求的提示（含缓存读写）超过 100,000 token 时整条请求按高档计价",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "claude-mythos-5-1",
+      "aliases": [
+        "claude-mythos-5.1"
+      ],
+      "perMTok": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5,
+        "cacheWrite1h": 20
+      },
+      "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "conditions": "标准按需；缓存写分 5 分钟档（12.50）与 1 小时档（20.00），按实际上报档位计价",
+      "currency": "USD",
+      "verifiedAt": "2026-10-18",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gpt-6.1-sol",
+      "aliases": [
+        "gpt-6-1-sol"
+      ],
+      "perMTok": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.1,
+        "cacheWrite": 2.5
+      },
+      "tiers": [
+        {
+          "above": 272000,
+          "perMTok": {
+            "input": 4,
+            "output": 15,
+            "cacheRead": 0.2,
+            "cacheWrite": 5
+          }
+        }
+      ],
+      "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard；单次请求输入（含缓存命中与缓存写）超过 272K token 时整条请求按长上下文档计价；缓存写取 30 分钟档",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gpt-6-sol",
+      "aliases": [],
+      "perMTok": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.2,
+        "cacheWrite": 2.5
+      },
+      "tiers": [
+        {
+          "above": 272000,
+          "perMTok": {
+            "input": 4,
+            "output": 15,
+            "cacheRead": 0.4,
+            "cacheWrite": 5
+          }
+        }
+      ],
+      "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard；单次请求输入（含缓存命中与缓存写）超过 272K token 时整条请求按长上下文档计价；缓存写取 30 分钟档",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gpt-6-astra",
+      "aliases": [],
+      "perMTok": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "tiers": [
+        {
+          "above": 272000,
+          "perMTok": {
+            "input": 20,
+            "output": 75,
+            "cacheRead": 2,
+            "cacheWrite": 25
+          }
+        }
+      ],
+      "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard；单次请求输入（含缓存命中与缓存写）超过 272K token 时整条请求按长上下文档计价；缓存写取 30 分钟档",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gpt-6-luna",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.1,
+        "output": 0.5,
+        "cacheRead": 0.01,
+        "cacheWrite": 0.125
+      },
+      "tiers": [
+        {
+          "above": 272000,
+          "perMTok": {
+            "input": 0.2,
+            "output": 0.75,
+            "cacheRead": 0.02,
+            "cacheWrite": 0.25
+          }
+        }
+      ],
+      "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard；单次请求输入（含缓存命中与缓存写）超过 272K token 时整条请求按长上下文档计价；缓存写取 30 分钟档",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gpt-5.3-codex",
+      "aliases": [],
+      "perMTok": {
+        "input": 1.75,
+        "output": 14,
+        "cacheRead": 0.175,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+      "conditions": "Standard；文档未列缓存写费率",
+      "currency": "USD",
+      "verifiedAt": "2026-10-18",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "deepseek-flash",
+      "aliases": [
+        "deepseek-v4-flash"
+      ],
+      "perMTok": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0.006,
+        "cacheWrite": null
+      },
+      "timeOfDay": {
+        "utcOffsetMinutes": 480,
+        "peak": [
+          {
+            "days": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "from": 540,
+            "to": 720
+          },
+          {
+            "days": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "from": 840,
+            "to": 1080
+          }
+        ],
+        "offPeak": {
+          "input": 0.15,
+          "output": 0.6,
+          "cacheRead": 0.003,
+          "cacheWrite": null
+        },
+        "holidays": [
+          "2026-01-01",
+          "2026-01-02",
+          "2026-01-03",
+          "2026-02-15",
+          "2026-02-16",
+          "2026-02-17",
+          "2026-02-18",
+          "2026-02-19",
+          "2026-02-20",
+          "2026-02-21",
+          "2026-02-22",
+          "2026-02-23",
+          "2026-04-04",
+          "2026-04-05",
+          "2026-04-06",
+          "2026-05-01",
+          "2026-05-02",
+          "2026-05-03",
+          "2026-05-04",
+          "2026-05-05",
+          "2026-06-19",
+          "2026-06-20",
+          "2026-06-21",
+          "2026-09-25",
+          "2026-09-26",
+          "2026-09-27",
+          "2026-10-01",
+          "2026-10-02",
+          "2026-10-03",
+          "2026-10-04",
+          "2026-10-05",
+          "2026-10-06",
+          "2026-10-07"
+        ]
+      },
+      "sourceUrl": "https://api-docs.deepseek.com/quick_start/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "峰谷分时：北京时间周一至周五 9:00-12:00、14:00-18:00 为高峰（基础价），其余时段、周末与中国法定节假日全天为低谷（半价）。节假日按国务院办公厅放假安排的放假日计（目前登记 2026 年，未登记年份的节假日按工作日处理）；周末补班日按周末计",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "kimi-k3.1-pro",
+      "aliases": [
+        "k3.1-pro",
+        "kimi-code/k3.1-pro"
+      ],
+      "perMTok": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.2,
+        "cacheWrite": 2,
+        "cacheWrite1h": 4
+      },
+      "sourceUrl": "https://platform.kimi.ai/docs/pricing/chat",
+      "verifiedAt": "2026-10-26",
+      "billing": "plan",
+      "conditions": "Kimi API 国际 USD 标准价，全 1M 上下文统一费率；缓存写分 5 分钟与 1 小时档，未拆分时取 5 分钟。Kimi Code 模型表将 k3.1-pro 标为 K3.1 Pro，官方发布页 https://www.kimi.ai/blog/kimi-k3-1-pro 将同一模型的 API ID 列为 kimi-k3.1-pro；套餐对应依据：https://www.kimi.com/code/docs/kimi-code/models.html；金额按 API 市场价折算，不是套餐账单",
+      "currency": "USD",
+      "tier": "verified",
+      "provisional": false
+    },
+    {
+      "id": "kimi-k3.1-pro-highspeed",
+      "aliases": [
+        "k3.1-pro-highspeed",
+        "kimi-code/k3.1-pro-highspeed"
+      ],
+      "perMTok": {
+        "input": 4,
+        "output": 20,
+        "cacheRead": 0.2,
+        "cacheWrite": 4,
+        "cacheWrite1h": 8
+      },
+      "sourceUrl": "https://platform.kimi.ai/docs/pricing/chat",
+      "verifiedAt": "2026-10-26",
+      "billing": "plan",
+      "conditions": "Kimi API 国际 USD Highspeed 标准价，全 1M 上下文统一费率；缓存写分 5 分钟与 1 小时档，未拆分时取 5 分钟。https://www.kimi.com/code/docs/kimi-code/models.html 将 k3.1-pro-highspeed 标为 K3.1 Pro Highspeed；https://www.kimi.ai/blog/kimi-k3-1-pro 将同一模型的 API ID 列为 kimi-k3.1-pro-highspeed；套餐按 API 市场价折算",
+      "currency": "USD",
+      "tier": "verified",
+      "provisional": false
+    },
+    {
+      "id": "kimi-k3",
+      "aliases": [
+        "k3",
+        "kimi-code/k3"
+      ],
+      "perMTok": {
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 3,
+        "cacheWrite1h": 6
+      },
+      "sourceUrl": "https://platform.kimi.ai/docs/pricing/chat",
+      "verifiedAt": "2026-10-26",
+      "billing": "plan",
+      "conditions": "Kimi API 国际 USD 标准价，全 1M 上下文统一费率；缓存写分 5 分钟与 1 小时档，未拆分时取 5 分钟。https://www.kimi.com/code/docs/kimi-code/models.html 将 k3 标为 K3；https://platform.kimi.ai/docs/guide/kimi-k3-quickstart 给出 API ID kimi-k3；不合并 k3-256k，套餐按 API 市场价折算",
+      "currency": "USD",
+      "tier": "verified",
+      "provisional": false
+    },
+    {
+      "id": "grok-4.7",
+      "aliases": [],
+      "perMTok": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": null
+      },
+      "tiers": [
+        {
+          "above": 199999,
+          "perMTok": {
+            "input": 4,
+            "output": 12,
+            "cacheRead": 1,
+            "cacheWrite": null
+          }
+        }
+      ],
+      "sourceUrl": "https://docs.x.ai/developers/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "全球端点标准价；提示达到 200,000 token（含缓存读写）整条请求按高档，above:199999 表示 >=200000；官网未单列缓存写 token 费率；不含 Batch 折扣、Fast 服务或 US 区域端点 10% 加价",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gemini-3.8-flash",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard，2026-12-31 前的公开引入价；2027-01-01 起输入/输出/缓存读为 1.50/7.50/0.15，需另核验更新目录。官网未单列缓存写 token 费率；缓存存储另按 $0.50/1M token/小时计，不折算成缓存写价；不含 Batch、Flex、Priority 或工具费",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gemini-4-argon",
+      "aliases": [],
+      "perMTok": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.1,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard，2026-11-30 前的公开引入价；2026-12-01 起输入/输出/缓存读为 4/20/0.20，需另核验更新目录。仅隐式缓存，官网未单列缓存写 token 费率；不含 Batch、Flex、Priority 或工具费",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gemini-3.1-pro-preview",
+      "aliases": [],
+      "perMTok": {
+        "input": 2,
+        "output": 12,
+        "cacheRead": 0.2,
+        "cacheWrite": null
+      },
+      "tiers": [
+        {
+          "above": 200000,
+          "perMTok": {
+            "input": 4,
+            "output": 18,
+            "cacheRead": 0.4,
+            "cacheWrite": null
+          }
+        }
+      ],
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard；提示超过 200,000 token（含缓存读写）整条请求按高档；官网未单列缓存写 token 费率。缓存存储另按 $4.50/1M token/小时计，不折算成缓存写价；不含 Batch、Flex 或工具费",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gemini-3.8-flash-n",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.08333
+      },
+      "sourceUrl": "https://models.dev/api.json",
+      "tier": "aggregate",
+      "conditions": "同 gemini-3.8-flash；`-n` 变体未在官方页确认，按同系列取值",
+      "currency": "USD",
+      "verifiedAt": "2026-10-18",
+      "billing": "metered",
+      "provisional": true
+    },
+    {
+      "id": "claude-opus-4-6",
+      "aliases": [
+        "claude-opus-4-6-thinking"
+      ],
+      "perMTok": {
+        "input": 5,
+        "output": 25,
+        "cacheRead": 0.5,
+        "cacheWrite": 6.25,
+        "cacheWrite1h": 10
+      },
+      "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "官方 API ID claude-opus-4-6；thinking 是同一模型的扩展思考模式，不是另一个型号。标准按需，全 1M 上下文统一费率；缓存写分 5 分钟与 1 小时档，未拆分时取 5 分钟；不含 Batch、US 区域加价或工具费",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "qwen3-coder-flash",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.3,
+        "output": 1.5,
+        "cacheRead": 0.03,
+        "cacheWrite": 0.375
+      },
+      "tiers": [
+        {
+          "above": 32000,
+          "perMTok": {
+            "input": 0.5,
+            "output": 2.5,
+            "cacheRead": 0.05,
+            "cacheWrite": 0.625
+          }
+        },
+        {
+          "above": 128000,
+          "perMTok": {
+            "input": 0.8,
+            "output": 4,
+            "cacheRead": 0.08,
+            "cacheWrite": 1
+          }
+        },
+        {
+          "above": 256000,
+          "perMTok": {
+            "input": 1.6,
+            "output": 9.6,
+            "cacheRead": 0.16,
+            "cacheWrite": 2
+          }
+        }
+      ],
+      "sourceUrl": "https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen3-coder-flash",
+      "verifiedAt": "2026-10-26",
+      "conditions": "新加坡 International USD 标准价，显式缓存 5 分钟档；提示（含缓存读写）按 32k/128k/256k 分档，k 按十进制千计。隐式缓存命中费率为各档输入的 20%，此条目仅取显式缓存费率；模式不能混算。快照版本不支持相同的缓存能力，未作别名；不含其他地区或限时优惠",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "glm-5.3",
+      "aliases": [],
+      "perMTok": {
+        "input": 1.4,
+        "output": 4.4,
+        "cacheRead": 0.26,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://docs.z.ai/guides/overview/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Z.AI 国际 USD 按量价；缓存存储限时免费，官网未单列缓存写 token 费率；不套用 Coding Plan 的峰谷积分折扣",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "glm-5.3-flash",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.03,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://docs.z.ai/guides/overview/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Z.AI 国际 USD 按量价；缓存存储限时免费，官网未单列缓存写 token 费率；不套用 Coding Plan 的峰谷积分折扣",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "glm-5.3-flashx",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.37,
+        "output": 1.25,
+        "cacheRead": 0.075,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://docs.z.ai/guides/overview/pricing",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Z.AI 国际 USD 按量价；缓存存储限时免费，官网未单列缓存写 token 费率；不与 Flash 或 Legal 版本合并",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "MiniMax-M2.7",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0.06,
+        "cacheWrite": 0.375
+      },
+      "sourceUrl": "https://platform.minimax.io/subscribe/token-plan?tab=api-enterprise",
+      "verifiedAt": "2026-11-01",
+      "tier": "aggregate",
+      "conditions": "国际 USD API Pricing 公开价；依据官方价目页的旧搜索快照，快照日期未知（2026-11-01 搜索索引仅显示上月抓取）；verifiedAt 为快照复核日期，不代表当日官网核验。原页已跳转到不再列出 M2.7 的价目总览，M2.7 官网标为退役，实时价格未确认。快照未列长上下文分档、峰谷价或缓存写时长分档，不推定独立 1 小时写入价；仅按日志所报 ID 折算，不推断套餐请求转路由后的实际模型",
+      "currency": "USD",
+      "billing": "metered",
+      "provisional": true
+    },
+    {
+      "id": "MiniMax-M2.7-highspeed",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.06,
+        "cacheWrite": 0.375
+      },
+      "sourceUrl": "https://platform.minimax.io/subscribe/token-plan?tab=api-enterprise",
+      "verifiedAt": "2026-11-01",
+      "tier": "aggregate",
+      "conditions": "国际 USD API Pricing Highspeed 公开价；依据官方价目页的旧搜索快照，快照日期未知（2026-11-01 搜索索引仅显示上月抓取）；verifiedAt 为快照复核日期，不代表当日官网核验。原页已跳转到不再列出 M2.7 的价目总览，M2.7 官网标为退役，实时价格未确认。缓存读写与 M2.7 同价；快照未列长上下文分档、峰谷价或缓存写时长分档，不推定独立 1 小时写入价；不与标准版合并",
+      "currency": "USD",
+      "billing": "metered",
+      "provisional": true
+    },
+    {
+      "id": "MiniMax-M3",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0.06,
+        "cacheWrite": null
+      },
+      "tiers": [
+        {
+          "above": 512000,
+          "perMTok": {
+            "input": 0.6,
+            "output": 2.4,
+            "cacheRead": 0.12,
+            "cacheWrite": null
+          }
+        }
+      ],
+      "sourceUrl": "https://platform.minimax.io/docs/pricing/overview",
+      "verifiedAt": "2026-10-26",
+      "conditions": "Standard，官网 Permanent 50% off 后的公开售价；提示（含缓存读写）超过 512k token 整条请求按高档，k 按十进制千计。官网未单列缓存写 token 费率；不含 Priority 的 1.5 倍服务价",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "MiniMax-M3.1-Flash",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.15,
+        "output": 0.6,
+        "cacheRead": 0.015,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://platform.minimax.io/docs/pricing/overview",
+      "verifiedAt": "2026-10-26",
+      "conditions": "国际 USD 按量标准价；官网未单列缓存写 token 费率；不将 Flash-Preview 或免费网关版本作别名",
+      "currency": "USD",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "mimo-v2.6-pro",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.0036,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://mimo.mi.com/docs/en-US/price/pay-as-you-go",
+      "verifiedAt": "2026-10-26",
+      "billing": "plan",
+      "conditions": "官方海外 Real-time API USD 标准价；缓存写限时免费，未单列按 token 的写入费率；套餐按 API 市场价折算，API 余额与套餐额度独立；不含 Batch 折扣",
+      "currency": "USD",
+      "tier": "verified",
+      "provisional": false
+    },
+    {
+      "id": "mimo-v2.6-flash",
+      "aliases": [],
+      "perMTok": {
+        "input": 0.14,
+        "output": 0.28,
+        "cacheRead": 0.0028,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://mimo.mi.com/docs/en-US/price/pay-as-you-go",
+      "verifiedAt": "2026-10-26",
+      "billing": "plan",
+      "conditions": "官方海外 Real-time API USD 标准价；缓存写限时免费，未单列按 token 的写入费率；套餐按 API 市场价折算，API 余额与套餐额度独立；不含 Batch 折扣",
+      "currency": "USD",
+      "tier": "verified",
+      "provisional": false
+    },
+    {
+      "id": "mimo-v2.6-pro-ultraspeed",
+      "aliases": [],
+      "perMTok": {
+        "input": 4.35,
+        "output": 8.7,
+        "cacheRead": 0.036,
+        "cacheWrite": null
+      },
+      "sourceUrl": "https://mimo.mi.com/docs/en-US/price/pay-as-you-go",
+      "verifiedAt": "2026-10-26",
+      "billing": "plan",
+      "conditions": "官方海外 Real-time API USD UltraSpeed 标准价；缓存写限时免费，未单列按 token 的写入费率；套餐按 API 市场价折算，API 余额与套餐额度独立；不支持 Batch",
+      "currency": "USD",
+      "tier": "verified",
+      "provisional": false
+    }
+  ],
+  "localProviders": [
+    "ollama",
+    "lmstudio"
+  ]
+}

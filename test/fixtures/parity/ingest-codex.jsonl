@@ -1,0 +1,2 @@
+{"type":"session_meta","payload":{"session_id":"codex-s","cwd":"/synthetic/project","model_provider":"ollama","model":"unlisted-local"}}
+{"type":"token_usage_record","timestamp":"2026-01-15T01:00:00Z","payload":{"response_id":"response-local","usage":{"input_tokens":100,"cached_input_tokens":30,"output_tokens":10}}}

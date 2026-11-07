@@ -96,7 +96,7 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 | `sync` | `POST /sync` | 引导、来源、定时采集 |
 
 - 金额在 FFI 上用整数 micro-USD 传递，界面显示用的六位小数字符串和低精度最大余数分配由 Rust `pricing` 统一给出，Dart 不自己算钱。
-- 时区：Dart 传当前的 UTC 偏移分钟数，Rust 用它切所有历史，和旧版一致。
+- 时区：Dart 传当前的 UTC 偏移分钟数，Rust 用它切所有历史，和旧版一致。快照里的时区名先读 `TZ`，没有再调用系统自带的 ICU（Windows `icu.dll`、macOS `libicucore`），不打包 ICU；macOS 上的链接和运行还没验证。
 - 不迁移：`/usage/unallocated`（看板没用）、`POST /pricing/refresh`（旧版就是 501）、HTTP 边界（gate、token、port）、CLI。
 - 并发：同一时间只有一个采集在跑；查询可以和采集并发，读的是已提交的数据。
 
@@ -105,6 +105,8 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 - 生成器 `scripts/parity/` 调用旧版的生产入口（`adapters[source]`、`payloadHash`、`fileTag`、`Ledger`、`read`、各个 service），固定 `now`、时区和路径字符串，输出 UTF-8 JSONL。每行的 `type` 是 `adapter_record`、`identity`、`batch`、`ledger_row`、`price`、`query`、`run` 之一，字段顺序固定，NULL 显式写出。
 - 夹具：现有的真实裁剪样本（codex、qwen、pi），加上把各测试里内联构造的合成输入整理成的静态文件，放在 `test/fixtures/`。
 - 旧版输出提交到 `app/rust/tests/golden/`。Rust 测试读同一批夹具，输出同样的 JSONL 并逐行比较；身份和金额按字节比较，没有确定顺序的查询先按身份排序再比较结构。
+- 时钟：旧版直接读 `Date` 和 SQLite `unixepoch()`，没有注入点。生成器用 Node 内置 `node:test` 的 `mock.timers` 只冻结 `Date`（固定 `2026-01-15T12:00:00.000Z`；主时区 `Asia/Shanghai`，另有 UTC，Date 兼容表还含 `America/New_York`），这是生成器里唯一允许的替换，不改 `src/core`。Rust 凡是读当前时间的地方都经可注入的时钟。
+- 只有四个字段写成 `"<volatile>"` 不比较：`usage_records.ingested_at`、`legacy_records.imported_at`、`pricing_snapshot.created_at`（SQLite 默认值）和 `runIngestion` 的 `durationMs`。`snapshot.generated_at`、`ingest_runs.started_at` / `finished_at`、滚动 7/30 日、`pricing_snapshot.verified_at` 由冻结的时刻决定，严格比较。
 - 旧版改了行为就重新生成 golden，提交里要说明原因。
 - D3.5 真实日志对拍：只读本机客户端日志，旧版和新版各写一个临时账本，逐行比较。报告放在仓库外，不提交。
 

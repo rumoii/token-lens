@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/news.dart';
+import 'api/stats.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -25,6 +26,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   get rust_arc_decrement_strong_count_NewsClientPtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClientPtr;
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_StatsClientPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClientPtr;
+
   @protected
   NewsClient
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
@@ -32,8 +37,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsClient
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    dynamic raw,
+  );
+
+  @protected
   NewsClient
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
+    dynamic raw,
+  );
+
+  @protected
+  StatsClient
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
     dynamic raw,
   );
 
@@ -47,13 +64,40 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsClient
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    dynamic raw,
+  );
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
   NewsError dco_decode_box_autoadd_news_error(dynamic raw);
+
+  @protected
+  StatsCostParts dco_decode_box_autoadd_stats_cost_parts(dynamic raw);
+
+  @protected
+  StatsCounts dco_decode_box_autoadd_stats_counts(dynamic raw);
+
+  @protected
+  StatsFilter dco_decode_box_autoadd_stats_filter(dynamic raw);
+
+  @protected
+  StatsRun dco_decode_box_autoadd_stats_run(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
@@ -71,6 +115,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<SourceState> dco_decode_list_source_state(dynamic raw);
 
   @protected
+  List<StatsGroup> dco_decode_list_stats_group(dynamic raw);
+
+  @protected
   NewsError dco_decode_news_error(dynamic raw);
 
   @protected
@@ -86,13 +133,67 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+  @protected
   NewsError? dco_decode_opt_box_autoadd_news_error(dynamic raw);
+
+  @protected
+  StatsCostParts? dco_decode_opt_box_autoadd_stats_cost_parts(dynamic raw);
+
+  @protected
+  StatsCounts? dco_decode_opt_box_autoadd_stats_counts(dynamic raw);
+
+  @protected
+  StatsRun? dco_decode_opt_box_autoadd_stats_run(dynamic raw);
 
   @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
 
   @protected
   SourceState dco_decode_source_state(dynamic raw);
+
+  @protected
+  StatsActivity dco_decode_stats_activity(dynamic raw);
+
+  @protected
+  StatsAppliedFilter dco_decode_stats_applied_filter(dynamic raw);
+
+  @protected
+  StatsBreakdown dco_decode_stats_breakdown(dynamic raw);
+
+  @protected
+  StatsCostParts dco_decode_stats_cost_parts(dynamic raw);
+
+  @protected
+  StatsCounts dco_decode_stats_counts(dynamic raw);
+
+  @protected
+  StatsFilter dco_decode_stats_filter(dynamic raw);
+
+  @protected
+  StatsGroup dco_decode_stats_group(dynamic raw);
+
+  @protected
+  StatsRolling dco_decode_stats_rolling(dynamic raw);
+
+  @protected
+  StatsRun dco_decode_stats_run(dynamic raw);
+
+  @protected
+  StatsSnapshot dco_decode_stats_snapshot(dynamic raw);
+
+  @protected
+  StatsSummary dco_decode_stats_summary(dynamic raw);
+
+  @protected
+  StatsSync dco_decode_stats_sync(dynamic raw);
+
+  @protected
+  StatsTotals dco_decode_stats_totals(dynamic raw);
+
+  @protected
+  StatsWindow dco_decode_stats_window(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -110,8 +211,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsClient
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   NewsClient
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsClient
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
     SseDeserializer deserializer,
   );
 
@@ -125,13 +238,42 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsClient
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   NewsError sse_decode_box_autoadd_news_error(SseDeserializer deserializer);
+
+  @protected
+  StatsCostParts sse_decode_box_autoadd_stats_cost_parts(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsCounts sse_decode_box_autoadd_stats_counts(SseDeserializer deserializer);
+
+  @protected
+  StatsFilter sse_decode_box_autoadd_stats_filter(SseDeserializer deserializer);
+
+  @protected
+  StatsRun sse_decode_box_autoadd_stats_run(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
@@ -149,6 +291,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<SourceState> sse_decode_list_source_state(SseDeserializer deserializer);
 
   @protected
+  List<StatsGroup> sse_decode_list_stats_group(SseDeserializer deserializer);
+
+  @protected
   NewsError sse_decode_news_error(SseDeserializer deserializer);
 
   @protected
@@ -164,15 +309,75 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   NewsError? sse_decode_opt_box_autoadd_news_error(
     SseDeserializer deserializer,
   );
+
+  @protected
+  StatsCostParts? sse_decode_opt_box_autoadd_stats_cost_parts(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsCounts? sse_decode_opt_box_autoadd_stats_counts(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsRun? sse_decode_opt_box_autoadd_stats_run(SseDeserializer deserializer);
 
   @protected
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
 
   @protected
   SourceState sse_decode_source_state(SseDeserializer deserializer);
+
+  @protected
+  StatsActivity sse_decode_stats_activity(SseDeserializer deserializer);
+
+  @protected
+  StatsAppliedFilter sse_decode_stats_applied_filter(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsBreakdown sse_decode_stats_breakdown(SseDeserializer deserializer);
+
+  @protected
+  StatsCostParts sse_decode_stats_cost_parts(SseDeserializer deserializer);
+
+  @protected
+  StatsCounts sse_decode_stats_counts(SseDeserializer deserializer);
+
+  @protected
+  StatsFilter sse_decode_stats_filter(SseDeserializer deserializer);
+
+  @protected
+  StatsGroup sse_decode_stats_group(SseDeserializer deserializer);
+
+  @protected
+  StatsRolling sse_decode_stats_rolling(SseDeserializer deserializer);
+
+  @protected
+  StatsRun sse_decode_stats_run(SseDeserializer deserializer);
+
+  @protected
+  StatsSnapshot sse_decode_stats_snapshot(SseDeserializer deserializer);
+
+  @protected
+  StatsSummary sse_decode_stats_summary(SseDeserializer deserializer);
+
+  @protected
+  StatsSync sse_decode_stats_sync(SseDeserializer deserializer);
+
+  @protected
+  StatsTotals sse_decode_stats_totals(SseDeserializer deserializer);
+
+  @protected
+  StatsWindow sse_decode_stats_window(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -184,9 +389,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
-
-  @protected
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
     NewsClient self,
@@ -195,8 +397,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    StatsClient self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
     NewsClient self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    StatsClient self,
     SseSerializer serializer,
   );
 
@@ -211,16 +427,56 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    StatsClient self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_news_error(
     NewsError self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_stats_cost_parts(
+    StatsCostParts self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_counts(
+    StatsCounts self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_filter(
+    StatsFilter self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_run(
+    StatsRun self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
@@ -244,6 +500,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_stats_group(
+    List<StatsGroup> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_news_error(NewsError self, SseSerializer serializer);
 
   @protected
@@ -259,8 +521,29 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_news_error(
     NewsError? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_cost_parts(
+    StatsCostParts? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_counts(
+    StatsCounts? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_run(
+    StatsRun? self,
     SseSerializer serializer,
   );
 
@@ -271,6 +554,57 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_source_state(SourceState self, SseSerializer serializer);
 
   @protected
+  void sse_encode_stats_activity(StatsActivity self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_applied_filter(
+    StatsAppliedFilter self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_breakdown(
+    StatsBreakdown self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_cost_parts(
+    StatsCostParts self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_counts(StatsCounts self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_filter(StatsFilter self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_group(StatsGroup self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_rolling(StatsRolling self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_run(StatsRun self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_snapshot(StatsSnapshot self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_summary(StatsSummary self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_sync(StatsSync self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_totals(StatsTotals self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_window(StatsWindow self, SseSerializer serializer);
+
+  @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
 
   @protected
@@ -278,9 +612,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -329,5 +660,39 @@ class RustLibWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClientPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClientPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_token_lens_app_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClientPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClientPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_token_lens_app_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClientPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 }

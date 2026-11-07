@@ -13,6 +13,10 @@ import 'news_page.dart';
 import 'rust_gateway.dart';
 import 'src/rust/api/news.dart' as native;
 import 'src/rust/frb_generated.dart';
+import 'src/rust/api/stats.dart' as stats;
+import 'stats_controller.dart';
+import 'stats_gateway.dart';
+import 'stats_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +33,9 @@ class TokenLensApp extends StatefulWidget {
 class _TokenLensAppState extends State<TokenLensApp> {
   late final AppLifecycleListener _lifecycle;
   NewsController? _controller;
+  StatsController? _statsController;
+  String? _statsInitializationError;
+  bool _showStats = false;
   String? _initializationError;
   bool _closing = false;
 
@@ -51,12 +58,28 @@ class _TokenLensAppState extends State<TokenLensApp> {
       await RustLib.init();
       final client = await native.NewsClient.newInstance(dataDir: dataDir);
       final controller = NewsController(RustNewsGateway(client));
+      StatsController? statsController;
+      try {
+        final statsClient = await stats.StatsClient.newInstance(
+          dataDir: dataDir,
+          logsHome: Platform.environment['TOKEN_LENS_PREVIEW_HOME'],
+        );
+        statsController = StatsController(RustStatsGateway(statsClient));
+      } catch (_) {
+        _statsInitializationError = '无法打开统计账本，请检查预览目录是否可读写。';
+      }
       if (!mounted || _closing) {
+        await statsController?.shutdown();
+        statsController?.dispose();
         await controller.shutdown();
         controller.dispose();
         return;
       }
-      setState(() => _controller = controller);
+      setState(() {
+        _controller = controller;
+        _statsController = statsController;
+      });
+      if (statsController != null) unawaited(statsController.start());
     } catch (error) {
       if (!mounted || _closing) return;
       final text = error.toString();
@@ -74,7 +97,10 @@ class _TokenLensAppState extends State<TokenLensApp> {
     _closing = true;
     try {
       // The OS closes this process even if a disk operation cannot finish.
-      await _controller?.shutdown().timeout(const Duration(seconds: 3));
+      await Future.wait([
+        if (_controller != null) _controller!.shutdown(),
+        if (_statsController != null) _statsController!.shutdown(),
+      ]).timeout(const Duration(seconds: 3));
     } catch (_) {
       // Exit must remain available after partial initialization or I/O failure.
     }
@@ -86,6 +112,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
     _closing = true;
     _lifecycle.dispose();
     _controller?.dispose();
+    _statsController?.dispose();
     super.dispose();
   }
 
@@ -107,10 +134,51 @@ class _TokenLensAppState extends State<TokenLensApp> {
       fontFamily: Platform.isWindows ? 'Microsoft YaHei' : null,
     ),
     home: _controller != null
-        ? NewsPage(
-            controller: _controller!,
-            openLink: (uri) =>
-                launchUrl(uri, mode: LaunchMode.externalApplication),
+        ? Scaffold(
+            body: Column(
+              children: [
+                SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: false,
+                          label: Text('新闻'),
+                          icon: Icon(Icons.article_outlined),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          label: Text('统计'),
+                          icon: Icon(Icons.bar_chart),
+                        ),
+                      ],
+                      selected: {_showStats},
+                      onSelectionChanged: (selection) =>
+                          setState(() => _showStats = selection.single),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: _showStats
+                      ? _statsController == null
+                            ? Center(
+                                child: Text(
+                                  _statsInitializationError ?? '正在打开统计…',
+                                ),
+                              )
+                            : StatsPage(controller: _statsController!)
+                      : NewsPage(
+                          controller: _controller!,
+                          openLink: (uri) => launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          ),
+                        ),
+                ),
+              ],
+            ),
           )
         : Scaffold(
             body: Center(

@@ -1,0 +1,1458 @@
+{
+  "records": [
+    {
+      "model": "claude-fable-5-1",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-fable-5-1",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "claude-fable-5-1",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-opus-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-opus-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "claude-opus-5-5",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 100000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 100000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "claude-mythos-5-1",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-mythos-5-1",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "claude-mythos-5-1",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-6-sol",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-sol",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gpt-6-sol",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-sol",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-sol",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-6-sol",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-sol",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-6-astra",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-astra",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gpt-6-astra",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-astra",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-astra",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-6-astra",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-astra",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-6-luna",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-luna",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gpt-6-luna",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-luna",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-luna",
+      "input_tokens": 272000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-6-luna",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-6-luna",
+      "input_tokens": 272001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gpt-5.3-codex",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gpt-5.3-codex",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gpt-5.3-codex",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "kimi-k3.1-pro",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "kimi-k3.1-pro",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "kimi-k3.1-pro",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "kimi-k3.1-pro-highspeed",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "kimi-k3.1-pro-highspeed",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "kimi-k3.1-pro-highspeed",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "kimi-k3",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "kimi-k3",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "kimi-k3",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "grok-4.7",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "grok-4.7",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "grok-4.7",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "grok-4.7",
+      "input_tokens": 199999,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "grok-4.7",
+      "input_tokens": 199999,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "grok-4.7",
+      "input_tokens": 200000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "grok-4.7",
+      "input_tokens": 200000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-4-argon",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-4-argon",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gemini-4-argon",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "input_tokens": 200000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "input_tokens": 200000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "input_tokens": 200001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "input_tokens": 200001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "gemini-3.8-flash-n",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "gemini-3.8-flash-n",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "gemini-3.8-flash-n",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-opus-4-6",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "claude-opus-4-6",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "claude-opus-4-6",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 32000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 32000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 32001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 32001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 128000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 128000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 128001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 128001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 256000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 256000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 256001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "qwen3-coder-flash",
+      "input_tokens": 256001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "glm-5.3",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "glm-5.3",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "glm-5.3",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "glm-5.3-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "glm-5.3-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "glm-5.3-flash",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "glm-5.3-flashx",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "glm-5.3-flashx",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "glm-5.3-flashx",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M2.7",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M2.7",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "MiniMax-M2.7",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M2.7-highspeed",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M2.7-highspeed",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "MiniMax-M2.7-highspeed",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M3",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M3",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "MiniMax-M3",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M3",
+      "input_tokens": 512000,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M3",
+      "input_tokens": 512000,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "MiniMax-M3",
+      "input_tokens": 512001,
+      "output_tokens": 37,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M3",
+      "input_tokens": 512001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "kind": "cumulative"
+    },
+    {
+      "model": "MiniMax-M3.1-Flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "MiniMax-M3.1-Flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "MiniMax-M3.1-Flash",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "mimo-v2.6-pro",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "mimo-v2.6-pro",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "mimo-v2.6-pro",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "mimo-v2.6-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "mimo-v2.6-flash",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "mimo-v2.6-flash",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "mimo-v2.6-pro-ultraspeed",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "mimo-v2.6-pro-ultraspeed",
+      "input_tokens": 100001,
+      "output_tokens": 37,
+      "cache_read_tokens": 19,
+      "cache_write_tokens": 31,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "cache_write_5m_tokens": 11,
+      "cache_write_1h_tokens": 20
+    },
+    {
+      "model": "mimo-v2.6-pro-ultraspeed",
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 23456789,
+      "output_tokens": 112233,
+      "cache_read_tokens": 1000,
+      "observed_at": "2026-01-15T00:59:59.999Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "kind": "cumulative",
+      "input_tokens": 23456789,
+      "observed_at": "2026-01-15T00:59:59.999Z",
+      "ended_at": "2026-01-19T05:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 23456789,
+      "output_tokens": 112233,
+      "cache_read_tokens": 1000,
+      "observed_at": "2026-01-15T01:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "kind": "cumulative",
+      "input_tokens": 23456789,
+      "observed_at": "2026-01-15T01:00:00.000Z",
+      "ended_at": "2026-01-19T05:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 23456789,
+      "output_tokens": 112233,
+      "cache_read_tokens": 1000,
+      "observed_at": "2026-01-15T09:59:59.999Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "kind": "cumulative",
+      "input_tokens": 23456789,
+      "observed_at": "2026-01-15T09:59:59.999Z",
+      "ended_at": "2026-01-19T05:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 23456789,
+      "output_tokens": 112233,
+      "cache_read_tokens": 1000,
+      "observed_at": "2026-01-15T10:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "kind": "cumulative",
+      "input_tokens": 23456789,
+      "observed_at": "2026-01-15T10:00:00.000Z",
+      "ended_at": "2026-01-19T05:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 23456789,
+      "output_tokens": 112233,
+      "cache_read_tokens": 1000,
+      "observed_at": "2026-01-01T01:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "kind": "cumulative",
+      "input_tokens": 23456789,
+      "observed_at": "2026-01-01T01:00:00.000Z",
+      "ended_at": "2026-01-19T05:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 23456789,
+      "output_tokens": 112233,
+      "cache_read_tokens": 1000,
+      "observed_at": "2026-01-17T01:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "kind": "cumulative",
+      "input_tokens": 23456789,
+      "observed_at": "2026-01-17T01:00:00.000Z",
+      "ended_at": "2026-01-19T05:00:00.000Z"
+    },
+    {
+      "model": "deepseek-flash",
+      "input_tokens": 23456789,
+      "output_tokens": 112233,
+      "cache_read_tokens": 1000,
+      "observed_at": "bad"
+    },
+    {
+      "model": "deepseek-flash",
+      "kind": "cumulative",
+      "input_tokens": 23456789,
+      "observed_at": "bad",
+      "ended_at": "2026-01-19T05:00:00.000Z"
+    },
+    {
+      "model": "unknown-model",
+      "provider": null,
+      "input_tokens": 5
+    },
+    {
+      "model": "unknown-model",
+      "provider": "ollama",
+      "input_tokens": 5
+    },
+    {
+      "model": "unknown-model",
+      "provider": "OLLAMA",
+      "input_tokens": 5
+    },
+    {
+      "model": "unknown-model",
+      "provider": "lmstudio",
+      "input_tokens": 5
+    },
+    {
+      "model": "unknown-model",
+      "provider": "ollama ",
+      "input_tokens": 5
+    }
+  ],
+  "models": [
+    null,
+    "",
+    "unknown-model",
+    "claude-fable-5-1",
+    "claude-fable-5.1",
+    "openrouter/provider/CLAUDE_FABLE_5_1 (Preview)-high",
+    "claude-opus-5-5",
+    "claude-opus-5.5",
+    "openrouter/provider/CLAUDE_OPUS_5_5 (Preview)-high",
+    "claude-sonnet-5-5",
+    "claude-sonnet-5.5",
+    "openrouter/provider/CLAUDE_SONNET_5_5 (Preview)-high",
+    "claude-haiku-5-5",
+    "claude-haiku-5.5",
+    "openrouter/provider/CLAUDE_HAIKU_5_5 (Preview)-high",
+    "claude-mythos-5-1",
+    "claude-mythos-5.1",
+    "openrouter/provider/CLAUDE_MYTHOS_5_1 (Preview)-high",
+    "gpt-6.1-sol",
+    "gpt-6-1-sol",
+    "openrouter/provider/GPT_6.1_SOL (Preview)-high",
+    "gpt-6-sol",
+    "openrouter/provider/GPT_6_SOL (Preview)-high",
+    "gpt-6-astra",
+    "openrouter/provider/GPT_6_ASTRA (Preview)-high",
+    "gpt-6-luna",
+    "openrouter/provider/GPT_6_LUNA (Preview)-high",
+    "gpt-5.3-codex",
+    "openrouter/provider/GPT_5.3_CODEX (Preview)-high",
+    "deepseek-flash",
+    "deepseek-v4-flash",
+    "openrouter/provider/DEEPSEEK_FLASH (Preview)-high",
+    "kimi-k3.1-pro",
+    "k3.1-pro",
+    "kimi-code/k3.1-pro",
+    "openrouter/provider/KIMI_K3.1_PRO (Preview)-high",
+    "kimi-k3.1-pro-highspeed",
+    "k3.1-pro-highspeed",
+    "kimi-code/k3.1-pro-highspeed",
+    "openrouter/provider/KIMI_K3.1_PRO_HIGHSPEED (Preview)-high",
+    "kimi-k3",
+    "k3",
+    "kimi-code/k3",
+    "openrouter/provider/KIMI_K3 (Preview)-high",
+    "grok-4.7",
+    "openrouter/provider/GROK_4.7 (Preview)-high",
+    "gemini-3.8-flash",
+    "openrouter/provider/GEMINI_3.8_FLASH (Preview)-high",
+    "gemini-4-argon",
+    "openrouter/provider/GEMINI_4_ARGON (Preview)-high",
+    "gemini-3.1-pro-preview",
+    "openrouter/provider/GEMINI_3.1_PRO_PREVIEW (Preview)-high",
+    "gemini-3.8-flash-n",
+    "openrouter/provider/GEMINI_3.8_FLASH_N (Preview)-high",
+    "claude-opus-4-6",
+    "claude-opus-4-6-thinking",
+    "openrouter/provider/CLAUDE_OPUS_4_6 (Preview)-high",
+    "qwen3-coder-flash",
+    "openrouter/provider/QWEN3_CODER_FLASH (Preview)-high",
+    "glm-5.3",
+    "openrouter/provider/GLM_5.3 (Preview)-high",
+    "glm-5.3-flash",
+    "openrouter/provider/GLM_5.3_FLASH (Preview)-high",
+    "glm-5.3-flashx",
+    "openrouter/provider/GLM_5.3_FLASHX (Preview)-high",
+    "MiniMax-M2.7",
+    "openrouter/provider/MINIMAX_M2.7 (Preview)-high",
+    "MiniMax-M2.7-highspeed",
+    "openrouter/provider/MINIMAX_M2.7_HIGHSPEED (Preview)-high",
+    "MiniMax-M3",
+    "openrouter/provider/MINIMAX_M3 (Preview)-high",
+    "MiniMax-M3.1-Flash",
+    "openrouter/provider/MINIMAX_M3.1_FLASH (Preview)-high",
+    "mimo-v2.6-pro",
+    "openrouter/provider/MIMO_V2.6_PRO (Preview)-high",
+    "mimo-v2.6-flash",
+    "openrouter/provider/MIMO_V2.6_FLASH (Preview)-high",
+    "mimo-v2.6-pro-ultraspeed",
+    "openrouter/provider/MIMO_V2.6_PRO_ULTRASPEED (Preview)-high"
+  ],
+  "format": [
+    [
+      null,
+      6
+    ],
+    [
+      0,
+      6
+    ],
+    [
+      1234567,
+      6
+    ],
+    [
+      -1234567,
+      2
+    ],
+    [
+      9999,
+      0
+    ],
+    [
+      1234567,
+      9
+    ]
+  ],
+  "allocate": [
+    [
+      [
+        11,
+        11,
+        11
+      ],
+      33,
+      4
+    ],
+    [
+      [
+        9999,
+        9999,
+        9999
+      ],
+      29997,
+      2
+    ],
+    [
+      [
+        1,
+        2,
+        3,
+        4
+      ],
+      10,
+      6
+    ],
+    [
+      [],
+      0,
+      2
+    ],
+    [
+      [
+        2,
+        7,
+        8
+      ],
+      17,
+      5
+    ]
+  ]
+}

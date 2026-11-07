@@ -1,0 +1,4 @@
+{"cwd":"/synthetic/project","sessionId":"original","timestamp":"2026-01-08T23:30:00Z","message":{"id":"owner","model":"claude-opus-5-5","usage":{"input_tokens":100,"output_tokens":30,"cache_read_input_tokens":20,"cache_creation_input_tokens":10,"cache_creation":{"ephemeral_5m_input_tokens":4,"ephemeral_1h_input_tokens":6}}}}
+{"sessionId":"original","uuid":"uuid-stable","timestamp":"2026-01-15T01:00:00Z","model":"unknown-model","usage":{"input_tokens":9}}
+{"sessionId":"original","timestamp":"invalid","message":{"id":"badtime","usage":{"input_tokens":5}}}
+bad-json
