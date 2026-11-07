@@ -1,0 +1,3 @@
+# Parity fixtures and golden outputs are compared byte for byte; keep LF on every platform.
+test/fixtures/parity/** -text
+app/rust/tests/golden/** -text
