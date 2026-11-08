@@ -1,0 +1,1 @@
+[{"apiConfiguration":{"model":"initial"}},{"say":"api_req_started","ts":1768478390000,"text":"{\"request\":{\"model\":\"deepseek-flash\"}}"},{"say":"api_req_started","ts":1768478390000,"text":"bad"}]

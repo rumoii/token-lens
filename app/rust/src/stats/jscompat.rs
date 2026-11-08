@@ -281,3 +281,331 @@ mod tests {
         }
     }
 }
+
+/// JSON.parse values retain UTF-16 strings (including lone surrogates) and key order.
+#[derive(Clone, Debug)]
+pub enum JsJson {
+    Null,
+    Bool(bool),
+    Number(f64),
+    String(Vec<u16>),
+    Array(Vec<JsJson>),
+    Object(Vec<(Vec<u16>, JsJson)>),
+}
+
+impl JsJson {
+    pub fn get(&self, key: &str) -> &Self {
+        match self {
+            Self::Object(o) => o
+                .iter()
+                .find(|(k, _)| k.iter().copied().eq(key.encode_utf16()))
+                .map_or(&Self::Null, |(_, v)| v),
+            _ => &Self::Null,
+        }
+    }
+    pub fn to_value(&self) -> Value {
+        match self {
+            Self::Null => Value::Null,
+            Self::Bool(b) => Value::Bool(*b),
+            Self::Number(n) => serde_json::json!(n),
+            Self::String(s) => Value::String(String::from_utf16_lossy(s)),
+            Self::Array(a) => Value::Array(a.iter().map(Self::to_value).collect()),
+            Self::Object(o) => Value::Object(
+                o.iter()
+                    .map(|(k, v)| (String::from_utf16_lossy(k), v.to_value()))
+                    .collect(),
+            ),
+        }
+    }
+
+    pub fn parse(text: &str) -> Result<Self, String> {
+        struct Parser<'a> {
+            text: &'a str,
+            pos: usize,
+        }
+        impl Parser<'_> {
+            fn ws(&mut self) {
+                while self
+                    .text
+                    .as_bytes()
+                    .get(self.pos)
+                    .is_some_and(|b| matches!(b, b' ' | b'\r' | b'\n' | b'\t'))
+                {
+                    self.pos += 1;
+                }
+            }
+            fn take(&mut self, b: u8) -> bool {
+                self.ws();
+                if self.text.as_bytes().get(self.pos) == Some(&b) {
+                    self.pos += 1;
+                    true
+                } else {
+                    false
+                }
+            }
+            fn string(&mut self) -> Result<Vec<u16>, String> {
+                if !self.take(b'"') {
+                    return Err("expected string".into());
+                }
+                let mut out = Vec::new();
+                while let Some(&b) = self.text.as_bytes().get(self.pos) {
+                    self.pos += 1;
+                    match b {
+                        b'"' => return Ok(out),
+                        b'\\' => {
+                            let escape =
+                                *self.text.as_bytes().get(self.pos).ok_or("short escape")?;
+                            self.pos += 1;
+                            out.push(match escape {
+                                b'"' => 34,
+                                b'\\' => 92,
+                                b'/' => 47,
+                                b'b' => 8,
+                                b'f' => 12,
+                                b'n' => 10,
+                                b'r' => 13,
+                                b't' => 9,
+                                b'u' => {
+                                    let hex = self
+                                        .text
+                                        .get(self.pos..self.pos + 4)
+                                        .ok_or("short unicode")?;
+                                    if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                                        return Err("invalid unicode".into());
+                                    }
+                                    self.pos += 4;
+                                    u16::from_str_radix(hex, 16).map_err(|e| e.to_string())?
+                                }
+                                _ => return Err("invalid escape".into()),
+                            });
+                        }
+                        0..=31 => return Err("control character".into()),
+                        _ => {
+                            self.pos -= 1;
+                            let c = self.text[self.pos..].chars().next().unwrap();
+                            self.pos += c.len_utf8();
+                            out.extend(c.encode_utf16(&mut [0; 2]).iter().copied());
+                        }
+                    }
+                }
+                Err("unterminated string".into())
+            }
+            fn value(&mut self) -> Result<JsJson, String> {
+                self.ws();
+                match self.text.as_bytes().get(self.pos) {
+                    Some(b'"') => Ok(JsJson::String(self.string()?)),
+                    Some(b'{') => {
+                        self.pos += 1;
+                        let mut entries: Vec<(Vec<u16>, JsJson)> = Vec::new();
+                        if !self.take(b'}') {
+                            loop {
+                                let key = self.string()?;
+                                if !self.take(b':') {
+                                    return Err("expected colon".into());
+                                }
+                                let value = self.value()?;
+                                if let Some((_, old)) = entries.iter_mut().find(|(k, _)| *k == key)
+                                {
+                                    *old = value;
+                                } else {
+                                    entries.push((key, value));
+                                }
+                                if self.take(b'}') {
+                                    break;
+                                }
+                                if !self.take(b',') {
+                                    return Err("expected comma".into());
+                                }
+                            }
+                        }
+                        fn index(key: &[u16]) -> Option<u32> {
+                            let s = String::from_utf16(key).ok()?;
+                            let n = s.parse::<u32>().ok()?;
+                            (n < u32::MAX && n.to_string() == s).then_some(n)
+                        }
+                        entries.sort_by(|(a, _), (b, _)| match (index(a), index(b)) {
+                            (Some(a), Some(b)) => a.cmp(&b),
+                            (Some(_), None) => Ordering::Less,
+                            (None, Some(_)) => Ordering::Greater,
+                            _ => Ordering::Equal,
+                        });
+                        Ok(JsJson::Object(entries))
+                    }
+                    Some(b'[') => {
+                        self.pos += 1;
+                        let mut entries = Vec::new();
+                        if !self.take(b']') {
+                            loop {
+                                entries.push(self.value()?);
+                                if self.take(b']') {
+                                    break;
+                                }
+                                if !self.take(b',') {
+                                    return Err("expected comma".into());
+                                }
+                            }
+                        }
+                        Ok(JsJson::Array(entries))
+                    }
+                    _ => {
+                        let start = self.pos;
+                        while self.text.as_bytes().get(self.pos).is_some_and(|b| {
+                            !matches!(b, b' ' | b'\r' | b'\n' | b'\t' | b',' | b']' | b'}')
+                        }) {
+                            self.pos += 1;
+                        }
+                        let word = &self.text[start..self.pos];
+                        match word {
+                            "null" => Ok(JsJson::Null),
+                            "true" => Ok(JsJson::Bool(true)),
+                            "false" => Ok(JsJson::Bool(false)),
+                            _ => {
+                                // Validate JSON number grammar separately: JSON.parse permits overflow to Infinity.
+                                let bytes = word.as_bytes();
+                                let mut i = usize::from(bytes.first() == Some(&b'-'));
+                                match bytes.get(i) {
+                                    Some(b'0') => i += 1,
+                                    Some(b'1'..=b'9') => {
+                                        i += 1;
+                                        while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+                                            i += 1;
+                                        }
+                                    }
+                                    _ => return Err("invalid number".into()),
+                                }
+                                if bytes.get(i) == Some(&b'.') {
+                                    i += 1;
+                                    let first = i;
+                                    while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+                                        i += 1;
+                                    }
+                                    if first == i {
+                                        return Err("invalid fraction".into());
+                                    }
+                                }
+                                if matches!(bytes.get(i), Some(b'e' | b'E')) {
+                                    i += 1;
+                                    if matches!(bytes.get(i), Some(b'+' | b'-')) {
+                                        i += 1;
+                                    }
+                                    let first = i;
+                                    while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+                                        i += 1;
+                                    }
+                                    if first == i {
+                                        return Err("invalid exponent".into());
+                                    }
+                                }
+                                if i != bytes.len() {
+                                    return Err("invalid number suffix".into());
+                                }
+                                Ok(JsJson::Number(
+                                    word.parse::<f64>().map_err(|e| e.to_string())?,
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut parser = Parser { text, pos: 0 };
+        let value = parser.value()?;
+        parser.ws();
+        if parser.pos != text.len() {
+            return Err("trailing JSON".into());
+        }
+        Ok(value)
+    }
+    pub fn stringify(&self) -> String {
+        fn quoted(units: &[u16]) -> String {
+            let mut out = String::from("\"");
+            for c in char::decode_utf16(units.iter().copied()) {
+                match c {
+                    Err(e) => out.push_str(&format!("\\u{:04x}", e.unpaired_surrogate())),
+                    Ok(c) => match c {
+                        '"' => out.push_str("\\\""),
+                        '\\' => out.push_str("\\\\"),
+                        '\n' => out.push_str("\\n"),
+                        '\r' => out.push_str("\\r"),
+                        '\t' => out.push_str("\\t"),
+                        '\u{8}' => out.push_str("\\b"),
+                        '\u{c}' => out.push_str("\\f"),
+                        '\0'..='\u{1f}' => out.push_str(&format!("\\u{:04x}", c as u32)),
+                        _ => out.push(c),
+                    },
+                }
+            }
+            out.push('"');
+            out
+        }
+        match self {
+            Self::Null => "null".into(),
+            Self::Bool(b) => b.to_string(),
+            Self::Number(n) => {
+                if n.is_finite() {
+                    number_string(*n)
+                } else {
+                    "null".into()
+                }
+            }
+            Self::String(s) => quoted(s),
+            Self::Array(a) => format!(
+                "[{}]",
+                a.iter().map(Self::stringify).collect::<Vec<_>>().join(",")
+            ),
+            Self::Object(o) => format!(
+                "{{{}}}",
+                o.iter()
+                    .map(|(k, v)| format!("{}:{}", quoted(k), v.stringify()))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        }
+    }
+}
+
+pub fn encode_uri_component(units: &[u16]) -> Result<String, String> {
+    let text = String::from_utf16(units).map_err(|_| "URIError: URI malformed".to_owned())?;
+    let mut out = String::new();
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod b2_tests {
+    use super::*;
+    #[test]
+    fn node_jscompat_b2() {
+        for line in include_str!("../../tests/golden/jscompat-b2.jsonl").lines() {
+            let row: Value = serde_json::from_str(line).unwrap();
+            if row["fn"] == "json" {
+                assert_eq!(
+                    JsJson::parse(row["input"].as_str().unwrap())
+                        .unwrap()
+                        .stringify(),
+                    row["expected"].as_str().unwrap(),
+                    "{line}"
+                );
+            } else {
+                let units: Vec<u16> = row["units"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_u64().unwrap() as u16)
+                    .collect();
+                let actual = encode_uri_component(&units);
+                if row["error"] == true {
+                    assert!(actual.is_err(), "{line}");
+                } else {
+                    assert_eq!(actual.unwrap(), row["expected"].as_str().unwrap(), "{line}");
+                }
+            }
+        }
+    }
+}

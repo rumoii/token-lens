@@ -1,0 +1,1 @@
+{"id":"normal","agent":{"kind":"Agent"},"stats":{"usage_to_metrics":{"\ud800":{"token_usages":[{"response_id":"r","prompt_tokens":4,"completion_tokens":1,"cache_read_tokens":1,"cache_write_tokens":1}]}}}}

@@ -225,6 +225,7 @@ mod tests {
             ingest::sync(
                 &data,
                 &home,
+                &super::super::discovery::Environment::default(),
                 Clock::Fixed(1768478400000),
                 &LocalZone::Fixed(480),
                 &AtomicBool::new(false),

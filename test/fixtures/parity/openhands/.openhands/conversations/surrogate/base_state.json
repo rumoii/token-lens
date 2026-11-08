@@ -1,0 +1,1 @@
+{"id":"\ud800","agent":{"kind":"Agent"},"stats":{"usage_to_metrics":{"a":{"token_usages":[{"model":"deepseek-flash","response_id":"r|#\ud83d\ude00","prompt_tokens":100,"completion_tokens":20,"cache_read_tokens":30,"cache_write_tokens":10}]}}}}

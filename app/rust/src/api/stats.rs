@@ -281,6 +281,7 @@ impl StatsClient {
         let result = ingest::sync(
             &self.state.data,
             &self.state.home,
+            &ingest::Environment::process(),
             Clock::System,
             &LocalZone::System,
             &self.state.closed,

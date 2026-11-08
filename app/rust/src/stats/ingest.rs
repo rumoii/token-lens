@@ -1,3 +1,4 @@
+pub use super::discovery::Environment;
 use super::{
     adapters,
     clock::Clock,
@@ -120,6 +121,7 @@ fn settle(parsed: &mut [Parsed], totals: &mut Value) -> HashMap<String, Vec<Stri
 pub fn sync(
     data: &Path,
     home: &Path,
+    environment: &discovery::Environment,
     clock: Clock,
     zone: &LocalZone,
     cancel: &AtomicBool,
@@ -131,7 +133,7 @@ pub fn sync(
     let result = (|| {
         let mut totals = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"repriced":0,"counts":{"read_failed":0,"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0,"cross_file_copies":0},"anomalies":[]});
         let mut file_count = 0;
-        for (source, files) in discovery::discover(home)? {
+        for (source, files) in discovery::discover_with_env(home, environment)? {
             file_count += files.len();
             let mut parsed = Vec::new();
             for path in files {
@@ -173,7 +175,7 @@ pub fn sync(
                 let stats = ledger.batch_cancellable(
                     &file.records,
                     Some(&file.file),
-                    Some(if source == "claude" { 3 } else { 4 }),
+                    Some(adapters::parser_rev(&source)),
                     elsewhere.get(&file.file).map(Vec::as_slice).unwrap_or(&[]),
                     pricing::cost_of,
                     || cancel.load(Ordering::Acquire),
@@ -243,6 +245,7 @@ mod tests {
                 let mut result = sync(
                     &directory.path().join("data"),
                     &home,
+                    &discovery::Environment::default(),
                     Clock::Fixed(1768478400000),
                     &LocalZone::Fixed(480),
                     &cancel,
@@ -294,6 +297,7 @@ mod tests {
         let result = sync(
             &data,
             &home,
+            &discovery::Environment::default(),
             Clock::Fixed(1768478400000),
             &LocalZone::Fixed(480),
             &cancel,
@@ -306,6 +310,7 @@ mod tests {
             sync(
                 &data,
                 &home,
+                &discovery::Environment::default(),
                 Clock::Fixed(1768478400000),
                 &LocalZone::Fixed(480),
                 &cancel

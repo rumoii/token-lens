@@ -1,0 +1,2 @@
+{"type":"session","version":3,"id":"command-ledger"}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":"ledger","message":{"role":"assistant"},"usage":{"inputTokens":100,"outputTokens":20}}

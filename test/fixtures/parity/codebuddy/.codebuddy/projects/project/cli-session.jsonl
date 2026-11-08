@@ -1,0 +1,8 @@
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","cwd":"D:/work/app","message":{"usage":{"input_tokens":2800,"output_tokens":360,"cache_read_input_tokens":0,"cached_tokens":1400,"cache_write_input_tokens":180}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","cwd":"D:/work/app","message":{"usage":{"input_tokens":2800,"output_tokens":360,"cache_read_input_tokens":0,"cached_tokens":1400,"cache_write_input_tokens":180}},"usage":{"input_tokens":9}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","cwd":"D:/work/app","message":{"usage":{"input_tokens":1,"cache_read_input_tokens":2}}}
+{"timestamp":null,"model":"deepseek-flash","cwd":"D:/work/app","message":{"usage":{"input_tokens":2800,"output_tokens":360,"cache_read_input_tokens":0,"cached_tokens":1400,"cache_write_input_tokens":180}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","cwd":"D:/work/app","message":{"usage":{"input_tokens":"bad","output_tokens":1}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","cwd":"D:/work/app","message":{"usage":{"input_tokens":0}}}
+bad
+null

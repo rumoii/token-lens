@@ -1,0 +1,7 @@
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","params":{"sessionId":"grok-s","update":{"sessionUpdate":"turn_completed","turnId":"normal","usage":{"inputTokens":12000,"outputTokens":3500,"cachedReadTokens":4000,"cachedWriteTokens":3}}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","params":{"sessionId":"grok-s","update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":12000,"outputTokens":3500,"cachedReadTokens":4000,"cachedWriteTokens":3}}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","params":{"sessionId":"grok-s","update":{"sessionUpdate":"turn_completed","turnId":"normal","usage":{"inputTokens":"bad","outputTokens":1}}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","params":{"sessionId":"grok-s","update":{"sessionUpdate":"turn_completed","turnId":"normal","usage":{"inputTokens":0}}}}
+{"timestamp":null,"model":"deepseek-flash","params":{"sessionId":"grok-s","update":{"sessionUpdate":"turn_completed","turnId":"normal","usage":{"inputTokens":12000,"outputTokens":3500,"cachedReadTokens":4000,"cachedWriteTokens":3}}}}
+bad
+null

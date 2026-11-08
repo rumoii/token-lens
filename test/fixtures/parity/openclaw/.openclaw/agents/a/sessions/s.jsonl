@@ -1,0 +1,8 @@
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"normal","session_id":"claw-s","message":{"role":"assistant","content":{"z":1,"2":2,"a":"\u4e2d\u6587\ud83d\ude00"},"provider":"ollama","usage":{"input":1200,"output":50,"cacheRead":1000,"cacheWrite":10}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":null,"session_id":"claw-s","message":{"role":"assistant","content":{"z":1,"2":2,"a":"\u4e2d\u6587\ud83d\ude00"},"provider":"ollama","usage":{"input":1200,"output":50,"cacheRead":1000,"cacheWrite":10}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"normal","session_id":"other","message":{"role":"assistant","content":{"z":1,"2":2,"a":"\u4e2d\u6587\ud83d\ude00"},"provider":"ollama","usage":{"input":1200,"output":50,"cacheRead":1000,"cacheWrite":10}}}
+{"timestamp":null,"model":"deepseek-flash","id":"normal","session_id":"claw-s","message":{"role":"assistant","content":{"z":1,"2":2,"a":"\u4e2d\u6587\ud83d\ude00"},"provider":"ollama","usage":{"input":1200,"output":50,"cacheRead":1000,"cacheWrite":10}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"normal","session_id":"claw-s","message":{"role":"assistant","content":{"z":1,"2":2,"a":"\u4e2d\u6587\ud83d\ude00"},"provider":"ollama","usage":{"input":"bad","output":1}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"normal","session_id":"claw-s","message":{"usage":{"input":0}}}
+bad
+null

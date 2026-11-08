@@ -1,0 +1,12 @@
+{"type":"session","id":"pi-s","cwd":"D:/work/project"}
+{"type":"model_change","provider":"ollama","modelId":"qwen-local"}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":"normal","message":{"role":"assistant","usage":{"input":5000,"output":250,"cacheRead":1500,"cacheWrite":0}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":null,"message":{"role":"assistant","usage":{"input":5000,"output":250,"cacheRead":1500,"cacheWrite":0}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":"inherit","message":{"role":"assistant","usage":{"input":5000,"output":250,"cacheRead":1500,"cacheWrite":0}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":"model","message":{"role":"assistant","usage":{"input":5000,"output":250,"cacheRead":1500,"cacheWrite":0},"model":"other"}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":"explicit","message":{"role":"assistant","usage":{"input":5000,"output":250,"cacheRead":1500,"cacheWrite":0},"provider":"local","model":"other"}}
+{"timestamp":null,"model":"deepseek-flash","type":"message","id":"normal","message":{"role":"assistant","usage":{"input":5000,"output":250,"cacheRead":1500,"cacheWrite":0}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":"normal","message":{"role":"assistant","usage":{"input":0}}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","type":"message","id":"normal","message":{"role":"assistant","usage":{"input":"bad","output":1}}}
+broken
+null

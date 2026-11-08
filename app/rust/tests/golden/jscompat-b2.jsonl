@@ -1,0 +1,16 @@
+{"type":"query","fn":"json","input":"{\"z\":1,\"a\":2,\"z\":3}","expected":"{\"z\":3,\"a\":2}"}
+{"type":"query","fn":"json","input":"{\"z\":0,\"10\":10,\"2\":2,\"01\":1,\"4294967294\":4,\"4294967295\":5,\"-1\":6,\"a\":7,\"0\":8}","expected":"{\"0\":8,\"2\":2,\"10\":10,\"4294967294\":4,\"z\":0,\"01\":1,\"4294967295\":5,\"-1\":6,\"a\":7}"}
+{"type":"query","fn":"json","input":"{\"nested\":{\"b\":1,\"1\":2,\"a\":3},\"array\":[{\"z\":0,\"z\":2},null,true,false]}","expected":"{\"nested\":{\"1\":2,\"b\":1,\"a\":3},\"array\":[{\"z\":2},null,true,false]}"}
+{"type":"query","fn":"json","input":"\"中文😀é\\n\\t\\r\\b\\f\\\\\\\"\"","expected":"\"中文😀é\\n\\t\\r\\b\\f\\\\\\\"\""}
+{"type":"query","fn":"json","input":"\"\\ud800\"","expected":"\"\\ud800\""}
+{"type":"query","fn":"json","input":"\"\\udfff\"","expected":"\"\\udfff\""}
+{"type":"query","fn":"json","input":"\"\\ud83d\\ude00\"","expected":"\"😀\""}
+{"type":"query","fn":"json","input":"{\"\\ud800\":1,\"a\":\"\\udfff\"}","expected":"{\"\\ud800\":1,\"a\":\"\\udfff\"}"}
+{"type":"query","fn":"json","input":"[0,-0,1.5,1e21,1e-7,1000000000000000100,9007199254740993,1e400]","expected":"[0,0,1.5,1e+21,1e-7,1000000000000000100,9007199254740992,null]"}
+{"type":"query","fn":"uri","units":[65,90,97,122,48,57,45,95,46,33,126,42,39,40,41],"expected":"AZaz09-_.!~*'()"}
+{"type":"query","fn":"uri","units":[20013,25991,55357,56832,32,47,124,35,63,38,61,43],"expected":"%E4%B8%AD%E6%96%87%F0%9F%98%80%20%2F%7C%23%3F%26%3D%2B"}
+{"type":"query","fn":"uri","units":[0,10,9,34,92],"expected":"%00%0A%09%22%5C"}
+{"type":"query","fn":"uri","units":[],"expected":""}
+{"type":"query","fn":"uri","units":[55296],"error":true}
+{"type":"query","fn":"uri","units":[57343],"error":true}
+{"type":"query","fn":"uri","units":[97,55296,122],"error":true}

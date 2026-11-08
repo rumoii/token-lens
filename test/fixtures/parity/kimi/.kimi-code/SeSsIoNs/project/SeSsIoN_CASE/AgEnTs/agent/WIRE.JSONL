@@ -1,0 +1,4 @@
+{"type":"usage.record","time":"2026-01-15T12:00:00Z","model":"kimi-k2","usage":{"inputOther":10,"output":2,"inputCacheRead":3,"inputCacheCreation":1}}
+{"type":"subagent.completed","usage":{"input":999}}
+bad
+{"type":"usage.record","usage":{"inputOther":1},"time":"2026-01-15T12:00:00Z"}
