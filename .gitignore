@@ -21,6 +21,8 @@ skills-lock.json
 .codex/
 .kimi/
 .qwen/
+!test/fixtures/parity/**/.kimi/
+!test/fixtures/parity/**/.qwen/
 .agents/
 .worktrees/
 .idea/

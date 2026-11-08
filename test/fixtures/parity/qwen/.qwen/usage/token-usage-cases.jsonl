@@ -1,0 +1,14 @@
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"openai","sessionId":"qwen-s","authType":"openai","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"openai-responses","sessionId":"qwen-s","authType":"openai-responses","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"qwen-oauth","sessionId":"qwen-s","authType":"qwen-oauth","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"anthropic","sessionId":"qwen-s","authType":"anthropic","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"gemini","sessionId":"qwen-s","authType":"gemini","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"vertex-ai","sessionId":"qwen-s","authType":"vertex-ai","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"None","sessionId":"qwen-s","authType":null,"inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":null,"sessionId":"qwen-s","authType":"gemini","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"negative","sessionId":"qwen-s","authType":"gemini","inputTokens":1,"cachedTokens":2,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"invalid","sessionId":"qwen-s","authType":"gemini","inputTokens":"bad","cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","id":"zero","sessionId":"qwen-s","authType":"gemini","inputTokens":0,"cachedTokens":0,"outputTokens":0,"thoughtsTokens":0}
+{"timestamp":null,"model":"deepseek-flash","id":"no-time","sessionId":"qwen-s","authType":"gemini","inputTokens":1000,"cachedTokens":100,"outputTokens":300,"thoughtsTokens":120}
+broken
+null

@@ -1,0 +1,1 @@
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","session_id":"kimi-ledger","messages":[{"id":"ledger","role":"assistant","usage":{"input":100,"output":20}}]}

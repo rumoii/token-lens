@@ -1,0 +1,6 @@
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","session_id":"kimi-s","id":"normal","role":"assistant","usage":{"prompt_tokens":3200,"completion_tokens":450,"cached_tokens":1800,"cache_write_tokens":250}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","session_id":"kimi-s","id":null,"role":"assistant","usage":{"prompt_tokens":3200,"completion_tokens":450,"cached_tokens":1800,"cache_write_tokens":250}}
+{"timestamp":null,"model":"deepseek-flash","session_id":"kimi-s","id":"normal","role":"assistant","usage":{"prompt_tokens":3200,"completion_tokens":450,"cached_tokens":1800,"cache_write_tokens":250}}
+{"timestamp":"2026-01-15T12:00:00Z","model":"deepseek-flash","session_id":"kimi-s","id":"normal","role":"assistant","usage":{"input":0}}
+bad
+null
