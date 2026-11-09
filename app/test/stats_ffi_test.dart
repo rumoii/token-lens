@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/src/rust/frb_generated.dart';
-import 'package:token_lens_app/src/rust/api/stats.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
 void main() {
@@ -22,24 +21,59 @@ void main() {
       final gateway = RustStatsGateway(client);
       addTearDown(() async {
         await gateway.shutdown();
-      final temp = await Directory.systemTemp.resolveSymbolicLinks();
-      final target = await root.resolveSymbolicLinks();
-      if (!target.startsWith('$temp${Platform.pathSeparator}')) {
-        throw StateError('Synthetic test directory escaped TEMP');
-      }
+        final temp = await Directory.systemTemp.resolveSymbolicLinks();
+        final target = await root.resolveSymbolicLinks();
+        if (!target.startsWith('$temp${Platform.pathSeparator}')) {
+          throw StateError('Synthetic test directory escaped TEMP');
+        }
         await root.delete(recursive: true);
       });
       final first = await client.sync_();
       expect(first.inserted, 1);
-      final view = await gateway.load();
+      final view = await gateway.summary(const StatsFilter());
       expect(view.totals.grossTokens, 160);
       expect(view.totals.costMicros, 1054);
       expect(view.totals.costUsd, '0.001054');
-      expect(view.sources.single.key, 'claude');
-    expect(view.models.single.costByKind!.inputMicros, 400);
-      expect(view.lastRun!.status, 'ok');
+      expect(
+        (await gateway.breakdown(
+          'source',
+          const StatsFilter(),
+        )).groups.single.key,
+        'claude',
+      );
+      expect(
+        (await gateway.breakdown(
+          'model',
+          const StatsFilter(),
+        )).groups.single.costByKind!.inputMicros,
+        400,
+      );
+      expect((await gateway.sources()).lastRun!.status, 'ok');
+      expect(
+        (await gateway.timeseries(
+          'day',
+          const StatsFilter(),
+        )).points.single.grossTokens,
+        160,
+      );
+      expect(
+        (await gateway.matrix(
+          'day',
+          'source',
+          const StatsFilter(),
+        )).rows.single.key,
+        'claude',
+      );
+      expect(
+        (await gateway.sessions(const StatsFilter())).items.single.sessionId,
+        'synthetic',
+      );
+      expect((await gateway.pricing()).models.single.model, 'claude-opus-5-5');
       expect((await client.sync_()).unchanged, 1);
-      expect((await gateway.load()).totals.costMicros, 1054);
+      expect(
+        (await gateway.summary(const StatsFilter())).totals.costMicros,
+        1054,
+      );
     },
   );
 }

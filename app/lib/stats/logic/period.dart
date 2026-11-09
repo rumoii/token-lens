@@ -1,0 +1,183 @@
+typedef DayRange = ({String? from, String? to});
+typedef PeriodAxis = ({String granularity, String? from, String? to});
+typedef PeriodComparison = ({String from, String to, String label});
+
+class StatsPeriod {
+  const StatsPeriod([this.period = 'week', this.from, this.to]);
+  final String period;
+  final String? from;
+  final String? to;
+  static const values = ['today', 'week', 'month', 'all', 'custom'];
+  static StatsPeriod parse(String text) {
+    final params = Uri.splitQueryString(
+      text.startsWith('?') ? text.substring(1) : text,
+    );
+    String? day(String key) =>
+        RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(params[key] ?? '')
+        ? params[key]
+        : null;
+    return StatsPeriod(
+      values.contains(params['period']) ? params['period']! : 'week',
+      day('from'),
+      day('to'),
+    );
+  }
+
+  String get query => Uri(
+    queryParameters: {
+      'period': period,
+      if (period == 'custom' && from != null) 'from': from!,
+      if (period == 'custom' && to != null) 'to': to!,
+    },
+  ).query;
+  String get label =>
+      const {
+        'today': '今天',
+        'week': '这周',
+        'month': '这个月',
+        'all': '全部',
+        'custom': '自定义',
+      }[period] ??
+      '这周';
+  DayRange range(DateTime today) => switch (period) {
+    'today' => (from: dayKey(today), to: dayKey(today)),
+    'week' => (
+      from: dayKey(
+        DateTime(today.year, today.month, today.day - today.weekday + 1),
+      ),
+      to: dayKey(today),
+    ),
+    'month' => (
+      from: dayKey(DateTime(today.year, today.month, 1)),
+      to: dayKey(today),
+    ),
+    'custom' when from != null && to != null => (from: from, to: to),
+    _ => (from: null, to: null),
+  };
+  PeriodComparison? compare(DateTime today) {
+    if (period == 'today') {
+      final yesterday = dayKey(
+        DateTime(today.year, today.month, today.day - 1),
+      );
+      return (from: yesterday, to: yesterday, label: '昨天');
+    }
+    if (period == 'week') {
+      return (
+        from: dayKey(
+          DateTime(today.year, today.month, today.day - today.weekday - 6),
+        ),
+        to: dayKey(DateTime(today.year, today.month, today.day - 7)),
+        label: '上周',
+      );
+    }
+    if (period == 'month') {
+      final last = DateTime(today.year, today.month, 0).day;
+      return (
+        from: dayKey(DateTime(today.year, today.month - 1, 1)),
+        to: dayKey(
+          DateTime(
+            today.year,
+            today.month - 1,
+            today.day > last ? last : today.day,
+          ),
+        ),
+        label: '上个月',
+      );
+    }
+    return null;
+  }
+
+  String get granularity {
+    if (period == 'today') return 'hour';
+    if (period == 'week' || period == 'month') return 'day';
+    if (period == 'custom' && from != null && to != null) {
+      final days = _days(DateTime.parse(from!), DateTime.parse(to!));
+      return days <= 1
+          ? 'hour'
+          : days <= 62
+          ? 'day'
+          : 'month';
+    }
+    return 'month';
+  }
+
+  int elapsedDays(DateTime today, [String? firstSeen]) {
+    if (period == 'today') return 1;
+    if (period == 'week') return today.weekday;
+    if (period == 'month') return today.day;
+    final first = DateTime.tryParse(
+      period == 'custom' && from != null ? from! : firstSeen ?? '',
+    )?.toLocal();
+    final last = period == 'custom' && to != null
+        ? DateTime.tryParse(to!)
+        : today;
+    final days = first == null || last == null ? 1 : _days(first, last);
+    return days < 1 ? 1 : days;
+  }
+
+  PeriodAxis axis(DateTime today, [String? firstSeen]) {
+    if (period == 'week') {
+      return (
+        granularity: 'day',
+        from: range(today).from,
+        to: dayKey(
+          DateTime(today.year, today.month, today.day - today.weekday + 7),
+        ),
+      );
+    }
+    if (period == 'month') {
+      return (
+        granularity: 'day',
+        from: range(today).from,
+        to: dayKey(DateTime(today.year, today.month + 1, 0)),
+      );
+    }
+    if (period == 'all') {
+      final first = DateTime.tryParse(firstSeen ?? '')?.toLocal();
+      return first == null
+          ? (granularity: 'month', from: null, to: null)
+          : (
+              granularity: _days(first, today) <= 62 ? 'day' : 'month',
+              from: dayKey(first),
+              to: dayKey(today),
+            );
+    }
+    final r = range(today);
+    return (granularity: granularity, from: r.from, to: r.to);
+  }
+}
+
+int _days(DateTime a, DateTime b) =>
+    ((DateTime(
+              b.year,
+              b.month,
+              b.day,
+            ).difference(DateTime(a.year, a.month, a.day)).inMilliseconds /
+            86400000)
+        .round() +
+    1);
+String dayKey(DateTime date) =>
+    '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+List<String> bucketKeys(String granularity, DayRange range, DateTime today) {
+  if (granularity == 'hour') {
+    return [
+      for (var i = 0; i < 24; i++)
+        '${range.from ?? dayKey(today)}T${i.toString().padLeft(2, '0')}:00:00',
+    ];
+  }
+  if (range.from == null || range.to == null) return [];
+  var cursor = DateTime.parse(range.from!);
+  final end = DateTime.parse(range.to!);
+  if (granularity == 'month') cursor = DateTime(cursor.year, cursor.month, 1);
+  final out = <String>[];
+  while (!cursor.isAfter(end)) {
+    if (granularity != 'day' && granularity != 'month') break;
+    out.add(
+      granularity == 'day' ? dayKey(cursor) : dayKey(cursor).substring(0, 7),
+    );
+    cursor = granularity == 'day'
+        ? DateTime(cursor.year, cursor.month, cursor.day + 1)
+        : DateTime(cursor.year, cursor.month + 1, 1);
+  }
+  return out;
+}

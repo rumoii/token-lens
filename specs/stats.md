@@ -98,7 +98,7 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 | `health` | `/health` | 设置 |
 | `sync` | `POST /sync` | 引导、来源、定时采集 |
 
-- 金额在 FFI 上用整数 micro-USD 传递，界面显示用的六位小数字符串和低精度最大余数分配由 Rust `pricing` 统一给出，Dart 不自己算钱。
+- 金额在 FFI 上用整数 micro-USD 传递，界面显示用的六位小数字符串和低精度最大余数分配由 Rust `pricing` 统一给出。账本金额只用 Rust 的值，Dart 不重新计价；旧前端自己做的展示推导（按工具合计、比例、环比、币种换算、“缓存帮你省了”的估算）照旧版在 Dart 里做。
 - 时区：Dart 传当前的 UTC 偏移分钟数，Rust 用它切所有历史，和旧版一致。快照里的时区名先读 `TZ`，没有再调用系统自带的 ICU（Windows `icu.dll`、macOS `libicucore`），不打包 ICU；macOS 上的链接和运行还没验证。
 - 不迁移：`/usage/unallocated`（看板没用，`timeseries` 已含）、`POST /pricing/refresh`（旧版就是 501）、HTTP 边界（gate、token、port）及其响应缓存、CLI、只有测试在用的 `modelStatus` 和 `priceVersions`。
 - 并发：同一时间只有一个采集在跑；查询可以和采集并发，读的是已提交的数据。
@@ -123,7 +123,7 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 | D3.2a | 第二批 14 个：qwen、dsh、grok、aider、pi、cline、gemini、openhands、continue、trae、openclaw、kimi、codebuddy、commandcode | 每个来源都有静态夹具和 golden，逐条一致 |
 | D3.2b | 第三批 11 个：hermes、cursor、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm | 同上；SQLite 夹具包括 WAL 状态和打开失败两种情形 |
 | D3.3 | 其余查询：时间桶、`unallocated`、分组矩阵、会话、来源检查、价格标记、`legacy_records` 计数、`lastRun` | 查询 golden 一致；分组之和等于总计；`ended_at` 为 NULL 或可解析时，各时间桶加 `unallocated` 等于总计 |
-| D3.4 | 完整统计界面：总览、明细筛选、会话、来源、设置与价格、引导；配色定案后再落地 | 和旧看板逐页截图对照；Flutter 测试覆盖筛选、空态、未知值、未定价 |
+| D3.4 | 完整统计界面：总览、明细筛选、会话、来源、设置与价格、引导 | 和旧看板逐页截图对照；Flutter 测试覆盖筛选、空态、未知值、未定价 |
 | D3.5 | 真实日志对拍和资源占用测量 | 两个临时账本逐行一致，或者每一处差异都已解释并处理；同一份数据下记录旧版和新版的内存与启动时间 |
 
 D4 再做：复制真实账本，在副本上由新版打开、全量采集，证明重复采集不新增行、金额不变，经用户确认后切换发行；旧库保留，供旧版回退。

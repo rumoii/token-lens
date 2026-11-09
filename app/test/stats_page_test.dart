@@ -3,148 +3,114 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats_controller.dart';
-import 'package:token_lens_app/stats_gateway.dart';
-import 'package:token_lens_app/stats_page.dart';
+import 'package:token_lens_app/stats/stats_page.dart';
+import 'package:token_lens_app/stats/theme/palette.dart';
+import 'package:token_lens_app/stats/preferences.dart';
+import 'package:token_lens_app/stats/logic/period.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
-StatsTotals totals({
-  int? tokens = 100,
-  String? cost = '0.000123',
-  int records = 1,
-  int unpriced = 0,
-}) => StatsTotals(
-  grossTokens: tokens ?? 0,
-  inputTokens: tokens,
-  outputTokens: tokens == null ? null : 0,
-  cacheReadTokens: tokens == null ? null : 0,
-  cacheWriteTokens: tokens == null ? null : 0,
-  costUsd: cost,
-  costMicros: cost == null ? null : 123,
-  unpricedRecords: unpriced,
-  recordCount: records,
-);
-StatsGroup group() => const StatsGroup(
-  key: 'unlisted',
-  grossTokens: 10,
-  inputTokens: 10,
-  unpricedRecords: 1,
-  recordCount: 1,
-  priceState: 'unknown',
-);
-
-class FakeStatsGateway implements StatsGateway {
-  FakeStatsGateway(this.value);
-  StatsOverview value;
-  Completer<void>? pending;
-  String? failure;
-  int syncs = 0;
-  int closes = 0;
-  @override
-  Future<StatsOverview> load() async => value;
-  @override
-  Future<void> sync() async {
-    syncs++;
-    if (failure != null) throw StateError(failure!);
-    await pending?.future;
-  }
-
-  @override
-  Future<void> shutdown() async {
-    closes++;
-    pending?.complete();
-    pending = null;
-  }
-}
+import 'stats/fake_gateway.dart';
 
 void main() {
   Future<StatsController> show(
     WidgetTester tester,
-    FakeStatsGateway gateway,
-  ) async {
-    final controller = StatsController(gateway);
+    FakeStatsGateway gateway, {
+    bool load = true,
+    StatsPeriod period = const StatsPeriod(),
+  }) async {
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = StatsController(
+      gateway,
+      clock: () => demoNow,
+      preferences: UiPreferences(period: period),
+    );
     addTearDown(controller.dispose);
-    await controller.load();
+    if (load) await controller.load();
     await tester.pumpWidget(
-      MaterialApp(home: StatsPage(controller: controller)),
+      MaterialApp(
+        theme: const LensPalette(false).theme,
+        home: StatsPage(controller: controller),
+      ),
     );
     await tester.pumpAndSettle();
     return controller;
   }
 
-  testWidgets('data shows totals and both tables', (tester) async {
-    await show(tester, FakeStatsGateway(StatsOverview(totals: totals())));
-    expect(find.text('100'), findsOneWidget);
-    expect(find.text(r'$0.000123'), findsOneWidget);
-    expect(find.text('按来源'), findsOneWidget);
-    expect(find.text('按模型'), findsOneWidget);
+  testWidgets('数据显示总览区块', (tester) async {
+    await show(tester, FakeStatsGateway());
+    for (final label in ['趋势', '常用模型', '最近会话', '这一年']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.byKey(const Key('home-hero')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
-  testWidgets('empty ledger shows zero and guidance', (tester) async {
-    await show(
-      tester,
-      FakeStatsGateway(
-        StatsOverview(totals: totals(tokens: 0, records: 0, cost: '0.000000')),
-      ),
+  testWidgets('空账本给切换范围入口', (tester) async {
+    await show(tester, FakeStatsGateway()..empty = true);
+    expect(find.text('这周还没有用量'), findsOneWidget);
+    expect(find.text('看本月'), findsOneWidget);
+    expect(find.text('趋势'), findsNothing);
+  });
+  testWidgets('NULL token 和未定价不当零', (tester) async {
+    await show(tester, FakeStatsGateway()..unknown = true);
+    expect(find.text('未定价'), findsWidgets);
+    expect(find.text('—'), findsWidgets);
+    expect(find.text('\$0.00'), findsNothing);
+    await tester.pumpWidget(
+      MaterialApp(home: Scaffold(body: const TokenText(null))),
     );
-    expect(find.text('尚无统计记录，点击同步读取本机日志。'), findsOneWidget);
-    expect(find.text('0'), findsOneWidget);
-  });
-  testWidgets('unknown is not displayed as zero', (tester) async {
-    await show(
-      tester,
-      FakeStatsGateway(StatsOverview(totals: totals(tokens: null, cost: null))),
-    );
-    expect(find.text('未知'), findsNWidgets(2));
-    expect(find.text('0'), findsNothing);
-  });
-  testWidgets('unpriced records stay explicit', (tester) async {
-    await show(
-      tester,
-      FakeStatsGateway(
-        StatsOverview(totals: totals(unpriced: 1), models: [group()]),
-      ),
-    );
-    expect(find.textContaining('未定价'), findsWidgets);
-    expect(find.text('unlisted'), findsOneWidget);
-    expect(find.text('未知'), findsOneWidget);
-  });
-  testWidgets('sync disables duplicate start and keeps previous data', (
-    tester,
-  ) async {
-    final gateway = FakeStatsGateway(StatsOverview(totals: totals()))
-      ..pending = Completer<void>();
-    await show(tester, gateway);
-    await tester.tap(find.text('同步'));
-    await tester.pump();
-    expect(find.text('同步中…'), findsOneWidget);
-    expect(find.text('100'), findsOneWidget);
-    expect(gateway.syncs, 1);
-    gateway.pending!.complete();
-    gateway.pending = null;
     await tester.pumpAndSettle();
-    expect(find.text('同步'), findsOneWidget);
+    expect(find.text('—'), findsOneWidget);
+    expect(find.byTooltip('客户端没有上报该字段'), findsOneWidget);
   });
-  testWidgets('lock collision is a skipped sync', (tester) async {
-    final gateway = FakeStatsGateway(StatsOverview(totals: totals()))
-      ..failure = 'SYNC_BUSY';
-    await show(tester, gateway);
-    await tester.tap(find.text('同步'));
+  testWidgets('未定价工具保持明确', (tester) async {
+    await show(tester, FakeStatsGateway(), period: const StatsPeriod('month'));
+    expect(find.text('未定价'), findsWidgets);
+    expect(find.text('synthetic-unpriced-model'), findsOneWidget);
+  });
+  testWidgets('同步去重、保留画面、禁用重复按钮', (tester) async {
+    final fake = FakeStatsGateway()..syncBarrier = Completer<void>();
+    final controller = await show(tester, fake);
+    await tester.tap(find.text('同步用量'));
+    await tester.pump();
+    expect(find.text('正在同步'), findsOneWidget);
+    expect(find.byKey(const Key('home-hero')), findsOneWidget);
+    expect(fake.syncs, 1);
+    final duplicate = controller.sync();
+    expect(fake.syncs, 1);
+    fake.syncBarrier!.complete();
+    fake.syncBarrier = null;
+    await duplicate;
     await tester.pumpAndSettle();
-    expect(find.text('已有同步或采集任务在执行中，本次已跳过。'), findsOneWidget);
-    expect(find.text('100'), findsOneWidget);
   });
-  testWidgets('startup and five minute timer stop on shutdown', (tester) async {
-    final gateway = FakeStatsGateway(StatsOverview(totals: totals()));
-    final controller = StatsController(gateway);
-    addTearDown(controller.dispose);
-    unawaited(controller.start());
+  testWidgets('同步完成和失败可以重试', (tester) async {
+    final fake = FakeStatsGateway()..syncBarrier = Completer<void>();
+    await show(tester, fake);
+    await tester.tap(find.text('同步用量'));
     await tester.pump();
-    expect(gateway.syncs, 1);
-    await tester.pump(const Duration(minutes: 5));
+    expect(find.text('正在同步'), findsOneWidget);
+    expect(fake.syncs, 1);
+    await tester.tap(find.text('同步用量'));
+    expect(fake.syncs, 1);
+    fake.syncBarrier!.complete();
+    fake.syncBarrier = null;
+    await tester.pumpAndSettle();
+    fake.syncFailure = 'fixture';
+    await tester.tap(find.text('同步用量'));
+    await tester.pumpAndSettle();
+    expect(find.text('同步失败，已保留先前采集的数据。'), findsWidgets);
+    expect(find.byKey(const Key('home-hero')), findsOneWidget);
+  });
+  testWidgets('锁冲突等待后完成', (tester) async {
+    final fake = FakeStatsGateway()..syncFailure = 'SYNC_BUSY';
+    await show(tester, fake);
+    await tester.tap(find.text('同步用量'));
     await tester.pump();
-    expect(gateway.syncs, 2);
-    await controller.shutdown();
-    await controller.shutdown();
-    await tester.pump(const Duration(minutes: 10));
-    expect(gateway.syncs, 2);
-    expect(gateway.closes, 1);
+    expect(find.text('已有同步在执行，正在等待完成'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('刚刚完成同步'), findsOneWidget);
   });
 }

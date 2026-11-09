@@ -16,7 +16,9 @@ import 'src/rust/frb_generated.dart';
 import 'src/rust/api/stats.dart' as stats;
 import 'stats_controller.dart';
 import 'stats_gateway.dart';
-import 'stats_page.dart';
+import 'stats/stats_page.dart';
+import 'stats/preferences.dart';
+import 'stats/theme/palette.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +40,10 @@ class _TokenLensAppState extends State<TokenLensApp> {
   bool _showStats = false;
   String? _initializationError;
   bool _closing = false;
+  UiPreferences _preferences = const UiPreferences();
+  void _statsChanged() {
+    if (mounted && !_closing) setState(() {});
+  }
 
   @override
   void initState() {
@@ -55,6 +61,8 @@ class _TokenLensAppState extends State<TokenLensApp> {
       final dataDir =
           override ??
           '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}news-preview';
+      final preferenceStore = PreferencesStore(Directory(dataDir));
+      _preferences = await preferenceStore.read();
       await RustLib.init();
       final client = await native.NewsClient.newInstance(dataDir: dataDir);
       final controller = NewsController(RustNewsGateway(client));
@@ -64,7 +72,11 @@ class _TokenLensAppState extends State<TokenLensApp> {
           dataDir: dataDir,
           logsHome: Platform.environment['TOKEN_LENS_PREVIEW_HOME'],
         );
-        statsController = StatsController(RustStatsGateway(statsClient));
+        statsController = StatsController(
+          RustStatsGateway(statsClient),
+          store: preferenceStore,
+          preferences: _preferences,
+        );
       } catch (_) {
         _statsInitializationError = '无法打开统计账本，请检查预览目录是否可读写。';
       }
@@ -79,6 +91,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
         _controller = controller;
         _statsController = statsController;
       });
+      statsController?.addListener(_statsChanged);
       if (statsController != null) unawaited(statsController.start());
     } catch (error) {
       if (!mounted || _closing) return;
@@ -112,6 +125,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
     _closing = true;
     _lifecycle.dispose();
     _controller?.dispose();
+    _statsController?.removeListener(_statsChanged);
     _statsController?.dispose();
     super.dispose();
   }
@@ -120,19 +134,22 @@ class _TokenLensAppState extends State<TokenLensApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Token Lens · Preview',
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xffa74b2d)),
-      fontFamily: Platform.isWindows ? 'Microsoft YaHei' : null,
-    ),
-    darkTheme: ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xffd97757),
-        brightness: Brightness.dark,
-      ),
-      fontFamily: Platform.isWindows ? 'Microsoft YaHei' : null,
-    ),
+    themeAnimationDuration:
+        WidgetsBinding
+            .instance
+            .platformDispatcher
+            .accessibilityFeatures
+            .disableAnimations
+        ? Duration.zero
+        : kThemeAnimationDuration,
+    theme: const LensPalette(false).theme,
+    darkTheme: const LensPalette(true).theme,
+    themeMode:
+        switch ((_statsController?.preferences ?? _preferences).appearance) {
+          'light' => ThemeMode.light,
+          'dark' => ThemeMode.dark,
+          _ => ThemeMode.system,
+        },
     home: _controller != null
         ? Scaffold(
             body: Column(

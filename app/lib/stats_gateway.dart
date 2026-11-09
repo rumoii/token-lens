@@ -1,62 +1,56 @@
-import 'src/rust/api/stats.dart' as native;
+import 'src/rust/api/stats.dart';
 
-export 'src/rust/api/stats.dart' show StatsTotals, StatsGroup, StatsRun;
-
-class StatsOverview {
-  const StatsOverview({
-    required this.totals,
-    this.sources = const [],
-    this.models = const [],
-    this.lastRun,
-    this.generatedAt,
-  });
-  final native.StatsTotals totals;
-  final List<native.StatsGroup> sources;
-  final List<native.StatsGroup> models;
-  final native.StatsRun? lastRun;
-  final String? generatedAt;
-}
+export 'src/rust/api/stats.dart';
 
 abstract interface class StatsGateway {
-  Future<StatsOverview> load();
-  Future<void> sync();
+  Future<StatsSummary> summary(StatsFilter filter);
+  Future<StatsTimeseries> timeseries(String granularity, StatsFilter filter);
+  Future<StatsMatrix> matrix(String granularity, String by, StatsFilter filter);
+  Future<StatsBreakdown> breakdown(String by, StatsFilter filter);
+  Future<StatsSessions> sessions(StatsFilter filter, {int limit = 5});
+  Future<StatsSources> sources();
+  Future<StatsPricing> pricing();
+  Future<StatsSync> sync();
   Future<void> shutdown();
 }
 
 class RustStatsGateway implements StatsGateway {
   RustStatsGateway(this.client);
-  final native.StatsClient client;
-
+  final StatsClient client;
+  int get _offset => DateTime.now().timeZoneOffset.inMinutes;
   @override
-  Future<StatsOverview> load() async {
-    const filter = native.StatsFilter();
-    final offset = DateTime.now().timeZoneOffset.inMinutes;
-    final summary = await client.summary(filter: filter, offsetMinutes: offset);
-    final sources = await client.breakdown(
-      by: 'source',
-      filter: filter,
-      offsetMinutes: offset,
-    );
-    final models = await client.breakdown(
-      by: 'model',
-      filter: filter,
-      offsetMinutes: offset,
-    );
-    final run = await client.lastRun();
-    return StatsOverview(
-      totals: summary.totals,
-      sources: sources.groups,
-      models: models.groups,
-      lastRun: run,
-      generatedAt: summary.snapshot.generatedAt,
-    );
-  }
-
+  Future<StatsSummary> summary(StatsFilter filter) =>
+      client.summary(filter: filter, offsetMinutes: _offset);
   @override
-  Future<void> sync() async {
-    await client.sync_();
-  }
-
+  Future<StatsTimeseries> timeseries(String granularity, StatsFilter filter) =>
+      client.timeseries(
+        granularity: granularity,
+        filter: filter,
+        offsetMinutes: _offset,
+      );
+  @override
+  Future<StatsMatrix> matrix(
+    String granularity,
+    String by,
+    StatsFilter filter,
+  ) => client.matrix(
+    granularity: granularity,
+    by: by,
+    filter: filter,
+    offsetMinutes: _offset,
+  );
+  @override
+  Future<StatsBreakdown> breakdown(String by, StatsFilter filter) =>
+      client.breakdown(by: by, filter: filter, offsetMinutes: _offset);
+  @override
+  Future<StatsSessions> sessions(StatsFilter filter, {int limit = 5}) =>
+      client.sessions(filter: filter, limit: limit, offsetMinutes: _offset);
+  @override
+  Future<StatsSources> sources() => client.sources();
+  @override
+  Future<StatsPricing> pricing() => client.pricing();
+  @override
+  Future<StatsSync> sync() => client.sync_();
   @override
   Future<void> shutdown() => client.shutdown();
 }

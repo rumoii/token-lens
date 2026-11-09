@@ -203,7 +203,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('还没有动态'), findsOneWidget);
-    expect(find.textContaining('尚未迁移'), findsWidgets);
+    expect(find.text('点击顶部“统计”查看用量统计。'), findsOneWidget);
     expect(gateway.refreshCalls, 0);
     controller.dispose();
   });
