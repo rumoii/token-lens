@@ -1,0 +1,16 @@
+[
+  {
+    "record_key": "d33-invalid-ended-at",
+    "source": "synthetic",
+    "session_id": "d33-session",
+    "project_key": "D:/synthetic/project",
+    "model": "gpt-6.1-sol",
+    "kind": "cumulative",
+    "observed_at": "2026-01-15T00:00:00.000Z",
+    "ended_at": "not-a-date",
+    "input_tokens": 100,
+    "output_tokens": 20,
+    "cache_read_tokens": 30,
+    "cache_write_tokens": 40
+  }
+]

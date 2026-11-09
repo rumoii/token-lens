@@ -625,3 +625,71 @@ mod b2_tests {
         }
     }
 }
+pub fn encode_cursor(offset: u64) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let text = offset.to_string();
+    let mut result = String::new();
+    for chunk in text.as_bytes().chunks(3) {
+        let bits = (u32::from(chunk[0]) << 16)
+            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*chunk.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            result.push(if i > chunk.len() {
+                '='
+            } else {
+                ALPHABET[((bits >> (18 - 6 * i)) & 63) as usize] as char
+            });
+        }
+    }
+    result
+}
+
+pub fn decode_cursor(cursor: Option<&str>) -> u64 {
+    let mut decoded = Vec::new();
+    let (mut bits, mut buffer) = (0, 0u32);
+    for byte in cursor.unwrap_or("").bytes().take_while(|c| *c != b'=') {
+        let digit = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' | b'-' => 62,
+            b'/' | b'_' => 63,
+            _ => continue,
+        };
+        buffer = (buffer << 6) | u32::from(digit);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            decoded.push((buffer >> bits) as u8);
+            buffer &= (1 << bits) - 1;
+        }
+    }
+    // Approved D33 difference: Number-only forms (hex, exponent, surrounding
+    // whitespace) are invalid; only a nonnegative ASCII decimal integer is used.
+    if decoded.is_empty() || !decoded.iter().all(u8::is_ascii_digit) {
+        return 0;
+    }
+    std::str::from_utf8(&decoded)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod d33_cursor_tests {
+    use super::*;
+    #[test]
+    fn d33_cursor_node_permissiveness_and_approved_exceptions() {
+        for n in [0, 1, 50, 9007199254740991] {
+            assert_eq!(decode_cursor(Some(&encode_cursor(n))), n);
+        }
+        assert_eq!(encode_cursor(50), "NTA=");
+        assert_eq!(decode_cursor(Some("N!T@A")), 50);
+        for value in [
+            "", "LTE=", "MS41", "YWJj", "MHgxMA==", "MWUz", "IDUwIA==", "-___",
+        ] {
+            assert_eq!(decode_cursor(Some(value)), 0, "{value}");
+        }
+        assert_eq!(decode_cursor(None), 0);
+    }
+}

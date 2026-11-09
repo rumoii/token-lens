@@ -47,10 +47,13 @@ D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 F
 下面这些不追求一致，要在 Rust 代码注释和本节里登记：
 
 1. **发现只收文件**。旧版给 `fs.globSync` 传了 `nodir`，但这个选项实际不起作用（`src/core/discovery.js:16–19`），扩展名匹配的目录也会进入结果，然后以 `read_failed` 失败。新版跳过目录。这不影响任何记录。
-2. **异常输入**。只要求在所有夹具和本机真实日志里出现过的形状上一致。超过 2^53 的整数、溢出成 Infinity 的超长数字串、`2026-02-30` 这类日历溢出、ISO 以外的日期写法，Rust 可以和旧版不同，但必须记 `bad_fields` 或 `bad_times`，不能静默写入别的值。D3.5 用真实日志确认这些形状不存在；如果出现，就把 Rust 改到和旧版一致。
+2. **异常输入**。只要求在所有夹具和本机真实日志里出现过的形状上一致。超过 2^53 的整数、溢出成 Infinity 的超长数字串或外部 SQLite 的 REAL、`2026-02-30` 这类日历溢出、ISO 以外的日期写法，Rust 可以和旧版不同，但必须记 `bad_fields` 或 `bad_times`，不能静默写入别的值。D3.5 用真实日志确认这些形状不存在；如果出现，就把 Rust 改到和旧版一致。
 3. **旧版文档与代码不一致的地方以代码为准**，例如 `specs/adapters.md` 里 Claude 的旧键写法、Grok/Aider/Goose/Zed 在 `log-schemas.yaml` 里的描述。迁移只搬现状，不修复字段语义；语义修复等真实样本，并且要升 `PARSER_REV`。
+4. **会话游标**。`jscompat` 自己实现 base64，只接受解出来是非负十进制整数的游标。`Number()` 才接受的写法（十六进制、科学计数、前后空白）按无效处理，从头开始。游标只来自 `next_cursor`，不影响正常翻页。
+5. **`health`**。没有 HTTP 服务，因此去掉 `port`，版本号取 Rust crate 的版本，字段是 `ok`、`version`、`data_dir`、`ledger_path`、`schema_version`。这一项不对拍。
+6. **会话详情的粒度**。FFI 上 `granularity` 必填，只接受 `hour` 或 `day`，不设默认值。
 
-D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分别处理 DST；`pricing_snapshot` 只存 `{version}`、不能按旧版本重新估值（`write.js:481–485`）；会话详情默认粒度三处不一致（`read.js:587`、`api/v1/sessions.js:47`、`api/router.js:33`）。
+D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分别处理 DST；`pricing_snapshot` 只存 `{version}`、不能按旧版本重新估值（`write.js:481–485`）；会话详情默认粒度三处不一致（`read.js:587`、`api/v1/sessions.js:47`、`api/router.js:33`）；`ended_at` 不是 NULL 又解析不了时，这条 `cumulative` 记录既不进时间桶也不进 `unallocated`（`read.js:46–49`）。最后这一条 Rust 原样复现，并由独立的 golden 场景固定；适配器写入的 `ended_at` 只会是 ISO 时间或 NULL，现有数据碰不到。
 
 ## Rust 布局
 
@@ -97,7 +100,7 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 
 - 金额在 FFI 上用整数 micro-USD 传递，界面显示用的六位小数字符串和低精度最大余数分配由 Rust `pricing` 统一给出，Dart 不自己算钱。
 - 时区：Dart 传当前的 UTC 偏移分钟数，Rust 用它切所有历史，和旧版一致。快照里的时区名先读 `TZ`，没有再调用系统自带的 ICU（Windows `icu.dll`、macOS `libicucore`），不打包 ICU；macOS 上的链接和运行还没验证。
-- 不迁移：`/usage/unallocated`（看板没用）、`POST /pricing/refresh`（旧版就是 501）、HTTP 边界（gate、token、port）、CLI。
+- 不迁移：`/usage/unallocated`（看板没用，`timeseries` 已含）、`POST /pricing/refresh`（旧版就是 501）、HTTP 边界（gate、token、port）及其响应缓存、CLI、只有测试在用的 `modelStatus` 和 `priceVersions`。
 - 并发：同一时间只有一个采集在跑；查询可以和采集并发，读的是已提交的数据。
 
 ## 对拍
@@ -119,7 +122,7 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 | D3.1 | `jscompat`、账本打开/迁移/写入、计价、锁、`ingest`，claude 和 codex（含 zstd 多帧）的发现与适配器，`summary` 和 `breakdown`，一个最简的 Flutter 总览页 | 生成器和 golden 就位；两个来源的适配器、身份、账本行、计价、两个查询全部和 golden 一致；在旧版 v1–v4 账本的合成副本上迁移，结果与旧版一致；Rust/Flutter 全部检查通过 |
 | D3.2a | 第二批 14 个：qwen、dsh、grok、aider、pi、cline、gemini、openhands、continue、trae、openclaw、kimi、codebuddy、commandcode | 每个来源都有静态夹具和 golden，逐条一致 |
 | D3.2b | 第三批 11 个：hermes、cursor、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm | 同上；SQLite 夹具包括 WAL 状态和打开失败两种情形 |
-| D3.3 | 其余查询：时间桶、`unallocated`、分组矩阵、会话、来源检查、价格标记、`legacy_records` 计数、`lastRun` | 查询 golden 一致；分组之和、各时间桶加 `unallocated` 都等于总计 |
+| D3.3 | 其余查询：时间桶、`unallocated`、分组矩阵、会话、来源检查、价格标记、`legacy_records` 计数、`lastRun` | 查询 golden 一致；分组之和等于总计；`ended_at` 为 NULL 或可解析时，各时间桶加 `unallocated` 等于总计 |
 | D3.4 | 完整统计界面：总览、明细筛选、会话、来源、设置与价格、引导；配色定案后再落地 | 和旧看板逐页截图对照；Flutter 测试覆盖筛选、空态、未知值、未定价 |
 | D3.5 | 真实日志对拍和资源占用测量 | 两个临时账本逐行一致，或者每一处差异都已解释并处理；同一份数据下记录旧版和新版的内存与启动时间 |
 

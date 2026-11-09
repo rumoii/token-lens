@@ -179,6 +179,25 @@ pub fn find_price(model: Option<&str>) -> Value {
     Value::Null
 }
 
+pub fn local_provider(provider: Option<&str>) -> Option<String> {
+    let id = provider?.to_lowercase();
+    catalog()["localProviders"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|value| value.as_str() == Some(&id))
+        .then_some(id)
+}
+
+pub fn classify_price(model: Option<&str>) -> Value {
+    let price = find_price(model);
+    if price.is_null() {
+        json!({"state":"unknown","billing":"metered","id":null,"sourceUrl":null,"note":null,"provisional":false,"matchedBy":null})
+    } else {
+        json!({"state":price["tier"],"billing":price["billing"].as_str().filter(|s| !s.is_empty()).unwrap_or("metered"),"id":price["id"],"sourceUrl":price["sourceUrl"].as_str().filter(|s| !s.is_empty()),"note":price["conditions"].as_str().filter(|s| !s.is_empty()),"provisional":price["provisional"],"matchedBy":price["matchedBy"]})
+    }
+}
+
 fn timestamp(value: &Value) -> Option<i64> {
     let text = super::jscompat::normalize_timestamp(value, &super::jscompat::LocalZone::System)?;
     DateTime::parse_from_rfc3339(&text)

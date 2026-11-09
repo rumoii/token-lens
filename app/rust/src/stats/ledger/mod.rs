@@ -41,6 +41,7 @@ const FIELDS: [&str; 15] = [
 pub struct Ledger {
     pub db: Connection,
     pub clock: Clock,
+    prune_cache: std::cell::RefCell<read::PruneCache>,
 }
 
 pub fn sql_value(value: &Value) -> SqlValue {
@@ -215,7 +216,11 @@ impl Ledger {
             transaction.execute_batch("CREATE INDEX IF NOT EXISTS idx_usage_file ON usage_records(source_file, active); PRAGMA user_version=5;")?;
             transaction.commit()?;
         }
-        Ok(Self { db, clock })
+        Ok(Self {
+            db,
+            clock,
+            prune_cache: Default::default(),
+        })
     }
 
     fn supersede(&self, record: &Value, id: i64, stats: &mut Value) -> Result<()> {

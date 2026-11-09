@@ -7,9 +7,9 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `open`, `with_micros`
+// These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `open`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
 abstract class StatsClient implements RustOpaqueInterface {
@@ -19,7 +19,18 @@ abstract class StatsClient implements RustOpaqueInterface {
     required int offsetMinutes,
   });
 
+  Future<StatsDiscovery> discovery({required bool fresh});
+
+  Future<StatsHealth> health();
+
   Future<StatsRun?> lastRun();
+
+  Future<StatsMatrix> matrix({
+    required String granularity,
+    required String by,
+    required StatsFilter filter,
+    required int offsetMinutes,
+  });
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
   static Future<StatsClient> newInstance({
@@ -30,7 +41,25 @@ abstract class StatsClient implements RustOpaqueInterface {
     logsHome: logsHome,
   );
 
+  Future<StatsPricing> pricing();
+
+  Future<StatsSessionDetail?> sessionDetail({
+    required String source,
+    required String sessionId,
+    required String granularity,
+    required int offsetMinutes,
+  });
+
+  Future<StatsSessions> sessions({
+    int? limit,
+    String? cursor,
+    required StatsFilter filter,
+    required int offsetMinutes,
+  });
+
   Future<void> shutdown();
+
+  Future<StatsSources> sources();
 
   Future<StatsSummary> summary({
     required StatsFilter filter,
@@ -38,6 +67,12 @@ abstract class StatsClient implements RustOpaqueInterface {
   });
 
   Future<StatsSync> sync_();
+
+  Future<StatsTimeseries> timeseries({
+    required String granularity,
+    required StatsFilter filter,
+    required int offsetMinutes,
+  });
 }
 
 class StatsActivity {
@@ -86,6 +121,7 @@ class StatsAppliedFilter {
   final String? model;
   final String? project;
   final int offsetMinutes;
+  final String? sessionId;
 
   const StatsAppliedFilter({
     required this.from,
@@ -94,6 +130,7 @@ class StatsAppliedFilter {
     this.model,
     this.project,
     required this.offsetMinutes,
+    this.sessionId,
   });
 
   @override
@@ -103,7 +140,8 @@ class StatsAppliedFilter {
       source.hashCode ^
       model.hashCode ^
       project.hashCode ^
-      offsetMinutes.hashCode;
+      offsetMinutes.hashCode ^
+      sessionId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -115,7 +153,8 @@ class StatsAppliedFilter {
           source == other.source &&
           model == other.model &&
           project == other.project &&
-          offsetMinutes == other.offsetMinutes;
+          offsetMinutes == other.offsetMinutes &&
+          sessionId == other.sessionId;
 }
 
 class StatsBreakdown {
@@ -144,6 +183,65 @@ class StatsBreakdown {
           groups == other.groups &&
           totals == other.totals &&
           snapshot == other.snapshot;
+}
+
+class StatsBucket {
+  final String bucket;
+  final String? key;
+  final int grossTokens;
+  final int? inputTokens;
+  final int? outputTokens;
+  final int? cacheReadTokens;
+  final int? cacheWriteTokens;
+  final String? costUsd;
+  final int? costMicros;
+  final int unpricedRecords;
+  final int recordCount;
+
+  const StatsBucket({
+    required this.bucket,
+    this.key,
+    required this.grossTokens,
+    this.inputTokens,
+    this.outputTokens,
+    this.cacheReadTokens,
+    this.cacheWriteTokens,
+    this.costUsd,
+    this.costMicros,
+    required this.unpricedRecords,
+    required this.recordCount,
+  });
+
+  @override
+  int get hashCode =>
+      bucket.hashCode ^
+      key.hashCode ^
+      grossTokens.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cacheReadTokens.hashCode ^
+      cacheWriteTokens.hashCode ^
+      costUsd.hashCode ^
+      costMicros.hashCode ^
+      unpricedRecords.hashCode ^
+      recordCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsBucket &&
+          runtimeType == other.runtimeType &&
+          bucket == other.bucket &&
+          key == other.key &&
+          grossTokens == other.grossTokens &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cacheReadTokens == other.cacheReadTokens &&
+          cacheWriteTokens == other.cacheWriteTokens &&
+          costUsd == other.costUsd &&
+          costMicros == other.costMicros &&
+          unpricedRecords == other.unpricedRecords &&
+          recordCount == other.recordCount;
 }
 
 class StatsCostParts {
@@ -263,6 +361,42 @@ class StatsCounts {
           cumulativeDecrease == other.cumulativeDecrease;
 }
 
+class StatsDiscoveredSource {
+  final String source;
+  final int files;
+
+  const StatsDiscoveredSource({required this.source, required this.files});
+
+  @override
+  int get hashCode => source.hashCode ^ files.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsDiscoveredSource &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          files == other.files;
+}
+
+class StatsDiscovery {
+  final List<StatsDiscoveredSource> sources;
+  final int supported;
+
+  const StatsDiscovery({required this.sources, required this.supported});
+
+  @override
+  int get hashCode => sources.hashCode ^ supported.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsDiscovery &&
+          runtimeType == other.runtimeType &&
+          sources == other.sources &&
+          supported == other.supported;
+}
+
 class StatsFilter {
   final String? from;
   final String? to;
@@ -372,6 +506,308 @@ class StatsGroup {
           costByKind == other.costByKind;
 }
 
+class StatsHealth {
+  final bool ok;
+  final String version;
+  final String dataDir;
+  final String ledgerPath;
+  final int schemaVersion;
+
+  const StatsHealth({
+    required this.ok,
+    required this.version,
+    required this.dataDir,
+    required this.ledgerPath,
+    required this.schemaVersion,
+  });
+
+  @override
+  int get hashCode =>
+      ok.hashCode ^
+      version.hashCode ^
+      dataDir.hashCode ^
+      ledgerPath.hashCode ^
+      schemaVersion.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsHealth &&
+          runtimeType == other.runtimeType &&
+          ok == other.ok &&
+          version == other.version &&
+          dataDir == other.dataDir &&
+          ledgerPath == other.ledgerPath &&
+          schemaVersion == other.schemaVersion;
+}
+
+class StatsMatrix {
+  final String granularity;
+  final String by;
+  final List<StatsBucket> rows;
+  final StatsUnallocated? unallocated;
+  final StatsSnapshot snapshot;
+
+  const StatsMatrix({
+    required this.granularity,
+    required this.by,
+    required this.rows,
+    this.unallocated,
+    required this.snapshot,
+  });
+
+  @override
+  int get hashCode =>
+      granularity.hashCode ^
+      by.hashCode ^
+      rows.hashCode ^
+      unallocated.hashCode ^
+      snapshot.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsMatrix &&
+          runtimeType == other.runtimeType &&
+          granularity == other.granularity &&
+          by == other.by &&
+          rows == other.rows &&
+          unallocated == other.unallocated &&
+          snapshot == other.snapshot;
+}
+
+class StatsModelPrice {
+  final String? model;
+  final int records;
+  final String state;
+  final String billing;
+  final String? sourceUrl;
+  final String? note;
+  final int localRecords;
+  final Map<String, int> localProviders;
+  final StatsPrices? prices;
+  final List<StatsPriceTier>? tiers;
+  final StatsTimeOfDay? timeOfDay;
+  final Map<String, int> priceMarks;
+
+  const StatsModelPrice({
+    this.model,
+    required this.records,
+    required this.state,
+    required this.billing,
+    this.sourceUrl,
+    this.note,
+    required this.localRecords,
+    required this.localProviders,
+    this.prices,
+    this.tiers,
+    this.timeOfDay,
+    required this.priceMarks,
+  });
+
+  @override
+  int get hashCode =>
+      model.hashCode ^
+      records.hashCode ^
+      state.hashCode ^
+      billing.hashCode ^
+      sourceUrl.hashCode ^
+      note.hashCode ^
+      localRecords.hashCode ^
+      localProviders.hashCode ^
+      prices.hashCode ^
+      tiers.hashCode ^
+      timeOfDay.hashCode ^
+      priceMarks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsModelPrice &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          records == other.records &&
+          state == other.state &&
+          billing == other.billing &&
+          sourceUrl == other.sourceUrl &&
+          note == other.note &&
+          localRecords == other.localRecords &&
+          localProviders == other.localProviders &&
+          prices == other.prices &&
+          tiers == other.tiers &&
+          timeOfDay == other.timeOfDay &&
+          priceMarks == other.priceMarks;
+}
+
+class StatsPriceCounts {
+  final int verified;
+  final int aggregate;
+  final int unknown;
+  final int local;
+
+  const StatsPriceCounts({
+    required this.verified,
+    required this.aggregate,
+    required this.unknown,
+    required this.local,
+  });
+
+  @override
+  int get hashCode =>
+      verified.hashCode ^
+      aggregate.hashCode ^
+      unknown.hashCode ^
+      local.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsPriceCounts &&
+          runtimeType == other.runtimeType &&
+          verified == other.verified &&
+          aggregate == other.aggregate &&
+          unknown == other.unknown &&
+          local == other.local;
+}
+
+class StatsPricePeak {
+  final Int32List days;
+  final int from;
+  final int to;
+
+  const StatsPricePeak({
+    required this.days,
+    required this.from,
+    required this.to,
+  });
+
+  @override
+  int get hashCode => days.hashCode ^ from.hashCode ^ to.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsPricePeak &&
+          runtimeType == other.runtimeType &&
+          days == other.days &&
+          from == other.from &&
+          to == other.to;
+}
+
+class StatsPriceTier {
+  final int above;
+  final StatsPrices prices;
+
+  const StatsPriceTier({required this.above, required this.prices});
+
+  @override
+  int get hashCode => above.hashCode ^ prices.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsPriceTier &&
+          runtimeType == other.runtimeType &&
+          above == other.above &&
+          prices == other.prices;
+}
+
+class StatsPrices {
+  final double? input;
+  final double? output;
+  final double? cacheRead;
+  final double? cacheWrite5M;
+  final double? cacheWrite1H;
+
+  const StatsPrices({
+    this.input,
+    this.output,
+    this.cacheRead,
+    this.cacheWrite5M,
+    this.cacheWrite1H,
+  });
+
+  @override
+  int get hashCode =>
+      input.hashCode ^
+      output.hashCode ^
+      cacheRead.hashCode ^
+      cacheWrite5M.hashCode ^
+      cacheWrite1H.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsPrices &&
+          runtimeType == other.runtimeType &&
+          input == other.input &&
+          output == other.output &&
+          cacheRead == other.cacheRead &&
+          cacheWrite5M == other.cacheWrite5M &&
+          cacheWrite1H == other.cacheWrite1H;
+}
+
+class StatsPricing {
+  final String priceVersion;
+  final String? verifiedAt;
+  final String currency;
+  final bool provisional;
+  final List<StatsModelPrice> models;
+  final StatsPriceCounts counts;
+  final StatsSnapshot snapshot;
+
+  const StatsPricing({
+    required this.priceVersion,
+    this.verifiedAt,
+    required this.currency,
+    required this.provisional,
+    required this.models,
+    required this.counts,
+    required this.snapshot,
+  });
+
+  @override
+  int get hashCode =>
+      priceVersion.hashCode ^
+      verifiedAt.hashCode ^
+      currency.hashCode ^
+      provisional.hashCode ^
+      models.hashCode ^
+      counts.hashCode ^
+      snapshot.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsPricing &&
+          runtimeType == other.runtimeType &&
+          priceVersion == other.priceVersion &&
+          verifiedAt == other.verifiedAt &&
+          currency == other.currency &&
+          provisional == other.provisional &&
+          models == other.models &&
+          counts == other.counts &&
+          snapshot == other.snapshot;
+}
+
+class StatsRetention {
+  final int reviewable;
+  final int logsGone;
+
+  const StatsRetention({required this.reviewable, required this.logsGone});
+
+  @override
+  int get hashCode => reviewable.hashCode ^ logsGone.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsRetention &&
+          runtimeType == other.runtimeType &&
+          reviewable == other.reviewable &&
+          logsGone == other.logsGone;
+}
+
 class StatsRolling {
   final StatsWindow last7D;
   final StatsWindow last30D;
@@ -449,17 +885,285 @@ class StatsRun {
           anomalies == other.anomalies;
 }
 
+class StatsSessionDetail {
+  final StatsSessionSummary session;
+  final List<StatsSessionModel> models;
+  final List<StatsBucket> timeline;
+  final StatsSessionKinds kinds;
+  final String granularity;
+  final StatsSnapshot snapshot;
+
+  const StatsSessionDetail({
+    required this.session,
+    required this.models,
+    required this.timeline,
+    required this.kinds,
+    required this.granularity,
+    required this.snapshot,
+  });
+
+  @override
+  int get hashCode =>
+      session.hashCode ^
+      models.hashCode ^
+      timeline.hashCode ^
+      kinds.hashCode ^
+      granularity.hashCode ^
+      snapshot.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSessionDetail &&
+          runtimeType == other.runtimeType &&
+          session == other.session &&
+          models == other.models &&
+          timeline == other.timeline &&
+          kinds == other.kinds &&
+          granularity == other.granularity &&
+          snapshot == other.snapshot;
+}
+
+class StatsSessionItem {
+  final String source;
+  final String sessionId;
+  final String? projectKey;
+  final String startedAt;
+  final String lastSeenAt;
+  final int grossTokens;
+  final String? costUsd;
+  final int? costMicros;
+  final int recordCount;
+
+  const StatsSessionItem({
+    required this.source,
+    required this.sessionId,
+    this.projectKey,
+    required this.startedAt,
+    required this.lastSeenAt,
+    required this.grossTokens,
+    this.costUsd,
+    this.costMicros,
+    required this.recordCount,
+  });
+
+  @override
+  int get hashCode =>
+      source.hashCode ^
+      sessionId.hashCode ^
+      projectKey.hashCode ^
+      startedAt.hashCode ^
+      lastSeenAt.hashCode ^
+      grossTokens.hashCode ^
+      costUsd.hashCode ^
+      costMicros.hashCode ^
+      recordCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSessionItem &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          sessionId == other.sessionId &&
+          projectKey == other.projectKey &&
+          startedAt == other.startedAt &&
+          lastSeenAt == other.lastSeenAt &&
+          grossTokens == other.grossTokens &&
+          costUsd == other.costUsd &&
+          costMicros == other.costMicros &&
+          recordCount == other.recordCount;
+}
+
+class StatsSessionKinds {
+  final int event;
+  final int cumulative;
+
+  const StatsSessionKinds({required this.event, required this.cumulative});
+
+  @override
+  int get hashCode => event.hashCode ^ cumulative.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSessionKinds &&
+          runtimeType == other.runtimeType &&
+          event == other.event &&
+          cumulative == other.cumulative;
+}
+
+class StatsSessionModel {
+  final String? model;
+  final String priceState;
+  final int grossTokens;
+  final int? inputTokens;
+  final int? outputTokens;
+  final int? cacheReadTokens;
+  final int? cacheWriteTokens;
+  final String? costUsd;
+  final int? costMicros;
+  final int unpricedRecords;
+  final int recordCount;
+
+  const StatsSessionModel({
+    this.model,
+    required this.priceState,
+    required this.grossTokens,
+    this.inputTokens,
+    this.outputTokens,
+    this.cacheReadTokens,
+    this.cacheWriteTokens,
+    this.costUsd,
+    this.costMicros,
+    required this.unpricedRecords,
+    required this.recordCount,
+  });
+
+  @override
+  int get hashCode =>
+      model.hashCode ^
+      priceState.hashCode ^
+      grossTokens.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cacheReadTokens.hashCode ^
+      cacheWriteTokens.hashCode ^
+      costUsd.hashCode ^
+      costMicros.hashCode ^
+      unpricedRecords.hashCode ^
+      recordCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSessionModel &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          priceState == other.priceState &&
+          grossTokens == other.grossTokens &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cacheReadTokens == other.cacheReadTokens &&
+          cacheWriteTokens == other.cacheWriteTokens &&
+          costUsd == other.costUsd &&
+          costMicros == other.costMicros &&
+          unpricedRecords == other.unpricedRecords &&
+          recordCount == other.recordCount;
+}
+
+class StatsSessionSummary {
+  final String source;
+  final String sessionId;
+  final String? projectKey;
+  final String startedAt;
+  final String lastSeenAt;
+  final int grossTokens;
+  final int? inputTokens;
+  final int? outputTokens;
+  final int? cacheReadTokens;
+  final int? cacheWriteTokens;
+  final String? costUsd;
+  final int? costMicros;
+  final int unpricedRecords;
+  final int recordCount;
+
+  const StatsSessionSummary({
+    required this.source,
+    required this.sessionId,
+    this.projectKey,
+    required this.startedAt,
+    required this.lastSeenAt,
+    required this.grossTokens,
+    this.inputTokens,
+    this.outputTokens,
+    this.cacheReadTokens,
+    this.cacheWriteTokens,
+    this.costUsd,
+    this.costMicros,
+    required this.unpricedRecords,
+    required this.recordCount,
+  });
+
+  @override
+  int get hashCode =>
+      source.hashCode ^
+      sessionId.hashCode ^
+      projectKey.hashCode ^
+      startedAt.hashCode ^
+      lastSeenAt.hashCode ^
+      grossTokens.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cacheReadTokens.hashCode ^
+      cacheWriteTokens.hashCode ^
+      costUsd.hashCode ^
+      costMicros.hashCode ^
+      unpricedRecords.hashCode ^
+      recordCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSessionSummary &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          sessionId == other.sessionId &&
+          projectKey == other.projectKey &&
+          startedAt == other.startedAt &&
+          lastSeenAt == other.lastSeenAt &&
+          grossTokens == other.grossTokens &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cacheReadTokens == other.cacheReadTokens &&
+          cacheWriteTokens == other.cacheWriteTokens &&
+          costUsd == other.costUsd &&
+          costMicros == other.costMicros &&
+          unpricedRecords == other.unpricedRecords &&
+          recordCount == other.recordCount;
+}
+
+class StatsSessions {
+  final List<StatsSessionItem> items;
+  final String? nextCursor;
+  final StatsSnapshot snapshot;
+
+  const StatsSessions({
+    required this.items,
+    this.nextCursor,
+    required this.snapshot,
+  });
+
+  @override
+  int get hashCode => items.hashCode ^ nextCursor.hashCode ^ snapshot.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSessions &&
+          runtimeType == other.runtimeType &&
+          items == other.items &&
+          nextCursor == other.nextCursor &&
+          snapshot == other.snapshot;
+}
+
 class StatsSnapshot {
   final String generatedAt;
   final String priceVersion;
   final String tz;
   final StatsAppliedFilter filters;
+  final String? granularity;
+  final String? by;
+  final int? knownSources;
 
   const StatsSnapshot({
     required this.generatedAt,
     required this.priceVersion,
     required this.tz,
     required this.filters,
+    this.granularity,
+    this.by,
+    this.knownSources,
   });
 
   @override
@@ -467,7 +1171,10 @@ class StatsSnapshot {
       generatedAt.hashCode ^
       priceVersion.hashCode ^
       tz.hashCode ^
-      filters.hashCode;
+      filters.hashCode ^
+      granularity.hashCode ^
+      by.hashCode ^
+      knownSources.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -477,7 +1184,201 @@ class StatsSnapshot {
           generatedAt == other.generatedAt &&
           priceVersion == other.priceVersion &&
           tz == other.tz &&
-          filters == other.filters;
+          filters == other.filters &&
+          granularity == other.granularity &&
+          by == other.by &&
+          knownSources == other.knownSources;
+}
+
+class StatsSource {
+  final String source;
+  final String evidence;
+  final String status;
+  final String? firstObservedAt;
+  final String? lastObservedAt;
+  final int records;
+  final String recordMode;
+  final StatsRetention retention;
+  final StatsSourceChecks checks;
+  final List<String> limits;
+  final List<StatsSourceNote> notes;
+
+  const StatsSource({
+    required this.source,
+    required this.evidence,
+    required this.status,
+    this.firstObservedAt,
+    this.lastObservedAt,
+    required this.records,
+    required this.recordMode,
+    required this.retention,
+    required this.checks,
+    required this.limits,
+    required this.notes,
+  });
+
+  @override
+  int get hashCode =>
+      source.hashCode ^
+      evidence.hashCode ^
+      status.hashCode ^
+      firstObservedAt.hashCode ^
+      lastObservedAt.hashCode ^
+      records.hashCode ^
+      recordMode.hashCode ^
+      retention.hashCode ^
+      checks.hashCode ^
+      limits.hashCode ^
+      notes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSource &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          evidence == other.evidence &&
+          status == other.status &&
+          firstObservedAt == other.firstObservedAt &&
+          lastObservedAt == other.lastObservedAt &&
+          records == other.records &&
+          recordMode == other.recordMode &&
+          retention == other.retention &&
+          checks == other.checks &&
+          limits == other.limits &&
+          notes == other.notes;
+}
+
+class StatsSourceChecks {
+  final int timeOutOfRange;
+  final int hugeRequests;
+  final int nullModel;
+  final int mixedKindSessions;
+
+  const StatsSourceChecks({
+    required this.timeOutOfRange,
+    required this.hugeRequests,
+    required this.nullModel,
+    required this.mixedKindSessions,
+  });
+
+  @override
+  int get hashCode =>
+      timeOutOfRange.hashCode ^
+      hugeRequests.hashCode ^
+      nullModel.hashCode ^
+      mixedKindSessions.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSourceChecks &&
+          runtimeType == other.runtimeType &&
+          timeOutOfRange == other.timeOutOfRange &&
+          hugeRequests == other.hugeRequests &&
+          nullModel == other.nullModel &&
+          mixedKindSessions == other.mixedKindSessions;
+}
+
+class StatsSourceNote {
+  final String text;
+  final String impact;
+
+  const StatsSourceNote({required this.text, required this.impact});
+
+  @override
+  int get hashCode => text.hashCode ^ impact.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSourceNote &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          impact == other.impact;
+}
+
+class StatsSourceRun {
+  final String status;
+  final String? startedAt;
+  final String? finishedAt;
+  final int attempted;
+  final int inserted;
+  final int updated;
+  final int unchanged;
+  final int rejected;
+  final int anomalyCount;
+  final Map<String, int>? counts;
+  final List<String> anomalies;
+
+  const StatsSourceRun({
+    required this.status,
+    this.startedAt,
+    this.finishedAt,
+    required this.attempted,
+    required this.inserted,
+    required this.updated,
+    required this.unchanged,
+    required this.rejected,
+    required this.anomalyCount,
+    this.counts,
+    required this.anomalies,
+  });
+
+  @override
+  int get hashCode =>
+      status.hashCode ^
+      startedAt.hashCode ^
+      finishedAt.hashCode ^
+      attempted.hashCode ^
+      inserted.hashCode ^
+      updated.hashCode ^
+      unchanged.hashCode ^
+      rejected.hashCode ^
+      anomalyCount.hashCode ^
+      counts.hashCode ^
+      anomalies.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSourceRun &&
+          runtimeType == other.runtimeType &&
+          status == other.status &&
+          startedAt == other.startedAt &&
+          finishedAt == other.finishedAt &&
+          attempted == other.attempted &&
+          inserted == other.inserted &&
+          updated == other.updated &&
+          unchanged == other.unchanged &&
+          rejected == other.rejected &&
+          anomalyCount == other.anomalyCount &&
+          counts == other.counts &&
+          anomalies == other.anomalies;
+}
+
+class StatsSources {
+  final List<StatsSource> sources;
+  final StatsSourceRun? lastRun;
+  final StatsSnapshot snapshot;
+
+  const StatsSources({
+    required this.sources,
+    this.lastRun,
+    required this.snapshot,
+  });
+
+  @override
+  int get hashCode => sources.hashCode ^ lastRun.hashCode ^ snapshot.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSources &&
+          runtimeType == other.runtimeType &&
+          sources == other.sources &&
+          lastRun == other.lastRun &&
+          snapshot == other.snapshot;
 }
 
 class StatsSummary {
@@ -566,6 +1467,72 @@ class StatsSync {
           durationMs == other.durationMs;
 }
 
+class StatsTimeOfDay {
+  final int utcOffsetMinutes;
+  final List<StatsPricePeak> peak;
+  final StatsPrices offPeakPrices;
+  final int holidaysCount;
+  final String? holidaysThrough;
+
+  const StatsTimeOfDay({
+    required this.utcOffsetMinutes,
+    required this.peak,
+    required this.offPeakPrices,
+    required this.holidaysCount,
+    this.holidaysThrough,
+  });
+
+  @override
+  int get hashCode =>
+      utcOffsetMinutes.hashCode ^
+      peak.hashCode ^
+      offPeakPrices.hashCode ^
+      holidaysCount.hashCode ^
+      holidaysThrough.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsTimeOfDay &&
+          runtimeType == other.runtimeType &&
+          utcOffsetMinutes == other.utcOffsetMinutes &&
+          peak == other.peak &&
+          offPeakPrices == other.offPeakPrices &&
+          holidaysCount == other.holidaysCount &&
+          holidaysThrough == other.holidaysThrough;
+}
+
+class StatsTimeseries {
+  final String granularity;
+  final List<StatsBucket> points;
+  final StatsUnallocated? unallocated;
+  final StatsSnapshot snapshot;
+
+  const StatsTimeseries({
+    required this.granularity,
+    required this.points,
+    this.unallocated,
+    required this.snapshot,
+  });
+
+  @override
+  int get hashCode =>
+      granularity.hashCode ^
+      points.hashCode ^
+      unallocated.hashCode ^
+      snapshot.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsTimeseries &&
+          runtimeType == other.runtimeType &&
+          granularity == other.granularity &&
+          points == other.points &&
+          unallocated == other.unallocated &&
+          snapshot == other.snapshot;
+}
+
 class StatsTotals {
   final int grossTokens;
   final int? inputTokens;
@@ -615,6 +1582,41 @@ class StatsTotals {
           costMicros == other.costMicros &&
           unpricedRecords == other.unpricedRecords &&
           recordCount == other.recordCount;
+}
+
+class StatsUnallocated {
+  final int grossTokens;
+  final String? costUsd;
+  final int? costMicros;
+  final int recordCount;
+  final String reason;
+
+  const StatsUnallocated({
+    required this.grossTokens,
+    this.costUsd,
+    this.costMicros,
+    required this.recordCount,
+    required this.reason,
+  });
+
+  @override
+  int get hashCode =>
+      grossTokens.hashCode ^
+      costUsd.hashCode ^
+      costMicros.hashCode ^
+      recordCount.hashCode ^
+      reason.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsUnallocated &&
+          runtimeType == other.runtimeType &&
+          grossTokens == other.grossTokens &&
+          costUsd == other.costUsd &&
+          costMicros == other.costMicros &&
+          recordCount == other.recordCount &&
+          reason == other.reason;
 }
 
 class StatsWindow {

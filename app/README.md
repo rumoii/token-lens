@@ -1,6 +1,6 @@
 # Token Lens 桌面预览
 
-Flutter + Rust 重写的 D3.1：19 个新闻与工具更新来源、条目类型筛选、来源内热度排序、按来源手动刷新、启停、本地缓存、取消和错误反馈，以及 Claude/Codex 统计总览。其余统计功能继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)。
+Flutter + Rust 重写的 D3.3：19 个新闻与工具更新来源、条目类型筛选、来源内热度排序、按来源手动刷新、启停、本地缓存、取消和错误反馈，以及统计总览（27 个来源的采集和查询已迁移，完整统计界面在 D3.4）。其余统计功能继续使用仓库原有版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)。
 
 统计总览可在「新闻 / 统计」间切换。统计在窗口打开时采集一次，每 5 分钟采集一次，也可点击「同步」；新闻仍只在点击刷新后联网。账本是预览目录下的 `ledger.db`，不读取旧版数据目录变量。
 

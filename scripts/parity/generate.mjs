@@ -62,4 +62,6 @@ const { generateAdaptersB3 } = await import('./adapters-b3.mjs');
 await generateAdaptersB3(output, NOW);
 const { generateIngestB3 } = await import('./ingest-b3.mjs');
 await generateIngestB3(output, NOW);
+const { generateQueriesD33 } = await import('./queries-d33.mjs');
+await generateQueriesD33(output, NOW);
 mock.timers.reset();

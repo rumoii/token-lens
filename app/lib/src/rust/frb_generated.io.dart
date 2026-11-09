@@ -58,6 +58,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_CastedPrimitive_i_64(dynamic raw);
 
   @protected
+  Map<String, int> dco_decode_Map_String_CastedPrimitive_i_64_None(dynamic raw);
+
+  @protected
   NewsClient
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
     dynamic raw,
@@ -91,7 +94,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsFilter dco_decode_box_autoadd_stats_filter(dynamic raw);
 
   @protected
+  StatsPrices dco_decode_box_autoadd_stats_prices(dynamic raw);
+
+  @protected
   StatsRun dco_decode_box_autoadd_stats_run(dynamic raw);
+
+  @protected
+  StatsSessionDetail dco_decode_box_autoadd_stats_session_detail(dynamic raw);
+
+  @protected
+  StatsSourceRun dco_decode_box_autoadd_stats_source_run(dynamic raw);
+
+  @protected
+  StatsTimeOfDay dco_decode_box_autoadd_stats_time_of_day(dynamic raw);
+
+  @protected
+  StatsUnallocated dco_decode_box_autoadd_stats_unallocated(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -109,13 +127,50 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<NewsItem> dco_decode_list_news_item(dynamic raw);
 
   @protected
+  Int32List dco_decode_list_prim_i_32_strict(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<(String, int)> dco_decode_list_record_string_casted_primitive_i_64(
+    dynamic raw,
+  );
 
   @protected
   List<SourceState> dco_decode_list_source_state(dynamic raw);
 
   @protected
+  List<StatsBucket> dco_decode_list_stats_bucket(dynamic raw);
+
+  @protected
+  List<StatsDiscoveredSource> dco_decode_list_stats_discovered_source(
+    dynamic raw,
+  );
+
+  @protected
   List<StatsGroup> dco_decode_list_stats_group(dynamic raw);
+
+  @protected
+  List<StatsModelPrice> dco_decode_list_stats_model_price(dynamic raw);
+
+  @protected
+  List<StatsPricePeak> dco_decode_list_stats_price_peak(dynamic raw);
+
+  @protected
+  List<StatsPriceTier> dco_decode_list_stats_price_tier(dynamic raw);
+
+  @protected
+  List<StatsSessionItem> dco_decode_list_stats_session_item(dynamic raw);
+
+  @protected
+  List<StatsSessionModel> dco_decode_list_stats_session_model(dynamic raw);
+
+  @protected
+  List<StatsSource> dco_decode_list_stats_source(dynamic raw);
+
+  @protected
+  List<StatsSourceNote> dco_decode_list_stats_source_note(dynamic raw);
 
   @protected
   NewsError dco_decode_news_error(dynamic raw);
@@ -128,6 +183,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? dco_decode_opt_CastedPrimitive_i_64(dynamic raw);
+
+  @protected
+  Map<String, int>? dco_decode_opt_Map_String_CastedPrimitive_i_64_None(
+    dynamic raw,
+  );
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -145,10 +205,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsCounts? dco_decode_opt_box_autoadd_stats_counts(dynamic raw);
 
   @protected
+  StatsPrices? dco_decode_opt_box_autoadd_stats_prices(dynamic raw);
+
+  @protected
   StatsRun? dco_decode_opt_box_autoadd_stats_run(dynamic raw);
 
   @protected
+  StatsSessionDetail? dco_decode_opt_box_autoadd_stats_session_detail(
+    dynamic raw,
+  );
+
+  @protected
+  StatsSourceRun? dco_decode_opt_box_autoadd_stats_source_run(dynamic raw);
+
+  @protected
+  StatsTimeOfDay? dco_decode_opt_box_autoadd_stats_time_of_day(dynamic raw);
+
+  @protected
+  StatsUnallocated? dco_decode_opt_box_autoadd_stats_unallocated(dynamic raw);
+
+  @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
+
+  @protected
+  List<StatsPriceTier>? dco_decode_opt_list_stats_price_tier(dynamic raw);
+
+  @protected
+  (String, int) dco_decode_record_string_casted_primitive_i_64(dynamic raw);
 
   @protected
   SourceState dco_decode_source_state(dynamic raw);
@@ -163,10 +246,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsBreakdown dco_decode_stats_breakdown(dynamic raw);
 
   @protected
+  StatsBucket dco_decode_stats_bucket(dynamic raw);
+
+  @protected
   StatsCostParts dco_decode_stats_cost_parts(dynamic raw);
 
   @protected
   StatsCounts dco_decode_stats_counts(dynamic raw);
+
+  @protected
+  StatsDiscoveredSource dco_decode_stats_discovered_source(dynamic raw);
+
+  @protected
+  StatsDiscovery dco_decode_stats_discovery(dynamic raw);
 
   @protected
   StatsFilter dco_decode_stats_filter(dynamic raw);
@@ -175,13 +267,73 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsGroup dco_decode_stats_group(dynamic raw);
 
   @protected
+  StatsHealth dco_decode_stats_health(dynamic raw);
+
+  @protected
+  StatsMatrix dco_decode_stats_matrix(dynamic raw);
+
+  @protected
+  StatsModelPrice dco_decode_stats_model_price(dynamic raw);
+
+  @protected
+  StatsPriceCounts dco_decode_stats_price_counts(dynamic raw);
+
+  @protected
+  StatsPricePeak dco_decode_stats_price_peak(dynamic raw);
+
+  @protected
+  StatsPriceTier dco_decode_stats_price_tier(dynamic raw);
+
+  @protected
+  StatsPrices dco_decode_stats_prices(dynamic raw);
+
+  @protected
+  StatsPricing dco_decode_stats_pricing(dynamic raw);
+
+  @protected
+  StatsRetention dco_decode_stats_retention(dynamic raw);
+
+  @protected
   StatsRolling dco_decode_stats_rolling(dynamic raw);
 
   @protected
   StatsRun dco_decode_stats_run(dynamic raw);
 
   @protected
+  StatsSessionDetail dco_decode_stats_session_detail(dynamic raw);
+
+  @protected
+  StatsSessionItem dco_decode_stats_session_item(dynamic raw);
+
+  @protected
+  StatsSessionKinds dco_decode_stats_session_kinds(dynamic raw);
+
+  @protected
+  StatsSessionModel dco_decode_stats_session_model(dynamic raw);
+
+  @protected
+  StatsSessionSummary dco_decode_stats_session_summary(dynamic raw);
+
+  @protected
+  StatsSessions dco_decode_stats_sessions(dynamic raw);
+
+  @protected
   StatsSnapshot dco_decode_stats_snapshot(dynamic raw);
+
+  @protected
+  StatsSource dco_decode_stats_source(dynamic raw);
+
+  @protected
+  StatsSourceChecks dco_decode_stats_source_checks(dynamic raw);
+
+  @protected
+  StatsSourceNote dco_decode_stats_source_note(dynamic raw);
+
+  @protected
+  StatsSourceRun dco_decode_stats_source_run(dynamic raw);
+
+  @protected
+  StatsSources dco_decode_stats_sources(dynamic raw);
 
   @protected
   StatsSummary dco_decode_stats_summary(dynamic raw);
@@ -190,7 +342,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsSync dco_decode_stats_sync(dynamic raw);
 
   @protected
+  StatsTimeOfDay dco_decode_stats_time_of_day(dynamic raw);
+
+  @protected
+  StatsTimeseries dco_decode_stats_timeseries(dynamic raw);
+
+  @protected
   StatsTotals dco_decode_stats_totals(dynamic raw);
+
+  @protected
+  StatsUnallocated dco_decode_stats_unallocated(dynamic raw);
 
   @protected
   StatsWindow dco_decode_stats_window(dynamic raw);
@@ -232,6 +393,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_CastedPrimitive_i_64(SseDeserializer deserializer);
 
   @protected
+  Map<String, int> sse_decode_Map_String_CastedPrimitive_i_64_None(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   NewsClient
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
     SseDeserializer deserializer,
@@ -267,7 +433,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsFilter sse_decode_box_autoadd_stats_filter(SseDeserializer deserializer);
 
   @protected
+  StatsPrices sse_decode_box_autoadd_stats_prices(SseDeserializer deserializer);
+
+  @protected
   StatsRun sse_decode_box_autoadd_stats_run(SseDeserializer deserializer);
+
+  @protected
+  StatsSessionDetail sse_decode_box_autoadd_stats_session_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSourceRun sse_decode_box_autoadd_stats_source_run(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsTimeOfDay sse_decode_box_autoadd_stats_time_of_day(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsUnallocated sse_decode_box_autoadd_stats_unallocated(
+    SseDeserializer deserializer,
+  );
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -285,13 +474,62 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<NewsItem> sse_decode_list_news_item(SseDeserializer deserializer);
 
   @protected
+  Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<(String, int)> sse_decode_list_record_string_casted_primitive_i_64(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<SourceState> sse_decode_list_source_state(SseDeserializer deserializer);
 
   @protected
+  List<StatsBucket> sse_decode_list_stats_bucket(SseDeserializer deserializer);
+
+  @protected
+  List<StatsDiscoveredSource> sse_decode_list_stats_discovered_source(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<StatsGroup> sse_decode_list_stats_group(SseDeserializer deserializer);
+
+  @protected
+  List<StatsModelPrice> sse_decode_list_stats_model_price(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsPricePeak> sse_decode_list_stats_price_peak(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsPriceTier> sse_decode_list_stats_price_tier(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsSessionItem> sse_decode_list_stats_session_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsSessionModel> sse_decode_list_stats_session_model(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsSource> sse_decode_list_stats_source(SseDeserializer deserializer);
+
+  @protected
+  List<StatsSourceNote> sse_decode_list_stats_source_note(
+    SseDeserializer deserializer,
+  );
 
   @protected
   NewsError sse_decode_news_error(SseDeserializer deserializer);
@@ -304,6 +542,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? sse_decode_opt_CastedPrimitive_i_64(SseDeserializer deserializer);
+
+  @protected
+  Map<String, int>? sse_decode_opt_Map_String_CastedPrimitive_i_64_None(
+    SseDeserializer deserializer,
+  );
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -327,10 +570,45 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsPrices? sse_decode_opt_box_autoadd_stats_prices(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsRun? sse_decode_opt_box_autoadd_stats_run(SseDeserializer deserializer);
 
   @protected
+  StatsSessionDetail? sse_decode_opt_box_autoadd_stats_session_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSourceRun? sse_decode_opt_box_autoadd_stats_source_run(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsTimeOfDay? sse_decode_opt_box_autoadd_stats_time_of_day(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsUnallocated? sse_decode_opt_box_autoadd_stats_unallocated(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<StatsPriceTier>? sse_decode_opt_list_stats_price_tier(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  (String, int) sse_decode_record_string_casted_primitive_i_64(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SourceState sse_decode_source_state(SseDeserializer deserializer);
@@ -347,10 +625,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsBreakdown sse_decode_stats_breakdown(SseDeserializer deserializer);
 
   @protected
+  StatsBucket sse_decode_stats_bucket(SseDeserializer deserializer);
+
+  @protected
   StatsCostParts sse_decode_stats_cost_parts(SseDeserializer deserializer);
 
   @protected
   StatsCounts sse_decode_stats_counts(SseDeserializer deserializer);
+
+  @protected
+  StatsDiscoveredSource sse_decode_stats_discovered_source(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsDiscovery sse_decode_stats_discovery(SseDeserializer deserializer);
 
   @protected
   StatsFilter sse_decode_stats_filter(SseDeserializer deserializer);
@@ -359,13 +648,83 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsGroup sse_decode_stats_group(SseDeserializer deserializer);
 
   @protected
+  StatsHealth sse_decode_stats_health(SseDeserializer deserializer);
+
+  @protected
+  StatsMatrix sse_decode_stats_matrix(SseDeserializer deserializer);
+
+  @protected
+  StatsModelPrice sse_decode_stats_model_price(SseDeserializer deserializer);
+
+  @protected
+  StatsPriceCounts sse_decode_stats_price_counts(SseDeserializer deserializer);
+
+  @protected
+  StatsPricePeak sse_decode_stats_price_peak(SseDeserializer deserializer);
+
+  @protected
+  StatsPriceTier sse_decode_stats_price_tier(SseDeserializer deserializer);
+
+  @protected
+  StatsPrices sse_decode_stats_prices(SseDeserializer deserializer);
+
+  @protected
+  StatsPricing sse_decode_stats_pricing(SseDeserializer deserializer);
+
+  @protected
+  StatsRetention sse_decode_stats_retention(SseDeserializer deserializer);
+
+  @protected
   StatsRolling sse_decode_stats_rolling(SseDeserializer deserializer);
 
   @protected
   StatsRun sse_decode_stats_run(SseDeserializer deserializer);
 
   @protected
+  StatsSessionDetail sse_decode_stats_session_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSessionItem sse_decode_stats_session_item(SseDeserializer deserializer);
+
+  @protected
+  StatsSessionKinds sse_decode_stats_session_kinds(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSessionModel sse_decode_stats_session_model(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSessionSummary sse_decode_stats_session_summary(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSessions sse_decode_stats_sessions(SseDeserializer deserializer);
+
+  @protected
   StatsSnapshot sse_decode_stats_snapshot(SseDeserializer deserializer);
+
+  @protected
+  StatsSource sse_decode_stats_source(SseDeserializer deserializer);
+
+  @protected
+  StatsSourceChecks sse_decode_stats_source_checks(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSourceNote sse_decode_stats_source_note(SseDeserializer deserializer);
+
+  @protected
+  StatsSourceRun sse_decode_stats_source_run(SseDeserializer deserializer);
+
+  @protected
+  StatsSources sse_decode_stats_sources(SseDeserializer deserializer);
 
   @protected
   StatsSummary sse_decode_stats_summary(SseDeserializer deserializer);
@@ -374,7 +733,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsSync sse_decode_stats_sync(SseDeserializer deserializer);
 
   @protected
+  StatsTimeOfDay sse_decode_stats_time_of_day(SseDeserializer deserializer);
+
+  @protected
+  StatsTimeseries sse_decode_stats_timeseries(SseDeserializer deserializer);
+
+  @protected
   StatsTotals sse_decode_stats_totals(SseDeserializer deserializer);
+
+  @protected
+  StatsUnallocated sse_decode_stats_unallocated(SseDeserializer deserializer);
 
   @protected
   StatsWindow sse_decode_stats_window(SseDeserializer deserializer);
@@ -418,6 +786,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_CastedPrimitive_i_64(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_Map_String_CastedPrimitive_i_64_None(
+    Map<String, int> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void
@@ -467,8 +841,38 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_stats_prices(
+    StatsPrices self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_stats_run(
     StatsRun self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_session_detail(
+    StatsSessionDetail self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_source_run(
+    StatsSourceRun self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_time_of_day(
+    StatsTimeOfDay self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_unallocated(
+    StatsUnallocated self,
     SseSerializer serializer,
   );
 
@@ -488,8 +892,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_news_item(List<NewsItem> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_prim_i_32_strict(
+    Int32List self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_record_string_casted_primitive_i_64(
+    List<(String, int)> self,
     SseSerializer serializer,
   );
 
@@ -500,8 +916,62 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_stats_bucket(
+    List<StatsBucket> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_discovered_source(
+    List<StatsDiscoveredSource> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_stats_group(
     List<StatsGroup> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_model_price(
+    List<StatsModelPrice> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_price_peak(
+    List<StatsPricePeak> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_price_tier(
+    List<StatsPriceTier> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_session_item(
+    List<StatsSessionItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_session_model(
+    List<StatsSessionModel> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_source(
+    List<StatsSource> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_source_note(
+    List<StatsSourceNote> self,
     SseSerializer serializer,
   );
 
@@ -516,6 +986,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_CastedPrimitive_i_64(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_Map_String_CastedPrimitive_i_64_None(
+    Map<String, int>? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
@@ -542,13 +1018,55 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_stats_prices(
+    StatsPrices? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_stats_run(
     StatsRun? self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_stats_session_detail(
+    StatsSessionDetail? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_source_run(
+    StatsSourceRun? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_time_of_day(
+    StatsTimeOfDay? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_unallocated(
+    StatsUnallocated? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_list_stats_price_tier(
+    List<StatsPriceTier>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_record_string_casted_primitive_i_64(
+    (String, int) self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_source_state(SourceState self, SseSerializer serializer);
@@ -569,6 +1087,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_stats_bucket(StatsBucket self, SseSerializer serializer);
+
+  @protected
   void sse_encode_stats_cost_parts(
     StatsCostParts self,
     SseSerializer serializer,
@@ -578,10 +1099,64 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_stats_counts(StatsCounts self, SseSerializer serializer);
 
   @protected
+  void sse_encode_stats_discovered_source(
+    StatsDiscoveredSource self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_discovery(
+    StatsDiscovery self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_stats_filter(StatsFilter self, SseSerializer serializer);
 
   @protected
   void sse_encode_stats_group(StatsGroup self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_health(StatsHealth self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_matrix(StatsMatrix self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_model_price(
+    StatsModelPrice self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_price_counts(
+    StatsPriceCounts self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_price_peak(
+    StatsPricePeak self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_price_tier(
+    StatsPriceTier self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_prices(StatsPrices self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_pricing(StatsPricing self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_retention(
+    StatsRetention self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stats_rolling(StatsRolling self, SseSerializer serializer);
@@ -590,7 +1165,64 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_stats_run(StatsRun self, SseSerializer serializer);
 
   @protected
+  void sse_encode_stats_session_detail(
+    StatsSessionDetail self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_session_item(
+    StatsSessionItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_session_kinds(
+    StatsSessionKinds self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_session_model(
+    StatsSessionModel self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_session_summary(
+    StatsSessionSummary self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_sessions(StatsSessions self, SseSerializer serializer);
+
+  @protected
   void sse_encode_stats_snapshot(StatsSnapshot self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_source(StatsSource self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_source_checks(
+    StatsSourceChecks self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_source_note(
+    StatsSourceNote self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_source_run(
+    StatsSourceRun self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_sources(StatsSources self, SseSerializer serializer);
 
   @protected
   void sse_encode_stats_summary(StatsSummary self, SseSerializer serializer);
@@ -599,7 +1231,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_stats_sync(StatsSync self, SseSerializer serializer);
 
   @protected
+  void sse_encode_stats_time_of_day(
+    StatsTimeOfDay self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_timeseries(
+    StatsTimeseries self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_stats_totals(StatsTotals self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_unallocated(
+    StatsUnallocated self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stats_window(StatsWindow self, SseSerializer serializer);
