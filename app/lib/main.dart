@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_shell.dart';
 import 'news_controller.dart';
 import 'news_page.dart';
 import 'rust_gateway.dart';
@@ -16,7 +17,6 @@ import 'src/rust/frb_generated.dart';
 import 'src/rust/api/stats.dart' as stats;
 import 'stats_controller.dart';
 import 'stats_gateway.dart';
-import 'stats/stats_page.dart';
 import 'stats/preferences.dart';
 import 'stats/theme/palette.dart';
 
@@ -37,7 +37,6 @@ class _TokenLensAppState extends State<TokenLensApp> {
   NewsController? _controller;
   StatsController? _statsController;
   String? _statsInitializationError;
-  bool _showStats = false;
   String? _initializationError;
   bool _closing = false;
   UiPreferences _preferences = const UiPreferences();
@@ -151,50 +150,13 @@ class _TokenLensAppState extends State<TokenLensApp> {
           _ => ThemeMode.system,
         },
     home: _controller != null
-        ? Scaffold(
-            body: Column(
-              children: [
-                SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(
-                          value: false,
-                          label: Text('新闻'),
-                          icon: Icon(Icons.article_outlined),
-                        ),
-                        ButtonSegment(
-                          value: true,
-                          label: Text('统计'),
-                          icon: Icon(Icons.bar_chart),
-                        ),
-                      ],
-                      selected: {_showStats},
-                      onSelectionChanged: (selection) =>
-                          setState(() => _showStats = selection.single),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: _showStats
-                      ? _statsController == null
-                            ? Center(
-                                child: Text(
-                                  _statsInitializationError ?? '正在打开统计…',
-                                ),
-                              )
-                            : StatsPage(controller: _statsController!)
-                      : NewsPage(
-                          controller: _controller!,
-                          openLink: (uri) => launchUrl(
-                            uri,
-                            mode: LaunchMode.externalApplication,
-                          ),
-                        ),
-                ),
-              ],
+        ? AppShell(
+            statsController: _statsController,
+            statsInitializationError: _statsInitializationError,
+            news: NewsPage(
+              controller: _controller!,
+              openLink: (uri) =>
+                  launchUrl(uri, mode: LaunchMode.externalApplication),
             ),
           )
         : Scaffold(

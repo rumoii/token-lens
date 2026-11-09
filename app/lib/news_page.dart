@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'news_controller.dart';
 import 'news_gateway.dart';
+import 'smooth_wheel.dart';
 
 const _kindNames = {
   'release': '版本',
@@ -26,6 +27,7 @@ class _NewsPageState extends State<NewsPage> {
   bool _cards = false;
   final Set<String> _opening = {};
   final _search = TextEditingController();
+  final _scroll = SmoothWheelController();
   final _sourceMenu = MenuController();
   final _sourceButtonFocus = FocusNode();
   final _allSourcesFocus = FocusNode();
@@ -48,6 +50,7 @@ class _NewsPageState extends State<NewsPage> {
   @override
   void dispose() {
     _search.dispose();
+    _scroll.dispose();
     _sourceButtonFocus.dispose();
     _allSourcesFocus.dispose();
     _kindButtonFocus.dispose();
@@ -94,25 +97,18 @@ class _NewsPageState extends State<NewsPage> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final wide =
-                  constraints.maxWidth >= 1000 &&
+                  constraints.maxWidth >= 756 &&
                   constraints.maxHeight >= 550 &&
                   MediaQuery.textScalerOf(context).scale(14) <= 21;
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (wide) _sidebar(colors),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.all(wide ? 36 : 24),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1220),
-                          child: _content(colors, wide),
-                        ),
-                      ),
-                    ),
+              return SingleChildScrollView(
+                controller: _scroll,
+                padding: EdgeInsets.all(wide ? 36 : 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1220),
+                    child: _content(colors, wide),
                   ),
-                ],
+                ),
               );
             },
           ),
@@ -121,88 +117,12 @@ class _NewsPageState extends State<NewsPage> {
     );
   }
 
-  Widget _sidebar(_NewsColors colors) => Container(
-    width: 218,
-    padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
-    decoration: BoxDecoration(
-      color: colors.base,
-      border: Border(right: BorderSide(color: colors.line)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _brand(colors),
-        const SizedBox(height: 40),
-        Text('工作台', style: _small(colors)),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: colors.hover,
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.rss_feed_rounded, size: 18, color: colors.accent),
-              const SizedBox(width: 10),
-              Text(
-                'AI 动态',
-                style: TextStyle(
-                  color: colors.ink,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 28),
-        Divider(color: colors.line),
-        const SizedBox(height: 12),
-        Text('用量统计', style: TextStyle(color: colors.secondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        Text('点击顶部“统计”查看用量', style: _small(colors)),
-        const Spacer(),
-        Divider(color: colors.line),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Icon(Icons.shield_outlined, size: 15, color: colors.secondary),
-            const SizedBox(width: 7),
-            Text('本地优先', style: _small(colors)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text('仅在手动刷新时连接来源', style: _small(colors)),
-      ],
-    ),
-  );
-
-  Widget _brand(_NewsColors colors) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      CustomPaint(size: const Size(28, 28), painter: _LensMark(colors.accent)),
-      const SizedBox(width: 9),
-      Flexible(
-        child: Text(
-          'Token Lens',
-          style: TextStyle(
-            color: colors.ink,
-            fontSize: 19,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -.5,
-          ),
-        ),
-      ),
-    ],
-  );
-
   Widget _content(_NewsColors colors, bool wide) {
     final controller = widget.controller;
     final snapshot = controller.snapshot;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!wide) ...[_brand(colors), const SizedBox(height: 20)],
         LayoutBuilder(
           builder: (context, constraints) {
             final title = Column(
@@ -215,7 +135,7 @@ class _NewsPageState extends State<NewsPage> {
                     Semantics(
                       header: true,
                       child: Text(
-                        'AI 动态',
+                        'AI 热点',
                         style: TextStyle(
                           color: colors.ink,
                           fontSize: 28,
@@ -313,8 +233,6 @@ class _NewsPageState extends State<NewsPage> {
           _sourcePanel(colors),
         ],
         const SizedBox(height: 22),
-        Text('点击顶部“统计”查看用量统计。', style: _small(colors)),
-        const SizedBox(height: 6),
         Text('无自动刷新。外部页面仅在点击原文后打开。', style: _small(colors)),
       ],
     );
@@ -1430,36 +1348,4 @@ class _NewsColors {
       accent,
       wash,
       focus;
-}
-
-class _LensMark extends CustomPainter {
-  const _LensMark(this.color);
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
-    canvas.drawCircle(
-      Offset(size.width / 2, size.height / 2),
-      size.width / 2 - 2,
-      paint,
-    );
-    paint.style = PaintingStyle.fill;
-    for (var index = 0; index < 3; index++) {
-      final height = 6.0 + index * 4;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(7 + index * 5, 21 - height, 3, height),
-          const Radius.circular(1),
-        ),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_LensMark oldDelegate) => color != oldDelegate.color;
 }

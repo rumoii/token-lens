@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../smooth_wheel.dart';
 import '../stats_controller.dart';
 import 'logic/detail_query.dart';
 import 'logic/tools.dart';
@@ -11,22 +12,33 @@ import 'home_page.dart';
 import 'widgets/motion.dart';
 
 class StatsPage extends StatefulWidget {
-  const StatsPage({super.key, required this.controller});
+  const StatsPage({super.key, required this.controller, this.news});
   final StatsController controller;
+  final Widget? news;
   @override
   State<StatsPage> createState() => _StatsPageState();
 }
 
 class _StatsPageState extends State<StatsPage> {
   final scaffold = GlobalKey<ScaffoldState>();
+  final _contentScroll = SmoothWheelController();
+  final _sidebarScroll = SmoothWheelController();
   String page = 'home', query = '';
   static const nav = {
     'home': ('用量总览', Icons.insights_outlined),
     'detail': ('用量明细', Icons.manage_search),
     'sessions': ('会话记录', Icons.history),
     'sources': ('工具来源', Icons.build_outlined),
+    'news': ('AI 热点', Icons.rss_feed_rounded),
     'settings': ('价格与设置', Icons.settings_outlined),
   };
+  @override
+  void dispose() {
+    _contentScroll.dispose();
+    _sidebarScroll.dispose();
+    super.dispose();
+  }
+
   void navigate(String target, [Map<String, String> params = const {}]) {
     scaffold.currentState?.closeDrawer();
     setState(() {
@@ -137,58 +149,89 @@ class _StatsPageState extends State<StatsPage> {
               ],
             ),
             const SizedBox(height: 24),
-            Semantics(
-              label: '页面导航',
-              container: true,
-              child: Column(
-                children: [
-                  for (final e in nav.entries)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: navRow(
-                        e.value.$1,
-                        Icon(e.value.$2, size: 17, color: p.secondary),
-                        () => navigate(e.key),
-                        active: page == e.key,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
             Expanded(
               child: ListView(
+                controller: _sidebarScroll,
                 padding: EdgeInsets.zero,
                 children: [
-                  if (c.loading) Text('正在读取本期用量…', style: p.text(12, p.muted)),
-                  if (c.error != null ||
-                      c.resourceErrors.containsKey('sources'))
-                    LensButton(
-                      label: '重试读取',
-                      size: 'xs',
-                      onPressed: () => unawaited(c.load()),
+                  Semantics(
+                    label: '页面导航',
+                    container: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final group in [
+                          ('用量', ['home', 'detail', 'sessions', 'sources']),
+                          if (widget.news != null) ('资讯', ['news']),
+                          ('设置', ['settings']),
+                        ]) ...[
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              12,
+                              group.$1 == '用量' ? 0 : 14,
+                              12,
+                              6,
+                            ),
+                            child: Semantics(
+                              container: true,
+                              header: true,
+                              child: Text(
+                                group.$1,
+                                style: p.text(12, p.muted, FontWeight.w500),
+                              ),
+                            ),
+                          ),
+                          for (final target in group.$2)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: navRow(
+                                nav[target]!.$1,
+                                Icon(
+                                  nav[target]!.$2,
+                                  size: 17,
+                                  color: p.secondary,
+                                ),
+                                () => navigate(target),
+                                active: page == target,
+                              ),
+                            ),
+                        ],
+                      ],
                     ),
-                  if (entries.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: Text(
-                        '本期工具',
-                        style: p.text(12, p.muted, FontWeight.w500),
+                  ),
+                  if (page != 'news') ...[
+                    const SizedBox(height: 20),
+                    if (c.loading)
+                      Text('正在读取本期用量…', style: p.text(12, p.muted)),
+                    if (c.error != null ||
+                        c.resourceErrors.containsKey('sources'))
+                      LensButton(
+                        label: '重试读取',
+                        size: 'xs',
+                        onPressed: () => unawaited(c.load()),
                       ),
-                    ),
-                    for (final entry in entries)
-                      navRow(
-                        toolOf(entry.key).name,
-                        ToolTile(entry.key, size: 20),
-                        () => navigate('detail', {
-                          'tool': entry.key,
-                          'dim': 'model',
-                        }),
-                        trailing: Text(
-                          '${total > 0 ? (entry.value / total * 100).round() : 0}%',
-                          style: p.text(12, p.muted),
+                    if (entries.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Text(
+                          '本期工具',
+                          style: p.text(12, p.muted, FontWeight.w500),
                         ),
                       ),
+                      for (final entry in entries)
+                        navRow(
+                          toolOf(entry.key).name,
+                          ToolTile(entry.key, size: 20),
+                          () => navigate('detail', {
+                            'tool': entry.key,
+                            'dim': 'model',
+                          }),
+                          trailing: Text(
+                            '${total > 0 ? (entry.value / total * 100).round() : 0}%',
+                            style: p.text(12, p.muted),
+                          ),
+                        ),
+                    ],
                   ],
                 ],
               ),
@@ -309,47 +352,57 @@ class _StatsPageState extends State<StatsPage> {
                       ),
                     ),
                   Expanded(
-                    child: SingleChildScrollView(
-                      key: const Key('stats-scroll'),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1120),
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              narrow ? 14 : 36,
-                              narrow ? 18 : 28,
-                              narrow ? 14 : 36,
-                              24,
-                            ),
-                            child: page == 'home'
-                                ? StatsHome(
-                                    controller: widget.controller,
-                                    onDetail: (p) => navigate('detail', p),
-                                    onSessions: (p) => navigate('sessions', p),
-                                    onSources: () => navigate('sources'),
-                                  )
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(nav[page]!.$1, style: p.serif(30)),
-                                      const SizedBox(height: 18),
-                                      const Text('这一页还在迁移'),
-                                      if (query.isNotEmpty) ...[
-                                        const SizedBox(height: 16),
-                                        SelectableText(
-                                          query,
-                                          key: const Key('detail-query'),
-                                          style: p.text(13, p.secondary),
-                                        ),
-                                      ],
-                                    ],
+                    child: page == 'news'
+                        ? widget.news!
+                        : SingleChildScrollView(
+                            key: const Key('stats-scroll'),
+                            controller: _contentScroll,
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 1120,
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    narrow ? 14 : 36,
+                                    narrow ? 18 : 28,
+                                    narrow ? 14 : 36,
+                                    24,
                                   ),
+                                  child: page == 'home'
+                                      ? StatsHome(
+                                          controller: widget.controller,
+                                          onDetail: (p) =>
+                                              navigate('detail', p),
+                                          onSessions: (p) =>
+                                              navigate('sessions', p),
+                                          onSources: () => navigate('sources'),
+                                        )
+                                      : Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              nav[page]!.$1,
+                                              style: p.serif(30),
+                                            ),
+                                            const SizedBox(height: 18),
+                                            const Text('这一页还在迁移'),
+                                            if (query.isNotEmpty) ...[
+                                              const SizedBox(height: 16),
+                                              SelectableText(
+                                                query,
+                                                key: const Key('detail-query'),
+                                                style: p.text(13, p.secondary),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),

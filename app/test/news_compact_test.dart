@@ -39,6 +39,10 @@ void main() {
   testWidgets(
     'source filter is a dropdown beside search, with lightweight counted tabs',
     (tester) async {
+      tester.view.physicalSize = const Size(755, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final controller = NewsController(FakeNewsGateway(cached: multiNews));
       addTearDown(controller.dispose);
       await tester.pumpWidget(

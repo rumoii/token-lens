@@ -78,7 +78,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.pump(const Duration(hours: 1));
-    expect(find.text('AI 动态'), findsWidgets);
+    expect(find.text('AI 热点'), findsOneWidget);
+    expect(find.text('Token Lens'), findsNothing);
+    expect(find.text('工作台'), findsNothing);
     expect(find.text('预览'), findsOneWidget);
     expect(find.text('Cached article'), findsOneWidget);
     expect(find.textContaining('本地缓存'), findsWidgets);
@@ -203,7 +205,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('还没有动态'), findsOneWidget);
-    expect(find.text('点击顶部“统计”查看用量统计。'), findsOneWidget);
+    expect(find.text('点击顶部“统计”查看用量统计。'), findsNothing);
+    expect(find.text('无自动刷新。外部页面仅在点击原文后打开。'), findsOneWidget);
     expect(gateway.refreshCalls, 0);
     controller.dispose();
   });
