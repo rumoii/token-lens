@@ -11,6 +11,15 @@ pub enum LocalZone {
     Fixed(i32),
 }
 
+/// ECMAScript WhiteSpace and LineTerminator (also the character class used by /\s/).
+pub fn whitespace(c: char) -> bool {
+    matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+}
+
+pub fn trim(text: &str) -> &str {
+    text.trim_matches(whitespace)
+}
+
 pub fn truthy(value: &Value) -> bool {
     match value {
         Value::Null => false,
@@ -294,6 +303,13 @@ pub enum JsJson {
 }
 
 impl JsJson {
+    pub fn values(&self) -> Vec<&Self> {
+        match self {
+            Self::Array(a) => a.iter().collect(),
+            Self::Object(o) => o.iter().map(|(_, v)| v).collect(),
+            _ => Vec::new(),
+        }
+    }
     pub fn get(&self, key: &str) -> &Self {
         match self {
             Self::Object(o) => o

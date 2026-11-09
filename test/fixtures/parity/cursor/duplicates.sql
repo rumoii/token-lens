@@ -1,0 +1,12 @@
+CREATE TABLE ItemTable (key,value);
+INSERT INTO ItemTable VALUES ('composerData', '{');
+INSERT INTO ItemTable VALUES ('composerData', X'7b7d');
+INSERT INTO ItemTable VALUES ('composerData', 12);
+INSERT INTO ItemTable VALUES ('composerData', 'null');
+INSERT INTO ItemTable VALUES ('composerData', '"str"');
+INSERT INTO ItemTable VALUES ('composerData', '[{"id":null,"model":"m","createdAt":1768478400000,"conversation":[{"type":1,"tokenCount":"$1,200"},{"role":"assistant","tokens":"3"}]},null,{"id":null,"model":"m","createdAt":1768478400000,"conversation":[{"tokenCount":2}]}]');
+INSERT INTO ItemTable VALUES ('workbench.panel.aichat.view.aichat.chatdata', '{"2":{"chatMessages":[{"tokenCount":4}]},"10":{"chatMessages":[{"tokenCount":3}]},"z":{"chatMessages":[{"tokenCount":5}]}}');
+INSERT INTO ItemTable VALUES ('workbench.panel.aichat.view.aichat.chatdata', '[null,{"messages":[]},{"messages":"bad"},{"conversation":[{"role":"user","tokenCount":2}]}]');
+INSERT INTO ItemTable VALUES ('composerData', '[]');
+INSERT INTO ItemTable VALUES ('composerData', '{}');
+INSERT INTO ItemTable VALUES ('composerData', '{"composerData":null}');

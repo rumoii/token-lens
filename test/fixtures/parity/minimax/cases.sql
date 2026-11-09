@@ -1,0 +1,16 @@
+CREATE TABLE local_runtime_token_usage (id,session_id,model,ts,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens);
+INSERT INTO local_runtime_token_usage VALUES (9, 's', ' model ', 1768478400000, 10, 2, 3, 4);
+INSERT INTO local_runtime_token_usage VALUES (1, 's', NULL, 1768478400000, 12, 3, NULL, NULL);
+INSERT INTO local_runtime_token_usage VALUES (0, 's', 'm', 1768478400000, 1, 2, 3, 4);
+INSERT INTO local_runtime_token_usage VALUES (NULL, 's', 'm', 1768478400000, 1, 2, 3, 4);
+INSERT INTO local_runtime_token_usage VALUES (2, ' ', 'm', 1768478400000, 1, 2, 3, 4);
+INSERT INTO local_runtime_token_usage VALUES (3, 12, 'm', 1768478400000, 1, 2, 3, 4);
+INSERT INTO local_runtime_token_usage VALUES (4, 's', 'm', NULL, 1, 2, 3, 4);
+INSERT INTO local_runtime_token_usage VALUES (5, 's', 'm', 'invalid', 1, 2, 3, 4);
+INSERT INTO local_runtime_token_usage VALUES (6, 's', 'm', 1768478400000, 0, 0, 0, 0);
+INSERT INTO local_runtime_token_usage VALUES (7, 's', 'm', 1768478400000, -1, '7', 'bad', 1.5);
+INSERT INTO local_runtime_token_usage VALUES ('str-id', ' orphan ', '   ', 1768478400000, 1, 2, 3, 4);
+CREATE TABLE local_runtime_sessions (session_id,workspace_dir);
+INSERT INTO local_runtime_sessions VALUES ('s', 'D:/work/mini/');
+INSERT INTO local_runtime_sessions VALUES (' orphan ', ' ');
+INSERT INTO local_runtime_token_usage VALUES (1,'s','tie',1768478400000,4,2,NULL,NULL);

@@ -1,0 +1,17 @@
+CREATE TABLE workspace_chats (id,workspaceId,response,createdAt,thread_id,api_session_id,include);
+INSERT INTO workspace_chats VALUES (9, 7, '{"metrics":{"prompt_tokens":10,"completion_tokens":2,"model":" model ","provider":" Provider "}}', 1768478400000, 2, NULL, 1);
+INSERT INTO workspace_chats VALUES (1, 7, '{"metrics":{"prompt_tokens":10,"completion_tokens":2,"model":null,"provider":null}}', '2026-01-15 12:00:00', NULL, '', 0);
+INSERT INTO workspace_chats VALUES (2, NULL, '{"metrics":{"prompt_tokens":10,"completion_tokens":2,"model":" model ","provider":" Provider "}}', 1768478400000, 0, 0, 1);
+INSERT INTO workspace_chats VALUES (3, 7, '{', 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (4, 7, NULL, 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (5, 7, 42, 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (6, 7, X'3132', 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (7, 7, '{"metrics":[]}', 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (8, 7, '{"metrics":"bad"}', 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (10, 7, '{"metrics":{"prompt_tokens":0,"completion_tokens":0,"model":" model ","provider":" Provider "}}', 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (11, 7, '{"metrics":{"prompt_tokens":-1,"completion_tokens":"7","model":" ","provider":12}}', 1768478400000, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (12, 7, '{"metrics":{"prompt_tokens":10,"completion_tokens":2,"model":" model ","provider":" Provider "}}', NULL, NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (13, 7, '{"metrics":{"prompt_tokens":10,"completion_tokens":2,"model":" model ","provider":" Provider "}}', 'invalid', NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (NULL, 7, '{"metrics":{"prompt_tokens":10,"completion_tokens":2,"model":" model ","provider":" Provider "}}', '2026-01-15T12:00:00', NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (14, 7, '{"metrics":{"prompt_tokens":10,"completion_tokens":2,"model":" model ","provider":" Provider "}}', '2026-01-15 12:00:00.123', NULL, NULL, 1);
+INSERT INTO workspace_chats VALUES (1,7,'{"metrics":{"prompt_tokens":4}}',1768478400000,NULL,NULL,1);

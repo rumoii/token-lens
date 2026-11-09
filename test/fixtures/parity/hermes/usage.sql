@@ -1,0 +1,10 @@
+CREATE TABLE session_model_usage (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, last_seen);
+INSERT INTO session_model_usage VALUES ('z', 'm', 10, 2, 3, 4, 1768478400000);
+INSERT INTO session_model_usage VALUES ('a', NULL, 12.0, ' 3 ', NULL, NULL, 1768478400000);
+INSERT INTO session_model_usage VALUES (NULL, 0, X'3132', 1, -1, 'bad', NULL);
+INSERT INTO session_model_usage VALUES ('zero', 'm', 0, 0, 0, 0, 1768478400000);
+INSERT INTO session_model_usage VALUES ('bad', 'm', '-2', '7', NULL, NULL, 'invalid');
+INSERT INTO session_model_usage VALUES ('utf8', CAST(X'61ff' AS TEXT), 1, NULL, NULL, NULL, 1768478400000);
+CREATE INDEX by_seen ON session_model_usage(last_seen DESC, session_id DESC);
+CREATE TABLE sessions (id, model, input_tokens, output_tokens, started_at);
+INSERT INTO sessions VALUES ('ignored', 'm', 999, 99, 1768478400000);

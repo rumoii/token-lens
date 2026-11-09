@@ -207,14 +207,176 @@ fn codebuddy(home: &Path, env: &Environment) -> Vec<PathBuf> {
     walk(&base.join("CodeBuddyExtension/Data"), true, &mut out);
     out
 }
+fn get_hermes_db_path(home: &Path, env: &Environment) -> PathBuf {
+    normalize(&if env.platform == "win32" {
+        env.absolute("LOCALAPPDATA", home.join("AppData/Local"))
+            .join("hermes/state.db")
+    } else {
+        home.join(".hermes/state.db")
+    })
+}
+fn get_cursor_state_db_path(home: &Path, env: &Environment) -> PathBuf {
+    normalize(&global_bases(home, env, &["Cursor"])[0].join("state.vscdb"))
+}
+fn xdg_data(home: &Path, env: &Environment) -> PathBuf {
+    env.absolute("XDG_DATA_HOME", home.join(".local/share"))
+}
+fn get_opencode_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
+    let data = normalize(&xdg_data(home, env).join("opencode"));
+    if let Some(value) = env.get("OPENCODE_DB") {
+        if value == ":memory:" {
+            return Vec::new();
+        }
+        // Unlike absoluteEnvPath, OPENCODE_DB preserves CR/LF and distinguishes an empty override.
+        return vec![if Path::new(value).is_absolute() {
+            PathBuf::from(value)
+        } else {
+            normalize(&data.join(value))
+        }];
+    }
+    let mut files = vec![data.join("opencode.db")];
+    files.extend(glob(home, ".opencode/opencode.db"));
+    files
+}
+fn get_kilo_db_path(home: &Path, env: &Environment) -> Option<PathBuf> {
+    let value = env.get("KILO_DB").unwrap_or("");
+    if value == ":memory:" {
+        return None;
+    }
+    Some(if Path::new(value).is_absolute() {
+        PathBuf::from(value)
+    } else {
+        normalize(&xdg_data(home, env).join("kilo").join(if value.is_empty() {
+            "kilo.db"
+        } else {
+            value
+        }))
+    })
+}
+fn get_mimocode_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
+    let home_override = env.get("MIMOCODE_HOME").unwrap_or("");
+    if !home_override.is_empty() && !Path::new(home_override).is_absolute() {
+        return Vec::new();
+    }
+    let data = if home_override.is_empty() {
+        xdg_data(home, env).join("mimocode")
+    } else {
+        Path::new(home_override).join("data")
+    };
+    let value = env.get("MIMOCODE_DB").unwrap_or("");
+    if value == ":memory:" {
+        return Vec::new();
+    }
+    if !value.is_empty() {
+        return vec![if Path::new(value).is_absolute() {
+            PathBuf::from(value)
+        } else {
+            normalize(&data.join(value))
+        }];
+    }
+    let mut files = glob(&data, "mimocode.db");
+    if matches!(
+        env.get("MIMOCODE_DISABLE_CHANNEL_DB")
+            .unwrap_or("")
+            .to_lowercase()
+            .as_str(),
+        "false" | "0"
+    ) {
+        files.extend(glob(&data, "mimocode-*.db"));
+    }
+    files
+}
+fn get_goose_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
+    let paths = match env.platform.as_str() {
+        "win32" => vec![
+            env.absolute("APPDATA", home.join("AppData/Roaming"))
+                .join("goose/sessions/sessions.db"),
+            env.absolute("LOCALAPPDATA", home.join("AppData/Local"))
+                .join("block/goose/data.db"),
+        ],
+        "darwin" => vec![home.join("Library/Application Support/goose/sessions/sessions.db")],
+        _ => vec![home.join(".local/share/goose/sessions/sessions.db")],
+    };
+    paths.iter().map(|p| normalize(p)).collect()
+}
+fn get_zed_db_path(home: &Path, env: &Environment) -> PathBuf {
+    normalize(&match env.platform.as_str() {
+        "win32" => env
+            .absolute("LOCALAPPDATA", home.join("AppData/Local"))
+            .join("Zed/threads/threads.db"),
+        "darwin" => home.join("Library/Application Support/Zed/threads/threads.db"),
+        _ => home.join(".local/share/zed/threads/threads.db"),
+    })
+}
+fn get_anythingllm_db_path(home: &Path, env: &Environment) -> PathBuf {
+    let base = match env.platform.as_str() {
+        "win32" => env.absolute("APPDATA", home.join("AppData/Roaming")),
+        "darwin" => home.join("Library/Application Support"),
+        _ => home.join(".config"),
+    };
+    normalize(&base.join("anythingllm-desktop/storage/anythingllm.db"))
+}
+fn get_zcode_files(home: &Path, env: &Environment) -> Vec<PathBuf> {
+    use serde_json::Value;
+    fn read_json(path: &Path) -> Value {
+        std::fs::read(path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or(Value::Null)
+    }
+    let mut bases = vec![home.to_path_buf()];
+    let settings = read_json(&home.join(".zcode/v2/setting.json"));
+    for value in [
+        env.get("ZCODE_DATA_BASE_DIR"),
+        settings["dataBaseDir"].as_str(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let value = super::jscompat::trim(value);
+        if Path::new(value).is_absolute()
+            && !bases
+                .iter()
+                .any(|p| p.as_os_str() == std::ffi::OsStr::new(value))
+        {
+            bases.push(PathBuf::from(value));
+        }
+    }
+    let mut files = Vec::new();
+    for base in bases {
+        files.push(normalize(&base.join(".zcode/cli/db/db.sqlite")));
+        let config = read_json(&base.join(".zcode/cli/config.json"));
+        for value in [
+            config["storage"]["sessionDbPath"].as_str(),
+            env.get("ZCODE_SESSION_DB_PATH"),
+            env.get("ZCODE_SESSION_DB"),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let value = super::jscompat::trim(value);
+            if let Some(path) = value.strip_prefix("~/") {
+                files.push(normalize(&base.join(path)));
+            } else if Path::new(value).is_absolute() {
+                files.push(PathBuf::from(value));
+            }
+        }
+    }
+    files
+}
+
 pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, Vec<PathBuf>)>> {
     let home = normalize(home);
     let home = home.as_path();
     let mut out = Vec::new();
     let mut add = |source: &str, files: Vec<PathBuf>| {
         let mut unique = Vec::new();
-        for file in files {
-            if !unique.contains(&file) {
+        // Approved difference from Node's ineffective nodir option: only ordinary files enter discovery.
+        for file in files.into_iter().filter(|file| file.is_file()) {
+            if !unique
+                .iter()
+                .any(|p: &PathBuf| p.as_os_str() == file.as_os_str())
+            {
                 unique.push(file);
             }
         }
@@ -231,6 +393,7 @@ pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, 
     ] {
         add(source, glob(&home.join(root), pattern));
     }
+    add("hermes", vec![get_hermes_db_path(home, env)]);
     let mut files = Vec::new();
     for base in global_bases(
         home,
@@ -254,6 +417,11 @@ pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, 
         "sessions/**/*.{json,jsonl}",
     ));
     add("gemini", files);
+    let mut files = vec![get_cursor_state_db_path(home, env)];
+    files.extend(glob(home, "*cursor*.csv"));
+    add("cursor", files);
+    add("opencode", get_opencode_db_paths(home, env));
+    add("kilo", get_kilo_db_path(home, env).into_iter().collect());
     let root = if let Some(s) = env.get("OPENHANDS_CONVERSATIONS_DIR") {
         Path::new(s).is_absolute().then(|| PathBuf::from(s))
     } else if let Some(s) = env.get("OPENHANDS_PERSISTENCE_DIR") {
@@ -264,12 +432,28 @@ pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, 
         Some(home.join(".openhands/conversations"))
     };
     add("openhands", openhands(root));
+    let mut files = get_goose_db_paths(home, env);
+    files.extend(glob(
+        &env.absolute("GOOSE_PATH_ROOT", home.join(".goose")),
+        "data/sessions/sessions.db",
+    ));
+    add("goose", files);
+    let mut files = vec![get_zed_db_path(home, env)];
+    files.extend(glob(home, ".local/share/zed/threads/threads.db"));
+    add("zed", files);
     add("continue", glob(&home.join(".continue/sessions"), "*.json"));
     let mut files = glob(home, "*trae*.{json,jsonl}");
     for base in global_bases(home, env, &["TRAE SOLO", "Trae CN", "TRAE SOLO CN", "trae"]) {
         files.extend(glob(&base, "**/*trae*.{json,jsonl}"));
     }
     add("trae", files);
+    add(
+        "copilot",
+        glob(
+            &env.absolute("COPILOT_HOME", home.join(".copilot")),
+            "{session-store.db,data.db}",
+        ),
+    );
     add(
         "openclaw",
         glob(
@@ -280,6 +464,12 @@ pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, 
             "agents/*/{sessions,session-sqlite-import-archive}/*.jsonl*",
         ),
     );
+    let mut files = get_mimocode_db_paths(home, env);
+    files.extend(glob(
+        &env.absolute("APPDATA", home.join("AppData/Roaming")),
+        "Xiaomi MiMo/mimocode/mimocode.db",
+    ));
+    add("mimo", files);
     let mut files = glob(&home.join(".kimi-code"), "sessions/*/*/agents/*/wire.jsonl");
     let share = env
         .get("KIMI_SHARE_DIR")
@@ -300,7 +490,24 @@ pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, 
         "{sessions,logs}/**/*.{json,jsonl}",
     ));
     add("kimi", files);
+    let value = env.get("MINIMAX_DATA_DIR").unwrap_or("");
+    let files = if value.is_empty() {
+        let mut files = glob(&home.join(".minimax"), "v2/sqlite/runtime-state.sqlite");
+        // Node glob processes matched directories using a LIFO work list.
+        files.extend(
+            glob(home, ".minimax-*/v2/sqlite/runtime-state.sqlite")
+                .into_iter()
+                .rev(),
+        );
+        files
+    } else if Path::new(value).is_absolute() {
+        glob(Path::new(value), "v2/sqlite/runtime-state.sqlite")
+    } else {
+        Vec::new()
+    };
+    add("minimax", files);
     add("codebuddy", codebuddy(home, env));
+    add("zcode", get_zcode_files(home, env));
     add(
         "commandcode",
         glob(&home.join(".commandcode/projects"), "*/*.jsonl")
@@ -311,6 +518,7 @@ pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, 
             })
             .collect(),
     );
+    add("anythingllm", vec![get_anythingllm_db_path(home, env)]);
     Ok(out)
 }
 #[cfg(test)]
@@ -481,5 +689,182 @@ mod platform_tests {
                 .len(),
             1
         );
+    }
+}
+
+#[cfg(test)]
+mod b3_tests {
+    use super::*;
+    use serde_json::{json, Value};
+    fn expand(value: &Value, home: &Path) -> Value {
+        if let Some(path) = value.get("home").and_then(Value::as_str) {
+            let path = format!(
+                "{}{}",
+                normalize(&home.join(path)).display(),
+                value["suffix"].as_str().unwrap_or("")
+            );
+            json!(if value["slashes"] == "forward" {
+                path.replace('\\', "/")
+            } else {
+                path
+            })
+        } else if let Some(literal) = value.get("literal") {
+            literal.clone()
+        } else if let Some(obj) = value.as_object() {
+            Value::Object(
+                obj.iter()
+                    .map(|(k, v)| (k.clone(), expand(v, home)))
+                    .collect(),
+            )
+        } else {
+            value.clone()
+        }
+    }
+    #[test]
+    fn discovery_matches_node_b3() {
+        for line in include_str!("../../tests/golden/discovery-b3.jsonl").lines() {
+            let row: Value = serde_json::from_str(line).unwrap();
+            let dir = tempfile::tempdir().unwrap();
+            let home = dir.path();
+            for file in row["files"].as_array().unwrap() {
+                let path = home.join(file.as_str().unwrap());
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, "{}").unwrap();
+            }
+            for path in row["directories"].as_array().unwrap() {
+                std::fs::create_dir_all(home.join(path.as_str().unwrap())).unwrap();
+            }
+            for entry in row["json"].as_array().unwrap() {
+                let path = home.join(entry["file"].as_str().unwrap());
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                let text = entry["value"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| expand(&entry["value"], home).to_string());
+                std::fs::write(path, text).unwrap();
+            }
+            let env = Environment {
+                platform: row["platform"].as_str().unwrap().into(),
+                vars: row["env"]
+                    .as_object()
+                    .unwrap()
+                    .iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            if let Some(s) = v.as_str() {
+                                normalize(&home.join(s)).to_string_lossy().into_owned()
+                            } else {
+                                expand(v, home).as_str().unwrap().into()
+                            },
+                        )
+                    })
+                    .collect(),
+            };
+            let found = discover_with_env(home, &env).unwrap();
+            for (source, expected) in row["expected"].as_object().unwrap() {
+                let actual = found
+                    .iter()
+                    .find(|(s, _)| s == source)
+                    .map(|(_, files)| {
+                        files
+                            .iter()
+                            .map(|p| {
+                                p.strip_prefix(home)
+                                    .unwrap()
+                                    .to_string_lossy()
+                                    .replace('\\', "/")
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                assert_eq!(json!(actual), *expected, "{} {source}", row["scenario"]);
+                let suffixes = found
+                    .iter()
+                    .find(|(s, _)| s == source)
+                    .map(|(_, files)| {
+                        files
+                            .iter()
+                            .map(|p| p.to_string_lossy()[home.to_string_lossy().len()..].to_owned())
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                assert_eq!(
+                    json!(suffixes),
+                    row["identity_suffixes"][source],
+                    "identity {} {source}",
+                    row["scenario"]
+                );
+            }
+        }
+    }
+    #[test]
+    fn macos_sqlite_roots_b3() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path();
+        let paths = [
+            ("hermes", ".hermes/state.db"),
+            (
+                "cursor",
+                "Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+            ),
+            ("opencode", ".local/share/opencode/opencode.db"),
+            ("kilo", ".local/share/kilo/kilo.db"),
+            (
+                "goose",
+                "Library/Application Support/goose/sessions/sessions.db",
+            ),
+            ("zed", "Library/Application Support/Zed/threads/threads.db"),
+            ("copilot", ".copilot/session-store.db"),
+            ("mimo", ".local/share/mimocode/mimocode.db"),
+            ("minimax", ".minimax/v2/sqlite/runtime-state.sqlite"),
+            ("zcode", ".zcode/cli/db/db.sqlite"),
+            (
+                "anythingllm",
+                "Library/Application Support/anythingllm-desktop/storage/anythingllm.db",
+            ),
+        ];
+        for (_, file) in paths {
+            let file = home.join(file);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, "{}").unwrap();
+        }
+        let env = Environment {
+            platform: "darwin".into(),
+            vars: HashMap::new(),
+        };
+        let found = discover_with_env(home, &env).unwrap();
+        assert_eq!(found.len(), 27);
+        for (source, file) in paths {
+            assert_eq!(
+                found.iter().find(|(s, _)| s == source).unwrap().1,
+                vec![normalize(&home.join(file))],
+                "{source}"
+            );
+        }
+    }
+    #[test]
+    fn absolute_overrides_preserve_identity_b3() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path();
+        let path = home.join("override.db");
+        std::fs::write(&path, "{}").unwrap();
+        let identity = path.to_string_lossy().replace('\\', "/");
+        let mut env = Environment {
+            platform: "win32".into(),
+            vars: HashMap::new(),
+        };
+        for (source, key) in [
+            ("opencode", "OPENCODE_DB"),
+            ("kilo", "KILO_DB"),
+            ("mimo", "MIMOCODE_DB"),
+            ("zcode", "ZCODE_SESSION_DB"),
+        ] {
+            env.vars.insert(key.into(), identity.clone());
+            let found = discover_with_env(home, &env).unwrap();
+            let files = &found.iter().find(|(s, _)| s == source).unwrap().1;
+            assert_eq!(files.len(), 1);
+            assert_eq!(files[0].to_string_lossy(), identity, "{source}");
+        }
     }
 }

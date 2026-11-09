@@ -1,0 +1,13 @@
+CREATE TABLE assistant_usage_events (id,session_id,model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,reasoning_tokens,created_at);
+INSERT INTO assistant_usage_events VALUES (9, 's', 'm', 10, 2, 3, 4, 5, 1768478400000);
+INSERT INTO assistant_usage_events VALUES (1, 's', NULL, 12, 3, NULL, NULL, NULL, 1768478400000);
+INSERT INTO assistant_usage_events VALUES (NULL, 'fallback', 12, 2, 3, 0, 0, 1, 1768478400000);
+INSERT INTO assistant_usage_events VALUES (0, NULL, 0, 1, NULL, NULL, NULL, 1, 1768478400000);
+INSERT INTO assistant_usage_events VALUES (NULL, 'zero', 'm', 0, 0, 0, 0, 0, 1768478400000);
+INSERT INTO assistant_usage_events VALUES (NULL, 'fallback', 'm', 1, 2, 0, 0, 0, 1768478400000);
+INSERT INTO assistant_usage_events VALUES (NULL, 'no-time', 'm', 1, 2, 0, 0, 0, NULL);
+INSERT INTO assistant_usage_events VALUES (2, 'bad', 'm', -1, '7', 'bad', NULL, 1, 1768478400000);
+CREATE TABLE sessions (id,model,total_input_tokens,total_output_tokens,total_cached_tokens,total_reasoning_tokens,created_at,updated_at);
+INSERT INTO sessions VALUES ('s', 'm', 999, 999, 0, 0, 1768478400000, 1768478400000);
+INSERT INTO sessions VALUES ('only', 'm', 3, 4, 5, 6, 1768478400000, NULL);
+INSERT INTO sessions VALUES ('no-time', 'm', 7, 8, 0, 0, NULL, NULL);
