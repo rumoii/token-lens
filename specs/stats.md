@@ -47,7 +47,7 @@ D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 F
 下面这些不追求一致，要在 Rust 代码注释和本节里登记：
 
 1. **发现只收文件**。旧版给 `fs.globSync` 传了 `nodir`，但这个选项实际不起作用（`src/core/discovery.js:16–19`），扩展名匹配的目录也会进入结果，然后以 `read_failed` 失败。新版跳过目录。这不影响任何记录。
-2. **异常输入**。只要求在所有夹具和本机真实日志里出现过的形状上一致。超过 2^53 的整数、溢出成 Infinity 的超长数字串或外部 SQLite 的 REAL、`2026-02-30` 这类日历溢出、ISO 以外的日期写法，Rust 可以和旧版不同，但必须记 `bad_fields` 或 `bad_times`，不能静默写入别的值。D3.5 用真实日志确认这些形状不存在；如果出现，就把 Rust 改到和旧版一致。
+2. **异常输入**。只要求在所有夹具和本机真实日志里出现过的形状上一致。超过 2^53 的整数、溢出成 Infinity 的超长数字串或外部 SQLite 的 REAL、`2026-02-30` 这类日历溢出、ISO 以外的日期写法，Rust 可以和旧版不同，但必须记 `bad_fields` 或 `bad_times`，不能静默写入别的值。D3.5 已确认这些形状未在本机真实日志中出现（见「对拍」）；后续如果出现，就把 Rust 改到和旧版一致。
 3. **旧版文档与代码不一致的地方以代码为准**，例如 `specs/adapters.md` 里 Claude 的旧键写法、Grok/Aider/Goose/Zed 在 `log-schemas.yaml` 里的描述。迁移只搬现状，不修复字段语义；语义修复等真实样本，并且要升 `PARSER_REV`。
 4. **会话游标**。`jscompat` 自己实现 base64，只接受解出来是非负十进制整数的游标。`Number()` 才接受的写法（十六进制、科学计数、前后空白）按无效处理，从头开始。游标只来自 `next_cursor`，不影响正常翻页。
 5. **`health`**。没有 HTTP 服务，因此去掉 `port`，版本号取 Rust crate 的版本，字段是 `ok`、`version`、`data_dir`、`ledger_path`、`schema_version`。这一项不对拍。
@@ -111,7 +111,14 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 - 时钟：旧版直接读 `Date` 和 SQLite `unixepoch()`，没有注入点。生成器用 Node 内置 `node:test` 的 `mock.timers` 只冻结 `Date`（固定 `2026-01-15T12:00:00.000Z`；主时区 `Asia/Shanghai`，另有 UTC，Date 兼容表还含 `America/New_York`），这是生成器里唯一允许的替换，不改 `src/core`。Rust 凡是读当前时间的地方都经可注入的时钟。
 - 只有四个字段写成 `"<volatile>"` 不比较：`usage_records.ingested_at`、`legacy_records.imported_at`、`pricing_snapshot.created_at`（SQLite 默认值）和 `runIngestion` 的 `durationMs`。`snapshot.generated_at`、`ingest_runs.started_at` / `finished_at`、滚动 7/30 日、`pricing_snapshot.verified_at` 由冻结的时刻决定，严格比较。
 - 旧版改了行为就重新生成 golden，提交里要说明原因。
-- D3.5 真实日志对拍：只读本机客户端日志，旧版和新版各写一个临时账本，逐行比较。报告放在仓库外，不提交。
+
+### D3.5 真实日志对拍与资源占用（已完成）
+
+- 工具：`scripts/parity/real-logs-old.mjs`、`app/rust/examples/real_logs.rs`、`scripts/parity/compare-real.mjs`。用法见提交 `4baec9d` 的说明和各文件头。`StatsClient::new_with_fixed_clock` 只给工具用，不进入 Dart 绑定（`fc8bf22`）。报告放在仓库外，不提交。
+- 对拍：新旧两版只读本机客户端日志的同一份快照，各写一个临时账本。账本行逐字段一致，只排除上面规定的四个易变字段；各项查询在全部、本月、本周、今天四个范围下一致。两版第二遍采集都不新增也不改动任何行。
+- 覆盖：本机有日志的来源全部覆盖；本机没有日志的来源只由合成夹具和 golden 覆盖。所有来源的 `bad_fields`、`bad_times` 都是 0，「允许的差异」所列的异常形状未在本机真实日志中出现。
+- 测量：同一份快照，新旧桌面程序各测一次空账本启动和一次已有账本启动。采集耗时持平；采集时新版峰值工作集约为旧版的一半，旧版计入 Node 和 WebView2 子进程，新版为单进程。
+- 空闲：采集完成后，新版工作集更低，但私有内存与旧版相当，采集后没有回落。窗口出现时间不作比较：旧版先显示外壳窗口，新版在首帧后才显示，口径不同。
 
 ## 子阶段
 
@@ -124,6 +131,6 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 | D3.2b | 第三批 11 个：hermes、cursor、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm | 同上；SQLite 夹具包括 WAL 状态和打开失败两种情形 |
 | D3.3 | 其余查询：时间桶、`unallocated`、分组矩阵、会话、来源检查、价格标记、`legacy_records` 计数、`lastRun` | 查询 golden 一致；分组之和等于总计；`ended_at` 为 NULL 或可解析时，各时间桶加 `unallocated` 等于总计 |
 | D3.4 | 完整统计界面：总览、明细筛选、会话、来源、设置与价格、引导 | 和旧看板逐页截图对照；Flutter 测试覆盖筛选、空态、未知值、未定价 |
-| D3.5 | 真实日志对拍和资源占用测量 | 两个临时账本逐行一致，或者每一处差异都已解释并处理；同一份数据下记录旧版和新版的内存与启动时间 |
+| D3.5 | 真实日志对拍和资源占用测量（已完成） | 同一快照的临时账本逐字段一致（排除规定的四个易变字段），四个范围的查询一致，重复采集无新增或改动；异常计数为 0，覆盖边界和同快照资源测量结论见「对拍」 |
 
 D4 再做：复制真实账本，在副本上由新版打开、全量采集，证明重复采集不新增行、金额不变，经用户确认后切换发行；旧库保留，供旧版回退。
