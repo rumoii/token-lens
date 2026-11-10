@@ -197,28 +197,25 @@ void main() {
     expect((await fake.health()).ok, true);
     expect(await fake.health(), await fake.health());
   });
-  testWidgets('gate 原样返回 child，忽略 onboarded 且不读取数据', (tester) async {
+  testWidgets('已完成引导时 gate 显示 child，不读取也不同步', (tester) async {
     final fake = FakeStatsGateway();
-    final c = StatsController(fake);
+    final c = StatsController(
+      fake,
+      preferences: const UiPreferences(onboarded: true),
+    );
     addTearDown(c.dispose);
-    const child = Text('gate child');
-    for (final onboarded in [false, true]) {
-      c.preferences = UiPreferences(onboarded: onboarded);
-      final gate = StatsOnboardingGate(controller: c, child: child);
-      await tester.pumpWidget(
-        Directionality(textDirection: TextDirection.ltr, child: gate),
-      );
-      expect(
-        identical(
-          gate.build(tester.element(find.byType(StatsOnboardingGate))),
-          child,
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: StatsOnboardingGate(
+          controller: c,
+          child: const Text('gate child'),
         ),
-        true,
-      );
-      expect(find.text('gate child'), findsOneWidget);
-      expect(fake.requests, isEmpty);
-      expect(fake.syncs, 0);
-    }
+      ),
+    );
+    expect(find.text('gate child'), findsOneWidget);
+    expect(fake.requests, isEmpty);
+    expect(fake.syncs, 0);
   });
   for (final page in ['home', 'detail', 'sessions']) {
     testWidgets('$page 金额使用偏好中的非默认 CNY 汇率并响应更新', (tester) async {
@@ -255,7 +252,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
-  testWidgets('共享页面保留占位文案、gate 包住外壳、openLink 传到设置', (tester) async {
+  testWidgets('来源、设置接到各自页面，gate 包住外壳，openLink 传到设置', (tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -285,10 +282,8 @@ void main() {
       ('工具来源', 'StatsSourcesPage'),
       ('价格与设置', 'StatsSettingsPage'),
     ]) {
-      await tester.tap(find.text(entry.$1));
+      await tester.tap(find.text(entry.$1).first);
       await tester.pumpAndSettle();
-      expect(find.text(entry.$1), findsNWidgets(2));
-      expect(find.text('这一页还在迁移'), findsOneWidget);
       expect(
         find.byWidgetPredicate((w) => w.runtimeType.toString() == entry.$2),
         findsOneWidget,
@@ -300,7 +295,7 @@ void main() {
     final uri = Uri.parse('https://example.invalid/pricing');
     expect(await settings.openLink!(uri), true);
     expect(opened, [uri]);
-    await tester.tap(find.text('工具来源'));
+    await tester.tap(find.text('工具来源').first);
     await tester.pumpAndSettle();
     tester.widget<StatsSourcesPage>(find.byType(StatsSourcesPage)).onDetail({
       'tool': 'codex',
