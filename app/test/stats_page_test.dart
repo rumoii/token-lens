@@ -25,7 +25,7 @@ void main() {
     final controller = StatsController(
       gateway,
       clock: () => demoNow,
-      preferences: UiPreferences(period: period),
+      preferences: UiPreferences(period: period, onboarded: true),
     );
     addTearDown(controller.dispose);
     if (load) await controller.load();

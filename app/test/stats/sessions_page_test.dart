@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
+import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
@@ -91,7 +92,11 @@ Future<StatsController> mountSessions(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  final c = StatsController(fake, clock: () => demoNow);
+  final c = StatsController(
+    fake,
+    clock: () => demoNow,
+    preferences: const UiPreferences(onboarded: true),
+  );
   addTearDown(c.dispose);
   await c.load();
   fake.pages.clear();

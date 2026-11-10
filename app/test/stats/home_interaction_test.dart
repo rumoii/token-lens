@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
+import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/stats/widgets/motion.dart';
@@ -24,7 +25,11 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = StatsController(fake, clock: () => demoNow);
+    final controller = StatsController(
+      fake,
+      clock: () => demoNow,
+      preferences: const UiPreferences(onboarded: true),
+    );
     addTearDown(controller.dispose);
     if (loaded) await controller.load();
     await tester.pumpWidget(

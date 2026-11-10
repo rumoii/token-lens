@@ -39,6 +39,8 @@ class StatsHomeData {
 
 enum StatsSyncPhase { idle, running, conflict, success, error }
 
+enum StatsSyncErrorKind { sync, status }
+
 class StatsController extends ChangeNotifier {
   StatsController(
     this.gateway, {
@@ -55,6 +57,7 @@ class StatsController extends ChangeNotifier {
   String? error, syncError, warning;
   final resourceErrors = <String, String>{};
   StatsSyncPhase phase = StatsSyncPhase.idle;
+  StatsSyncErrorKind? syncErrorKind;
   bool loading = false;
   int ledgerVersion = 0;
   bool get busy =>
@@ -73,9 +76,9 @@ class StatsController extends ChangeNotifier {
         'completed_with_anomalies',
       ].contains(overview?.sources.lastRun?.status);
   bool _closed = false, _disposed = false, _started = false;
-  int _generation = 0;
+  int _generation = 0, _statusGeneration = 0;
   Timer? _timer, _conflictTimer;
-  Future<void>? _sync, _shutdown;
+  Future<void>? _sync, _shutdown, _statusRead;
   final _reads = <Future<void>>{};
   void _notify() {
     if (!_closed && !_disposed) notifyListeners();
@@ -259,8 +262,11 @@ class StatsController extends ChangeNotifier {
   }
 
   Future<void> _synchronize() async {
+    _statusGeneration++;
+    _conflictTimer?.cancel();
     phase = StatsSyncPhase.running;
     syncError = null;
+    syncErrorKind = null;
     warning = null;
     _notify();
     try {
@@ -278,6 +284,7 @@ class StatsController extends ChangeNotifier {
         _watchConflict(clock());
       } else {
         phase = StatsSyncPhase.error;
+        syncErrorKind = StatsSyncErrorKind.sync;
         syncError = failure.toString().contains('LEGACY_SYNC_LOCK')
             ? '检测到旧版采集锁，请退出旧版后处理遗留锁文件。'
             : '同步失败，已保留先前采集的数据。';
@@ -291,34 +298,60 @@ class StatsController extends ChangeNotifier {
 
   void _watchConflict(DateTime started) {
     _conflictTimer?.cancel();
-    _conflictTimer = Timer(const Duration(seconds: 2), () async {
-      try {
-        final status = await gateway.sources();
-        if (_closed) return;
-        final run = status.lastRun;
-        if (run?.status == 'ok' || run?.status == 'completed_with_anomalies') {
-          ledgerVersion++;
-          phase = StatsSyncPhase.success;
-          warning = run!.anomalies.isEmpty ? null : run.anomalies.join('；');
-          await load();
-        } else if (run?.status == 'failed' || run?.status == 'abandoned') {
-          phase = StatsSyncPhase.error;
-          syncError = '最近的同步未完成';
-          await load();
-        } else if (clock().difference(started) >= const Duration(minutes: 2)) {
-          phase = StatsSyncPhase.error;
-          syncError = '等待超时，同步可能仍在进行';
-        } else {
-          _watchConflict(started);
-        }
-      } catch (_) {
-        if (!_closed) {
-          phase = StatsSyncPhase.error;
-          syncError = '无法确认同步状态，请重试。';
-        }
-      }
-      _notify();
+    final ticket = _statusGeneration;
+    _conflictTimer = Timer(const Duration(seconds: 2), () {
+      if (_closed || ticket != _statusGeneration) return;
+      unawaited(_checkStatus(started, ticket));
     });
+  }
+
+  Future<void> retryStatus() {
+    if (_closed) return Future.value();
+    if (_statusRead != null) return _statusRead!;
+    if (_sync != null) return _sync!;
+    _conflictTimer?.cancel();
+    final ticket = ++_statusGeneration;
+    phase = StatsSyncPhase.conflict;
+    syncError = null;
+    syncErrorKind = null;
+    _notify();
+    return _checkStatus(clock(), ticket);
+  }
+
+  Future<void> _checkStatus(DateTime started, int ticket) => _statusRead ??=
+      _readStatus(started, ticket).whenComplete(() => _statusRead = null);
+
+  Future<void> _readStatus(DateTime started, int ticket) async {
+    try {
+      final status = await gateway.sources();
+      if (_closed || ticket != _statusGeneration) return;
+      final run = status.lastRun;
+      if (run?.status == 'ok' || run?.status == 'completed_with_anomalies') {
+        ledgerVersion++;
+        phase = StatsSyncPhase.success;
+        syncError = null;
+        syncErrorKind = null;
+        warning = run!.anomalies.isEmpty ? null : run.anomalies.join('；');
+        await load();
+      } else if (run?.status == 'failed' || run?.status == 'abandoned') {
+        phase = StatsSyncPhase.error;
+        syncErrorKind = StatsSyncErrorKind.sync;
+        syncError = '最近的同步未完成';
+        await load();
+      } else if (clock().difference(started) >= const Duration(minutes: 2)) {
+        phase = StatsSyncPhase.error;
+        syncErrorKind = StatsSyncErrorKind.sync;
+        syncError = '等待超时，同步可能仍在进行';
+      } else {
+        _watchConflict(started);
+      }
+    } catch (failure) {
+      if (_closed || ticket != _statusGeneration) return;
+      phase = StatsSyncPhase.error;
+      syncErrorKind = StatsSyncErrorKind.status;
+      syncError = '无法确认同步状态：$failure';
+    }
+    _notify();
   }
 
   String get syncLabel {
@@ -357,10 +390,12 @@ class StatsController extends ChangeNotifier {
   Future<void> _close() async {
     _closed = true;
     _generation++;
+    _statusGeneration++;
     _timer?.cancel();
     _conflictTimer?.cancel();
     await gateway.shutdown();
     await _sync;
+    await _statusRead;
     await Future.wait(_reads.toList());
     await store?.flush();
   }

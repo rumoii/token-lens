@@ -22,7 +22,8 @@ void main() {
       output: output,
       onReady: (tester, route, dark, width) {
         frames++;
-        expect(find.text('这周还没有用量'), findsOneWidget);
+        expect(find.text('欢迎使用 Token Lens'), findsOneWidget);
+        expect(find.text('在这台电脑上找到 0 个工具'), findsOneWidget);
       },
     );
     expect(frames, 6);

@@ -64,7 +64,10 @@ Future<StatsController> mountDetail(
   final c = StatsController(
     fake,
     clock: () => demoNow,
-    preferences: UiPreferences(period: StatsPeriod.parse(query)),
+    preferences: UiPreferences(
+      period: StatsPeriod.parse(query),
+      onboarded: true,
+    ),
   );
   addTearDown(c.dispose);
   await c.load();
