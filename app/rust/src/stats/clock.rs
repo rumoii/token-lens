@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 #[derive(Clone)]
 pub enum Clock {
     System,
-    #[cfg(test)]
     Fixed(i64),
 }
 
@@ -11,7 +10,6 @@ impl Clock {
     pub fn millis(&self) -> i64 {
         match self {
             Self::System => Utc::now().timestamp_millis(),
-            #[cfg(test)]
             Self::Fixed(time) => *time,
         }
     }

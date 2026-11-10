@@ -466,6 +466,23 @@ fn with_micros(mut value: Value) -> Value {
 
 impl StatsClient {
     pub fn new(data_dir: String, logs_home: Option<String>) -> Result<Self, String> {
+        Self::with_clock(data_dir, logs_home, Clock::System)
+    }
+    #[flutter_rust_bridge::frb(ignore)]
+    pub fn new_with_fixed_clock(
+        data_dir: String,
+        logs_home: Option<String>,
+        now_millis: i64,
+    ) -> Result<Self, String> {
+        chrono::DateTime::from_timestamp_millis(now_millis).ok_or("fixed clock out of range")?;
+        Self::with_clock(data_dir, logs_home, Clock::Fixed(now_millis))
+    }
+    #[flutter_rust_bridge::frb(ignore)]
+    fn with_clock(
+        data_dir: String,
+        logs_home: Option<String>,
+        clock: Clock,
+    ) -> Result<Self, String> {
         let data = PathBuf::from(data_dir);
         if !data.is_absolute() {
             return Err("preview directory must be absolute".into());
@@ -484,7 +501,7 @@ impl StatsClient {
             return Err("pricing catalog version mismatch".into());
         }
         // Construction neither discovers logs nor starts ingestion.
-        drop(Ledger::open(&data.join("ledger.db"), Clock::System).map_err(|e| e.to_string())?);
+        drop(Ledger::open(&data.join("ledger.db"), clock.clone()).map_err(|e| e.to_string())?);
         Ok(Self {
             state: Arc::new(State {
                 data,
@@ -492,7 +509,7 @@ impl StatsClient {
                 timezone: timezone::system_timezone().map_err(|e| e.to_string())?,
                 closed: AtomicBool::new(false),
                 running: AtomicBool::new(false),
-                clock: Clock::System,
+                clock,
                 discovery: Mutex::new(None),
             }),
         })
@@ -523,7 +540,7 @@ impl StatsClient {
             &self.state.data,
             &self.state.home,
             &ingest::Environment::process(),
-            Clock::System,
+            self.state.clock.clone(),
             &LocalZone::System,
             &self.state.closed,
         )
@@ -700,6 +717,113 @@ impl StatsClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn d35_fixed_clock_covers_collection_and_queries() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(home.join(".claude/projects")).unwrap();
+        std::fs::copy(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../test/fixtures/parity/ingest-a.jsonl"),
+            home.join(".claude/projects/a.jsonl"),
+        )
+        .unwrap();
+        let now = 1768478400000;
+        let client = StatsClient::new_with_fixed_clock(
+            temp.path().join("data").to_string_lossy().into(),
+            Some(home.to_string_lossy().into()),
+            now,
+        )
+        .unwrap();
+        let seed = client.open().unwrap();
+        for (key, observed, tokens) in [
+            ("recent", "2026-01-14T00:00:00.000Z", 13),
+            ("month", "2025-12-30T00:00:00.000Z", 17),
+            ("older", "2025-11-01T00:00:00.000Z", 19),
+        ] {
+            seed.batch(
+                &[json!({"record_key":key,"source":"claude","model":"unknown",
+                "observed_at":observed,"input_tokens":tokens})],
+                None,
+                None,
+                &[],
+                pricing::cost_of,
+            )
+            .unwrap();
+        }
+        seed.db
+            .execute("UPDATE usage_records SET price_version='old'", [])
+            .unwrap();
+        drop(seed);
+        let first = client.sync().unwrap();
+        assert!(first.inserted > 0);
+        let second = client.sync().unwrap();
+        assert_eq!((second.inserted, second.updated), (0, 0));
+        let ledger = client.open().unwrap();
+        let runs: Vec<(i64, i64)> = ledger
+            .db
+            .prepare("SELECT started_at,finished_at FROM ingest_runs ORDER BY id")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(runs, vec![(now / 1000, now / 1000); 2]);
+        let verified: String = ledger
+            .db
+            .query_row("SELECT verified_at FROM pricing_snapshot", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(verified, "2026-01-15");
+        let summary = client.summary(StatsFilter::default(), 480).unwrap();
+        assert_eq!(summary.snapshot.generated_at, "2026-01-15T12:00:00.000Z");
+        assert_eq!(summary.rolling.last_7d.gross_tokens, 182);
+        assert_eq!(summary.rolling.last_30d.gross_tokens, 199);
+        for (days, window) in [(6, summary.rolling.last_7d), (29, summary.rolling.last_30d)] {
+            let from = (chrono::DateTime::from_timestamp_millis(now).unwrap()
+                + chrono::Duration::minutes(480)
+                - chrono::Duration::days(days))
+            .format("%Y-%m-%d")
+            .to_string();
+            let totals = ledger
+                .totals(&json!({"from":from,"offsetMinutes":480}))
+                .unwrap();
+            assert_eq!(
+                window.gross_tokens,
+                totals["gross_tokens"].as_i64().unwrap()
+            );
+            assert_eq!(window.cost_micros, totals["cost_micros"].as_i64());
+        }
+        let system = StatsClient::new(
+            temp.path().join("system-data").to_string_lossy().into(),
+            Some(home.to_string_lossy().into()),
+        )
+        .unwrap();
+        let before = chrono::Utc::now().timestamp_millis();
+        let generated = system
+            .summary(StatsFilter::default(), 0)
+            .unwrap()
+            .snapshot
+            .generated_at;
+        let actual = chrono::DateTime::parse_from_rfc3339(&generated)
+            .unwrap()
+            .timestamp_millis();
+        assert!((before..=chrono::Utc::now().timestamp_millis()).contains(&actual));
+        assert_ne!(actual, now);
+    }
+    #[test]
+    fn d35_invalid_fixed_clock_does_not_initialize_a_ledger() {
+        let temp = tempfile::tempdir().unwrap();
+        let data = temp.path().join("data");
+        assert!(StatsClient::new_with_fixed_clock(
+            data.to_string_lossy().into(),
+            Some(temp.path().to_string_lossy().into()),
+            i64::MAX,
+        )
+        .is_err());
+        assert!(!data.exists());
+    }
     #[test]
     fn d33_health_has_preview_paths_and_no_port() {
         let temp = tempfile::tempdir().unwrap();
