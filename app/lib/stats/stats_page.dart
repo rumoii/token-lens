@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import '../smooth_wheel.dart';
 import '../stats_controller.dart';
 import 'logic/detail_query.dart';
+import 'logic/period.dart';
 import 'logic/tools.dart';
 import 'theme/palette.dart';
 import 'widgets/primitives.dart';
 import 'home_page.dart';
+import 'detail_page.dart';
+import 'sessions_page.dart';
 import 'widgets/motion.dart';
 
 class StatsPage extends StatefulWidget {
@@ -44,7 +47,12 @@ class _StatsPageState extends State<StatsPage> {
     setState(() {
       page = target;
       query = target == 'detail'
-          ? detailSearch(widget.controller.preferences.period, params)
+          ? detailSearch(
+              params.containsKey('period')
+                  ? StatsPeriod.parse(Uri(queryParameters: params).query)
+                  : widget.controller.preferences.period,
+              params,
+            )
           : Uri(queryParameters: params).query;
     });
   }
@@ -378,6 +386,35 @@ class _StatsPageState extends State<StatsPage> {
                                           onSessions: (p) =>
                                               navigate('sessions', p),
                                           onSources: () => navigate('sources'),
+                                        )
+                                      : page == 'detail'
+                                      ? StatsDetail(
+                                          controller: widget.controller,
+                                          query: query,
+                                          onQuery: (value) =>
+                                              setState(() => query = value),
+                                          onHome: () {
+                                            final period = StatsPeriod.parse(
+                                              query,
+                                            );
+                                            navigate('home');
+                                            unawaited(
+                                              widget.controller.setPeriod(
+                                                period,
+                                              ),
+                                            );
+                                          },
+                                          onSettings: () =>
+                                              navigate('settings'),
+                                        )
+                                      : page == 'sessions'
+                                      ? StatsSessionsPage(
+                                          controller: widget.controller,
+                                          query: query,
+                                          onQuery: (value) =>
+                                              setState(() => query = value),
+                                          onDetail: (params) =>
+                                              navigate('detail', params),
                                         )
                                       : Column(
                                           crossAxisAlignment:

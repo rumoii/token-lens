@@ -711,3 +711,69 @@ class _ScrollFadeState extends State<ScrollFade> {
     );
   }
 }
+
+class LensTextLink extends StatefulWidget {
+  const LensTextLink({super.key, required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+  @override
+  State<LensTextLink> createState() => _LensTextLinkState();
+}
+
+class _LensTextLinkState extends State<LensTextLink> {
+  bool hovered = false;
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    final style = p.text(12, hovered ? p.ink : p.muted).copyWith(height: 1.4);
+    final metrics = TextPainter(
+      text: TextSpan(
+        text: widget.label,
+        style: DefaultTextStyle.of(context).style.merge(style),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final baseline = metrics.computeDistanceToActualBaseline(
+      TextBaseline.alphabetic,
+    );
+    metrics.dispose();
+    return Semantics(
+      link: true,
+      child: InkWell(
+        onTap: widget.onTap,
+        onHover: (value) => setState(() => hovered = value),
+        child: CustomPaint(
+          foregroundPainter: LensLinkUnderline(
+            color: p['line-strong'],
+            baseline: baseline,
+          ),
+          child: Text(widget.label, maxLines: 1, style: style),
+        ),
+      ),
+    );
+  }
+}
+
+class LensLinkUnderline extends CustomPainter {
+  const LensLinkUnderline({
+    required this.color,
+    required this.baseline,
+    this.offset = 2,
+  });
+  final Color color;
+  final double baseline, offset;
+  double get y => baseline + offset;
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawLine(
+    Offset(0, y),
+    Offset(size.width, y),
+    Paint()
+      ..color = color
+      ..strokeWidth = 1,
+  );
+  @override
+  bool shouldRepaint(LensLinkUnderline old) =>
+      old.color != color || old.baseline != baseline || old.offset != offset;
+}

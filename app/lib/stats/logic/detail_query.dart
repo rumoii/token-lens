@@ -38,3 +38,54 @@ DayRange? bucketRange(String bucket, [DayRange? range]) {
   if (range?.to != null && range!.to!.compareTo(to) < 0) to = range.to!;
   return from.compareTo(to) <= 0 ? (from: from, to: to) : null;
 }
+
+Map<String, String> readDetail(String text) {
+  final q = Uri.splitQueryString(
+    text.startsWith('?') ? text.substring(1) : text,
+  );
+  final bucket = q['bucket'] ?? '';
+  return {
+    'view': q['view'] == 'detail' ? 'detail' : 'overview',
+    for (final key in ['tool', 'model', 'project']) key: q[key] ?? '',
+    'bucket':
+        bucketRange(bucket) != null ||
+            RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:00:00$').hasMatch(bucket)
+        ? bucket
+        : '',
+    'dim': ['date', 'tool', 'model', 'project'].contains(q['dim'])
+        ? q['dim']!
+        : 'date',
+  };
+}
+
+int? spanDaysOf(DayRange range, DateTime now) {
+  final start = DateTime.tryParse(range.from ?? '');
+  if (start == null) return null;
+  final endDay = DateTime.tryParse(range.to ?? '');
+  final end = (range.to?.isNotEmpty == true)
+      ? endDay == null
+            ? null
+            : DateTime.utc(endDay.year, endDay.month, endDay.day)
+      : now;
+  if (end == null) return null;
+  final days =
+      (end
+                  .toUtc()
+                  .difference(DateTime.utc(start.year, start.month, start.day))
+                  .inMilliseconds /
+              86400000)
+          .floor() +
+      1;
+  return days < 1 ? 1 : days;
+}
+
+String granularityForRange(DayRange range, DateTime now) {
+  final days = spanDaysOf(range, now);
+  return days == null
+      ? 'month'
+      : days <= 1
+      ? 'hour'
+      : days <= 90
+      ? 'day'
+      : 'month';
+}

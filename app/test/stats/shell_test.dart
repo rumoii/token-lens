@@ -206,8 +206,12 @@ void main() {
       }
       await tester.tap(find.text('用量明细'));
       await tester.pumpAndSettle();
-      expect(find.text('这一页还在迁移'), findsOneWidget);
-      expect(find.text('period=week&view=detail'), findsOneWidget);
+      expect(find.text('这一页还在迁移'), findsNothing);
+      expect(find.text('拆开看'), findsOneWidget);
+      expect(
+        (tester.state(find.byType(StatsPage)) as dynamic).query,
+        'period=week&view=detail',
+      );
       expect(tester.takeException(), isNull);
     });
   }

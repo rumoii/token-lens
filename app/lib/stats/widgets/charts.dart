@@ -24,6 +24,7 @@ class TrendChart extends StatefulWidget {
     required this.now,
     this.weekdays = false,
     this.highlight,
+    this.selected,
     this.onPick,
     this.unitSystem = 'chinese',
     this.currency = 'USD',
@@ -35,7 +36,7 @@ class TrendChart extends StatefulWidget {
   final Map<String, int> slots;
   final String granularity, unitSystem, currency;
   final DateTime now;
-  final String? highlight;
+  final String? highlight, selected;
   final bool weekdays;
   final ValueChanged<String>? onPick;
   final double rate, growth;
@@ -347,7 +348,13 @@ class _TrendPainter extends CustomPainter {
         );
         final height = bucket.by[id]! / max * h * w.growth * progress;
         final opacity =
-            (hot != null && hot != i ? .35 : 1) *
+            (hot != null
+                ? hot != i
+                      ? .35
+                      : 1
+                : w.selected != null && w.selected != bucket.bucket
+                ? .35
+                : 1) *
             (w.highlight != null && w.highlight != id ? .35 : 1);
         final rect = Rect.fromLTWH(
           x,

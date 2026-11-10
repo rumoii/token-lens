@@ -7,7 +7,16 @@ abstract interface class StatsGateway {
   Future<StatsTimeseries> timeseries(String granularity, StatsFilter filter);
   Future<StatsMatrix> matrix(String granularity, String by, StatsFilter filter);
   Future<StatsBreakdown> breakdown(String by, StatsFilter filter);
-  Future<StatsSessions> sessions(StatsFilter filter, {int limit = 5});
+  Future<StatsSessions> sessions(
+    StatsFilter filter, {
+    int limit = 5,
+    String? cursor,
+  });
+  Future<StatsSessionDetail?> sessionDetail(
+    String source,
+    String sessionId,
+    String granularity,
+  );
   Future<StatsSources> sources();
   Future<StatsPricing> pricing();
   Future<StatsSync> sync();
@@ -43,8 +52,27 @@ class RustStatsGateway implements StatsGateway {
   Future<StatsBreakdown> breakdown(String by, StatsFilter filter) =>
       client.breakdown(by: by, filter: filter, offsetMinutes: _offset);
   @override
-  Future<StatsSessions> sessions(StatsFilter filter, {int limit = 5}) =>
-      client.sessions(filter: filter, limit: limit, offsetMinutes: _offset);
+  Future<StatsSessions> sessions(
+    StatsFilter filter, {
+    int limit = 5,
+    String? cursor,
+  }) => client.sessions(
+    filter: filter,
+    limit: limit,
+    cursor: cursor,
+    offsetMinutes: _offset,
+  );
+  @override
+  Future<StatsSessionDetail?> sessionDetail(
+    String source,
+    String sessionId,
+    String granularity,
+  ) => client.sessionDetail(
+    source: source,
+    sessionId: sessionId,
+    granularity: granularity,
+    offsetMinutes: _offset,
+  );
   @override
   Future<StatsSources> sources() => client.sources();
   @override

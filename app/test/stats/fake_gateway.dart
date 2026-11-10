@@ -300,7 +300,11 @@ class FakeStatsGateway implements StatsGateway {
   }
 
   @override
-  Future<StatsSessions> sessions(StatsFilter filter, {int limit = 5}) async {
+  Future<StatsSessions> sessions(
+    StatsFilter filter, {
+    int limit = 5,
+    String? cursor,
+  }) async {
     await _read('sessions:$limit');
     return StatsSessions(
       items: empty
@@ -332,6 +336,12 @@ class FakeStatsGateway implements StatsGateway {
     );
   }
 
+  @override
+  Future<StatsSessionDetail?> sessionDetail(
+    String source,
+    String sessionId,
+    String granularity,
+  ) async => null;
   @override
   Future<StatsSources> sources() async {
     await _read('sources');

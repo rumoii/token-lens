@@ -127,14 +127,18 @@ void main() {
     final c = await mount(tester, FakeStatsGateway());
     await tester.tap(find.text('看明细'));
     await tester.pumpAndSettle();
-    expect(find.text('period=week&view=detail'), findsOneWidget);
+    expect(
+      (tester.state(find.byType(StatsPage)) as dynamic).query,
+      'period=week&view=detail',
+    );
+    expect(find.text('拆开看'), findsOneWidget);
     await tester.tap(find.text('用量总览'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('claude-sonnet-5-5'));
     await tester.pumpAndSettle();
     expect(
-      find.text('period=week&view=detail&model=claude-sonnet-5-5'),
-      findsOneWidget,
+      (tester.state(find.byType(StatsPage)) as dynamic).query,
+      'period=week&view=detail&model=claude-sonnet-5-5',
     );
     await tester.tap(find.text('用量总览'));
     await tester.pumpAndSettle();
@@ -143,8 +147,8 @@ void main() {
     await tester.tapAt(at + const Offset(75, 100));
     await tester.pumpAndSettle();
     expect(
-      find.text('period=week&view=detail&bucket=2026-11-09&dim=tool'),
-      findsOneWidget,
+      (tester.state(find.byType(StatsPage)) as dynamic).query,
+      'period=week&view=detail&bucket=2026-11-09&dim=tool',
     );
     expect(c.preferences.period.period, 'week');
   });
