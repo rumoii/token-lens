@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 // A class abstraction for a high DPI-aware Win32 Window. Intended to be
@@ -56,6 +57,9 @@ class Win32Window {
   RECT GetClientArea();
 
  protected:
+  // Override the system title-bar theme until this window is recreated.
+  HRESULT SetDarkTitleBar(bool dark);
+
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
   // inheriting classes can handle.
@@ -87,8 +91,10 @@ class Win32Window {
   // Retrieves a class instance pointer for |window|
   static Win32Window* GetThisFromHandle(HWND const window) noexcept;
 
-  // Update the window frame's theme to match the system theme.
-  static void UpdateTheme(HWND const window);
+  // Use the app override when present, otherwise follow the system theme.
+  void UpdateTheme(HWND const window);
+
+  std::optional<bool> app_dark_mode_;
 
   bool quit_on_close_ = false;
 

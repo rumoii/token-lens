@@ -19,6 +19,7 @@ import 'stats_controller.dart';
 import 'stats_gateway.dart';
 import 'stats/preferences.dart';
 import 'stats/theme/palette.dart';
+import 'window_theme.dart';
 
 Future<bool> _openLink(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -64,7 +65,9 @@ class _TokenLensAppState extends State<TokenLensApp> {
           override ??
           '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}news-preview';
       final preferenceStore = PreferencesStore(Directory(dataDir));
-      _preferences = await preferenceStore.read();
+      final preferences = await preferenceStore.read();
+      if (!mounted || _closing) return;
+      setState(() => _preferences = preferences);
       await RustLib.init();
       final client = await native.NewsClient.newInstance(dataDir: dataDir);
       final controller = NewsController(RustNewsGateway(client));
@@ -133,64 +136,70 @@ class _TokenLensAppState extends State<TokenLensApp> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Token Lens · Preview',
-    debugShowCheckedModeBanner: false,
-    themeAnimationDuration:
-        WidgetsBinding
-            .instance
-            .platformDispatcher
-            .accessibilityFeatures
-            .disableAnimations
-        ? Duration.zero
-        : kThemeAnimationDuration,
-    theme: const LensPalette(false).theme,
-    darkTheme: const LensPalette(true).theme,
-    themeMode:
+  Widget build(BuildContext context) {
+    final themeMode =
         switch ((_statsController?.preferences ?? _preferences).appearance) {
           'light' => ThemeMode.light,
           'dark' => ThemeMode.dark,
           _ => ThemeMode.system,
-        },
-    home: _controller != null
-        ? AppShell(
-            statsController: _statsController,
-            openLink: _openLink,
-            statsInitializationError: _statsInitializationError,
-            news: NewsPage(controller: _controller!, openLink: _openLink),
-          )
-        : Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: _initializationError == null
-                    ? const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 20),
-                          Text('正在打开本地新闻缓存…'),
-                        ],
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.info_outline, size: 32),
-                          const SizedBox(height: 16),
-                          Text(
-                            _initializationError!,
-                            textAlign: TextAlign.center,
+        };
+    return WindowTheme(
+      themeMode: themeMode,
+      child: MaterialApp(
+        title: 'Token Lens · Preview',
+        debugShowCheckedModeBanner: false,
+        themeAnimationDuration:
+            WidgetsBinding
+                .instance
+                .platformDispatcher
+                .accessibilityFeatures
+                .disableAnimations
+            ? Duration.zero
+            : kThemeAnimationDuration,
+        theme: const LensPalette(false).theme,
+        darkTheme: const LensPalette(true).theme,
+        themeMode: themeMode,
+        home: _controller != null
+            ? AppShell(
+                statsController: _statsController,
+                openLink: _openLink,
+                statsInitializationError: _statsInitializationError,
+                news: NewsPage(controller: _controller!, openLink: _openLink),
+              )
+            : Scaffold(
+                body: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: _initializationError == null
+                        ? const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 20),
+                              Text('正在打开本地新闻缓存…'),
+                            ],
+                          )
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.info_outline, size: 32),
+                              const SizedBox(height: 16),
+                              Text(
+                                _initializationError!,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 20),
+                              OutlinedButton(
+                                onPressed: () => ServicesBinding.instance
+                                    .exitApplication(AppExitType.required),
+                                child: const Text('关闭'),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 20),
-                          OutlinedButton(
-                            onPressed: () => ServicesBinding.instance
-                                .exitApplication(AppExitType.required),
-                            child: const Text('关闭'),
-                          ),
-                        ],
-                      ),
+                  ),
+                ),
               ),
-            ),
-          ),
-  );
+      ),
+    );
+  }
 }

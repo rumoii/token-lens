@@ -16,6 +16,12 @@ namespace {
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
+HRESULT ApplyTitleBarTheme(HWND window, bool dark) {
+  const BOOL enable_dark_mode = dark;
+  return DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                               &enable_dark_mode, sizeof(enable_dark_mode));
+}
+
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
 /// Registry key for app theme preference.
@@ -124,6 +130,7 @@ bool Win32Window::Create(const std::wstring& title,
                          const Point& origin,
                          const Size& size) {
   Destroy();
+  app_dark_mode_.reset();
 
   const wchar_t* window_class =
       WindowClassRegistrar::GetInstance()->GetWindowClass();
@@ -272,7 +279,17 @@ void Win32Window::OnDestroy() {
   // No-op; provided for subclasses.
 }
 
+HRESULT Win32Window::SetDarkTitleBar(bool dark) {
+  app_dark_mode_ = dark;
+  return ApplyTitleBarTheme(window_handle_, dark);
+}
+
 void Win32Window::UpdateTheme(HWND const window) {
+  if (app_dark_mode_.has_value()) {
+    ApplyTitleBarTheme(window, *app_dark_mode_);
+    return;
+  }
+
   DWORD light_mode;
   DWORD light_mode_size = sizeof(light_mode);
   LSTATUS result = RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
@@ -281,8 +298,6 @@ void Win32Window::UpdateTheme(HWND const window) {
                                &light_mode_size);
 
   if (result == ERROR_SUCCESS) {
-    BOOL enable_dark_mode = light_mode == 0;
-    DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                          &enable_dark_mode, sizeof(enable_dark_mode));
+    ApplyTitleBarTheme(window, light_mode == 0);
   }
 }
