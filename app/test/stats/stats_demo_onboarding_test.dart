@@ -16,6 +16,7 @@ void main() {
       routes: [(name: 'onboarding', page: 'home', query: '')],
       output: Platform.environment['D34_SCREENSHOT_DIR']!,
       // Deliberately omit ledger: the real Rust client only sees empty TEMP data.
+      onboarded: false,
       onReady: (tester, route, dark, width) {
         expect(find.text('欢迎使用 Token Lens'), findsOneWidget);
         expect(find.text('在这台电脑上找到 0 个工具'), findsOneWidget);

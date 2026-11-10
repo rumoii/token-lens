@@ -166,6 +166,8 @@ typedef DemoVisualReady = FutureOr<void> Function(
 
 /// Renders each route at 1440/1024/720 x 3600, light/dark, DPR 1.
 /// Uses only load; sync is rejected. Omit ledger to render a new empty ledger.
+/// Mounts as already onboarded, like the old dashboard's reference shots; pass
+/// `onboarded: false` to render the first-run onboarding instead.
 Future<void> captureDemoVisuals(
   WidgetTester tester, {
   required List<DemoVisualRoute> routes,
@@ -173,6 +175,7 @@ Future<void> captureDemoVisuals(
   String? ledger,
   DateTime Function()? clock,
   DemoVisualReady? onReady,
+  bool onboarded = true,
 }) async {
   await loadSystemFonts(tester);
   await tester.runAsync(() async {
@@ -201,6 +204,7 @@ Future<void> captureDemoVisuals(
           preferences: UiPreferences(
             period: StatsPeriod.parse(target.query),
             appearance: dark ? 'dark' : 'light',
+            onboarded: onboarded,
           ),
         );
         try {

@@ -20,6 +20,7 @@ void main() {
       tester,
       routes: [(name: 'empty', page: 'home', query: '')],
       output: output,
+      onboarded: false,
       onReady: (tester, route, dark, width) {
         frames++;
         expect(find.text('欢迎使用 Token Lens'), findsOneWidget);
