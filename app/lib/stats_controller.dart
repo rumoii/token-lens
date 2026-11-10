@@ -51,6 +51,7 @@ class StatsController extends ChangeNotifier {
   final DateTime Function() clock;
   UiPreferences preferences;
   StatsHomeData? overview;
+  StatsSync? lastSync;
   String? error, syncError, warning;
   final resourceErrors = <String, String>{};
   StatsSyncPhase phase = StatsSyncPhase.idle;
@@ -265,6 +266,7 @@ class StatsController extends ChangeNotifier {
     try {
       final result = await gateway.sync();
       if (_closed) return;
+      lastSync = result;
       ledgerVersion++;
       warning = result.anomalies.isEmpty ? null : result.anomalies.join('；');
       phase = StatsSyncPhase.success;

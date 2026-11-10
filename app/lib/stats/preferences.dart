@@ -11,21 +11,55 @@ class UiPreferences {
     this.unitSystem = 'chinese',
     this.currency = 'USD',
     this.period = const StatsPeriod(),
+    this.onboarded = false,
+    this.rates = defaultRates,
+    this.rateSource = 'default',
+    this.ratesFetchedAt,
   });
   final String appearance, tokenMode, unitSystem, currency;
   final StatsPeriod period;
+  final bool onboarded;
+  final Map<String, num> rates;
+  final String rateSource;
+  final int? ratesFetchedAt;
+  static const _unchanged = Object();
+
+  static Map<String, num> _rates(Object? value) {
+    if (value is! Map) return defaultRates;
+    final raw = value['CNY'];
+    // The dashboard also accepts numeric strings from its stored rate map.
+    final cny = raw is String ? double.tryParse(raw.trim()) : raw;
+    return isValidRate(cny)
+        ? Map.unmodifiable({'USD': 1.0, 'CNY': cny as num})
+        : defaultRates;
+  }
+
+  static String _rateSource(Object? value) =>
+      value == 'fetched' ? 'fetched' : 'default';
+  static int? _fetchedAt(Object? value) =>
+      value is int && value > 0 ? value : null;
   UiPreferences copyWith({
     String? appearance,
     String? tokenMode,
     String? unitSystem,
     String? currency,
     StatsPeriod? period,
+    bool? onboarded,
+    Map<String, num>? rates,
+    String? rateSource,
+    Object? ratesFetchedAt = _unchanged,
   }) => UiPreferences(
     appearance: appearance ?? this.appearance,
     tokenMode: tokenMode ?? this.tokenMode,
     unitSystem: unitSystem ?? this.unitSystem,
     currency: currency ?? this.currency,
     period: period ?? this.period,
+    onboarded: onboarded ?? this.onboarded,
+    rates: rates ?? this.rates,
+    rateSource: rateSource ?? this.rateSource,
+    ratesFetchedAt: identical(ratesFetchedAt, _unchanged)
+        ? this.ratesFetchedAt
+        : _fetchedAt(ratesFetchedAt),
   );
   static UiPreferences decode(String text) {
     try {
@@ -74,6 +108,10 @@ class UiPreferences {
             : normalizeTokenUnit(value['unitSystem']),
         currency: normalizeCurrency(value['currency']),
         period: period,
+        onboarded: value['onboarded'] is bool ? value['onboarded'] : false,
+        rates: _rates(value['rates']),
+        rateSource: _rateSource(value['rateSource']),
+        ratesFetchedAt: _fetchedAt(value['ratesFetchedAt']),
       );
     } catch (_) {
       return const UiPreferences();
@@ -86,6 +124,10 @@ class UiPreferences {
     'unitSystem': unitSystem,
     'currency': normalizeCurrency(currency),
     'period': {'period': period.period, 'from': period.from, 'to': period.to},
+    'onboarded': onboarded,
+    'rates': _rates(rates),
+    'rateSource': _rateSource(rateSource),
+    'ratesFetchedAt': _fetchedAt(ratesFetchedAt),
   });
 }
 

@@ -20,6 +20,9 @@ import 'stats_gateway.dart';
 import 'stats/preferences.dart';
 import 'stats/theme/palette.dart';
 
+Future<bool> _openLink(Uri uri) =>
+    launchUrl(uri, mode: LaunchMode.externalApplication);
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const TokenLensApp());
@@ -152,12 +155,9 @@ class _TokenLensAppState extends State<TokenLensApp> {
     home: _controller != null
         ? AppShell(
             statsController: _statsController,
+            openLink: _openLink,
             statsInitializationError: _statsInitializationError,
-            news: NewsPage(
-              controller: _controller!,
-              openLink: (uri) =>
-                  launchUrl(uri, mode: LaunchMode.externalApplication),
-            ),
+            news: NewsPage(controller: _controller!, openLink: _openLink),
           )
         : Scaffold(
             body: Center(

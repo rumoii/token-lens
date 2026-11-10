@@ -294,7 +294,7 @@ class _StatsDetailState extends State<StatsDetail> {
   Widget money(int? micros, {TextStyle? style}) => MoneyText(
     micros == null ? null : microsUsd(micros),
     currency: c.preferences.currency,
-    rate: rateFor(defaultRates, c.preferences.currency),
+    rate: rateFor(c.preferences.rates, c.preferences.currency),
     style: style ?? p.text(13),
   );
   Widget head(String title, String sub, {Widget? action}) => Padding(
@@ -592,7 +592,7 @@ class _StatsDetailState extends State<StatsDetail> {
                     : (v) => setFilter('bucket', v),
                 unitSystem: c.preferences.unitSystem,
                 currency: c.preferences.currency,
-                rate: rateFor(defaultRates, c.preferences.currency),
+                rate: rateFor(c.preferences.rates, c.preferences.currency),
               ),
               if ((value.data.unallocated?.grossTokens ?? 0) > 0)
                 Padding(

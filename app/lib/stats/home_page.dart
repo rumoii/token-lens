@@ -52,7 +52,7 @@ class _StatsHomeState extends State<StatsHome> {
       digits: digits,
       style: style,
       currency: c.preferences.currency,
-      rate: rateFor(defaultRates, c.preferences.currency),
+      rate: rateFor(c.preferences.rates, c.preferences.currency),
     );
     final number = double.tryParse(value?.toString() ?? '');
     return animate && number != null
@@ -1094,7 +1094,7 @@ class _StatsHomeState extends State<StatsHome> {
                             widget.onDetail({'bucket': key, 'dim': 'tool'}),
                   unitSystem: c.preferences.unitSystem,
                   currency: c.preferences.currency,
-                  rate: rateFor(defaultRates, c.preferences.currency),
+                  rate: rateFor(c.preferences.rates, c.preferences.currency),
                 ),
                 if (unallocated > 0)
                   Padding(

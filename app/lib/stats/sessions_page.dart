@@ -201,7 +201,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   Widget money(int? cost) => MoneyText(
     cost == null ? null : microsUsd(cost),
     currency: c.preferences.currency,
-    rate: rateFor(defaultRates, c.preferences.currency),
+    rate: rateFor(c.preferences.rates, c.preferences.currency),
     style: p.text(13, p.secondary),
   );
   Widget filters() => Wrap(
@@ -274,7 +274,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     ];
     for (final r in items) {
       final cost = r.costMicros == null ? null : microsUsd(r.costMicros!);
-      final rate = rateFor(defaultRates, c.preferences.currency);
+      final rate = rateFor(c.preferences.rates, c.preferences.currency);
       final converted = cost == null ? null : double.parse(cost) * rate;
       final values = [
         38.0 +
@@ -659,7 +659,7 @@ class _SessionDetailState extends State<SessionDetail> {
     cost == null ? null : microsUsd(cost),
     state: state,
     currency: c.preferences.currency,
-    rate: rateFor(defaultRates, c.preferences.currency),
+    rate: rateFor(c.preferences.rates, c.preferences.currency),
     style: style ?? p.text(13, p.secondary),
   );
   String nt(num n) => tokenCount(n, unitSystem: c.preferences.unitSystem);

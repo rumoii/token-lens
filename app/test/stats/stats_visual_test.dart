@@ -1,9 +1,6 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
@@ -12,44 +9,7 @@ import 'package:token_lens_app/stats/logic/period.dart';
 import 'package:token_lens_app/stats_controller.dart';
 
 import 'fake_gateway.dart';
-
-Future<void> loadSystemFonts(WidgetTester tester) async {
-  if (!Platform.isWindows) return;
-  await tester.runAsync(() async {
-    for (final e in {
-      'Segoe UI': ['segoeui.ttf', 'segoeuib.ttf'],
-      'Microsoft YaHei': ['msyh.ttc', 'msyhbd.ttc'],
-      'Noto Serif SC': ['NotoSerifSC-VF.ttf'],
-      'Georgia': ['georgia.ttf', 'georgiab.ttf'],
-      'SimSun': ['simsun.ttc'],
-    }.entries) {
-      final loader = FontLoader(e.key);
-      for (final name in e.value) {
-        final file = File('${Platform.environment['SystemRoot']}/Fonts/$name');
-        if (await file.exists()) {
-          loader.addFont(
-            Future.value(ByteData.sublistView(await file.readAsBytes())),
-          );
-        }
-      }
-      await loader.load();
-    }
-    await (FontLoader(
-      'MaterialIcons',
-    )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
-  });
-}
-
-Future<void> capture(WidgetTester tester, GlobalKey key, String path) async {
-  await tester.runAsync(() async {
-    final image =
-        await (key.currentContext!.findRenderObject() as RenderRepaintBoundary)
-            .toImage(pixelRatio: 1);
-    final png = await image.toByteData(format: ui.ImageByteFormat.png);
-    image.dispose();
-    await File(path).writeAsBytes(png!.buffer.asUint8List());
-  });
-}
+import 'demo_visual_support.dart';
 
 void main() {
   for (final period in ['today', 'week', 'month', 'all']) {

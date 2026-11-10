@@ -12,12 +12,21 @@ import 'widgets/primitives.dart';
 import 'home_page.dart';
 import 'detail_page.dart';
 import 'sessions_page.dart';
+import 'sources_page.dart';
+import 'settings_page.dart';
+import 'onboarding_page.dart';
 import 'widgets/motion.dart';
 
 class StatsPage extends StatefulWidget {
-  const StatsPage({super.key, required this.controller, this.news});
+  const StatsPage({
+    super.key,
+    required this.controller,
+    this.news,
+    this.openLink,
+  });
   final StatsController controller;
   final Widget? news;
+  final Future<bool> Function(Uri)? openLink;
   @override
   State<StatsPage> createState() => _StatsPageState();
 }
@@ -317,134 +326,130 @@ class _StatsPageState extends State<StatsPage> {
     builder: (context, _) {
       final p = LensPalette.of(context);
       final narrow = MediaQuery.sizeOf(context).width < 768;
-      return Scaffold(
-        key: scaffold,
-        backgroundColor: p['surface-1'],
-        drawer: narrow
-            ? SizedBox(width: 272, child: sidebar(context, drawer: true))
-            : null,
-        drawerEnableOpenDragGesture: true,
-        body: Row(
-          children: [
-            if (!narrow) SizedBox(width: 244, child: sidebar(context)),
-            Expanded(
-              child: Column(
-                children: [
-                  if (narrow)
-                    Container(
-                      height: 52,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: p['line'])),
+      return StatsOnboardingGate(
+        controller: widget.controller,
+        child: Scaffold(
+          key: scaffold,
+          backgroundColor: p['surface-1'],
+          drawer: narrow
+              ? SizedBox(width: 272, child: sidebar(context, drawer: true))
+              : null,
+          drawerEnableOpenDragGesture: true,
+          body: Row(
+            children: [
+              if (!narrow) SizedBox(width: 244, child: sidebar(context)),
+              Expanded(
+                child: Column(
+                  children: [
+                    if (narrow)
+                      Container(
+                        height: 52,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          border: Border(bottom: BorderSide(color: p['line'])),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: '打开导航菜单',
+                              onPressed: () =>
+                                  scaffold.currentState!.openDrawer(),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: Icon(Icons.menu, size: 22, color: p.ink),
+                            ),
+                            const SizedBox(width: 12),
+                            const BrandMark(),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Token Lens',
+                              style: p.text(16, null, FontWeight.w600),
+                            ),
+                            const Spacer(),
+                            dot(p),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            tooltip: '打开导航菜单',
-                            onPressed: () =>
-                                scaffold.currentState!.openDrawer(),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            icon: Icon(Icons.menu, size: 22, color: p.ink),
-                          ),
-                          const SizedBox(width: 12),
-                          const BrandMark(),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Token Lens',
-                            style: p.text(16, null, FontWeight.w600),
-                          ),
-                          const Spacer(),
-                          dot(p),
-                        ],
-                      ),
-                    ),
-                  Expanded(
-                    child: page == 'news'
-                        ? widget.news!
-                        : SingleChildScrollView(
-                            key: const Key('stats-scroll'),
-                            controller: _contentScroll,
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 1120,
-                                ),
-                                child: Padding(
-                                  padding: EdgeInsets.fromLTRB(
-                                    narrow ? 14 : 36,
-                                    narrow ? 18 : 28,
-                                    narrow ? 14 : 36,
-                                    24,
+                    Expanded(
+                      child: page == 'news'
+                          ? widget.news!
+                          : SingleChildScrollView(
+                              key: const Key('stats-scroll'),
+                              controller: _contentScroll,
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 1120,
                                   ),
-                                  child: page == 'home'
-                                      ? StatsHome(
-                                          controller: widget.controller,
-                                          onDetail: (p) =>
-                                              navigate('detail', p),
-                                          onSessions: (p) =>
-                                              navigate('sessions', p),
-                                          onSources: () => navigate('sources'),
-                                        )
-                                      : page == 'detail'
-                                      ? StatsDetail(
-                                          controller: widget.controller,
-                                          query: query,
-                                          onQuery: (value) =>
-                                              setState(() => query = value),
-                                          onHome: () {
-                                            final period = StatsPeriod.parse(
-                                              query,
-                                            );
-                                            navigate('home');
-                                            unawaited(
-                                              widget.controller.setPeriod(
-                                                period,
-                                              ),
-                                            );
-                                          },
-                                          onSettings: () =>
-                                              navigate('settings'),
-                                        )
-                                      : page == 'sessions'
-                                      ? StatsSessionsPage(
-                                          controller: widget.controller,
-                                          query: query,
-                                          onQuery: (value) =>
-                                              setState(() => query = value),
-                                          onDetail: (params) =>
-                                              navigate('detail', params),
-                                        )
-                                      : Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              nav[page]!.$1,
-                                              style: p.serif(30),
-                                            ),
-                                            const SizedBox(height: 18),
-                                            const Text('这一页还在迁移'),
-                                            if (query.isNotEmpty) ...[
-                                              const SizedBox(height: 16),
-                                              SelectableText(
+                                  child: Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      narrow ? 14 : 36,
+                                      narrow ? 18 : 28,
+                                      narrow ? 14 : 36,
+                                      24,
+                                    ),
+                                    child: page == 'home'
+                                        ? StatsHome(
+                                            controller: widget.controller,
+                                            onDetail: (p) =>
+                                                navigate('detail', p),
+                                            onSessions: (p) =>
+                                                navigate('sessions', p),
+                                            onSources: () =>
+                                                navigate('sources'),
+                                          )
+                                        : page == 'detail'
+                                        ? StatsDetail(
+                                            controller: widget.controller,
+                                            query: query,
+                                            onQuery: (value) =>
+                                                setState(() => query = value),
+                                            onHome: () {
+                                              final period = StatsPeriod.parse(
                                                 query,
-                                                key: const Key('detail-query'),
-                                                style: p.text(13, p.secondary),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
+                                              );
+                                              navigate('home');
+                                              unawaited(
+                                                widget.controller.setPeriod(
+                                                  period,
+                                                ),
+                                              );
+                                            },
+                                            onSettings: () =>
+                                                navigate('settings'),
+                                          )
+                                        : page == 'sessions'
+                                        ? StatsSessionsPage(
+                                            controller: widget.controller,
+                                            query: query,
+                                            onQuery: (value) =>
+                                                setState(() => query = value),
+                                            onDetail: (params) =>
+                                                navigate('detail', params),
+                                          )
+                                        : page == 'sources'
+                                        ? StatsSourcesPage(
+                                            controller: widget.controller,
+                                            query: query,
+                                            onDetail: (params) =>
+                                                navigate('detail', params),
+                                          )
+                                        : StatsSettingsPage(
+                                            controller: widget.controller,
+                                            query: query,
+                                            openLink: widget.openLink,
+                                          ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     },

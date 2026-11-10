@@ -415,6 +415,17 @@ class FakeStatsGateway implements StatsGateway {
   }
 
   @override
+  Future<StatsDiscovery> discovery({bool fresh = false}) async =>
+      const StatsDiscovery(sources: [], supported: 27);
+  @override
+  Future<StatsHealth> health() async => const StatsHealth(
+    ok: true,
+    version: 'demo',
+    dataDir: '/synthetic-preview',
+    ledgerPath: '/synthetic-preview/ledger.db',
+    schemaVersion: 5,
+  );
+  @override
   Future<StatsSync> sync() async {
     syncs++;
     if (syncFailure != null) throw StateError(syncFailure!);

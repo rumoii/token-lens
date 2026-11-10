@@ -19,6 +19,8 @@ abstract interface class StatsGateway {
   );
   Future<StatsSources> sources();
   Future<StatsPricing> pricing();
+  Future<StatsDiscovery> discovery({bool fresh = false});
+  Future<StatsHealth> health();
   Future<StatsSync> sync();
   Future<void> shutdown();
 }
@@ -77,6 +79,11 @@ class RustStatsGateway implements StatsGateway {
   Future<StatsSources> sources() => client.sources();
   @override
   Future<StatsPricing> pricing() => client.pricing();
+  @override
+  Future<StatsDiscovery> discovery({bool fresh = false}) =>
+      client.discovery(fresh: fresh);
+  @override
+  Future<StatsHealth> health() => client.health();
   @override
   Future<StatsSync> sync() => client.sync_();
   @override
