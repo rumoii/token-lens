@@ -2,13 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../theme/palette.dart';
 import '../logic/tools.dart';
 import '../logic/format.dart';
 import 'motion.dart';
 
-class LensCard extends StatelessWidget {
+class LensCard extends StatefulWidget {
   const LensCard({
     super.key,
     required this.child,
@@ -19,15 +20,95 @@ class LensCard extends StatelessWidget {
   final EdgeInsets padding;
   final double radius;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: LensPalette.of(context).surface,
-      borderRadius: BorderRadius.circular(radius),
-      boxShadow: LensPalette.of(context).cardShadow,
-    ),
-    child: child,
-  );
+  State<LensCard> createState() => _LensCardState();
+}
+
+class _LensCardState extends State<LensCard> {
+  bool hovered = false;
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    final hairline = LensPalette.hairline(context);
+    List<BoxShadow> ring(List<BoxShadow> shadows) => [
+      shadows.first.copyWith(spreadRadius: hairline),
+      ...shadows.skip(1),
+    ];
+    final normalShadow = ring(p.cardShadow);
+    final hoverShadow = ring(p.shadow('hover'));
+    return MouseRegion(
+      onEnter: (_) => setState(() => hovered = true),
+      onExit: (_) => setState(() => hovered = false),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: hovered ? 1 : 0),
+        duration: const Duration(milliseconds: 200),
+        curve: const Cubic(.16, 1, .3, 1),
+        child: widget.child,
+        builder: (context, value, child) => Transform.translate(
+          offset: Offset(0, reduced ? 0 : -1.5 * value),
+          child: Container(
+            padding: widget.padding,
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(widget.radius),
+              boxShadow: value == 0
+                  ? normalShadow
+                  : value == 1
+                  ? hoverShadow
+                  : BoxShadow.lerpList(normalShadow, hoverShadow, value),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class LensPressFeedback extends StatefulWidget {
+  const LensPressFeedback({super.key, required this.builder});
+  final Widget Function(WidgetStatesController) builder;
+  @override
+  State<LensPressFeedback> createState() => _LensPressFeedbackState();
+}
+
+class _LensPressFeedbackState extends State<LensPressFeedback> {
+  final states = WidgetStatesController();
+  bool pressed = false;
+  @override
+  void initState() {
+    super.initState();
+    states.addListener(updatePressed);
+  }
+
+  void updatePressed() {
+    if (!mounted || pressed == states.value.contains(WidgetState.pressed)) {
+      return;
+    }
+    // Controls also notify while updating enabled state during build.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => updatePressed());
+    } else if (mounted) {
+      setState(() => pressed = states.value.contains(WidgetState.pressed));
+    }
+  }
+
+  @override
+  void dispose() {
+    states.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    return AnimatedScale(
+      scale: !reduced && pressed ? .98 : 1,
+      duration: reduced ? Duration.zero : const Duration(milliseconds: 100),
+      child: widget.builder(states),
+    );
+  }
 }
 
 class LensButton extends StatelessWidget {
@@ -63,74 +144,77 @@ class LensButton extends StatelessWidget {
       button: true,
       label: label,
       enabled: onPressed != null,
-      child: TextButton(
-        onPressed: onPressed,
-        style: ButtonStyle(
-          minimumSize: WidgetStatePropertyAll(Size(0, h)),
-          padding: WidgetStatePropertyAll(
-            EdgeInsets.symmetric(
-              horizontal: size == 'link'
-                  ? 6
-                  : size == 'xs' || size == 'sidebar'
-                  ? 8
-                  : 12,
+      child: LensPressFeedback(
+        builder: (states) => TextButton(
+          statesController: states,
+          onPressed: onPressed,
+          style: ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(0, h)),
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.symmetric(
+                horizontal: size == 'link'
+                    ? 6
+                    : size == 'xs' || size == 'sidebar'
+                    ? 8
+                    : 12,
+              ),
             ),
-          ),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          textStyle: WidgetStatePropertyAll(
-            p.text(
-              size == 'link'
-                  ? 12.5
-                  : size == 'sidebar'
-                  ? 12
-                  : size == 'xs'
-                  ? 11
-                  : size == 'sm'
-                  ? 12
-                  : 14,
-              null,
-              FontWeight.w500,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            textStyle: WidgetStatePropertyAll(
+              p.text(
+                size == 'link'
+                    ? 12.5
+                    : size == 'sidebar'
+                    ? 12
+                    : size == 'xs'
+                    ? 11
+                    : size == 'sm'
+                    ? 12
+                    : 14,
+                null,
+                FontWeight.w500,
+              ),
+            ),
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (states) => variant == 'primary'
+                  ? p['clay']
+                  : states.contains(WidgetState.hovered)
+                  ? p['fill-active']
+                  : variant == 'ghost'
+                  ? LensPalette.transparent
+                  : p['fill-hover'],
+            ),
+            foregroundColor: WidgetStatePropertyAll(
+              variant == 'primary' ? p['text-inverse'] : p.secondary,
+            ),
+            overlayColor: WidgetStatePropertyAll(p['fill-hover']),
           ),
-          backgroundColor: WidgetStateProperty.resolveWith(
-            (states) => variant == 'primary'
-                ? p['clay']
-                : states.contains(WidgetState.hovered)
-                ? p['fill-active']
-                : variant == 'ghost'
-                ? LensPalette.transparent
-                : p['fill-hover'],
-          ),
-          foregroundColor: WidgetStatePropertyAll(
-            variant == 'primary' ? p['text-inverse'] : p.secondary,
-          ),
-          overlayColor: WidgetStatePropertyAll(p['fill-hover']),
-        ),
-        child: ExcludeSemantics(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null && !trailingIcon) ...[
-                spinning
-                    ? LensLoop(
-                        duration: const Duration(seconds: 1),
-                        builder: (context, v) => Transform.rotate(
-                          angle: v * math.pi * 2,
-                          child: Icon(icon, size: 14),
-                        ),
-                      )
-                    : Icon(icon, size: 14),
-                const SizedBox(width: 6),
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null && !trailingIcon) ...[
+                  spinning
+                      ? LensLoop(
+                          duration: const Duration(seconds: 1),
+                          builder: (context, v) => Transform.rotate(
+                            angle: v * math.pi * 2,
+                            child: Icon(icon, size: 14),
+                          ),
+                        )
+                      : Icon(icon, size: 14),
+                  const SizedBox(width: 6),
+                ],
+                Text(label),
+                if (icon != null && trailingIcon) ...[
+                  const SizedBox(width: 4),
+                  Icon(icon, size: 12),
+                ],
               ],
-              Text(label),
-              if (icon != null && trailingIcon) ...[
-                const SizedBox(width: 4),
-                Icon(icon, size: 12),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -207,7 +291,7 @@ class _LensSegmentedState extends State<LensSegmented>
       } else {
         step.animateWith(
           SpringSimulation(
-            const SpringDescription(mass: 1, stiffness: 600, damping: 30),
+            const SpringDescription(mass: 1, stiffness: 500, damping: 35),
             step.value,
             index.toDouble(),
             step.velocity,
@@ -233,7 +317,7 @@ class _LensSegmentedState extends State<LensSegmented>
             : (TextPainter(
                 text: TextSpan(
                   text: e.value,
-                  style: p.text(12, null, FontWeight.w500),
+                  style: p.text(12, null, FontWeight.w600),
                 ),
                 textDirection: TextDirection.ltr,
               )..layout()).width,
@@ -249,7 +333,9 @@ class _LensSegmentedState extends State<LensSegmented>
         height: height,
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: p['fill-hover'],
+          color: (p.dark ? Colors.white : Colors.black).withValues(
+            alpha: p.dark ? .08 : .06,
+          ),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Stack(
@@ -262,9 +348,23 @@ class _LensSegmentedState extends State<LensSegmented>
                   width: width,
                   height: height - 4,
                   decoration: BoxDecoration(
-                    color: p.surface,
+                    color: p.dark ? const Color(0xff2c2c2a) : Colors.white,
                     borderRadius: BorderRadius.circular(999),
-                    boxShadow: p.smallShadow,
+                    border: Border.all(
+                      color: (p.dark ? Colors.white : Colors.black).withValues(
+                        alpha: .06,
+                      ),
+                      strokeAlign: BorderSide.strokeAlignInside,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: p.dark ? .4 : .08,
+                        ),
+                        offset: const Offset(0, 1),
+                        blurRadius: 3,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -298,7 +398,7 @@ class _LensSegmentedState extends State<LensSegmented>
                                     12,
                                     e.key == widget.value ? p.ink : p.muted,
                                     e.key == widget.value
-                                        ? FontWeight.w500
+                                        ? FontWeight.w600
                                         : FontWeight.w400,
                                   ),
                                 ),

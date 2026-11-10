@@ -26,7 +26,14 @@ class LensPalette {
   static List<String> get bodyFonts =>
       defaultTargetPlatform == TargetPlatform.macOS
       ? const ['.AppleSystemUIFont', 'SF Pro Text', 'PingFang SC', 'Arial']
-      : const ['Segoe UI', 'Microsoft YaHei', 'Geist', 'Arial', 'PingFang SC'];
+      : const [
+          'Segoe UI Variable Text',
+          'Segoe UI',
+          'Microsoft YaHei',
+          'Geist',
+          'Arial',
+          'PingFang SC',
+        ];
   static const monoFonts = ['Geist Mono', 'SF Mono', 'Menlo', 'Consolas'];
   TextStyle text([
     double size = 14,
@@ -39,6 +46,14 @@ class LensPalette {
     height: 1.55,
     color: color ?? ink,
     fontWeight: weight,
+    fontVariations: [
+      FontVariation('wght', switch (weight) {
+        FontWeight.w500 => dark ? 465 : 500,
+        FontWeight.w600 => dark ? 560 : 580,
+        FontWeight.w700 => 660,
+        _ => weight.value.toDouble(),
+      }),
+    ],
     fontFeatures: const [FontFeature.tabularFigures()],
   );
   TextStyle serif(
@@ -48,9 +63,19 @@ class LensPalette {
   }) => text(size, color, weight).copyWith(
     fontFamily: serifFonts.first,
     fontFamilyFallback: serifFonts.skip(1).toList(),
+    fontVariations: const [],
     height: 1.05,
     letterSpacing: -size * .02,
   );
+  static double hairline(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return dpr >= 3
+        ? 1 / 3
+        : dpr >= 2
+        ? .5
+        : 1;
+  }
+
   List<BoxShadow> get cardShadow => [
     BoxShadow(color: this['line'], spreadRadius: 1),
     BoxShadow(

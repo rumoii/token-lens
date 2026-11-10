@@ -19,6 +19,7 @@ Future<void> loadSystemFonts(WidgetTester tester) async {
   if (!Platform.isWindows) return;
   await tester.runAsync(() async {
     for (final e in {
+      'Segoe UI Variable Text': ['SegUIVar.ttf'],
       'Segoe UI': ['segoeui.ttf', 'segoeuib.ttf'],
       'Microsoft YaHei': ['msyh.ttc', 'msyhbd.ttc'],
       'Noto Serif SC': ['NotoSerifSC-VF.ttf'],

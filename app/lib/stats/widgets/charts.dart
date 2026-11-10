@@ -153,7 +153,13 @@ class _TrendChartState extends State<TrendChart> {
                             ),
                             duration: const Duration(milliseconds: 1500),
                             builder: (context, ms) => CustomPaint(
-                              painter: _TrendPainter(widget, p, hot, ms),
+                              painter: _TrendPainter(
+                                widget,
+                                p,
+                                hot,
+                                ms,
+                                LensPalette.hairline(context),
+                              ),
                             ),
                           ),
                         ),
@@ -282,7 +288,8 @@ String _tipLabel(String key, String granularity, DateTime now) {
 }
 
 class _TrendPainter extends CustomPainter {
-  _TrendPainter(this.w, this.p, this.hot, this.elapsed);
+  _TrendPainter(this.w, this.p, this.hot, this.elapsed, this.lineWidth);
+  final double lineWidth;
   final double elapsed;
   final TrendChart w;
   final LensPalette p;
@@ -313,7 +320,9 @@ class _TrendPainter extends CustomPainter {
       canvas.drawLine(
         Offset(left, y),
         Offset(size.width, y),
-        Paint()..color = p['line-soft'],
+        Paint()
+          ..color = p['line-soft']
+          ..strokeWidth = lineWidth,
       );
       label(
         canvas,

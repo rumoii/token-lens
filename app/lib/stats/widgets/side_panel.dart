@@ -124,7 +124,10 @@ class _LensPanelState extends State<_LensPanel> {
                       padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
                       decoration: BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: p['line-soft']),
+                          bottom: BorderSide(
+                            width: LensPalette.hairline(context),
+                            color: p['line-soft'],
+                          ),
                         ),
                       ),
                       child: Row(

@@ -101,35 +101,38 @@ class _StatsPageState extends State<StatsPage> {
     }) => Semantics(
       selected: active,
       button: true,
-      child: InkWell(
-        key: key,
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: active ? p['fill-hover'] : null,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              icon,
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: p.text(
-                    14,
-                    active ? p.ink : p.secondary,
-                    active ? FontWeight.w500 : FontWeight.w400,
+      child: LensPressFeedback(
+        builder: (states) => InkWell(
+          statesController: states,
+          key: key,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: active ? p['fill-hover'] : null,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                icon,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: p.text(
+                      14,
+                      active ? p.ink : p.secondary,
+                      active ? FontWeight.w500 : FontWeight.w400,
+                    ),
                   ),
                 ),
-              ),
-              ?trailing,
-            ],
+                ?trailing,
+              ],
+            ),
           ),
         ),
       ),
@@ -139,7 +142,12 @@ class _StatsPageState extends State<StatsPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         decoration: BoxDecoration(
-          border: Border(right: BorderSide(color: p['line'])),
+          border: Border(
+            right: BorderSide(
+              width: LensPalette.hairline(context),
+              color: p['line'],
+            ),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +262,11 @@ class _StatsPageState extends State<StatsPage> {
               ),
             ),
             const SizedBox(height: 16),
-            Divider(height: 1, color: p['line']),
+            Divider(
+              height: 1,
+              thickness: LensPalette.hairline(context),
+              color: p['line'],
+            ),
             const SizedBox(height: 16),
             Semantics(
               liveRegion: true,
@@ -346,7 +358,12 @@ class _StatsPageState extends State<StatsPage> {
                         height: 52,
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: p['line'])),
+                          border: Border(
+                            bottom: BorderSide(
+                              width: LensPalette.hairline(context),
+                              color: p['line'],
+                            ),
+                          ),
                         ),
                         child: Row(
                           children: [

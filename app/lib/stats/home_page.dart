@@ -60,7 +60,6 @@ class _StatsHomeState extends State<StatsHome> {
         : render(value);
   }
 
-  Widget gap([double? size]) => SizedBox(height: size ?? (narrow ? 12 : 16));
   Widget delta(int value) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
     decoration: BoxDecoration(
@@ -169,61 +168,55 @@ class _StatsHomeState extends State<StatsHome> {
         ),
       ],
     );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          if (box.maxWidth >= 420 + 24 + 316) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: title),
-                const SizedBox(width: 24),
-                controls(),
-              ],
-            );
-          }
-          return Column(
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (box.maxWidth >= 420 + 24 + 316) {
+          return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [title, const SizedBox(height: 12), controls()],
+            children: [
+              Expanded(child: title),
+              const SizedBox(width: 24),
+              controls(),
+            ],
           );
-        },
-      ),
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [title, const SizedBox(height: 12), controls()],
+        );
+      },
     );
   }
 
-  Widget failure(String error, {bool sync = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: LensCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.error_outline, size: 16, color: p['danger']),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  sync ? error : '加载失败（request_failed）',
-                  style: p.text(12, null, FontWeight.w500),
-                ),
-                if (!sync) Text(error, style: p.text(12, p.muted)),
-              ],
-            ),
+  Widget failure(String error, {bool sync = false}) => LensCard(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.error_outline, size: 16, color: p['danger']),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                sync ? error : '加载失败（request_failed）',
+                style: p.text(12, null, FontWeight.w500),
+              ),
+              if (!sync) Text(error, style: p.text(12, p.muted)),
+            ],
           ),
-          LensButton(
-            label: '重试',
-            size: 'xs',
-            variant: 'ghost',
-            onPressed: c.busy
-                ? null
-                : () => unawaited(sync ? c.sync() : c.load()),
-          ),
-          if (sync) link('查看详情', widget.onSources),
-        ],
-      ),
+        ),
+        LensButton(
+          label: '重试',
+          size: 'xs',
+          variant: 'ghost',
+          onPressed: c.busy
+              ? null
+              : () => unawaited(sync ? c.sync() : c.load()),
+        ),
+        if (sync) link('查看详情', widget.onSources),
+      ],
     ),
   );
 
@@ -239,6 +232,7 @@ class _StatsHomeState extends State<StatsHome> {
     ];
     if (data == null) {
       return Column(
+        spacing: narrow ? 12 : 16,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ...banner,
@@ -373,6 +367,7 @@ class _StatsHomeState extends State<StatsHome> {
     }
     final active = yearKeys.where((key) => (yearMap[key] ?? 0) > 0).length;
     return Column(
+      spacing: narrow ? 12 : 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (c.loading)
@@ -419,9 +414,7 @@ class _StatsHomeState extends State<StatsHome> {
             index: 0,
             child: hero(data, rank, order, slots, cmp, comparison),
           ),
-          gap(),
           kpis(data, buckets, best),
-          gap(),
           pair(
             LensEnter(index: 5, child: trend(data, buckets, order, slots)),
             LensEnter(index: 6, child: modelList(data, models, slots)),
@@ -441,7 +434,6 @@ class _StatsHomeState extends State<StatsHome> {
                 : LensEnter(index: 8, child: recent(data)),
             alignStart: true,
           ),
-          const SizedBox(height: 4),
           Text(
             '金额按各模型的公开标准价估算，用来比较和感知，不是你的账单。套餐用户的实际花费通常更低。',
             style: p.text(12, p.muted),
@@ -758,7 +750,10 @@ class _StatsHomeState extends State<StatsHome> {
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: p['line-strong']),
+                                border: Border.all(
+                                  width: LensPalette.hairline(context),
+                                  color: p['line-strong'],
+                                ),
                               ),
                               child: Text(
                                 '?',
@@ -937,7 +932,10 @@ class _StatsHomeState extends State<StatsHome> {
                                 ? p['clay']
                                 : p['fill-active'],
                             border: key.compareTo(dayKey(now)) > 0
-                                ? Border.all(color: p['line-strong'])
+                                ? Border.all(
+                                    width: LensPalette.hairline(context),
+                                    color: p['line-strong'],
+                                  )
                                 : null,
                           ),
                         ),
@@ -1018,8 +1016,9 @@ class _StatsHomeState extends State<StatsHome> {
                 ),
               ))
       : Column(
+          spacing: narrow ? 12 : 16,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [left, const SizedBox(height: 12), right],
+          children: [left, right],
         );
   Widget trend(
     StatsHomeData data,
@@ -1370,11 +1369,17 @@ class _StatsHomeState extends State<StatsHome> {
                                         border: Border(
                                           left: i > start
                                               ? BorderSide(
+                                                  width: LensPalette.hairline(
+                                                    context,
+                                                  ),
                                                   color: p['line-soft'],
                                                 )
                                               : BorderSide.none,
                                           top: start > 0
                                               ? BorderSide(
+                                                  width: LensPalette.hairline(
+                                                    context,
+                                                  ),
                                                   color: p['line-soft'],
                                                 )
                                               : BorderSide.none,

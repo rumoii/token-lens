@@ -60,7 +60,7 @@ void main() {
           measurement['scheme'] = dark ? 'dark' : 'light';
           geometries.add(measurement);
           final expected = width == 1440
-              ? [347, 618, 1051, 1171, 1311]
+              ? [347, 619, 1051, 1171, 1311]
               : [309, 488, 761, 840, 933];
           final actual = measurement['headerLeft']! as List<double>;
           for (var i = 0; i < 5; i++) {

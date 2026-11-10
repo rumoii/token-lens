@@ -100,7 +100,12 @@ class _SettingsPricesState extends State<SettingsPrices> {
           decoration: BoxDecoration(
             border: narrow
                 ? null
-                : Border(bottom: BorderSide(color: p['line-soft'])),
+                : Border(
+                    bottom: BorderSide(
+                      width: LensPalette.hairline(context),
+                      color: p['line-soft'],
+                    ),
+                  ),
           ),
           child: narrow
               ? Column(
@@ -284,7 +289,12 @@ class _SettingsPricesState extends State<SettingsPrices> {
     final labels = ['档位', '新输入', '输出', '读缓存', '写缓存（短时）', '写缓存（存 1 小时）'];
     TableRow tableRow(List<String> values, {bool header = false}) => TableRow(
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: p['line'])),
+        border: Border(
+          bottom: BorderSide(
+            width: LensPalette.hairline(context),
+            color: p['line'],
+          ),
+        ),
       ),
       children: [
         for (var i = 0; i < values.length; i++)
@@ -469,7 +479,12 @@ class _SettingsPricesState extends State<SettingsPrices> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: p['line'])),
+              border: Border(
+                bottom: BorderSide(
+                  width: LensPalette.hairline(context),
+                  color: p['line'],
+                ),
+              ),
             ),
             child: _desktopCells([
               for (final label in ['模型', '每百万 token', '价格', '累计用量'])

@@ -112,7 +112,12 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
         decoration: BoxDecoration(
           border: title == '外观'
               ? null
-              : Border(top: BorderSide(color: p['line-soft'])),
+              : Border(
+                  top: BorderSide(
+                    width: LensPalette.hairline(context),
+                    color: p['line-soft'],
+                  ),
+                ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: Column(

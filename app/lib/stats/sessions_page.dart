@@ -369,7 +369,10 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                 border: Border(
                   bottom: narrow
                       ? BorderSide.none
-                      : BorderSide(color: p['line-soft']),
+                      : BorderSide(
+                          width: LensPalette.hairline(context),
+                          color: p['line-soft'],
+                        ),
                 ),
               ),
               child: narrow
@@ -453,7 +456,12 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: p['line'])),
+              border: Border(
+                bottom: BorderSide(
+                  width: LensPalette.hairline(context),
+                  color: p['line'],
+                ),
+              ),
             ),
             child: Row(
               children: [
@@ -730,7 +738,10 @@ class _SessionDetailState extends State<SessionDetail> {
           border: Border(
             left: label == '用量'
                 ? BorderSide.none
-                : BorderSide(color: p['line-soft']),
+                : BorderSide(
+                    width: LensPalette.hairline(context),
+                    color: p['line-soft'],
+                  ),
           ),
         ),
         child: Column(

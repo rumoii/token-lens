@@ -245,6 +245,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                         ? null
                                         : Border(
                                             left: BorderSide(
+                                              width: LensPalette.hairline(
+                                                context,
+                                              ),
                                               color: p['line-soft'],
                                             ),
                                           ),
@@ -432,6 +435,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                                 ? null
                                                 : Border(
                                                     top: BorderSide(
+                                                      width:
+                                                          LensPalette.hairline(
+                                                            context,
+                                                          ),
                                                       color: p['line-soft'],
                                                     ),
                                                   ),
@@ -491,7 +498,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                 Container(
                                   foregroundDecoration: BoxDecoration(
                                     border: Border(
-                                      top: BorderSide(color: p['line-soft']),
+                                      top: BorderSide(
+                                        width: LensPalette.hairline(context),
+                                        color: p['line-soft'],
+                                      ),
                                     ),
                                   ),
                                   child: Semantics(

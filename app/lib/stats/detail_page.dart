@@ -479,10 +479,16 @@ class _StatsDetailState extends State<StatsDetail> {
               decoration: BoxDecoration(
                 border: Border(
                   left: i % columns > 0
-                      ? BorderSide(color: p['line-soft'])
+                      ? BorderSide(
+                          width: LensPalette.hairline(context),
+                          color: p['line-soft'],
+                        )
                       : BorderSide.none,
                   top: i >= columns
-                      ? BorderSide(color: p['line-soft'])
+                      ? BorderSide(
+                          width: LensPalette.hairline(context),
+                          color: p['line-soft'],
+                        )
                       : BorderSide.none,
                 ),
               ),
@@ -501,7 +507,10 @@ class _StatsDetailState extends State<StatsDetail> {
                             height: 15,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              border: Border.all(color: p['line-strong']),
+                              border: Border.all(
+                                width: LensPalette.hairline(context),
+                                color: p['line-strong'],
+                              ),
                               shape: BoxShape.circle,
                             ),
                             child: Text('?', style: p.text(10, p.muted)),
@@ -688,7 +697,10 @@ class _StatsDetailState extends State<StatsDetail> {
                 border: Border(
                   bottom: narrow
                       ? BorderSide.none
-                      : BorderSide(color: p['line-soft']),
+                      : BorderSide(
+                          width: LensPalette.hairline(context),
+                          color: p['line-soft'],
+                        ),
                 ),
               ),
               child: narrow
@@ -922,6 +934,7 @@ class _StatsDetailState extends State<StatsDetail> {
         ? d['bucket']!.isNotEmpty
         : d[dim]!.isNotEmpty;
     return Column(
+      spacing: narrow ? 12 : 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         LayoutBuilder(
@@ -961,7 +974,6 @@ class _StatsDetailState extends State<StatsDetail> {
                   );
           },
         ),
-        const SizedBox(height: 4),
         ResourceBlock(resource: options, rows: 1, builder: filters),
         LensCard(
           child: ResourceBlock(resource: summary, rows: 2, builder: strip),
