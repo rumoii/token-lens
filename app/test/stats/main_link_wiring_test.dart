@@ -76,6 +76,9 @@ void main() {
       expect(shell.openLink, isNotNull);
       expect(shell.openLink, same((shell.news as NewsPage).openLink));
       expect(stats.openLink, same(shell.openLink));
+      expect(shell.newsListenable, same(newsController));
+      expect(stats.newsListenable, same(newsController));
+      expect(stats.newsUnread!(), newsController.totalUnread);
       // Unmount before draining the native work; no external link is opened.
       await tester.pumpWidget(const SizedBox());
       await Future.wait([

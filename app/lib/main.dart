@@ -166,6 +166,8 @@ class _TokenLensAppState extends State<TokenLensApp> {
                 openLink: _openLink,
                 statsInitializationError: _statsInitializationError,
                 news: NewsPage(controller: _controller!, openLink: _openLink),
+                newsListenable: _controller,
+                newsUnread: () => _controller?.totalUnread ?? 0,
               )
             : Scaffold(
                 body: Center(

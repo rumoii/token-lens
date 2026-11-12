@@ -125,7 +125,7 @@ void main() {
     expect(gateway.shutdownCalls, 1);
   });
 
-  testWidgets('news exposes local category filters and source status', (
+  testWidgets('news exposes local category filters and source management', (
     tester,
   ) async {
     final controller = NewsController(FakeNewsGateway(cached: cachedNews));
@@ -136,9 +136,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('全部'), findsOneWidget);
+    expect(find.byKey(const Key('category-all')), findsOneWidget);
     expect(find.text('工具更新'), findsOneWidget);
-    expect(find.text('来源状态'), findsOneWidget);
+    expect(find.byKey(const Key('manage-sources')), findsOneWidget);
   });
 
   testWidgets('filters combine in the page and clear without a request', (
@@ -154,7 +154,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('category-community')));
-    await tester.tap(find.byKey(const Key('source-filter-menu')));
+    await tester.tap(find.byKey(const Key('news-filter')));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('filter-hn-ai')).first);
     await tester.tap(find.byKey(const Key('filter-hn-ai')).first);
@@ -162,16 +162,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('news-search')), 'INFERENCE');
     await tester.pumpAndSettle();
-    expect(find.text('Community MODEL discussion'), findsOneWidget);
+    expect(find.text('Community MODEL discussion'), findsWidgets);
     expect(find.text('OpenAI 模型更新'), findsNothing);
     await tester.enterText(find.byKey(const Key('news-search')), 'missing');
     await tester.pumpAndSettle();
-    expect(find.text('没有符合筛选条件的动态'), findsOneWidget);
+    expect(find.text('没有符合条件的动态'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('clear-filters')));
     await tester.tap(find.byKey(const Key('clear-filters')));
     await tester.pumpAndSettle();
     expect(find.text('OpenAI 模型更新'), findsOneWidget);
-    expect(find.text('Community MODEL discussion'), findsOneWidget);
+    expect(find.text('Community MODEL discussion'), findsWidgets);
     expect(gateway.refreshCalls, 0);
   });
 
@@ -187,14 +187,19 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('manage-sources')));
+      await tester.pumpAndSettle();
       await _openSourceActions(tester, 'hn-ai');
       await tester.tap(find.byKey(const Key('refresh-hn-ai')));
       await tester.pumpAndSettle();
       expect(gateway.refreshRequests.single, ['hn-ai']);
-      await _openSourceActions(tester, 'hn-ai');
       await tester.tap(find.byKey(const Key('enabled-hn-ai')));
       await tester.pumpAndSettle();
-      expect(find.text('Community MODEL discussion'), findsNothing);
+      expect(gateway.enableRequests.last, ('hn-ai', false));
+      expect(
+        controller.visibleItems.map((item) => item.title),
+        isNot(contains('Community MODEL discussion')),
+      );
       await _openSourceActions(tester, 'hn-ai');
       expect(
         tester
@@ -206,16 +211,22 @@ void main() {
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      await _openSourceActions(tester, 'hn-ai');
       await tester.tap(find.byKey(const Key('enabled-hn-ai')));
       await tester.pumpAndSettle();
-      expect(find.text('Community MODEL discussion'), findsOneWidget);
+      expect(
+        controller.visibleItems.map((item) => item.title),
+        contains('Community MODEL discussion'),
+      );
     },
   );
 
   testWidgets(
     'partial failure renders safe Chinese copy and cross-source metadata',
     (tester) async {
+      tester.view.physicalSize = const Size(1280, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final gateway = FakeNewsGateway(cached: multiNews);
       gateway.failures['hn-ai'] = const NewsError(
         kind: 'rate_limited',
@@ -233,11 +244,22 @@ void main() {
       await tester.pumpAndSettle();
       expect(gateway.refreshRequests.single, isNull);
       expect(find.text('OpenAI 模型更新'), findsOneWidget);
-      expect(find.text('Community MODEL discussion'), findsOneWidget);
-      expect(find.text('312 points'), findsOneWidget);
-      expect(find.text('1.2k stars'), findsOneWidget);
-      expect(find.text('也见于 Hacker News'), findsOneWidget);
-      expect(find.text('限流'), findsOneWidget);
+      expect(find.text('Community MODEL discussion'), findsWidgets);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('news-list')),
+          matching: find.text('312 票'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('1.2k 星'), findsOneWidget);
+      expect(find.byTooltip('也见于 Hacker News'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('manage-sources')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Text>(find.byKey(const Key('source-status-hn-ai'))).data,
+        startsWith('限流'),
+      );
       await _openSourceActions(tester, 'hn-ai');
       expect(find.textContaining('来源暂时限制请求'), findsOneWidget);
       expect(find.textContaining('SECRET'), findsNothing);
@@ -267,8 +289,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('refresh-news')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('manage-sources')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Text>(find.byKey(const Key('source-status-hn-ai'))).data,
+        startsWith(failure.$2),
+      );
       await _openSourceActions(tester, 'hn-ai');
-      expect(find.text(failure.$2), findsOneWidget);
       expect(find.text(failure.$3), findsOneWidget);
       expect(find.textContaining('INTERNAL'), findsNothing);
     });
@@ -289,7 +316,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('refresh-news')));
     await tester.pump();
-    await tester.ensureVisible(find.text('取消刷新'));
     await tester.tap(find.text('取消刷新'));
     await tester.pump();
     expect(gateway.cancelCalls, 1);
@@ -301,7 +327,6 @@ void main() {
     expect(find.text('Fresh article'), findsNothing);
     final late = Completer<NewsSnapshot>();
     gateway.nextRefresh = late.future;
-    await tester.ensureVisible(find.byKey(const Key('refresh-news')));
     await tester.tap(find.byKey(const Key('refresh-news')));
     await tester.pump();
     await tester.pumpWidget(const SizedBox());
@@ -330,6 +355,7 @@ class _DelayedGateway extends FakeNewsGateway {
 Future<void> _openSourceActions(WidgetTester tester, String id) async {
   final row = find.byKey(Key('source-row-$id'));
   await tester.ensureVisible(row);
+  await tester.pumpAndSettle();
   await tester.tap(row);
   await tester.pumpAndSettle();
 }

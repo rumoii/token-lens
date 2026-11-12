@@ -121,12 +121,14 @@ class LensButton extends StatelessWidget {
     this.size = 'md',
     this.trailingIcon = false,
     this.spinning = false,
+    this.focusNode,
   });
   final String label, variant, size;
   final VoidCallback? onPressed;
   final IconData? icon;
   final bool trailingIcon;
   final bool spinning;
+  final FocusNode? focusNode;
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
@@ -147,6 +149,7 @@ class LensButton extends StatelessWidget {
       child: LensPressFeedback(
         builder: (states) => TextButton(
           statesController: states,
+          focusNode: focusNode,
           onPressed: onPressed,
           style: ButtonStyle(
             minimumSize: WidgetStatePropertyAll(Size(0, h)),

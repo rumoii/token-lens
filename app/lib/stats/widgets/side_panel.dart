@@ -10,13 +10,16 @@ Future<void> showLensPanel(
   required String hint,
   required Widget icon,
   required Widget body,
+  String label = '会话详情',
 }) {
   final narrow = MediaQuery.sizeOf(context).width < 768;
   final reduced = MediaQuery.disableAnimationsOf(context);
   return Navigator.of(context).push<void>(
     _LensPanelRoute(
       reduced: reduced,
+      barrierLabel: '关闭$label',
       pageBuilder: (context, _, _) => _LensPanel(
+        label: label,
         title: title,
         hint: hint,
         icon: icon,
@@ -47,9 +50,10 @@ class _LensPanelRoute extends RawDialogRoute<void> {
     required super.pageBuilder,
     required super.transitionBuilder,
     required bool reduced,
+    required String barrierLabel,
   }) : super(
          barrierDismissible: true,
-         barrierLabel: '关闭会话详情',
+         barrierLabel: barrierLabel,
          barrierColor: Colors.black.withValues(alpha: .3),
          traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
          transitionDuration: reduced
@@ -65,13 +69,14 @@ class _LensPanelRoute extends RawDialogRoute<void> {
 
 class _LensPanel extends StatefulWidget {
   const _LensPanel({
+    required this.label,
     required this.title,
     required this.hint,
     required this.icon,
     required this.body,
     required this.narrow,
   });
-  final String title, hint;
+  final String label, title, hint;
   final Widget icon, body;
   final bool narrow;
   @override
@@ -99,7 +104,7 @@ class _LensPanelState extends State<_LensPanel> {
           bottom: 0,
           width: widget.narrow ? null : 460,
           child: Semantics(
-            label: '会话详情',
+            label: widget.label,
             scopesRoute: true,
             namesRoute: true,
             explicitChildNodes: true,

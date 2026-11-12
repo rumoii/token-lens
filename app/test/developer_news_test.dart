@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/news_controller.dart';
 import 'package:token_lens_app/news_gateway.dart';
 import 'package:token_lens_app/news_page.dart';
+import 'package:token_lens_app/stats/theme/palette.dart';
 
 import 'support/fake_news_gateway.dart';
 import 'support/developer_news.dart';
@@ -259,35 +260,43 @@ void main() {
     expect(gateway.refreshCalls, 0);
   });
 
-  testWidgets('type and sort controls accompany the existing source filter', (
-    tester,
-  ) async {
-    final controller = NewsController(FakeNewsGateway(cached: multiNews));
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: NewsPage(controller: controller, openLink: (_) async => true),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('全部类型'), findsOneWidget);
-    expect(find.text('最新'), findsOneWidget);
-    expect(find.text('热度'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('kind-filter-menu')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('kind-filter-general')).first, findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'type filters live in the filter popover; sort hides when unavailable',
+    (tester) async {
+      final controller = NewsController(FakeNewsGateway(cached: multiNews));
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NewsPage(controller: controller, openLink: (_) async => true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.hotSortAvailable, isFalse);
+      expect(find.byKey(const Key('news-sort')), findsNothing);
+      await tester.tap(find.byKey(const Key('news-filter')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('kind-filter-general')).first,
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('type labels use neutral fills and general has no badge', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final controller = NewsController(FakeNewsGateway(cached: developerNews));
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
+        theme: const LensPalette(false).theme,
         home: NewsPage(controller: controller, openLink: (_) async => true),
       ),
     );
@@ -305,7 +314,7 @@ void main() {
       );
       expect(
         (badge.decoration! as BoxDecoration).color,
-        const Color(0xffeeede9),
+        const LensPalette(false)['fill-active'],
       );
       expect(
         find.descendant(
@@ -316,7 +325,8 @@ void main() {
       );
     }
     expect(find.byKey(const Key('item-kind-general')), findsNothing);
-    await tester.tap(find.byKey(const Key('kind-filter-menu')));
+    final filter = find.byKey(const Key('news-filter'));
+    await tester.tap(filter);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('kind-filter-api')).first);
     await tester.tap(find.byKey(const Key('kind-filter-deprecation')).first);
@@ -324,9 +334,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.kindIds, {'api', 'deprecation'});
     expect(controller.visibleItems.map((i) => i.id), ['deprecation', 'api']);
+    expect(find.byKey(const Key('filter-tag-kind-api')), findsOneWidget);
     expect(
       tester
-          .widget<OutlinedButton>(find.byKey(const Key('kind-filter-menu')))
+          .widget<TextButton>(
+            find.descendant(of: filter, matching: find.byType(TextButton)),
+          )
           .focusNode!
           .hasFocus,
       isTrue,
@@ -334,7 +347,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('AIbase date-only entries display the UTC day without a time', (
+  testWidgets('AIbase date-only entries show the UTC day without a time', (
     tester,
   ) async {
     for (final date in [
@@ -369,8 +382,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('发布日期：${date.$2}'), findsOneWidget);
-      expect(find.textContaining('（本地时间）'), findsNothing);
+      expect(find.byTooltip('发布日期：${date.$2}'), findsOneWidget);
+      expect(find.byTooltip(RegExp('发布时间')), findsNothing);
     }
   });
 
@@ -386,12 +399,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('发布日期：2026-11-05'), findsOneWidget);
+    expect(find.byTooltip('发布日期：2026-11-05'), findsOneWidget);
   });
 
   testWidgets(
-    'sort controls reflect availability and category counts include also_in',
+    'sort control follows availability and category counts include also_in',
     (tester) async {
+      tester.view.physicalSize = const Size(1280, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final controller = NewsController(FakeNewsGateway(cached: developerNews));
       addTearDown(controller.dispose);
       await tester.pumpWidget(
@@ -400,11 +417,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextButton>(find.byKey(const Key('sort-hot'))).onPressed,
-        isNull,
-      );
-      expect(find.textContaining('不同热度单位'), findsOneWidget);
+      expect(find.byKey(const Key('news-sort')), findsNothing);
       controller.toggleSourceFilter('hn-ai');
       controller.setCategory(SourceCategory.community);
       await tester.pumpAndSettle();
@@ -415,19 +428,26 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.ensureVisible(find.byKey(const Key('sort-hot')));
-      await tester.tap(find.byKey(const Key('sort-hot')));
+      final sort = find.byKey(const Key('news-sort'));
+      expect(sort, findsOneWidget);
+      await tester.tap(find.descendant(of: sort, matching: find.text('热度')));
       await tester.pumpAndSettle();
       expect(controller.sort, NewsSort.hot);
+      expect(find.text('按热度'), findsOneWidget);
+      Finder listed(String title) => find.descendant(
+        of: find.byKey(const Key('news-list')),
+        matching: find.text(title),
+      );
       expect(
-        tester.getTopLeft(find.text('A newer AI tooling discussion')).dy,
-        lessThan(tester.getTopLeft(find.text('Community MODEL discussion')).dy),
+        tester.getTopLeft(listed('A newer AI tooling discussion')).dy,
+        lessThan(tester.getTopLeft(listed('Community MODEL discussion')).dy),
       );
       expect(find.text('OpenAI'), findsWidgets);
       controller.toggleSourceFilter('gh-release:openai/codex');
       controller.setCategory(null);
       await tester.pumpAndSettle();
       expect(controller.sort, NewsSort.latest);
+      expect(find.byKey(const Key('news-sort')), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

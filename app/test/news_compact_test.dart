@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/news_controller.dart';
 import 'package:token_lens_app/news_gateway.dart';
 import 'package:token_lens_app/news_page.dart';
+import 'package:token_lens_app/stats/theme/palette.dart';
 
 import 'support/fake_news_gateway.dart';
 
@@ -36,10 +37,11 @@ void main() {
       );
     },
   );
+
   testWidgets(
-    'source filter is a dropdown beside search, with lightweight counted tabs',
+    'filter popover sits in the toolbar beside search, with counted chips',
     (tester) async {
-      tester.view.physicalSize = const Size(755, 600);
+      tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -47,24 +49,22 @@ void main() {
       addTearDown(controller.dispose);
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData(platform: TargetPlatform.windows),
+          theme: const LensPalette(false).theme,
           home: NewsPage(controller: controller, openLink: (_) async => true),
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(ChoiceChip), findsNothing);
-      expect(find.byType(FilterChip), findsNothing);
-      final dropdown = find.byKey(const Key('source-filter-menu'));
-      expect(dropdown, findsOneWidget);
+      final filter = find.byKey(const Key('news-filter'));
+      final search = find.byKey(const Key('news-search'));
+      expect(filter, findsOneWidget);
       expect(
-        tester.getTopLeft(dropdown).dx,
-        greaterThan(tester.getTopLeft(find.byKey(const Key('news-search'))).dx),
+        tester.getTopLeft(filter).dx,
+        greaterThan(tester.getTopLeft(search).dx),
       );
       expect(
-        tester.getTopLeft(dropdown).dy,
-        closeTo(tester.getTopLeft(find.byKey(const Key('news-search'))).dy, 1),
+        tester.getCenter(filter).dy,
+        closeTo(tester.getCenter(search).dy, 2),
       );
-      expect(find.byKey(const Key('category-all')), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('category-all')),
@@ -72,20 +72,21 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.tap(dropdown, kind: PointerDeviceKind.mouse);
+      await tester.tap(filter, kind: PointerDeviceKind.mouse);
       await tester.pumpAndSettle();
+      expect(find.byKey(const Key('filter-group-kind')), findsOneWidget);
       for (final category in SourceCategory.values) {
         expect(
           find.byKey(Key('filter-group-${category.name}')),
           findsOneWidget,
         );
       }
+      expect(find.byKey(const Key('filter-hf-spaces')), findsNothing);
       await tester.tap(
         find.byKey(const Key('filter-openai')).first,
         kind: PointerDeviceKind.mouse,
       );
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('filter-all')).first, findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('filter-hn-ai')).first);
       await tester.tap(
         find.byKey(const Key('filter-hn-ai')).first,
@@ -93,20 +94,29 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(controller.sourceIds, {'openai', 'hn-ai'});
-      await tester.ensureVisible(find.byKey(const Key('filter-all')).first);
-      await tester.tap(
-        find.byKey(const Key('filter-all')).first,
-        kind: PointerDeviceKind.mouse,
-      );
-      await tester.pumpAndSettle();
-      expect(controller.sourceIds, isEmpty);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('filter-openai')), findsNothing);
-      expect(
-        tester.widget<OutlinedButton>(dropdown).focusNode!.hasFocus,
-        isTrue,
+      final button = tester.widget<TextButton>(
+        find.descendant(of: filter, matching: find.byType(TextButton)),
       );
+      expect(button.focusNode!.hasFocus, isTrue);
+      expect(find.byKey(const Key('filter-tag-openai')), findsOneWidget);
+      expect(find.byKey(const Key('filter-tag-hn-ai')), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('filter-tag-openai')),
+          matching: find.byType(IconButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.sourceIds, {'hn-ai'});
+      await tester.tap(find.text('清除筛选'));
+      await tester.pumpAndSettle();
+      expect(controller.sourceIds, isEmpty);
+      expect(find.byKey(const Key('filter-tag-hn-ai')), findsNothing);
+      button.focusNode!.requestFocus();
+      await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('filter-openai')), findsWidgets);
@@ -116,7 +126,7 @@ void main() {
     },
   );
 
-  testWidgets('source status uses compact grouped rows with hidden actions', (
+  testWidgets('manage sources opens a drawer with grouped rows and switches', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 1100);
@@ -127,31 +137,52 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.windows),
+        theme: const LensPalette(false).theme,
         home: NewsPage(controller: controller, openLink: (_) async => true),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('刷新此来源'), findsNothing);
-    expect(find.byType(Switch), findsNothing);
-    final row = find.byKey(const Key('source-row-openai'));
-    expect(row, findsOneWidget);
-    expect(tester.getSize(row).height, inInclusiveRange(36, 40));
-    expect(
-      tester.getSize(find.byKey(const Key('source-status-panel'))).height,
-      lessThanOrEqualTo(1100),
-    );
+    expect(find.byKey(const Key('source-status-panel')), findsNothing);
+    expect(find.text('3 个来源没更新'), findsOneWidget);
+    final manage = find.byKey(const Key('manage-sources'));
+    await tester.tap(manage);
+    await tester.pumpAndSettle();
+    final panel = find.byKey(const Key('source-status-panel'));
+    expect(panel, findsOneWidget);
     for (final category in SourceCategory.values) {
       expect(find.byKey(Key('status-group-${category.name}')), findsOneWidget);
     }
-    await tester.tap(row);
+    expect(find.byType(Switch), findsNWidgets(16));
+    expect(
+      tester.widget<Switch>(find.byKey(const Key('enabled-hf-spaces'))).value,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('source-status-hf-spaces')))
+          .data,
+      '已停用',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const Key('source-status-hn-ai'))).data,
+      startsWith('限流'),
+    );
+    await tester.tap(find.byKey(const Key('source-row-openai')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('refresh-openai')), findsOneWidget);
-    expect(find.byKey(const Key('enabled-openai')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(panel, findsNothing);
+    final button = tester.widget<TextButton>(
+      find.descendant(of: manage, matching: find.byType(TextButton)),
+    );
+    expect(button.focusNode!.hasFocus, isTrue);
   });
 
   testWidgets(
-    '700px at text scale 2 supports the grouped dropdown and source actions',
+    '700px at text scale 2 supports the filter popover and source actions',
     (tester) async {
       tester.view.physicalSize = const Size(700, 500);
       tester.view.devicePixelRatio = 1;
@@ -170,9 +201,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final dropdown = find.byKey(const Key('source-filter-menu'));
-      await tester.ensureVisible(dropdown);
-      await tester.tap(dropdown);
+      final filter = find.byKey(const Key('news-filter'));
+      await tester.ensureVisible(filter);
+      await tester.pumpAndSettle();
+      await tester.tap(filter);
       await tester.pumpAndSettle();
       final option = find.byKey(const Key('filter-hn-ai')).first;
       await tester.ensureVisible(option);
@@ -181,8 +213,23 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(controller.visibleItems.map((item) => item.id), ['o', 'h']);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('manage-sources')),
+        -200,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const Key('news-scroll')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.ensureVisible(find.byKey(const Key('manage-sources')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('manage-sources')));
+      await tester.pumpAndSettle();
       final row = find.byKey(const Key('source-row-hn-ai'));
       await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('error-hn-ai')), findsOneWidget);

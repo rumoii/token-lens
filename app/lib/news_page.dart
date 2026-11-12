@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'news_controller.dart';
 import 'news_gateway.dart';
 import 'smooth_wheel.dart';
+import 'stats/theme/palette.dart';
+import 'stats/widgets/filters.dart';
+import 'stats/widgets/primitives.dart';
+import 'stats/widgets/side_panel.dart';
 
 const _kindNames = {
   'release': '版本',
@@ -13,32 +20,51 @@ const _kindNames = {
   'general': '常规（无标签）',
 };
 
+const _metrics = {
+  'points': ('票', 'Hacker News 票数'),
+  'stars': ('星', 'GitHub 星数'),
+  'likes': ('赞', 'Hugging Face 点赞'),
+  'upvotes': ('赞', 'Hugging Face 论文点赞'),
+};
+
+// These sources publish a calendar day without a time of day.
+const _dateOnlySources = {'openai-api', 'anthropic-api', 'aibase'};
+
+const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+
 class NewsPage extends StatefulWidget {
-  const NewsPage({super.key, required this.controller, required this.openLink});
+  const NewsPage({
+    super.key,
+    required this.controller,
+    required this.openLink,
+    this.now = DateTime.now,
+  });
 
   final NewsController controller;
   final Future<bool> Function(Uri) openLink;
+  final DateTime Function() now;
 
   @override
   State<NewsPage> createState() => _NewsPageState();
 }
 
 class _NewsPageState extends State<NewsPage> {
-  bool _cards = false;
   final Set<String> _opening = {};
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   final _scroll = SmoothWheelController();
-  final _sourceMenu = MenuController();
-  final _sourceButtonFocus = FocusNode();
-  final _allSourcesFocus = FocusNode();
-  final _kindMenu = MenuController();
-  final _kindButtonFocus = FocusNode();
-  final _allKindsFocus = FocusNode();
+  final _headerKey = GlobalKey();
+  final _stuck = ValueNotifier(false);
+  final _filterButtonFocus = FocusNode();
+  final _manageFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     widget.controller.load();
+    _search.text = widget.controller.query;
+    _scroll.addListener(_measureStuck);
+    HardwareKeyboard.instance.addHandler(_slash);
   }
 
   @override
@@ -49,17 +75,36 @@ class _NewsPageState extends State<NewsPage> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_slash);
     _search.dispose();
+    _searchFocus.dispose();
     _scroll.dispose();
-    _sourceButtonFocus.dispose();
-    _allSourcesFocus.dispose();
-    _kindButtonFocus.dispose();
-    _allKindsFocus.dispose();
+    _stuck.dispose();
+    _filterButtonFocus.dispose();
+    _manageFocus.dispose();
     super.dispose();
+  }
+
+  void _measureStuck() {
+    final header = _headerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (header == null || !_scroll.hasClients) return;
+    _stuck.value = _scroll.offset > header.size.height;
+  }
+
+  bool _slash(KeyEvent event) {
+    if (event is! KeyDownEvent || event.character != '/') return false;
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused?.findAncestorWidgetOfExactType<EditableText>() != null) {
+      return false;
+    }
+    _searchFocus.requestFocus();
+    return true;
   }
 
   Future<void> _open(NewsItem item) async {
     if (_opening.contains(item.id)) return;
+    if (!item.read) unawaited(widget.controller.openedItem(item.id));
     final uri = Uri.tryParse(item.url);
     if (uri == null ||
         !(uri.scheme == 'https' || uri.scheme == 'http') ||
@@ -82,927 +127,30 @@ class _NewsPageState extends State<NewsPage> {
 
   void _showOpenError() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('无法打开原文，请检查默认浏览器设置。')));
+    ScaffoldMessenger.maybeOf(context)
+        ?.showSnackBar(const SnackBar(content: Text('无法打开原文，请检查默认浏览器设置。')));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final colors = _NewsColors(Theme.of(context).brightness == Brightness.dark);
-    return AnimatedBuilder(
-      animation: widget.controller,
-      builder: (context, _) => Scaffold(
-        backgroundColor: colors.page,
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final wide =
-                  constraints.maxWidth >= 756 &&
-                  constraints.maxHeight >= 550 &&
-                  MediaQuery.textScalerOf(context).scale(14) <= 21;
-              return SingleChildScrollView(
-                controller: _scroll,
-                padding: EdgeInsets.all(wide ? 36 : 24),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1220),
-                    child: _content(colors, wide),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+  Future<void> _manageSources() async {
+    await showLensPanel(
+      context,
+      label: '管理来源',
+      title: '管理来源',
+      hint: '启停来源、查看每个来源的刷新状态',
+      icon: Icon(
+        Icons.tune_rounded,
+        size: 20,
+        color: LensPalette.of(context).secondary,
       ),
+      body: _SourcesPanel(controller: widget.controller, now: widget.now),
     );
+    if (mounted) _manageFocus.requestFocus();
   }
 
-  Widget _content(_NewsColors colors, bool wide) {
-    final controller = widget.controller;
-    final snapshot = controller.snapshot;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final title = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        'AI 热点',
-                        style: TextStyle(
-                          color: colors.ink,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    _badge('预览', colors),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  '看见新变化，找到值得带进工作流的下一件事。',
-                  style: TextStyle(
-                    color: colors.secondary,
-                    fontSize: 13,
-                    height: 1.6,
-                  ),
-                ),
-              ],
-            );
-            final refresh = FilledButton.icon(
-              key: const Key('refresh-news'),
-              onPressed:
-                  snapshot.refreshing ||
-                      controller.loadingSnapshot ||
-                      controller.updatingSourceId != null
-                  ? null
-                  : () => controller.refresh(),
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.ink,
-                foregroundColor: colors.page,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(7),
-                ),
-              ),
-              icon: const Icon(Icons.refresh_rounded, size: 17),
-              label: Text(snapshot.refreshing ? '正在刷新' : '手动刷新'),
-            );
-            return constraints.maxWidth >= 580 &&
-                    MediaQuery.textScalerOf(context).scale(14) <= 21
-                ? Row(
-                    children: [
-                      Expanded(child: title),
-                      const SizedBox(width: 24),
-                      refresh,
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [title, const SizedBox(height: 14), refresh],
-                  );
-          },
-        ),
-        const SizedBox(height: 22),
-        _panel(
-          colors,
-          Row(
-            children: [
-              Icon(Icons.rss_feed_rounded, color: colors.accent, size: 22),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '按来源阅读，直接抵达原文。',
-                      style: TextStyle(
-                        color: colors.ink,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text('启动只读取本地缓存；点击刷新后才连接已启用的来源。', style: _small(colors)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 22),
-        if (wide)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _feed(colors)),
-              const SizedBox(width: 26),
-              SizedBox(width: 260, child: _sourcePanel(colors)),
-            ],
-          )
-        else ...[
-          _feed(colors),
-          const SizedBox(height: 24),
-          _sourcePanel(colors),
-        ],
-        const SizedBox(height: 22),
-        Text('无自动刷新。外部页面仅在点击原文后打开。', style: _small(colors)),
-      ],
-    );
+  void _clearFilters() {
+    _search.clear();
+    widget.controller.clearFilters();
   }
-
-  Widget _feed(_NewsColors colors) {
-    final controller = widget.controller;
-    final snapshot = controller.snapshot;
-    final items = controller.visibleItems;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _categoryTabs(colors),
-        const SizedBox(height: 14),
-        _filters(colors),
-        const SizedBox(height: 14),
-        if (controller.loadingSnapshot) ...[
-          const Text('正在读取本地缓存…'),
-          LinearProgressIndicator(color: colors.accent),
-          const SizedBox(height: 12),
-        ],
-        if (snapshot.refreshing) ...[
-          _notice(
-            colors,
-            Icons.sync_rounded,
-            controller.cancelling ? '正在取消刷新…' : '正在刷新已选来源…',
-            '现有内容保留供继续阅读。',
-            action: TextButton(
-              onPressed: controller.cancelling
-                  ? null
-                  : controller.cancelRefresh,
-              child: Text(controller.cancelling ? '正在取消' : '取消刷新'),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ] else if (snapshot.error != null) ...[
-          _notice(
-            colors,
-            Icons.info_outline,
-            snapshot.error!.kind == 'cancelled' ? '刷新已取消' : '刷新失败 · 正在查看离线缓存',
-            _errorCopy(snapshot.error!),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (snapshot.sources.any(
-          (source) => source.enabled && source.error != null,
-        )) ...[
-          Text(
-            '部分来源未更新，其他内容可继续阅读。',
-            style: TextStyle(color: colors.accent, fontSize: 12),
-          ),
-          const SizedBox(height: 10),
-        ],
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 8,
-          children: [
-            Semantics(
-              liveRegion: true,
-              child: Text('${items.length} 条动态 · 本地缓存', style: _small(colors)),
-            ),
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 4,
-              runSpacing: 8,
-              children: [
-                _sortControls(colors),
-                const SizedBox(width: 8),
-                _viewButton(
-                  colors,
-                  '信息流布局',
-                  Icons.view_list_outlined,
-                  !_cards,
-                  () => setState(() => _cards = false),
-                ),
-                _viewButton(
-                  colors,
-                  '卡片布局',
-                  Icons.grid_view_rounded,
-                  _cards,
-                  () => setState(() => _cards = true),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Semantics(
-          liveRegion: true,
-          child: Text(
-            controller.sortExplanation,
-            key: const Key('sort-explanation'),
-            style: _small(colors),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (items.isEmpty && !controller.loadingSnapshot)
-          snapshot.items.isEmpty &&
-                  controller.category == null &&
-                  controller.sourceIds.isEmpty &&
-                  controller.kindIds.isEmpty &&
-                  controller.query.isEmpty
-              ? _empty(
-                  colors,
-                  snapshot.sources.any(
-                    (source) => source.lastSuccessMs != null,
-                  ),
-                )
-              : _notice(
-                  colors,
-                  Icons.filter_alt_off_outlined,
-                  '没有符合筛选条件的动态',
-                  '试试其他分类、来源或关键词。',
-                  action: TextButton(
-                    key: const Key('clear-filters'),
-                    onPressed: () {
-                      _search.clear();
-                      controller.clearFilters();
-                    },
-                    child: const Text('清除筛选'),
-                  ),
-                )
-        else if (items.isNotEmpty)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = _cards && constraints.maxWidth >= 680
-                  ? (constraints.maxWidth - 14) / 2
-                  : constraints.maxWidth;
-              return _cards
-                  ? Wrap(
-                      key: const Key('news-cards'),
-                      spacing: 14,
-                      runSpacing: 14,
-                      children: [
-                        for (final item in items)
-                          SizedBox(
-                            width: width,
-                            child: _article(item, colors, true),
-                          ),
-                      ],
-                    )
-                  : Container(
-                      key: const Key('news-list'),
-                      decoration: BoxDecoration(
-                        color: colors.panel,
-                        border: Border.all(color: colors.line),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (
-                            var index = 0;
-                            index < items.length;
-                            index++
-                          ) ...[
-                            if (index > 0)
-                              Divider(height: 1, color: colors.line),
-                            _article(items[index], colors, false),
-                          ],
-                        ],
-                      ),
-                    );
-            },
-          ),
-      ],
-    );
-  }
-
-  Widget _filters(_NewsColors colors) => LayoutBuilder(
-    builder: (context, constraints) {
-      final search = TextField(
-        key: const Key('news-search'),
-        controller: _search,
-        onChanged: widget.controller.setQuery,
-        style: TextStyle(color: colors.ink, fontSize: 13),
-        decoration: InputDecoration(
-          labelText: '搜索标题和描述',
-          labelStyle: TextStyle(color: colors.secondary, fontSize: 13),
-          prefixIcon: Icon(Icons.search, size: 18, color: colors.secondary),
-          suffixIcon: _search.text.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: '清除搜索',
-                  onPressed: () {
-                    _search.clear();
-                    widget.controller.setQuery('');
-                  },
-                  icon: const Icon(Icons.close, size: 18),
-                ),
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 14,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: colors.line),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: colors.secondary),
-            borderRadius: BorderRadius.circular(7),
-          ),
-        ),
-      );
-      final menus = Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [_sourceFilter(colors), _kindFilter(colors)],
-      );
-      if (constraints.maxWidth >= 560 &&
-          MediaQuery.textScalerOf(context).scale(14) <= 21) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: search),
-            const SizedBox(width: 8),
-            menus,
-          ],
-        );
-      }
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [search, const SizedBox(height: 8), menus],
-      );
-    },
-  );
-
-  Widget _sortControls(_NewsColors colors) {
-    final controller = widget.controller;
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: colors.panel,
-        border: Border.all(color: colors.line),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final sort in NewsSort.values)
-            Semantics(
-              selected: controller.sort == sort,
-              child: TextButton(
-                key: Key('sort-${sort.name}'),
-                onPressed: sort == NewsSort.hot && !controller.hotSortAvailable
-                    ? null
-                    : () => controller.setSort(sort),
-                style: TextButton.styleFrom(
-                  foregroundColor: colors.secondary,
-                  disabledForegroundColor: colors.secondary,
-                  backgroundColor: controller.sort == sort
-                      ? colors.hover
-                      : Colors.transparent,
-                  minimumSize: const Size(0, 32),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  textStyle: TextStyle(
-                    fontFamily: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.fontFamily,
-                    fontSize: 12,
-                    fontWeight: controller.sort == sort
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                  ),
-                ),
-                child: Text(sort == NewsSort.latest ? '最新' : '热度'),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _kindFilter(_NewsColors colors) {
-    final controller = widget.controller;
-    return CheckboxTheme(
-      data: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? colors.secondary
-              : Colors.transparent,
-        ),
-        checkColor: WidgetStatePropertyAll(colors.panel),
-        side: BorderSide(color: colors.secondary),
-      ),
-      child: MenuAnchor(
-        controller: _kindMenu,
-        childFocusNode: _kindButtonFocus,
-        crossAxisUnconstrained: false,
-        onOpen: _allKindsFocus.requestFocus,
-        onClose: () {
-          if (mounted) _kindButtonFocus.requestFocus();
-        },
-        style: MenuStyle(
-          elevation: const WidgetStatePropertyAll(0),
-          backgroundColor: WidgetStatePropertyAll(colors.panel),
-          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-          maximumSize: const WidgetStatePropertyAll(Size(300, 440)),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: colors.line),
-            ),
-          ),
-        ),
-        menuChildren: [
-          for (final kind in [null, ..._kindNames.keys])
-            CheckboxMenuButton(
-              key: Key('kind-filter-${kind ?? 'all'}'),
-              focusNode: kind == null ? _allKindsFocus : null,
-              value: kind == null
-                  ? controller.kindIds.isEmpty
-                  : controller.kindIds.contains(kind),
-              closeOnActivate: false,
-              onChanged: (_) => kind == null
-                  ? controller.clearKindFilters()
-                  : controller.toggleKindFilter(kind),
-              style: MenuItemButton.styleFrom(
-                foregroundColor: colors.secondary,
-                minimumSize: const Size(0, 36),
-                textStyle: TextStyle(
-                  fontFamily: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.fontFamily,
-                  fontSize: 13,
-                ),
-              ),
-              child: Text(kind == null ? '全部类型' : _kindNames[kind]!),
-            ),
-        ],
-        builder: (context, menu, child) => OutlinedButton(
-          key: const Key('kind-filter-menu'),
-          focusNode: _kindButtonFocus,
-          onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.secondary,
-            backgroundColor: colors.panel,
-            side: BorderSide(color: colors.line),
-            minimumSize: const Size(0, 46),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            textStyle: TextStyle(
-              fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
-              fontSize: 13,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(7),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                controller.kindIds.isEmpty
-                    ? '全部类型'
-                    : '类型（${controller.kindIds.length}）',
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.expand_more, size: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _categoryTabs(_NewsColors colors) {
-    final controller = widget.controller;
-    Widget tab(SourceCategory? category, String label) {
-      final count = controller.categoryCount(category);
-      final selected = controller.category == category;
-      return Semantics(
-        selected: selected,
-        child: TextButton(
-          key: Key('category-${category?.name ?? 'all'}'),
-          onPressed: () => controller.setCategory(category),
-          style: TextButton.styleFrom(
-            backgroundColor: selected ? colors.hover : Colors.transparent,
-            foregroundColor: selected ? colors.ink : colors.secondary,
-            minimumSize: const Size(0, 36),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-            textStyle: TextStyle(
-              fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label),
-              const SizedBox(width: 7),
-              Text(
-                '$count',
-                style: TextStyle(
-                  color: colors.secondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.line)),
-      ),
-      child: Wrap(
-        spacing: 2,
-        runSpacing: 4,
-        children: [
-          tab(null, '全部'),
-          for (final category in SourceCategory.values)
-            tab(category, _categoryName(category)),
-        ],
-      ),
-    );
-  }
-
-  Widget _sourceFilter(_NewsColors colors) {
-    final controller = widget.controller;
-    final sources = controller.snapshot.sources;
-    final itemStyle = MenuItemButton.styleFrom(
-      foregroundColor: colors.secondary,
-      minimumSize: const Size(0, 36),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-      textStyle: TextStyle(
-        fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
-        fontSize: 13,
-      ),
-    );
-    return CheckboxTheme(
-      data: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? colors.secondary
-              : Colors.transparent,
-        ),
-        checkColor: WidgetStatePropertyAll(colors.panel),
-        side: BorderSide(color: colors.secondary),
-      ),
-      child: MenuAnchor(
-        crossAxisUnconstrained: false,
-        controller: _sourceMenu,
-        childFocusNode: _sourceButtonFocus,
-        onOpen: _allSourcesFocus.requestFocus,
-        onClose: () {
-          if (mounted) _sourceButtonFocus.requestFocus();
-        },
-        style: MenuStyle(
-          elevation: const WidgetStatePropertyAll(0),
-          shadowColor: const WidgetStatePropertyAll(Colors.transparent),
-          backgroundColor: WidgetStatePropertyAll(colors.panel),
-          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-          minimumSize: const WidgetStatePropertyAll(Size(300, 0)),
-          maximumSize: const WidgetStatePropertyAll(Size(340, 740)),
-          padding: const WidgetStatePropertyAll(
-            EdgeInsets.symmetric(vertical: 8),
-          ),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: colors.line),
-            ),
-          ),
-        ),
-        menuChildren: [
-          CheckboxMenuButton(
-            key: const Key('filter-all'),
-            focusNode: _allSourcesFocus,
-            value: controller.sourceIds.isEmpty,
-            closeOnActivate: false,
-            style: itemStyle,
-            onChanged: (_) {
-              for (final id in controller.sourceIds) {
-                controller.toggleSourceFilter(id);
-              }
-            },
-            child: const Text('全部来源'),
-          ),
-          for (final category in SourceCategory.values) ...[
-            Padding(
-              key: Key('filter-group-${category.name}'),
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: Text(
-                _categoryName(category),
-                style: TextStyle(
-                  color: colors.secondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            for (final source in sources.where(
-              (source) => source.category == category,
-            ))
-              CheckboxMenuButton(
-                key: Key('filter-${source.id}'),
-                value: controller.sourceIds.contains(source.id),
-                closeOnActivate: false,
-                style: itemStyle,
-                onChanged: (_) => controller.toggleSourceFilter(source.id),
-                child: Text(
-                  '${source.name}${source.enabled ? '' : ' · 已停用'}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-        ],
-        builder: (context, menu, child) => OutlinedButton(
-          key: const Key('source-filter-menu'),
-          focusNode: _sourceButtonFocus,
-          onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.secondary,
-            backgroundColor: colors.panel,
-            side: BorderSide(color: colors.line),
-            minimumSize: const Size(0, 46),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            textStyle: TextStyle(
-              fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
-              fontSize: 13,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(7),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                controller.sourceIds.isEmpty
-                    ? '全部来源'
-                    : '来源（${controller.sourceIds.length}）',
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.expand_more, size: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _sourcePanel(_NewsColors colors) {
-    final sources = widget.controller.snapshot.sources;
-    return Container(
-      key: const Key('source-status-panel'),
-      child: _panel(
-        colors,
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Semantics(
-                    header: true,
-                    child: Text(
-                      '来源状态',
-                      style: TextStyle(
-                        color: colors.ink,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Text('${sources.length}', style: _small(colors)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text('点击来源查看操作与详情', style: _small(colors)),
-            for (final category in SourceCategory.values)
-              if (sources.any((source) => source.category == category)) ...[
-                Padding(
-                  key: Key('status-group-${category.name}'),
-                  padding: const EdgeInsets.only(top: 14, bottom: 5),
-                  child: Text(
-                    _categoryName(category),
-                    style: TextStyle(
-                      color: colors.secondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                for (final source in sources.where(
-                  (source) => source.category == category,
-                ))
-                  _sourceRow(source, colors),
-              ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sourceRow(NewsSource source, _NewsColors colors) {
-    final controller = widget.controller;
-    final busy =
-        controller.snapshot.refreshing ||
-        controller.loadingSnapshot ||
-        controller.updatingSourceId != null;
-    return PopupMenuButton<String>(
-      key: Key('source-row-${source.id}'),
-      tooltip: '${source.name} 操作与详情',
-      color: colors.panel,
-      surfaceTintColor: Colors.transparent,
-      position: PopupMenuPosition.under,
-      onSelected: (action) {
-        if (action == 'refresh') controller.refresh(sourceIds: [source.id]);
-        if (action == 'toggle') {
-          controller.setSourceEnabled(source.id, !source.enabled);
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Text(
-            source.name,
-            style: TextStyle(
-              color: colors.ink,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
-        ),
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Text(
-            source.lastSuccessMs == null
-                ? '尚无成功刷新记录'
-                : '上次成功：${_formatTime(source.lastSuccessMs!)}',
-            style: _small(colors),
-          ),
-        ),
-        if (source.error != null)
-          PopupMenuItem<String>(
-            enabled: false,
-            child: Text(
-              _errorCopy(source.error!),
-              key: Key('error-${source.id}'),
-              style: TextStyle(color: colors.accent, fontSize: 12, height: 1.6),
-            ),
-          ),
-        const PopupMenuDivider(),
-        PopupMenuItem<String>(
-          key: Key('refresh-${source.id}'),
-          value: 'refresh',
-          enabled: source.enabled && !busy,
-          child: Text(
-            '刷新此来源',
-            style: TextStyle(
-              color: source.enabled && !busy
-                  ? colors.secondary
-                  : colors.secondary.withValues(alpha: .5),
-              fontSize: 13,
-            ),
-          ),
-        ),
-        PopupMenuItem<String>(
-          key: Key('enabled-${source.id}'),
-          value: 'toggle',
-          enabled: !busy,
-          child: Text(
-            source.enabled ? '停用来源' : '启用来源',
-            style: TextStyle(color: colors.secondary, fontSize: 13),
-          ),
-        ),
-      ],
-      child: SizedBox(
-        height: (MediaQuery.textScalerOf(context).scale(13) * 1.4 + 12).clamp(
-          38,
-          double.infinity,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: colors.base,
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: colors.line),
-              ),
-              child: Text(
-                source.name.characters.first.toUpperCase(),
-                style: TextStyle(
-                  color: colors.secondary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                source.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: colors.secondary, fontSize: 12),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              _sourceStatus(source),
-              style: TextStyle(
-                color: source.enabled && source.error != null
-                    ? colors.accent
-                    : colors.secondary,
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _sourceStatus(NewsSource source) {
-    if (!source.enabled) return '已停用';
-    if (source.refreshing) return '刷新中';
-    if (source.error != null) {
-      return switch (source.error!.kind) {
-        'rate_limited' => '限流',
-        'network' => '离线',
-        'timeout' => '超时',
-        'parse' => '解析失败',
-        'too_large' => '响应过大',
-        'content_type' => '类型不符',
-        'cancelled' => '已取消',
-        _ => '未更新',
-      };
-    }
-    if (source.lastSuccessMs == null) return '未刷新';
-    final formatted = _formatTime(source.lastSuccessMs!);
-    return formatted == '时间不可用' ? formatted : formatted.substring(11, 16);
-  }
-
-  String _categoryName(SourceCategory category) => switch (category) {
-    SourceCategory.official => '官方',
-    SourceCategory.tools => '工具更新',
-    SourceCategory.community => '社区',
-    SourceCategory.chinese => '中文',
-  };
 
   String _sourceName(String id) =>
       widget.controller.snapshot.sources
@@ -1011,341 +159,1639 @@ class _NewsPageState extends State<NewsPage> {
           .firstOrNull ??
       id;
 
-  String _popularity(NewsItem item) {
-    final value = item.popularity!;
-    final number = value >= 1000
-        ? '${(value / 1000).toStringAsFixed(1)}k'
-        : '$value';
-    return '$number ${item.popularityKind}';
-  }
-
-  Widget _article(NewsItem item, _NewsColors colors, bool card) {
-    final child = Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 9,
-            runSpacing: 6,
-            children: [
-              Text(
-                _sourceName(item.sourceId),
-                style: TextStyle(
-                  color: colors.secondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                '发布日期：${_publishedTime(item.publishedAt, dateOnly: item.sourceId == 'openai-api' || item.sourceId == 'anthropic-api' || item.sourceId == 'aibase')}',
-                style: _small(colors),
-              ),
-              if (item.popularity != null && item.popularityKind != null)
-                Text(_popularity(item), style: _small(colors)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 9,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Semantics(
-                link: true,
-                label: '在默认浏览器中打开原文：${item.title}',
-                onTap: _opening.contains(item.id) ? null : () => _open(item),
-                excludeSemantics: true,
-                child: InkWell(
-                  onTap: _opening.contains(item.id) ? null : () => _open(item),
-                  borderRadius: BorderRadius.circular(4),
-                  focusColor: colors.focus,
-                  hoverColor: colors.hover,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Text(
-                      item.title,
-                      style: TextStyle(
-                        color: colors.ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        height: 1.55,
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (context, _) => Scaffold(
+        backgroundColor: p['surface-1'],
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = MediaQuery.sizeOf(context).width < 768;
+              final pad = narrow ? 14.0 : 36.0;
+              final gutter = ((constraints.maxWidth - 1000) / 2)
+                  .clamp(0.0, double.infinity)
+                  .toDouble();
+              // A pinned toolbar must leave room to read the list.
+              final pinned =
+                  constraints.maxHeight >= 560 &&
+                  MediaQuery.textScalerOf(context).scale(14) <= 21;
+              return CustomScrollView(
+                key: const Key('news-scroll'),
+                controller: _scroll,
+                slivers: [
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      gutter + pad,
+                      narrow ? 18 : 28,
+                      gutter + pad,
+                      0,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: KeyedSubtree(
+                        key: _headerKey,
+                        child: _header(p, narrow),
                       ),
                     ),
                   ),
-                ),
-              ),
-              if (item.kind != 'general' && _kindNames.containsKey(item.kind))
-                Container(
-                  key: Key('item-kind-${item.kind}'),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 2,
+                  SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: gutter),
+                    sliver: pinned
+                        ? PinnedHeaderSliver(child: _toolbar(p, pad))
+                        : SliverToBoxAdapter(child: _toolbar(p, pad)),
                   ),
-                  decoration: BoxDecoration(
-                    color: colors.hover,
-                    borderRadius: BorderRadius.circular(4),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      gutter + pad - 8,
+                      0,
+                      gutter + pad - 8,
+                      48,
+                    ),
+                    sliver: _list(p),
                   ),
-                  child: Text(_kindNames[item.kind]!, style: _small(colors)),
-                ),
-            ],
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 9),
-          if (item.description?.trim().isNotEmpty ?? false) ...[
-            Text(
-              '来源摘要',
-              style: TextStyle(
-                color: colors.accent,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _header(LensPalette p, bool narrow) {
+    final controller = widget.controller;
+    final snapshot = controller.snapshot;
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            'AI 热点',
+            style: p
+                .serif(narrow ? 26 : 30, weight: FontWeight.w500)
+                .copyWith(height: 1.25, letterSpacing: -.3),
+          ),
+        ),
+        const SizedBox(height: 6),
+        _subtitle(p),
+      ],
+    );
+    final busy =
+        snapshot.refreshing ||
+        controller.loadingSnapshot ||
+        controller.updatingSourceId != null;
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LensButton(
+          key: const Key('manage-sources'),
+          label: '管理来源',
+          icon: Icons.tune_rounded,
+          focusNode: _manageFocus,
+          onPressed: _manageSources,
+        ),
+        const SizedBox(width: 8),
+        snapshot.refreshing
+            ? LensButton(
+                key: const Key('refresh-news'),
+                label: controller.cancelling ? '正在取消' : '取消刷新',
+                icon: Icons.refresh_rounded,
+                spinning: true,
+                onPressed: controller.cancelling
+                    ? null
+                    : controller.cancelRefresh,
+              )
+            : _IconAction(
+                key: const Key('refresh-news'),
+                tooltip: '立即刷新',
+                icon: Icons.refresh_rounded,
+                onPressed: busy ? null : () => controller.refresh(),
               ),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.end,
+          spacing: 16,
+          runSpacing: 12,
+          children: [title, actions],
+        ),
+        ..._notices(p),
+        if (controller.hotTabs.isNotEmpty) ...[
+          const SizedBox(height: 22),
+          _hotCard(p),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _subtitle(LensPalette p) {
+    final controller = widget.controller;
+    final snapshot = controller.snapshot;
+    final sources = snapshot.sources.where((source) => source.enabled);
+    final failed = controller.failedSourceCount;
+    final style = p.text(13, p.muted);
+    final String text;
+    final Color dot;
+    if (snapshot.refreshing) {
+      final count = sources.where((source) => source.refreshing).length;
+      text = controller.cancelling ? '正在取消刷新…' : '正在刷新 $count 个来源…';
+      dot = p['clay'];
+    } else {
+      final last = controller.lastRefreshMs;
+      final when = last == null
+          ? '还没刷新过'
+          : '${_refreshTime(last, widget.now())} 刷新';
+      text = '${sources.length} 个来源 · $when · 每 30 分钟自动刷新';
+      dot = failed > 0 ? p['warn'] : p['ok'];
+    }
+    return Semantics(
+      liveRegion: true,
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          ExcludeSemantics(
+            child: Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
             ),
-            const SizedBox(height: 4),
-            Text(
-              item.description!,
-              style: TextStyle(
-                color: colors.secondary,
-                fontSize: 13,
-                height: 1.75,
+          ),
+          Text(text, style: style),
+          if (failed > 0 && !snapshot.refreshing) ...[
+            Text('·', style: style),
+            Semantics(
+              button: true,
+              child: InkWell(
+                key: const Key('failed-sources'),
+                onTap: _manageSources,
+                borderRadius: BorderRadius.circular(4),
+                child: Text(
+                  '$failed 个来源没更新',
+                  style: p
+                      .text(13, p['warn'])
+                      .copyWith(
+                        decoration: TextDecoration.underline,
+                        decorationColor: p['warn'],
+                      ),
+                ),
               ),
-            ),
-          ] else
-            Text(
-              '来源未提供摘要。',
-              style: TextStyle(
-                color: colors.secondary,
-                fontSize: 12,
-                height: 1.7,
-              ),
-            ),
-          if (item.alsoIn.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              '也见于 ${item.alsoIn.map(_sourceName).join('、')}',
-              style: _small(colors),
             ),
           ],
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(Uri.tryParse(item.url)?.host ?? '', style: _small(colors)),
-              TextButton.icon(
-                onPressed: _opening.contains(item.id)
-                    ? null
-                    : () => _open(item),
-                style: TextButton.styleFrom(foregroundColor: colors.secondary),
-                icon: const Icon(Icons.open_in_new_rounded, size: 13),
-                label: Text(
-                  _opening.contains(item.id) ? '正在打开' : '打开原文',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
-    return card ? _panel(colors, child, padding: EdgeInsets.zero) : child;
   }
 
-  Widget _viewButton(
-    _NewsColors colors,
-    String label,
-    IconData icon,
-    bool selected,
-    VoidCallback onPressed,
-  ) => Semantics(
-    selected: selected,
-    child: Tooltip(
-      message: label,
-      child: IconButton(
-        onPressed: onPressed,
-        isSelected: selected,
-        icon: Icon(icon, size: 18),
-        style: IconButton.styleFrom(
-          backgroundColor: selected ? colors.hover : Colors.transparent,
-          foregroundColor: selected ? colors.ink : colors.secondary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        ),
-      ),
-    ),
-  );
-
-  Widget _empty(_NewsColors colors, bool hasRefreshed) => _panel(
-    colors,
-    Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(
-          children: [
-            Icon(Icons.article_outlined, size: 30, color: colors.secondary),
-            const SizedBox(height: 14),
-            Text(
-              '还没有动态',
-              style: TextStyle(
-                color: colors.ink,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+  List<Widget> _notices(LensPalette p) {
+    final snapshot = widget.controller.snapshot;
+    final notices = <(String, String)>[
+      if (!snapshot.refreshing && snapshot.error != null)
+        snapshot.error!.kind == 'cancelled'
+            ? ('刷新已取消', _errorCopy(snapshot.error!))
+            : ('刷新失败 · 正在查看离线缓存', _errorCopy(snapshot.error!)),
+      if (snapshot.stateError != null)
+        ('已读和收藏暂不可用', '本机状态文件无法读取或保存，条目照常显示；这次的标记可能不会保留。'),
+    ];
+    return [
+      for (final notice in notices) ...[
+        const SizedBox(height: 14),
+        Semantics(
+          liveRegion: true,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: p['surface-0'],
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 8),
-            Text(
-              hasRefreshed
-                  ? '来源暂未提供可显示的动态，可稍后手动刷新。'
-                  : '本地暂无缓存。点击「手动刷新」获取已启用来源的动态。',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.secondary,
-                fontSize: 13,
-                height: 1.8,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-
-  Widget _notice(
-    _NewsColors colors,
-    IconData icon,
-    String title,
-    String detail, {
-    Widget? action,
-  }) => _panel(
-    colors,
-    Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: colors.accent),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Semantics(
-            liveRegion: true,
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: colors.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: p['warn'],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  detail,
-                  style: TextStyle(
-                    color: colors.secondary,
-                    fontSize: 12,
-                    height: 1.7,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${notice.$1}  ',
+                          style: p.text(13, p.ink, FontWeight.w500),
+                        ),
+                        TextSpan(
+                          text: notice.$2,
+                          style: p.text(13, p.secondary),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                ?action,
               ],
             ),
           ),
         ),
       ],
-    ),
-    background: colors.base,
-  );
+    ];
+  }
 
-  Widget _panel(
-    _NewsColors colors,
-    Widget child, {
-    EdgeInsets padding = const EdgeInsets.all(16),
-    Color? background,
-  }) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: background ?? colors.panel,
-      border: Border.all(color: colors.line),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: child,
-  );
+  Widget _hotCard(LensPalette p) {
+    final controller = widget.controller;
+    final tab = controller.hotTab!;
+    final items = controller.hotItems(tab);
+    return LensCard(
+      key: const Key('hot-card'),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+      radius: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: p['clay'],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        '当前热点',
+                        style: p.text(14, null, FontWeight.w600),
+                      ),
+                    ),
+                    Text('按该来源自带的热度', style: p.text(12, p.faint)),
+                  ],
+                ),
+                ScrollFade(
+                  child: LensSegmented(
+                    label: '热点来源',
+                    small: true,
+                    options: {
+                      for (final id in controller.hotTabs)
+                        id: _sourceName(id)
+                            .replaceFirst('Hugging Face ', 'HF '),
+                    },
+                    value: tab,
+                    onChanged: controller.setHotTab,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (final (index, item) in items.indexed)
+            _HotRow(
+              key: ValueKey('hot-${item.id}'),
+              rank: index + 1,
+              item: item,
+              onOpen: () => _open(item),
+            ),
+        ],
+      ),
+    );
+  }
 
-  Widget _badge(String label, _NewsColors colors) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-    decoration: BoxDecoration(
-      color: colors.wash,
-      borderRadius: BorderRadius.circular(4),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(
-        color: colors.accent,
-        fontSize: 11,
-        fontWeight: FontWeight.w500,
+  Widget _toolbar(LensPalette p, double pad) {
+    final controller = widget.controller;
+    final chips = Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        for (final category in [null, ...SourceCategory.values])
+          _Chip(
+            key: Key('category-${category?.name ?? 'all'}'),
+            label: category == null ? '全部' : _categoryName(category),
+            count: controller.categoryCount(category),
+            selected: controller.category == category,
+            onTap: () => controller.setCategory(category),
+          ),
+      ],
+    );
+    final unread = controller.viewCount(NewsView.unread);
+    final starred = controller.viewCount(NewsView.starred);
+    final filtered =
+        controller.sourceIds.isNotEmpty || controller.kindIds.isNotEmpty;
+    final controls = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        LensSegmented(
+          key: const Key('news-view'),
+          label: '范围',
+          small: true,
+          options: {
+            'all': '全部',
+            'unread': unread == 0 ? '未读' : '未读 $unread',
+            'starred': starred == 0 ? '收藏' : '收藏 $starred',
+          },
+          value: controller.view.name,
+          onChanged: (value) =>
+              controller.setView(NewsView.values.byName(value)),
+        ),
+        if (controller.hotSortAvailable)
+          LensSegmented(
+            key: const Key('news-sort'),
+            label: '排序',
+            small: true,
+            options: const {'latest': '最新', 'hot': '热度'},
+            value: controller.sort.name,
+            onChanged: (value) =>
+                controller.setSort(NewsSort.values.byName(value)),
+          ),
+        _searchField(p),
+        _filterMenu(p, filtered),
+      ],
+    );
+    return ValueListenableBuilder(
+      valueListenable: _stuck,
+      builder: (context, stuck, child) => Container(
+        padding: EdgeInsets.fromLTRB(pad, 10, pad, 10),
+        decoration: BoxDecoration(
+          color: p['surface-1'],
+          border: Border(
+            bottom: BorderSide(
+              width: LensPalette.hairline(context),
+              color: stuck ? p['line'] : LensPalette.transparent,
+            ),
+          ),
+        ),
+        child: child,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 8,
+            children: [chips, controls],
+          ),
+          if (filtered) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final id in controller.sourceIds)
+                  FilterTag(
+                    key: Key('filter-tag-$id'),
+                    label: '来源',
+                    value: _sourceName(id),
+                    onRemove: () => controller.toggleSourceFilter(id),
+                  ),
+                for (final kind in controller.kindIds)
+                  FilterTag(
+                    key: Key('filter-tag-kind-$kind'),
+                    label: '类型',
+                    value: _kindNames[kind] ?? kind,
+                    onRemove: () => controller.toggleKindFilter(kind),
+                  ),
+                LensButton(
+                  label: '清除筛选',
+                  variant: 'ghost',
+                  size: 'xs',
+                  onPressed: _clearFilters,
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _searchField(LensPalette p) => SizedBox(
+    width: 200,
+    child: TextField(
+      key: const Key('news-search'),
+      controller: _search,
+      focusNode: _searchFocus,
+      onChanged: widget.controller.setQuery,
+      style: p.text(12.5),
+      cursorColor: p['clay'],
+      decoration: InputDecoration(
+        hintText: '搜索标题和摘要',
+        hintStyle: p.text(12.5, p.muted),
+        isDense: true,
+        filled: true,
+        fillColor: (p.dark ? Colors.white : Colors.black).withValues(
+          alpha: p.dark ? .08 : .06,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 7),
+        prefixIcon: Icon(Icons.search_rounded, size: 15, color: p.muted),
+        prefixIconConstraints: const BoxConstraints(minWidth: 32),
+        suffixIcon: _search.text.isEmpty
+            ? ExcludeSemantics(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Text('/', style: p.text(12, p.faint)),
+                ),
+              )
+            : IconButton(
+                tooltip: '清除搜索',
+                padding: EdgeInsets.zero,
+                iconSize: 14,
+                onPressed: () {
+                  _search.clear();
+                  widget.controller.setQuery('');
+                },
+                icon: Icon(Icons.close_rounded, color: p.muted),
+              ),
+        suffixIconConstraints: const BoxConstraints(minWidth: 28),
+        border: OutlineInputBorder(
+          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: p['clay'], width: 1.5),
+          borderRadius: BorderRadius.circular(999),
+        ),
       ),
     ),
   );
 
-  TextStyle _small(_NewsColors colors) =>
-      TextStyle(color: colors.secondary, fontSize: 11, height: 1.65);
-
-  String _errorCopy(NewsError error) => switch (error.kind) {
-    'network' => '无法连接来源，请检查网络后手动重试。',
-    'timeout' => '连接来源超时，请稍后手动重试。',
-    'rate_limited' => '来源暂时限制请求，请稍后手动重试。',
-    'http' => '来源暂时无法响应，请稍后手动重试。',
-    'parse' => '来源内容无法解析，本次未更新缓存。',
-    'too_large' => '来源响应超过大小上限，本次未更新缓存。',
-    'content_type' => '来源返回了不支持的内容类型，本次未更新缓存。',
-    'cache' => '本地缓存暂不可用，可尝试手动刷新。',
-    'busy' => '已有刷新正在进行，请等待完成。',
-    'closed' => '预览已关闭，请重新打开窗口。',
-    'cancelled' => '已有内容保留，可随时再次手动刷新。',
-    'cancel' => '取消请求失败，请等待当前刷新结束。',
-    _ => '刷新失败，请稍后手动重试。',
-  };
-
-  String _publishedTime(String? value, {bool dateOnly = false}) {
-    final date = value == null ? null : DateTime.tryParse(value);
-    if (date != null && dateOnly) {
-      return date.toUtc().toIso8601String().split('T').first;
+  Widget _filterMenu(LensPalette p, bool filtered) {
+    final controller = widget.controller;
+    final counts = <String, int>{};
+    for (final item in controller.snapshot.items) {
+      for (final id in {item.sourceId, ...item.alsoIn}) {
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
     }
-    return date == null ? '未提供' : _formatTime(date.millisecondsSinceEpoch);
+    final itemStyle = MenuItemButton.styleFrom(
+      foregroundColor: p.ink,
+      minimumSize: const Size(0, 34),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      textStyle: p.text(13),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    );
+    Widget group(String key, String label) => Padding(
+      key: Key(key),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+      child: Text(label, style: p.text(12, p.muted, FontWeight.w500)),
+    );
+    return CheckboxTheme(
+      data: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? p.ink
+              : LensPalette.transparent,
+        ),
+        checkColor: WidgetStatePropertyAll(p['surface-1']),
+        side: BorderSide(color: p['line-strong'], width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+      child: MenuAnchor(
+        childFocusNode: _filterButtonFocus,
+        crossAxisUnconstrained: false,
+        alignmentOffset: const Offset(0, 6),
+        onClose: () {
+          if (mounted) _filterButtonFocus.requestFocus();
+        },
+        style: MenuStyle(
+          elevation: const WidgetStatePropertyAll(8),
+          shadowColor: WidgetStatePropertyAll(
+            Colors.black.withValues(alpha: p.dark ? .6 : .2),
+          ),
+          backgroundColor: WidgetStatePropertyAll(p['surface-3']),
+          surfaceTintColor: const WidgetStatePropertyAll(
+            LensPalette.transparent,
+          ),
+          minimumSize: const WidgetStatePropertyAll(Size(260, 0)),
+          maximumSize: const WidgetStatePropertyAll(Size(320, 480)),
+          padding: const WidgetStatePropertyAll(EdgeInsets.all(6)),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: p['line']),
+            ),
+          ),
+        ),
+        menuChildren: [
+          group('filter-group-kind', '类型'),
+          for (final kind in _kindNames.keys)
+            CheckboxMenuButton(
+              key: Key('kind-filter-$kind'),
+              value: controller.kindIds.contains(kind),
+              closeOnActivate: false,
+              style: itemStyle,
+              onChanged: (_) => controller.toggleKindFilter(kind),
+              child: Text(_kindNames[kind]!),
+            ),
+          for (final category in SourceCategory.values) ...[
+            group('filter-group-${category.name}', _categoryName(category)),
+            for (final source in controller.snapshot.sources.where(
+              (source) => source.category == category && source.enabled,
+            ))
+              CheckboxMenuButton(
+                key: Key('filter-${source.id}'),
+                value: controller.sourceIds.contains(source.id),
+                closeOnActivate: false,
+                style: itemStyle,
+                trailingIcon: Text(
+                  '${counts[source.id] ?? 0}',
+                  style: p.text(12, p.faint),
+                ),
+                onChanged: (_) => controller.toggleSourceFilter(source.id),
+                child: Text(
+                  source.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ],
+        builder: (context, menu, child) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _IconAction(
+              key: const Key('news-filter'),
+              tooltip: '按来源和类型筛选',
+              icon: Icons.filter_list_rounded,
+              focusNode: _filterButtonFocus,
+              ghost: true,
+              onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+            ),
+            if (filtered)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: p['clay'],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
-  String _formatTime(int milliseconds) {
-    DateTime date;
-    try {
-      date = DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
-    } on RangeError {
-      return '时间不可用';
+  Widget _list(LensPalette p) {
+    final controller = widget.controller;
+    final snapshot = controller.snapshot;
+    final groups = controller.dayGroups;
+    final rows = <(Object, NewsDayGroup)>[
+      for (final group in groups)
+        if (group.items.isNotEmpty) ...[
+          (group, group),
+          for (final item in group.items) (item, group),
+        ],
+    ];
+    if (rows.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 24),
+          child: controller.loadingSnapshot
+              ? const SkeletonLines(rows: 4)
+              : _empty(p, snapshot),
+        ),
+      );
     }
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${date.year}-${two(date.month)}-${two(date.day)} ${two(date.hour)}:${two(date.minute)}（本地时间）';
+    return SliverList.builder(
+      key: const Key('news-list'),
+      itemCount: rows.length,
+      itemBuilder: (context, index) {
+        final (row, group) = rows[index];
+        if (row is NewsDayGroup) return _dayHeader(p, row);
+        final item = row as NewsItem;
+        return _NewsRow(
+          key: ValueKey('item-${item.id}'),
+          item: item,
+          first: rows[index - 1].$1 is NewsDayGroup,
+          time: group.isHot
+              ? _monthDay(item.firstSeenMs)
+              : _clock(item.firstSeenMs),
+          sourceName: _sourceName(item.sourceId),
+          alsoIn: item.alsoIn.map(_sourceName).toList(),
+          opening: _opening.contains(item.id),
+          onOpen: () => _open(item),
+          onStar: () => controller.toggleStar(item.id),
+          onRead: () => controller.setRead([item.id], !item.read),
+        );
+      },
+    );
+  }
+
+  Widget _dayHeader(LensPalette p, NewsDayGroup group) {
+    final unread = group.unreadCount;
+    final count = group.items.length;
+    final String title;
+    if (group.isHot) {
+      title = '按热度';
+    } else {
+      final date = group.date!;
+      final year = date.year == widget.now().year ? '' : '${date.year}年';
+      final base =
+          '$year${date.month}月${date.day}日 周${_weekdays[date.weekday - 1]}';
+      title = group.isToday
+          ? '今天 · $base'
+          : group.isYesterday
+          ? '昨天 · $base'
+          : base;
+    }
+    final meta =
+        '$count 条${unread == 0
+            ? ''
+            : unread == count
+            ? '，全部未读'
+            : '，$unread 条未读'}';
+    final key = group.date == null
+        ? 'hot'
+        : '${group.date!.year}-${group.date!.month}-${group.date!.day}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 18, 8, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              width: LensPalette.hairline(context),
+              color: p['line'],
+            ),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      title,
+                      style: p.text(15, null, FontWeight.w600),
+                    ),
+                  ),
+                  Text(meta, style: p.text(12, p.muted)),
+                ],
+              ),
+            ),
+            if (unread > 0)
+              LensButton(
+                key: Key('read-day-$key'),
+                label: group.isHot ? '全部标为已读' : '本日标为已读',
+                variant: 'ghost',
+                size: 'xs',
+                onPressed: () => widget.controller.markDayRead(group),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _empty(LensPalette p, NewsSnapshot snapshot) {
+    final controller = widget.controller;
+    final filtered =
+        controller.category != null ||
+        controller.sourceIds.isNotEmpty ||
+        controller.kindIds.isNotEmpty ||
+        controller.query.trim().isNotEmpty;
+    if (filtered) {
+      return EmptyState(
+        title: '没有符合条件的动态',
+        hint: '试试其他分类、来源、类型或关键词。',
+        action: LensButton(
+          key: const Key('clear-filters'),
+          label: '清除筛选',
+          onPressed: _clearFilters,
+        ),
+      );
+    }
+    return switch (controller.view) {
+      NewsView.unread => const EmptyState(
+        title: '都读完了',
+        hint: '新动态会在下次刷新后出现在这里。',
+      ),
+      NewsView.starred => const EmptyState(
+        title: '还没有收藏',
+        hint: '在条目右侧点星标收藏；来源不再列出它以后，收藏也会保留。',
+      ),
+      NewsView.all => EmptyState(
+        title: '还没有动态',
+        hint: snapshot.sources.any((source) => source.lastSuccessMs != null)
+            ? '已启用的来源暂时没有可显示的动态，程序会每 30 分钟自动刷新。'
+            : '本地还没有缓存。程序开着时每 30 分钟自动刷新，也可以现在刷新。',
+        action: snapshot.refreshing
+            ? null
+            : LensButton(
+                label: '立即刷新',
+                icon: Icons.refresh_rounded,
+                onPressed: () => controller.refresh(),
+              ),
+      ),
+    };
   }
 }
 
-class _NewsColors {
-  _NewsColors(bool dark)
-    : page = Color(dark ? 0xff181817 : 0xfffbfbf9),
-      base = Color(dark ? 0xff121211 : 0xfff5f5f3),
-      panel = Color(dark ? 0xff1e1e1c : 0xffffffff),
-      ink = Color(dark ? 0xffeeede9 : 0xff171716),
-      secondary = Color(dark ? 0xffb3b1ab : 0xff55534e),
-      line = Color(dark ? 0xff393935 : 0xffe3e2dd),
-      hover = Color(dark ? 0xff292926 : 0xffeeede9),
-      accent = Color(dark ? 0xffe8957a : 0xffa74b2d),
-      wash = Color(dark ? 0xff2b1e19 : 0xfffbf1ec),
-      focus = Color(dark ? 0xff7a4433 : 0xfff0d3c5);
+class _IconAction extends StatelessWidget {
+  const _IconAction({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.focusNode,
+    this.ghost = false,
+  });
 
-  final Color page,
-      base,
-      panel,
-      ink,
-      secondary,
-      line,
-      hover,
-      accent,
-      wash,
-      focus;
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final FocusNode? focusNode;
+  final bool ghost;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        enabled: onPressed != null,
+        excludeSemantics: true,
+        child: LensPressFeedback(
+          builder: (states) => TextButton(
+            statesController: states,
+            focusNode: focusNode,
+            onPressed: onPressed,
+            style: ButtonStyle(
+              fixedSize: const WidgetStatePropertyAll(Size(32, 32)),
+              minimumSize: const WidgetStatePropertyAll(Size(32, 32)),
+              padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.hovered)
+                    ? p['fill-active']
+                    : ghost
+                    ? LensPalette.transparent
+                    : p['fill-hover'],
+              ),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.disabled)
+                    ? p.faint
+                    : p.secondary,
+              ),
+              overlayColor: WidgetStatePropertyAll(p['fill-hover']),
+            ),
+            child: Icon(icon, size: 16),
+          ),
+        ),
+      ),
+    );
+  }
 }
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    final color = selected ? p['surface-1'] : p.secondary;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? p.ink : LensPalette.transparent,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          hoverColor: p['fill-hover'],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: p.text(
+                    13,
+                    color,
+                    selected ? FontWeight.w500 : FontWeight.w400,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$count',
+                  style: p.text(11.5, color.withValues(alpha: .6)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HotRow extends StatelessWidget {
+  const _HotRow({
+    super.key,
+    required this.rank,
+    required this.item,
+    required this.onOpen,
+  });
+
+  final int rank;
+  final NewsItem item;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    final metric = _metrics[item.popularityKind];
+    final rankColor = switch (rank) {
+      1 => p['clay'],
+      2 => p['clay-hover'].withValues(alpha: .85),
+      3 => p['clay-ink'].withValues(alpha: .7),
+      _ => p.faint,
+    };
+    final value = _compact(item.popularity!);
+    final unit = metric?.$1 ?? item.popularityKind ?? '';
+    return Semantics(
+      link: true,
+      label: '热点第 $rank 名：${item.title}，$value $unit',
+      onTap: onOpen,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(8),
+        hoverColor: p['fill-hover'],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                child: Text(
+                  '$rank',
+                  textAlign: TextAlign.center,
+                  style: p.text(14, rankColor, FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: p.text(13.5, null, FontWeight.w500),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Tooltip(
+                message: metric?.$2 ?? '',
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: value,
+                        style: p.text(13, p.secondary, FontWeight.w600),
+                      ),
+                      TextSpan(text: ' $unit'),
+                    ],
+                  ),
+                  style: p.text(12, p.muted),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsRow extends StatefulWidget {
+  const _NewsRow({
+    super.key,
+    required this.item,
+    required this.first,
+    required this.time,
+    required this.sourceName,
+    required this.alsoIn,
+    required this.opening,
+    required this.onOpen,
+    required this.onStar,
+    required this.onRead,
+  });
+
+  final NewsItem item;
+  final bool first, opening;
+  final String? time;
+  final String sourceName;
+  final List<String> alsoIn;
+  final VoidCallback onOpen, onStar, onRead;
+
+  @override
+  State<_NewsRow> createState() => _NewsRowState();
+}
+
+class _NewsRowState extends State<_NewsRow> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    final item = widget.item;
+    final read = item.read;
+    final description = item.description?.trim() ?? '';
+    final metric = _metrics[item.popularityKind];
+    final meta = p.text(12, p.muted);
+    final sep = Text('·', style: p.text(12, p.faint));
+    final reveal = _hovered || _focused;
+    final value = [
+      if (!read) '未读',
+      '来源 ${widget.sourceName}',
+      if (description.isNotEmpty) description,
+    ].join('，');
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 48,
+          child: Tooltip(
+            message: _publishedLabel(item),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                widget.time ?? '--:--',
+                maxLines: 1,
+                softWrap: false,
+                style: p.text(
+                  12,
+                  widget.time == null ? LensPalette.transparent : p.faint,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 6,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    width: 16,
+                    height: 16,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: p['fill-active'],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      widget.sourceName.characters.first.toUpperCase(),
+                      style: p
+                          .text(9.5, p.secondary, FontWeight.w700)
+                          .copyWith(height: 1),
+                    ),
+                  ),
+                  Text(
+                    widget.sourceName,
+                    style: p.text(12, p.secondary, FontWeight.w500),
+                  ),
+                  if (item.origin != null && item.origin!.trim().isNotEmpty)
+                    Text('· ${item.origin!.split('：').first}', style: meta),
+                  if (item.kind != 'general' &&
+                      _kindNames.containsKey(item.kind)) ...[
+                    sep,
+                    Container(
+                      key: Key('item-kind-${item.kind}'),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: p['fill-active'],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _kindNames[item.kind]!,
+                        style: p.text(11, p.secondary),
+                      ),
+                    ),
+                  ],
+                  if (item.popularity != null &&
+                      item.popularityKind != null) ...[
+                    sep,
+                    Tooltip(
+                      message: metric?.$2 ?? item.popularityKind!,
+                      child: Text(
+                        '${_compact(item.popularity!)} ${metric?.$1 ?? item.popularityKind}',
+                        style: p.text(12, p.secondary),
+                      ),
+                    ),
+                  ],
+                  if (widget.alsoIn.isNotEmpty) ...[
+                    sep,
+                    Tooltip(
+                      message: '也见于 ${widget.alsoIn.join('、')}',
+                      child: Text(
+                        '另有 ${widget.alsoIn.length} 个来源',
+                        style: meta.copyWith(
+                          decoration: TextDecoration.underline,
+                          decorationStyle: TextDecorationStyle.dotted,
+                          decorationColor: p.faint,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 3),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!read) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 9),
+                      child: Container(
+                        key: const Key('unread-dot'),
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: p['clay'],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Text(
+                      item.title,
+                      style: p
+                          .text(
+                            15,
+                            read ? p.muted : p.ink,
+                            read ? FontWeight.w500 : FontWeight.w600,
+                          )
+                          .copyWith(height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+              if (description.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        if (item.aiSummary)
+                          TextSpan(
+                            text: 'AI 摘要  ',
+                            style: p.text(11, p['clay-ink']),
+                          ),
+                        TextSpan(text: description),
+                      ],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: p
+                        .text(13, read ? p.muted : p.secondary)
+                        .copyWith(height: 1.7),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (value) => setState(() => _focused = value),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!widget.first)
+              Container(
+                margin: const EdgeInsets.only(left: 68, right: 8),
+                height: LensPalette.hairline(context),
+                color: _hovered ? LensPalette.transparent : p['line-soft'],
+              ),
+            AnimatedContainer(
+              duration: LensTokens.fast,
+              decoration: BoxDecoration(
+                color: _hovered ? p['fill-hover'] : LensPalette.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      link: true,
+                      label: '在默认浏览器中打开原文：${item.title}',
+                      value: value,
+                      onTap: widget.opening ? null : widget.onOpen,
+                      excludeSemantics: true,
+                      child: InkWell(
+                        onTap: widget.opening ? null : widget.onOpen,
+                        borderRadius: BorderRadius.circular(10),
+                        hoverColor: LensPalette.transparent,
+                        focusColor: p['fill-active'],
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 9, 0, 9),
+                          child: content,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _RowTool(
+                          key: Key('star-${item.id}'),
+                          visible: reveal || item.starred,
+                          tooltip: item.starred ? '取消收藏' : '收藏',
+                          icon: item.starred
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          color: item.starred ? p['clay'] : null,
+                          onPressed: widget.onStar,
+                        ),
+                        _RowTool(
+                          key: Key('read-${item.id}'),
+                          visible: reveal,
+                          tooltip: read ? '标为未读' : '标为已读',
+                          icon: read
+                              ? Icons.mark_email_unread_outlined
+                              : Icons.done_rounded,
+                          onPressed: widget.onRead,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RowTool extends StatelessWidget {
+  const _RowTool({
+    super.key,
+    required this.visible,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.color,
+  });
+
+  final bool visible;
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: LensTokens.fast,
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: IconButton(
+          tooltip: tooltip,
+          padding: EdgeInsets.zero,
+          iconSize: 16,
+          onPressed: onPressed,
+          style: IconButton.styleFrom(
+            foregroundColor: color ?? p.faint,
+            hoverColor: p['fill-active'],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          icon: Icon(icon),
+        ),
+      ),
+    );
+  }
+}
+
+class _SourcesPanel extends StatelessWidget {
+  const _SourcesPanel({required this.controller, required this.now});
+
+  final NewsController controller;
+  final DateTime Function() now;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) {
+      final p = LensPalette.of(context);
+      final snapshot = controller.snapshot;
+      final busy =
+          snapshot.refreshing ||
+          controller.loadingSnapshot ||
+          controller.updatingSourceId != null;
+      return Column(
+        key: const Key('source-status-panel'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  width: LensPalette.hairline(context),
+                  color: p['line-soft'],
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('自动刷新', style: p.text(13, null, FontWeight.w500)),
+                      Text(
+                        '程序开着时每 30 分钟刷新一次；被限流就跳过下一轮。',
+                        style: p.text(12, p.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                LensButton(
+                  key: const Key('refresh-all-sources'),
+                  label: snapshot.refreshing ? '正在刷新' : '全部刷新',
+                  icon: Icons.refresh_rounded,
+                  spinning: snapshot.refreshing,
+                  onPressed: busy ? null : () => controller.refresh(),
+                ),
+              ],
+            ),
+          ),
+          for (final category in SourceCategory.values)
+            if (snapshot.sources.any((s) => s.category == category)) ...[
+              Padding(
+                key: Key('status-group-${category.name}'),
+                padding: const EdgeInsets.fromLTRB(6, 14, 6, 4),
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    _categoryName(category),
+                    style: p.text(12, p.muted, FontWeight.w500),
+                  ),
+                ),
+              ),
+              for (final source in snapshot.sources.where(
+                (s) => s.category == category,
+              ))
+                _SourceRow(
+                  source: source,
+                  status: _sourceStatus(source, now()),
+                  busy: busy,
+                  onRefresh: () => controller.refresh(sourceIds: [source.id]),
+                  onToggle: (value) =>
+                      controller.setSourceEnabled(source.id, value),
+                ),
+            ],
+          if (snapshot.sources.any((source) => source.id == 'aihot'))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 14, 6, 0),
+              child: Text(
+                'AIHOT 精选来自 aihot.news 的公开 RSS，标题和摘要由它的模型生成；原文链接指向原始出处。',
+                style: p.text(12, p.muted),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+class _SourceRow extends StatelessWidget {
+  const _SourceRow({
+    required this.source,
+    required this.status,
+    required this.busy,
+    required this.onRefresh,
+    required this.onToggle,
+  });
+
+  final NewsSource source;
+  final String status;
+  final bool busy;
+  final VoidCallback onRefresh;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    final off = !source.enabled;
+    final failed = source.enabled && source.error != null;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: p['fill-active'],
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text(
+              source.name.characters.first.toUpperCase(),
+              style: p
+                  .text(10, p.secondary, FontWeight.w700)
+                  .copyWith(height: 1),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(source.name, style: p.text(13, off ? p.faint : p.ink)),
+                if (source.id == 'aihot')
+                  const LensBadge('AI 摘要', tone: 'clay'),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 190),
+            child: Tooltip(
+              message: failed ? _errorCopy(source.error!) : '',
+              child: Text(
+                status,
+                key: Key('source-status-${source.id}'),
+                textAlign: TextAlign.right,
+                style: p.text(
+                  12,
+                  off
+                      ? p.faint
+                      : failed
+                      ? p['danger']
+                      : p.muted,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          PopupMenuButton<String>(
+            key: Key('source-row-${source.id}'),
+            tooltip: '${source.name} 的更多操作',
+            color: p['surface-3'],
+            surfaceTintColor: LensPalette.transparent,
+            position: PopupMenuPosition.under,
+            iconSize: 16,
+            icon: Icon(Icons.more_horiz_rounded, color: p.muted),
+            style: IconButton.styleFrom(
+              minimumSize: const Size(28, 28),
+              fixedSize: const Size(28, 28),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onSelected: (action) {
+              if (action == 'refresh') onRefresh();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text(
+                  source.lastSuccessMs == null
+                      ? '尚无成功刷新记录'
+                      : '上次成功：${_fullTime(source.lastSuccessMs!)}',
+                  style: p.text(12, p.muted),
+                ),
+              ),
+              if (source.error != null)
+                PopupMenuItem<String>(
+                  enabled: false,
+                  child: Text(
+                    _errorCopy(source.error!),
+                    key: Key('error-${source.id}'),
+                    style: p.text(12, p['danger']),
+                  ),
+                ),
+              PopupMenuItem<String>(
+                key: Key('refresh-${source.id}'),
+                value: 'refresh',
+                enabled: source.enabled && !busy,
+                child: Text(
+                  '刷新此来源',
+                  style: p.text(13, source.enabled && !busy ? p.ink : p.faint),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 4),
+          Semantics(
+            label: '${source.enabled ? '停用' : '启用'} ${source.name}',
+            child: SizedBox(
+              width: 36,
+              height: 22,
+              child: FittedBox(
+                child: Switch(
+                  key: Key('enabled-${source.id}'),
+                  value: source.enabled,
+                  onChanged: busy ? null : onToggle,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  activeTrackColor: p['ok'],
+                  inactiveTrackColor: p['line-strong'],
+                  thumbColor: const WidgetStatePropertyAll(Colors.white),
+                  trackOutlineColor: const WidgetStatePropertyAll(
+                    LensPalette.transparent,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _categoryName(SourceCategory category) => switch (category) {
+  SourceCategory.official => '官方',
+  SourceCategory.tools => '工具更新',
+  SourceCategory.community => '社区',
+  SourceCategory.chinese => '中文',
+};
+
+String _compact(int value) => value >= 10000
+    ? '${(value / 1000).toStringAsFixed(0)}k'
+    : value >= 1000
+    ? '${(value / 1000).toStringAsFixed(1)}k'
+    : '$value';
+
+String _two(int value) => value.toString().padLeft(2, '0');
+
+DateTime? _local(int milliseconds) {
+  try {
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
+  } on RangeError {
+    return null;
+  }
+}
+
+String? _clock(int milliseconds) {
+  final date = _local(milliseconds);
+  return date == null ? null : '${_two(date.hour)}:${_two(date.minute)}';
+}
+
+String? _monthDay(int milliseconds) {
+  final date = _local(milliseconds);
+  return date == null ? null : '${_two(date.month)}/${_two(date.day)}';
+}
+
+String _fullTime(int milliseconds) {
+  final date = _local(milliseconds);
+  return date == null
+      ? '时间不可用'
+      : '${date.year}-${_two(date.month)}-${_two(date.day)} ${_two(date.hour)}:${_two(date.minute)}';
+}
+
+String _refreshTime(int milliseconds, DateTime now) {
+  final date = _local(milliseconds);
+  if (date == null) return '时间不可用';
+  final clock = '${_two(date.hour)}:${_two(date.minute)}';
+  final today = now.toLocal();
+  return date.year == today.year &&
+          date.month == today.month &&
+          date.day == today.day
+      ? clock
+      : '${date.month}月${date.day}日 $clock';
+}
+
+String _publishedLabel(NewsItem item) {
+  final date = DateTime.tryParse(item.publishedAt ?? '');
+  if (date == null) return '来源未提供发布时间';
+  if (_dateOnlySources.contains(item.sourceId)) {
+    return '发布日期：${date.toUtc().toIso8601String().split('T').first}';
+  }
+  return '发布时间：${_fullTime(date.millisecondsSinceEpoch)}';
+}
+
+String _ago(int milliseconds, DateTime now) {
+  final minutes = now
+      .difference(DateTime.fromMillisecondsSinceEpoch(milliseconds))
+      .inMinutes;
+  if (minutes < 1) return '刚刚';
+  if (minutes < 60) return '$minutes 分钟前';
+  if (minutes < 1440) return '${(minutes / 60).round()} 小时前';
+  return '${(minutes / 1440).round()} 天前';
+}
+
+String _sourceStatus(NewsSource source, DateTime now) {
+  if (!source.enabled) return '已停用';
+  if (source.refreshing) return '刷新中…';
+  final last =
+      source.lastSuccessMs == null || _local(source.lastSuccessMs!) == null
+      ? null
+      : _ago(source.lastSuccessMs!, now);
+  if (source.error != null) {
+    final label = switch (source.error!.kind) {
+      'rate_limited' => '限流',
+      'network' => '离线',
+      'timeout' => '超时',
+      'parse' => '解析失败',
+      'too_large' => '响应过大',
+      'content_type' => '类型不符',
+      'cancelled' => '已取消',
+      _ => '未更新',
+    };
+    return last == null ? label : '$label · 上次成功 $last';
+  }
+  if (source.lastSuccessMs == null) return '还没刷新过';
+  return last ?? '时间不可用';
+}
+
+String _errorCopy(NewsError error) => switch (error.kind) {
+  'network' => '无法连接来源，请检查网络后重试。',
+  'timeout' => '连接来源超时，请稍后重试。',
+  'rate_limited' => '来源暂时限制请求，下一轮自动刷新会跳过它。',
+  'http' => '来源暂时无法响应，请稍后重试。',
+  'parse' => '来源内容无法解析，本次未更新缓存。',
+  'too_large' => '来源响应超过大小上限，本次未更新缓存。',
+  'content_type' => '来源返回了不支持的内容类型，本次未更新缓存。',
+  'cache' => '本地缓存暂不可用，可尝试刷新。',
+  'busy' => '已有刷新正在进行，请等待完成。',
+  'closed' => '预览已关闭，请重新打开窗口。',
+  'cancelled' => '已有内容保留，可随时再次刷新。',
+  'cancel' => '取消请求失败，请等待当前刷新结束。',
+  _ => '刷新失败，请稍后重试。',
+};

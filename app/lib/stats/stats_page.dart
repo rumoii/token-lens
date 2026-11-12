@@ -23,10 +23,14 @@ class StatsPage extends StatefulWidget {
     required this.controller,
     this.news,
     this.openLink,
+    this.newsListenable,
+    this.newsUnread,
   });
   final StatsController controller;
   final Widget? news;
   final Future<bool> Function(Uri)? openLink;
+  final Listenable? newsListenable;
+  final int Function()? newsUnread;
   @override
   State<StatsPage> createState() => _StatsPageState();
 }
@@ -79,6 +83,24 @@ class _StatsPageState extends State<StatsPage> {
           : p.muted,
     ),
   );
+  Widget unreadBadge(LensPalette p, int count) => count == 0
+      ? const SizedBox.shrink()
+      : Semantics(
+          label: '$count 条未读',
+          excludeSemantics: true,
+          child: Container(
+            key: const Key('news-unread-badge'),
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            decoration: BoxDecoration(
+              color: p['clay-wash'],
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              count > 99 ? '99+' : '$count',
+              style: p.text(11, p['clay-ink'], FontWeight.w500),
+            ),
+          ),
+        );
   Widget sidebar(BuildContext context, {bool drawer = false}) {
     final p = LensPalette.of(context), c = widget.controller;
     final entries =
@@ -218,6 +240,18 @@ class _StatsPageState extends State<StatsPage> {
                                 ),
                                 () => navigate(target),
                                 active: page == target,
+                                trailing:
+                                    target == 'news' &&
+                                        widget.newsListenable != null &&
+                                        widget.newsUnread != null
+                                    ? ListenableBuilder(
+                                        listenable: widget.newsListenable!,
+                                        builder: (context, _) => unreadBadge(
+                                          p,
+                                          widget.newsUnread!(),
+                                        ),
+                                      )
+                                    : null,
                               ),
                             ),
                         ],

@@ -10,16 +10,26 @@ class AppShell extends StatelessWidget {
     this.statsInitializationError,
     required this.news,
     this.openLink,
+    this.newsListenable,
+    this.newsUnread,
   });
 
   final StatsController? statsController;
   final String? statsInitializationError;
   final Widget news;
   final Future<bool> Function(Uri)? openLink;
+  final Listenable? newsListenable;
+  final int Function()? newsUnread;
 
   @override
   Widget build(BuildContext context) => statsController != null
-      ? StatsPage(controller: statsController!, news: news, openLink: openLink)
+      ? StatsPage(
+          controller: statsController!,
+          news: news,
+          openLink: openLink,
+          newsListenable: newsListenable,
+          newsUnread: newsUnread,
+        )
       : Scaffold(
           body: SafeArea(
             child: Column(
