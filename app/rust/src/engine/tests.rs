@@ -849,6 +849,132 @@ fn start(engine: &NewsEngine, ids: Option<Vec<String>>) -> tokio::task::JoinHand
     tokio::spawn(async move { engine.refresh(ids, D26B_NOW).await })
 }
 
+// A real chunked response keeps transport read deadlines separate from the total deadline.
+async fn d26e_stream(interval: Duration, chunks: usize) -> Server {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/feed", listener.local_addr().unwrap());
+    let (seen_tx, seen) = oneshot::channel();
+    let task = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = Vec::new();
+        let mut byte = [0];
+        while !request.ends_with(b"\r\n\r\n") {
+            if socket.read(&mut byte).await.unwrap_or(0) == 0 {
+                return;
+            }
+            request.push(byte[0]);
+        }
+        let _ = seen_tx.send(String::from_utf8(request).unwrap());
+        let header = b"HTTP/1.1 200 OK\r\nContent-Type: application/rss+xml\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n";
+        if socket.write_all(header).await.is_err() {
+            return;
+        }
+        for part in FEED.chunks(FEED.len().div_ceil(chunks)) {
+            let frame = format!("{:x}\r\n", part.len());
+            if socket.write_all(frame.as_bytes()).await.is_err()
+                || socket.write_all(part).await.is_err()
+                || socket.write_all(b"\r\n").await.is_err()
+            {
+                return;
+            }
+            tokio::time::sleep(interval).await;
+        }
+        let _ = socket.write_all(b"0\r\n\r\n").await;
+    });
+    Server {
+        url,
+        seen,
+        reply: None,
+        task,
+    }
+}
+
+#[tokio::test]
+async fn d26e_read_timeout_is_recognized_by_reqwest_and_http_error() {
+    let server = d26e_stream(Duration::from_secs(3), 2).await;
+    let http = Client::builder()
+        .read_timeout(Duration::from_millis(400))
+        .timeout(Duration::from_millis(1200))
+        .build()
+        .unwrap();
+    let mut response = http.get(&server.url).send().await.unwrap();
+    assert!(response.chunk().await.unwrap().is_some());
+    let err = response.chunk().await.unwrap_err();
+    assert!(
+        err.is_timeout(),
+        "read timeout must retain its timeout category: {err}"
+    );
+    assert_eq!(http_error(err).kind, "timeout");
+}
+
+#[tokio::test]
+async fn d26e_slow_chunks_succeed_beyond_old_total_timeout() {
+    let server = d26e_stream(Duration::from_millis(100), 8).await;
+    let dir = tempfile::tempdir().unwrap();
+    let engine = NewsEngine::open(
+        dir.path(),
+        vec![source("slow", Category::Official, &server)],
+        RequestTimeouts {
+            connect: Duration::from_millis(200),
+            read: Duration::from_millis(400),
+            total: Duration::from_millis(1200),
+        },
+        D26B_NOW,
+    )
+    .unwrap();
+    let result = engine.refresh(None, D26B_NOW).await;
+    assert!(
+        result.sources[0].error.is_none(),
+        "{:?}",
+        result.sources[0].error
+    );
+    assert!(!result.items.is_empty());
+}
+
+#[tokio::test]
+async fn d26e_stalled_body_times_out_before_total_deadline() {
+    let server = d26e_stream(Duration::from_secs(3), 2).await;
+    let dir = tempfile::tempdir().unwrap();
+    let engine = NewsEngine::open(
+        dir.path(),
+        vec![source("stall", Category::Official, &server)],
+        RequestTimeouts {
+            connect: Duration::from_millis(200),
+            read: Duration::from_millis(400),
+            total: Duration::from_millis(1200),
+        },
+        D26B_NOW,
+    )
+    .unwrap();
+    let result = tokio::time::timeout(Duration::from_millis(800), engine.refresh(None, D26B_NOW))
+        .await
+        .expect("read timeout must fire before total timeout");
+    assert_eq!(result.sources[0].error.as_ref().unwrap().kind, "timeout");
+}
+
+#[tokio::test]
+async fn d26e_continuous_chunks_still_obey_total_deadline() {
+    let server = d26e_stream(Duration::from_millis(100), 30).await;
+    let dir = tempfile::tempdir().unwrap();
+    let engine = NewsEngine::open(
+        dir.path(),
+        vec![source("total", Category::Official, &server)],
+        RequestTimeouts {
+            connect: Duration::from_millis(200),
+            read: Duration::from_millis(400),
+            total: Duration::from_millis(1200),
+        },
+        D26B_NOW,
+    )
+    .unwrap();
+    let result = tokio::time::timeout(Duration::from_millis(2000), engine.refresh(None, D26B_NOW))
+        .await
+        .unwrap();
+    assert_eq!(result.sources[0].error.as_ref().unwrap().kind, "timeout");
+    assert!(result.items.is_empty());
+}
+
 struct LargeBodySource(Box<dyn Source>);
 
 #[tokio::test]

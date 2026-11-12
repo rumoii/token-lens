@@ -1,5 +1,14 @@
 use super::*;
 use crate::engine;
+use std::time::Duration;
+
+fn timeouts(read: Duration) -> engine::RequestTimeouts {
+    engine::RequestTimeouts {
+        connect: read / 2,
+        read,
+        total: read * 3,
+    }
+}
 
 #[test]
 fn d25_r4_plain_text_joins_inline_nodes_and_separates_blocks() {
@@ -78,7 +87,8 @@ fn cached_items(path: &Path) -> Vec<NewsItem> {
 async fn d2_success_writes_v2_cache() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let task = tokio::spawn(async move { client.refresh(None).await });
     seen.await.unwrap();
     reply.send(response("200 OK", &rss(""))).unwrap();
@@ -94,7 +104,8 @@ async fn d2_success_writes_v2_cache() {
 async fn d25_refresh_exposes_kind_and_persists_it_across_restart() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let worker = client.clone();
     let task = tokio::spawn(async move { worker.refresh(None).await });
     seen.await.unwrap();
@@ -178,7 +189,8 @@ async fn assert_rejected_response_preserves_cache(
     .unwrap();
     let previous = std::fs::read(&path).unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -234,7 +246,8 @@ async fn rss_boundary_accepts_xml_content_types_and_missing_header() {
     ] {
         let dir = tempfile::tempdir().unwrap();
         let (url, seen, reply) = server().await;
-        let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+        let client =
+            NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
         let running = {
             let client = client.clone();
             tokio::spawn(async move { client.refresh(None).await })
@@ -349,7 +362,8 @@ fn response(status: &str, body: &str) -> String {
 async fn refresh_cache_reload_and_failed_fetch_preserves_success() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -366,7 +380,8 @@ async fn refresh_cache_reload_and_failed_fetch_preserves_success() {
     assert!(first.error.is_none());
     client.shutdown();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     assert_eq!(client.snapshot().items, first.items);
     let running = {
         let client = client.clone();
@@ -389,7 +404,8 @@ async fn refresh_cache_reload_and_failed_fetch_preserves_success() {
 async fn cancellation_duplicate_start_shutdown_and_late_reply() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -417,7 +433,8 @@ async fn cancellation_duplicate_start_shutdown_and_late_reply() {
 async fn timeout_and_invalid_response_are_visible() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, _reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_millis(100)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_millis(100))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -426,7 +443,8 @@ async fn timeout_and_invalid_response_are_visible() {
     assert_eq!(running.await.unwrap().failure().unwrap().kind, "timeout");
     client.shutdown();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -544,7 +562,8 @@ fn unicode_url_boundary_survives_cache_roundtrip() {
 async fn dropped_refresh_and_shutdown_prevent_late_commit() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -560,7 +579,8 @@ async fn dropped_refresh_and_shutdown_prevent_late_commit() {
     ));
     client.shutdown();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -583,7 +603,8 @@ async fn dropped_refresh_and_shutdown_prevent_late_commit() {
 async fn redirects_and_oversized_responses_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -593,7 +614,8 @@ async fn redirects_and_oversized_responses_are_rejected() {
     assert_eq!(running.await.unwrap().failure().unwrap().kind, "http");
     client.shutdown();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -672,7 +694,9 @@ async fn every_fetch_failure_and_cancellation_keep_existing_cache() {
         .unwrap();
         let previous_bytes = std::fs::read(&path).unwrap();
         let (url, seen, reply) = server().await;
-        let client = NewsClient::new_for_test(dir.path(), url, Duration::from_millis(100)).unwrap();
+        let client =
+            NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_millis(100)))
+                .unwrap();
         let running = {
             let client = client.clone();
             tokio::spawn(async move { client.refresh(None).await })
@@ -697,7 +721,8 @@ async fn every_fetch_failure_and_cancellation_keep_existing_cache() {
 async fn missing_content_length_still_enforces_body_limit() {
     let dir = tempfile::tempdir().unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })
@@ -740,7 +765,8 @@ async fn cache_commit_failure_preserves_memory_and_disk() {
         .open(&path)
         .unwrap();
     let (url, seen, reply) = server().await;
-    let client = NewsClient::new_for_test(dir.path(), url, Duration::from_secs(2)).unwrap();
+    let client =
+        NewsClient::new_for_test(dir.path(), url, timeouts(Duration::from_secs(2))).unwrap();
     let running = {
         let client = client.clone();
         tokio::spawn(async move { client.refresh(None).await })

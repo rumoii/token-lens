@@ -18,6 +18,23 @@ use crate::sources::{Category, ItemKind, PopularityKind, RawItem, Source};
 const MAX_ITEMS: usize = 50;
 const MAX_CACHE_BYTES: usize = 32 * 1024 * 1024;
 
+#[derive(Clone, Copy)]
+pub(crate) struct RequestTimeouts {
+    pub connect: Duration,
+    pub read: Duration,
+    pub total: Duration,
+}
+
+impl Default for RequestTimeouts {
+    fn default() -> Self {
+        Self {
+            connect: Duration::from_secs(10),
+            read: Duration::from_secs(20),
+            total: Duration::from_secs(60),
+        }
+    }
+}
+
 mod state;
 use state::{ItemState, StarredItem};
 
@@ -76,13 +93,13 @@ impl NewsEngine {
         sources: Vec<Box<dyn Source>>,
         now_ms: i64,
     ) -> Result<Self, String> {
-        Self::open(data_dir, sources, Duration::from_secs(20), now_ms)
+        Self::open(data_dir, sources, RequestTimeouts::default(), now_ms)
     }
 
     pub(crate) fn open(
         data_dir: &Path,
         sources: Vec<Box<dyn Source>>,
-        timeout: Duration,
+        timeouts: RequestTimeouts,
         now_ms: i64,
     ) -> Result<Self, String> {
         if !data_dir.is_absolute() {
@@ -132,8 +149,9 @@ impl NewsEngine {
             })
             .collect();
         let http = Client::builder()
-            .timeout(timeout)
-            .connect_timeout(timeout)
+            .connect_timeout(timeouts.connect)
+            .read_timeout(timeouts.read)
+            .timeout(timeouts.total)
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .user_agent("TokenLens-News/0.1")

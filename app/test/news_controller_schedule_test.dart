@@ -31,6 +31,9 @@ class ScheduleHarness {
       gateway,
       now: () => time,
       periodicTimer: (duration, callback) {
+        if (duration == const Duration(seconds: 1)) {
+          return ManualTimer(callback);
+        }
         expect(duration, period);
         timerCreations++;
         return timer = ManualTimer(callback);

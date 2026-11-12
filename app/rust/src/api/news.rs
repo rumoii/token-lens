@@ -3,8 +3,6 @@ use crate::sources::{self, rss, Category, Source};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-#[cfg(test)]
-use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NewsError {
@@ -142,7 +140,11 @@ impl NewsClient {
     }
 
     #[cfg(test)]
-    fn new_for_test(data_dir: &Path, endpoint: String, timeout: Duration) -> Result<Self, String> {
+    fn new_for_test(
+        data_dir: &Path,
+        endpoint: String,
+        timeouts: crate::engine::RequestTimeouts,
+    ) -> Result<Self, String> {
         Ok(Self {
             engine: NewsEngine::open(
                 data_dir,
@@ -153,7 +155,7 @@ impl NewsClient {
                     "https://openai.com/news/",
                     &endpoint,
                 ))],
-                timeout,
+                timeouts,
                 1794000000000,
             )?,
         })

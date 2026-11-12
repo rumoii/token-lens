@@ -29,14 +29,23 @@ class NewsController extends ChangeNotifier {
     this.gateway, {
     DateTime Function()? now,
     Timer Function(Duration, void Function(Timer))? periodicTimer,
+    Timer Function(Duration, void Function())? timer,
   }) : _now = now ?? DateTime.now,
-       _periodicTimer = periodicTimer ?? Timer.periodic;
+       _periodicTimer = periodicTimer ?? Timer.periodic,
+       _oneShotTimer = timer ?? Timer.new;
 
   final DateTime Function() _now;
   final Timer Function(Duration, void Function(Timer)) _periodicTimer;
+  final Timer Function(Duration, void Function()) _oneShotTimer;
 
   static const _refreshInterval = Duration(minutes: 30);
   Timer? _timer;
+  Timer? _pollTimer;
+  bool _pollInFlight = false;
+  Set<String> _refreshSources = {};
+  Timer? _retryTimer;
+  DateTime? _nextRetryAt;
+  int _firstFailures = 0;
   bool _started = false;
   bool _skipRateLimited = false;
   DateTime? _lastRefreshStarted;
@@ -240,6 +249,13 @@ class NewsController extends ChangeNotifier {
   int _generation = 0;
 
   NewsSnapshot get snapshot => _snapshot;
+  int get refreshTotal => _busy && !_closed ? _refreshSources.length : 0;
+  int get refreshDone => _busy && !_closed
+      ? _snapshot.sources
+            .where((s) => _refreshSources.contains(s.id) && !s.refreshing)
+            .length
+      : 0;
+  DateTime? get nextRetryAt => _nextRetryAt;
   bool get loadingSnapshot => _loadingSnapshot;
   bool get cancelling => _cancelling;
   String? get updatingSourceId => _updatingSourceId;
@@ -416,6 +432,7 @@ class NewsController extends ChangeNotifier {
   Future<void> refresh({List<String>? sourceIds}) {
     if (_closed || _busy || _updatingSourceId != null) return Future.value();
     _busy = true;
+    _refreshSources = {};
     _lastRefreshStarted = _now();
     final generation = ++_generation;
     return _refreshTask = _refresh(
@@ -428,6 +445,12 @@ class NewsController extends ChangeNotifier {
     try {
       if (!_loaded) await load();
       if (_closed || generation != _generation) return;
+      _refreshSources = {
+        for (final source in _snapshot.sources)
+          if (source.enabled &&
+              (sourceIds == null || sourceIds.contains(source.id)))
+            source.id,
+      };
       _snapshot = NewsSnapshot(
         items: _snapshot.items,
         starred: _snapshot.starred,
@@ -447,6 +470,10 @@ class NewsController extends ChangeNotifier {
         refreshing: true,
       );
       _emit();
+      if (_closed || generation != _generation) return;
+      _pollTimer = _periodicTimer(const Duration(seconds: 1), (_) {
+        unawaited(_pollSnapshot(generation));
+      });
       final value = await gateway.refresh(sourceIds: sourceIds);
       if (_closed || generation != _generation) return;
       _snapshot = _freeze(value, preserveOnError: true);
@@ -463,19 +490,98 @@ class NewsController extends ChangeNotifier {
       );
     } finally {
       if (!_closed && generation == _generation) {
+        _stopPolling();
         _busy = false;
         _skipRateLimited = _snapshot.sources.any(
           (source) => source.error?.kind == 'rate_limited',
         );
+        _scheduleFirstRetry();
         _emit();
       }
     }
+  }
+
+  Future<void> _pollSnapshot(int generation) async {
+    if (_closed ||
+        !_busy ||
+        _cancelling ||
+        generation != _generation ||
+        _pollTimer == null ||
+        _pollInFlight) {
+      return;
+    }
+    _pollInFlight = true;
+    try {
+      final value = await gateway.snapshot();
+      if (_closed || !_busy || generation != _generation) return;
+      _snapshot = _freeze(
+        value,
+        preserveOnError: true,
+        preserveEmptyItems: true,
+      );
+      _resetRetryOnSuccess();
+      _emit();
+    } catch (_) {
+      // A failed read leaves the last snapshot intact; refresh owns the outcome.
+    } finally {
+      _pollInFlight = false;
+    }
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  void _cancelRetry() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _nextRetryAt = null;
+  }
+
+  bool _resetRetryOnSuccess() {
+    final succeeded = _snapshot.sources.any(
+      (s) => _refreshSources.contains(s.id) && s.lastSuccessMs != null,
+    );
+    if (succeeded) {
+      _cancelRetry();
+      _firstFailures = 0;
+    }
+    return succeeded;
+  }
+
+  void _scheduleFirstRetry() {
+    if (_resetRetryOnSuccess()) return;
+    final enabled = _snapshot.sources.where((s) => s.enabled);
+    _cancelRetry();
+    if (_snapshot.items.isNotEmpty ||
+        enabled.isEmpty ||
+        enabled.any((s) => s.lastSuccessMs != null) ||
+        _snapshot.error?.kind == 'cancelled' ||
+        enabled.any((s) => s.error?.kind == 'cancelled')) {
+      return;
+    }
+    if (_firstFailures >= 2) return;
+    final delay = Duration(minutes: _firstFailures++ == 0 ? 2 : 10);
+    _nextRetryAt = _now().add(delay);
+    late final Timer scheduled;
+    scheduled = _oneShotTimer(delay, () {
+      if (_closed || _retryTimer != scheduled) return;
+      _retryTimer = null;
+      _nextRetryAt = null;
+      _emit();
+      if (_busy || _updatingSourceId != null) return;
+      unawaited(refresh());
+    });
+    _retryTimer = scheduled;
   }
 
   Future<void> cancelRefresh() {
     if (_closed || !_busy) return Future.value();
     if (_cancelTask != null) return _cancelTask!;
     _cancelling = true;
+    _stopPolling();
+    _cancelRetry();
     return _cancelTask = _cancelRefresh();
   }
 
@@ -529,15 +635,19 @@ class NewsController extends ChangeNotifier {
         );
         _cancelTask = null;
         _cancelling = false;
+        _resetRetryOnSuccess();
         _emit();
       }
     }
   }
 
-  NewsSnapshot _freeze(NewsSnapshot value, {bool preserveOnError = false}) {
+  NewsSnapshot _freeze(
+    NewsSnapshot value, {
+    bool preserveOnError = false,
+    bool preserveEmptyItems = false,
+  }) {
     final preserve =
-        preserveOnError &&
-        value.error != null &&
+        (preserveEmptyItems || (preserveOnError && value.error != null)) &&
         value.items.isEmpty &&
         _snapshot.items.isNotEmpty;
     return NewsSnapshot(
@@ -545,7 +655,7 @@ class NewsController extends ChangeNotifier {
       starred: List.unmodifiable(value.starred),
       stateError: value.stateError,
       sources: List.unmodifiable(
-        preserve
+        preserve && !preserveEmptyItems
             ? _snapshot.sources.map(
                 (source) => source.copyWith(refreshing: false),
               )
@@ -587,6 +697,8 @@ class NewsController extends ChangeNotifier {
     if (_shutdownTask != null) return _shutdownTask!;
     _closed = true;
     _timer?.cancel();
+    _stopPolling();
+    _cancelRetry();
     ++_generation;
     return _shutdownTask = Future.sync(gateway.shutdown);
   }

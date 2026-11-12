@@ -301,8 +301,9 @@ class _NewsPageState extends State<NewsPage> {
     final String text;
     final Color dot;
     if (snapshot.refreshing) {
-      final count = sources.where((source) => source.refreshing).length;
-      text = controller.cancelling ? '正在取消刷新…' : '正在刷新 $count 个来源…';
+      text = controller.cancelling
+          ? '正在取消刷新…'
+          : '正在刷新 · 已完成 ${controller.refreshDone}/${controller.refreshTotal} 个来源';
       dot = p['clay'];
     } else {
       final last = controller.lastRefreshMs;
@@ -884,6 +885,37 @@ class _NewsPageState extends State<NewsPage> {
 
   Widget _empty(LensPalette p, NewsSnapshot snapshot) {
     final controller = widget.controller;
+    if (snapshot.refreshing && snapshot.items.isEmpty) {
+      return Column(
+        children: [
+          EmptyState(
+            title:
+                '正在获取动态 · 已完成 ${controller.refreshDone}/${controller.refreshTotal} 个来源',
+            action: LensButton(
+              label: '取消',
+              onPressed: controller.cancelling
+                  ? null
+                  : controller.cancelRefresh,
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: SkeletonLines(rows: 4),
+          ),
+        ],
+      );
+    }
+    final retryAt = controller.nextRetryAt;
+    if (retryAt != null && snapshot.items.isEmpty) {
+      return EmptyState(
+        title: '将在 ${_clock(retryAt.millisecondsSinceEpoch)} 自动重试',
+        action: LensButton(
+          label: '立即刷新',
+          icon: Icons.refresh_rounded,
+          onPressed: () => controller.refresh(),
+        ),
+      );
+    }
     final filtered =
         controller.category != null ||
         controller.sourceIds.isNotEmpty ||
