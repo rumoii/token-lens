@@ -6,8 +6,218 @@ import 'news_gateway.dart';
 
 enum NewsSort { latest, hot }
 
+enum NewsView { all, unread, starred }
+
+class NewsDayGroup {
+  NewsDayGroup({
+    required this.date,
+    required this.isToday,
+    required this.isYesterday,
+    required List<NewsItem> items,
+  }) : items = List.unmodifiable(items);
+
+  final DateTime? date;
+  final bool isToday;
+  final bool isYesterday;
+  final List<NewsItem> items;
+  bool get isHot => date == null;
+  int get unreadCount => items.where((item) => !item.read).length;
+}
+
 class NewsController extends ChangeNotifier {
-  NewsController(this.gateway);
+  NewsController(
+    this.gateway, {
+    DateTime Function()? now,
+    Timer Function(Duration, void Function(Timer))? periodicTimer,
+  }) : _now = now ?? DateTime.now,
+       _periodicTimer = periodicTimer ?? Timer.periodic;
+
+  final DateTime Function() _now;
+  final Timer Function(Duration, void Function(Timer)) _periodicTimer;
+
+  static const _refreshInterval = Duration(minutes: 30);
+  Timer? _timer;
+  bool _started = false;
+  bool _skipRateLimited = false;
+  DateTime? _lastRefreshStarted;
+  NewsView _view = NewsView.all;
+  String? _hotTab;
+
+  Future<void> start() async {
+    if (_started || _closed) return;
+    _started = true;
+    await load();
+    if (_closed) return;
+    final enabled = _snapshot.sources.where((source) => source.enabled);
+    final cutoff = _now().subtract(_refreshInterval).millisecondsSinceEpoch;
+    if (enabled.isNotEmpty &&
+        enabled.every(
+          (source) =>
+              source.lastSuccessMs == null || source.lastSuccessMs! < cutoff,
+        )) {
+      await refresh();
+    }
+    if (_closed) return;
+    _timer = _periodicTimer(_refreshInterval, (_) {
+      if (_closed || _busy || _updatingSourceId != null) return;
+      if (_lastRefreshStarted != null &&
+          _now().difference(_lastRefreshStarted!) < _refreshInterval) {
+        return;
+      }
+      if (_skipRateLimited) {
+        _skipRateLimited = false;
+        return;
+      }
+      unawaited(refresh());
+    });
+  }
+
+  NewsView get view => _view;
+
+  void setView(NewsView view) {
+    if (_closed) return;
+    _view = view;
+    _emit();
+  }
+
+  int viewCount(NewsView view) => _filteredItems(_category, view: view).length;
+
+  int get totalUnread => _snapshot.items
+      .where(
+        (item) =>
+            !item.read &&
+            _snapshot.sources.any(
+              (source) =>
+                  source.enabled &&
+                  (source.id == item.sourceId ||
+                      item.alsoIn.contains(source.id)),
+            ),
+      )
+      .length;
+
+  List<NewsDayGroup> get dayGroups {
+    final items = visibleItems;
+    if (_sort == NewsSort.hot) {
+      return [
+        NewsDayGroup(
+          date: null,
+          isToday: false,
+          isYesterday: false,
+          items: items,
+        ),
+      ];
+    }
+    final now = _now().toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    final groups = <DateTime, List<NewsItem>>{};
+    for (final item in items) {
+      final local = DateTime.fromMillisecondsSinceEpoch(item.firstSeenMs)
+          .toLocal();
+      final date = DateTime(local.year, local.month, local.day);
+      (groups[date] ??= []).add(item);
+    }
+    return [
+      for (final entry in groups.entries)
+        NewsDayGroup(
+          date: entry.key,
+          isToday: entry.key == today,
+          isYesterday: entry.key == yesterday,
+          items: entry.value,
+        ),
+    ];
+  }
+
+  Future<void> markDayRead(NewsDayGroup group) => setRead([
+    for (final item in group.items)
+      if (!item.read) item.id,
+  ], true);
+
+  Future<void> setRead(List<String> ids, bool read) =>
+      _changeState(() => gateway.setRead(List.of(ids), read), '已读状态保存失败。');
+
+  Future<void> toggleStar(String id) => _changeState(
+    () =>
+        gateway.setStarred(id, !_snapshot.starred.any((item) => item.id == id)),
+    '收藏状态保存失败。',
+  );
+
+  Future<void> openedItem(String id) => setRead([id], true);
+
+  Future<void> _changeState(
+    Future<NewsSnapshot> Function() change,
+    String message,
+  ) async {
+    if (_closed) return;
+    try {
+      final value = await change();
+      if (_closed) return;
+      _snapshot = _freeze(value);
+    } catch (_) {
+      if (_closed) return;
+      _snapshot = NewsSnapshot(
+        sources: _snapshot.sources,
+        items: _snapshot.items,
+        starred: _snapshot.starred,
+        refreshing: _snapshot.refreshing,
+        error: _snapshot.error,
+        stateError: NewsError(kind: 'cache', message: message),
+      );
+    }
+    _emit();
+  }
+
+  List<String> get hotTabs => [
+    for (final id in const [
+      'hn-ai',
+      'github-new',
+      'hf-models',
+      'hf-papers',
+      'hf-spaces',
+    ])
+      if (hotItems(id).isNotEmpty) id,
+  ];
+
+  String? get hotTab {
+    final tabs = hotTabs;
+    return tabs.contains(_hotTab) ? _hotTab : tabs.firstOrNull;
+  }
+
+  void setHotTab(String id) {
+    if (_closed) return;
+    final tabs = hotTabs;
+    _hotTab = tabs.contains(id) ? id : tabs.firstOrNull;
+    _emit();
+  }
+
+  List<NewsItem> hotItems(String sourceId) {
+    if (!_snapshot.sources.any(
+      (source) => source.id == sourceId && source.enabled,
+    )) {
+      return [];
+    }
+    final items = _snapshot.items
+        .where((item) => item.sourceId == sourceId && item.popularity != null)
+        .toList();
+    items.sort((a, b) {
+      final heat = b.popularity!.compareTo(a.popularity!);
+      return heat != 0 ? heat : b.firstSeenMs.compareTo(a.firstSeenMs);
+    });
+    return items.take(5).toList(growable: false);
+  }
+
+  int? get lastRefreshMs {
+    int? latest;
+    for (final source in _snapshot.sources.where((source) => source.enabled)) {
+      final time = source.lastSuccessMs;
+      if (time != null && (latest == null || time > latest)) latest = time;
+    }
+    return latest;
+  }
+
+  int get failedSourceCount => _snapshot.sources
+      .where((source) => source.enabled && source.error != null)
+      .length;
 
   final NewsGateway gateway;
   NewsSnapshot _snapshot = const NewsSnapshot();
@@ -39,20 +249,22 @@ class NewsController extends ChangeNotifier {
   Set<String> get kindIds => Set.unmodifiable(_kindIds);
   NewsSort get sort => _sort;
 
-  List<NewsItem> _filteredItems(SourceCategory? category) {
+  List<NewsItem> _filteredItems(SourceCategory? category, {NewsView? view}) {
+    final range = view ?? _view;
     final sources = {for (final source in _snapshot.sources) source.id: source};
     final query = _query.trim().toLowerCase();
-    return _snapshot.items
+    return (range == NewsView.starred ? _snapshot.starred : _snapshot.items)
         .where((item) {
           final matchesSource = [item.sourceId, ...item.alsoIn].any((id) {
             final source = sources[id];
             return source != null &&
-                source.enabled &&
+                (range == NewsView.starred || source.enabled) &&
                 (category == null || source.category == category) &&
                 (_sourceIds.isEmpty || _sourceIds.contains(id));
           });
           return sources.containsKey(item.sourceId) &&
               matchesSource &&
+              (range != NewsView.unread || !item.read) &&
               (_kindIds.isEmpty || _kindIds.contains(item.kind)) &&
               (query.isEmpty ||
                   item.title.toLowerCase().contains(query) ||
@@ -86,8 +298,11 @@ class NewsController extends ChangeNotifier {
       for (var i = 0; i < _snapshot.sources.length; i++)
         _snapshot.sources[i].id: i,
     };
+    final snapshotItems = _view == NewsView.starred
+        ? _snapshot.starred
+        : _snapshot.items;
     final itemOrder = {
-      for (var i = 0; i < _snapshot.items.length; i++) _snapshot.items[i].id: i,
+      for (var i = 0; i < snapshotItems.length; i++) snapshotItems[i].id: i,
     };
     int byTime(NewsItem a, NewsItem b) {
       final aTime = DateTime.tryParse(a.publishedAt ?? '');
@@ -114,6 +329,9 @@ class NewsController extends ChangeNotifier {
           final heatOrder = bHeat.compareTo(aHeat);
           if (heatOrder != 0) return heatOrder;
         }
+      } else {
+        final seenOrder = b.firstSeenMs.compareTo(a.firstSeenMs);
+        if (seenOrder != 0) return seenOrder;
       }
       return byTime(a, b);
     });
@@ -181,6 +399,8 @@ class NewsController extends ChangeNotifier {
       if (_closed) return;
       _snapshot = NewsSnapshot(
         items: _snapshot.items,
+        starred: _snapshot.starred,
+        stateError: _snapshot.stateError,
         sources: _snapshot.sources,
         error: const NewsError(kind: 'cache', message: '本地缓存读取失败，可尝试手动刷新。'),
       );
@@ -196,6 +416,7 @@ class NewsController extends ChangeNotifier {
   Future<void> refresh({List<String>? sourceIds}) {
     if (_closed || _busy || _updatingSourceId != null) return Future.value();
     _busy = true;
+    _lastRefreshStarted = _now();
     final generation = ++_generation;
     return _refreshTask = _refresh(
       generation,
@@ -209,6 +430,8 @@ class NewsController extends ChangeNotifier {
       if (_closed || generation != _generation) return;
       _snapshot = NewsSnapshot(
         items: _snapshot.items,
+        starred: _snapshot.starred,
+        stateError: _snapshot.stateError,
         sources: _snapshot.sources
             .map(
               (source) => source.copyWith(
@@ -231,6 +454,8 @@ class NewsController extends ChangeNotifier {
       if (_closed || generation != _generation) return;
       _snapshot = NewsSnapshot(
         items: _snapshot.items,
+        starred: _snapshot.starred,
+        stateError: _snapshot.stateError,
         sources: _snapshot.sources
             .map((source) => source.copyWith(refreshing: false))
             .toList(),
@@ -239,6 +464,9 @@ class NewsController extends ChangeNotifier {
     } finally {
       if (!_closed && generation == _generation) {
         _busy = false;
+        _skipRateLimited = _snapshot.sources.any(
+          (source) => source.error?.kind == 'rate_limited',
+        );
         _emit();
       }
     }
@@ -273,6 +501,8 @@ class NewsController extends ChangeNotifier {
       _snapshot = _freeze(
         NewsSnapshot(
           items: value.items,
+          starred: value.starred,
+          stateError: value.stateError,
           sources: value.sources,
           refreshing: value.refreshing,
           error: cancelError ?? value.error,
@@ -282,6 +512,8 @@ class NewsController extends ChangeNotifier {
       if (_closed) return;
       _snapshot = NewsSnapshot(
         items: _snapshot.items,
+        starred: _snapshot.starred,
+        stateError: _snapshot.stateError,
         sources: _snapshot.sources
             .map((source) => source.copyWith(refreshing: false))
             .toList(),
@@ -292,6 +524,9 @@ class NewsController extends ChangeNotifier {
     } finally {
       if (!_closed) {
         _busy = false;
+        _skipRateLimited = _snapshot.sources.any(
+          (source) => source.error?.kind == 'rate_limited',
+        );
         _cancelTask = null;
         _cancelling = false;
         _emit();
@@ -307,6 +542,8 @@ class NewsController extends ChangeNotifier {
         _snapshot.items.isNotEmpty;
     return NewsSnapshot(
       items: List.unmodifiable(preserve ? _snapshot.items : value.items),
+      starred: List.unmodifiable(value.starred),
+      stateError: value.stateError,
       sources: List.unmodifiable(
         preserve
             ? _snapshot.sources.map(
@@ -334,6 +571,8 @@ class NewsController extends ChangeNotifier {
       _snapshot = NewsSnapshot(
         sources: _snapshot.sources,
         items: _snapshot.items,
+        starred: _snapshot.starred,
+        stateError: _snapshot.stateError,
         error: const NewsError(kind: 'cache', message: '来源设置保存失败。'),
       );
     } finally {
@@ -347,12 +586,14 @@ class NewsController extends ChangeNotifier {
   Future<void> shutdown() {
     if (_shutdownTask != null) return _shutdownTask!;
     _closed = true;
+    _timer?.cancel();
     ++_generation;
     return _shutdownTask = Future.sync(gateway.shutdown);
   }
 
   void _emit() {
     if (_sort == NewsSort.hot && !hotSortAvailable) _sort = NewsSort.latest;
+    _hotTab = hotTab;
     if (!_closed && !_disposed) notifyListeners();
   }
 

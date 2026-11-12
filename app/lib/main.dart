@@ -96,6 +96,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
         _controller = controller;
         _statsController = statsController;
       });
+      unawaited(controller.start());
       statsController?.addListener(_statsChanged);
       if (statsController != null) unawaited(statsController.start());
     } catch (error) {

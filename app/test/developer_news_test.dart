@@ -113,7 +113,7 @@ void main() {
     ]);
     controller.toggleSourceFilter('gh-release:openai/codex');
     expect(controller.sort, NewsSort.latest);
-    expect(controller.visibleItems.first.id, 'o');
+    expect(controller.visibleItems.first.id, 'hot-newer');
     controller.toggleSourceFilter('gh-release:openai/codex');
     controller.setSort(NewsSort.hot);
     controller.setQuery('模型');

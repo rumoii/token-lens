@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:token_lens_app/stats/stats_page.dart';
 
 void main() {
   testWidgets('main 给新闻、AppShell、StatsPage 传入同一个外链函数', (tester) async {
+    final cachedAt = DateTime.now().millisecondsSinceEpoch;
     await tester.runAsync(() async {
       final temp = await Directory.systemTemp.resolveSymbolicLinks();
       for (final key in [
@@ -28,6 +30,20 @@ void main() {
           reason: '$key must stay inside TEMP',
         );
       }
+      // A fresh cache keeps the startup wiring test offline.
+      final cache = File(
+        '${Platform.environment['TOKEN_LENS_PREVIEW_DATA_DIR']}/news-cache.json',
+      );
+      expect(await cache.exists(), isFalse);
+      await cache.writeAsString(
+        jsonEncode({
+          'version': 2,
+          'disabled': <String>[],
+          'sources': {
+            'openai': {'items': <Object>[], 'last_success_ms': cachedAt},
+          },
+        }),
+      );
     });
     await tester.runAsync(() async {
       await tester.pumpWidget(const TokenLensApp());
@@ -40,6 +56,23 @@ void main() {
       expect(find.byType(AppShell), findsOneWidget);
       final shell = tester.widget<AppShell>(find.byType(AppShell));
       final stats = tester.widget<StatsPage>(find.byType(StatsPage));
+      final newsController = (shell.news as NewsPage).controller;
+      final newsDeadline = DateTime.now().add(const Duration(seconds: 3));
+      while (newsController.snapshot.sources.isEmpty &&
+          DateTime.now().isBefore(newsDeadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await tester.pump();
+      }
+      expect(find.byType(NewsPage), findsNothing);
+      expect(
+        newsController.lastRefreshMs,
+        cachedAt,
+        reason: 'main must start news even when the statistics page is visible',
+      );
+      expect(
+        await File('lib/main.dart').readAsString(),
+        contains('unawaited(controller.start())'),
+      );
       expect(shell.openLink, isNotNull);
       expect(shell.openLink, same((shell.news as NewsPage).openLink));
       expect(stats.openLink, same(shell.openLink));
