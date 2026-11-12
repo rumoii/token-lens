@@ -220,7 +220,7 @@ fn run() -> Result<()> {
     }
     let original_home = env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .ok_or("system home missing")?;
-    if home == PathBuf::from(&original_home)
+    if home == Path::new(&original_home)
         || out.starts_with(PathBuf::from(original_home).join(".token-lens"))
     {
         return Err("unsafe home/output".into());
