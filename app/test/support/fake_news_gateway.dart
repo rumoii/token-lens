@@ -304,7 +304,20 @@ const multiNews = NewsSnapshot(
 );
 
 class FakeNewsGateway implements NewsGateway {
-  FakeNewsGateway({this.cached = const NewsSnapshot(sources: [openaiSource])});
+  FakeNewsGateway({this.cached = const NewsSnapshot(sources: [openaiSource])})
+    : _stateWritable = cached.stateError == null,
+      _stateError = cached.stateError {
+    if (!_stateWritable) return;
+    for (final item in [...cached.items, ...cached.starred]) {
+      if (item.read) _read[item.id] = nowMs;
+    }
+    for (final (index, item) in cached.starred.indexed) {
+      _starred[item.id] = (nowMs - index, item);
+    }
+    for (final item in cached.items.where((item) => item.starred)) {
+      _starred.putIfAbsent(item.id, () => (nowMs, item));
+    }
+  }
 
   NewsSnapshot cached;
   NewsSnapshot? cancelSnapshot;
@@ -317,8 +330,105 @@ class FakeNewsGateway implements NewsGateway {
   int refreshCalls = 0;
   int cancelCalls = 0;
   int shutdownCalls = 0;
+  int nowMs = 1794000000000;
+  final readRequests = <(List<String>, bool)>[];
+  final starRequests = <(String, bool)>[];
+  Map<String, int> _read = {};
+  Map<String, (int, NewsItem)> _starred = {};
+  final bool _stateWritable;
+  NewsError? _stateError;
+  NewsError? stateWriteError;
   int _generation = 0;
   bool _closed = false;
+
+  @override
+  Future<NewsSnapshot> setRead(List<String> ids, bool read) async {
+    readRequests.add((List.of(ids), read));
+    if (_closed) return _closedSnapshot();
+    if (!_stateWritable || ids.isEmpty) return _visible();
+    final known = {...cached.items.map((i) => i.id), ..._starred.keys};
+    final candidate = Map.of(_read);
+    var accepted = false;
+    for (final id in ids.where(known.contains)) {
+      accepted = true;
+      if (read) {
+        candidate.putIfAbsent(id, () => nowMs);
+      } else {
+        candidate.remove(id);
+      }
+    }
+    if (accepted) _saveState(candidate, Map.of(_starred));
+    return _visible();
+  }
+
+  @override
+  Future<NewsSnapshot> setStarred(String id, bool starred) async {
+    starRequests.add((id, starred));
+    if (_closed) return _closedSnapshot();
+    if (!_stateWritable) return _visible();
+    final candidate = Map.of(_starred);
+    if (starred) {
+      if (!candidate.containsKey(id)) {
+        final matches = _visible().items.where(
+          (i) =>
+              i.id == id &&
+              cached.sources.any((s) => s.id == i.sourceId && s.enabled),
+        );
+        if (matches.isEmpty) return _visible();
+        candidate[id] = (nowMs, matches.first);
+      }
+    } else if (candidate.remove(id) == null) {
+      return _visible();
+    }
+    _saveState(Map.of(_read), candidate);
+    return _visible();
+  }
+
+  void _saveState(Map<String, int> read, Map<String, (int, NewsItem)> starred) {
+    if (stateWriteError != null) {
+      _stateError = stateWriteError;
+      return;
+    }
+    final cachedIds = cached.items.map((i) => i.id).toSet();
+    read.removeWhere(
+      (id, time) =>
+          time < nowMs - 30 * 24 * 60 * 60 * 1000 && !cachedIds.contains(id),
+    );
+    _read = read;
+    _starred = starred;
+    _stateError = null;
+  }
+
+  NewsSnapshot _closedSnapshot() {
+    final snapshot = _visible();
+    return NewsSnapshot(
+      sources: snapshot.sources,
+      items: snapshot.items,
+      starred: snapshot.starred,
+      stateError: snapshot.stateError,
+      error: const NewsError(kind: 'closed', message: 'Closed'),
+    );
+  }
+
+  void _updateCopies(Set<String> successful) {
+    if (!_stateWritable) return;
+    final candidate = Map.of(_starred);
+    final visible = _visible().items;
+    var changed = false;
+    for (final item in cached.items.where(
+      (i) => successful.contains(i.sourceId),
+    )) {
+      final previous = candidate[item.id];
+      if (previous == null) continue;
+      final current = visible.where((i) => i.id == item.id);
+      candidate[item.id] = (
+        previous.$1,
+        current.isEmpty ? item : current.first,
+      );
+      changed = true;
+    }
+    if (changed) _saveState(Map.of(_read), candidate);
+  }
 
   @override
   Future<NewsSnapshot> snapshot() async {
@@ -326,9 +436,12 @@ class FakeNewsGateway implements NewsGateway {
     return _visible();
   }
 
-  NewsSnapshot _visible() => NewsSnapshot(
-    sources: cached.sources,
-    items: cached.items
+  NewsSnapshot _visible() {
+    NewsItem flags(NewsItem item) => item.copyWith(
+      read: _read.containsKey(item.id),
+      starred: _starred.containsKey(item.id),
+    );
+    final items = cached.items
         .where(
           (item) => cached.sources.any(
             (source) =>
@@ -336,19 +449,32 @@ class FakeNewsGateway implements NewsGateway {
                 (source.id == item.sourceId || item.alsoIn.contains(source.id)),
           ),
         )
-        .toList(),
-    refreshing: cached.refreshing,
-    error: cached.error,
-  );
+        .map(flags)
+        .toList();
+    final saved = _starred.values.toList()
+      ..sort((a, b) {
+        final order = b.$1.compareTo(a.$1);
+        return order == 0 ? a.$2.id.compareTo(b.$2.id) : order;
+      });
+    return NewsSnapshot(
+      sources: cached.sources,
+      items: items,
+      starred: saved.map((entry) {
+        final current = items.where((i) => i.id == entry.$2.id);
+        return flags(current.isEmpty ? entry.$2 : current.first);
+      }).toList(),
+      stateError: _stateError,
+      refreshing: cached.refreshing,
+      error: cached.error,
+    );
+  }
 
   @override
   Future<NewsSnapshot> refresh({List<String>? sourceIds}) async {
     refreshCalls++;
     refreshRequests.add(sourceIds == null ? null : List.of(sourceIds));
     if (_closed) {
-      return const NewsSnapshot(
-        error: NewsError(kind: 'closed', message: 'Closed'),
-      );
+      return _closedSnapshot();
     }
     final generation = ++_generation;
     final ids = cached.sources
@@ -368,7 +494,18 @@ class FakeNewsGateway implements NewsGateway {
     );
     if (nextRefresh != null) {
       final result = await nextRefresh!;
-      if (!_closed && generation == _generation) cached = result;
+      if (!_closed && generation == _generation) {
+        cached = result;
+        _updateCopies(
+          ids
+              .where(
+                (id) =>
+                    !result.sources.any((s) => s.id == id && s.error != null),
+              )
+              .toSet(),
+        );
+        return _visible();
+      }
       return result;
     }
     final items = [...cached.items];
@@ -389,12 +526,14 @@ class FakeNewsGateway implements NewsGateway {
       }).toList(),
       items: items,
     );
+    _updateCopies(ids.where((id) => !failures.containsKey(id)).toSet());
     return _visible();
   }
 
   @override
   Future<NewsSnapshot> setSourceEnabled(String id, bool enabled) async {
     enableRequests.add((id, enabled));
+    if (_closed) return _closedSnapshot();
     cached = NewsSnapshot(
       sources: cached.sources
           .map(

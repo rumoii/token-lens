@@ -27,6 +27,10 @@ pub struct NewsItem {
     pub ai_summary: bool,
     pub origin: Option<String>,
     pub first_seen_ms: i64,
+    #[serde(skip)]
+    pub read: bool,
+    #[serde(skip)]
+    pub starred: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -47,6 +51,8 @@ pub struct NewsSnapshot {
     pub items: Vec<NewsItem>,
     pub refreshing: bool,
     pub error: Option<NewsError>,
+    pub starred: Vec<NewsItem>,
+    pub state_error: Option<NewsError>,
 }
 
 #[flutter_rust_bridge::frb(opaque)]
@@ -59,7 +65,11 @@ impl NewsClient {
     /// Opens the cache without making source requests.
     pub fn new(data_dir: String) -> Result<NewsClient, String> {
         Ok(Self {
-            engine: NewsEngine::new(Path::new(&data_dir), sources::registry())?,
+            engine: NewsEngine::new(
+                Path::new(&data_dir),
+                sources::registry(),
+                chrono::Utc::now().timestamp_millis(),
+            )?,
         })
     }
 
@@ -97,7 +107,11 @@ impl NewsClient {
             )));
         }
         Ok(Self {
-            engine: NewsEngine::new(Path::new(&data_dir), sources)?,
+            engine: NewsEngine::new(
+                Path::new(&data_dir),
+                sources,
+                chrono::Utc::now().timestamp_millis(),
+            )?,
         })
     }
 
@@ -105,10 +119,20 @@ impl NewsClient {
         self.engine.snapshot()
     }
     pub async fn refresh(&self, source_ids: Option<Vec<String>>) -> NewsSnapshot {
-        self.engine.refresh(source_ids).await
+        self.engine
+            .refresh(source_ids, chrono::Utc::now().timestamp_millis())
+            .await
     }
     pub fn set_source_enabled(&self, id: String, enabled: bool) -> NewsSnapshot {
         self.engine.set_source_enabled(&id, enabled)
+    }
+    pub fn set_read(&self, ids: Vec<String>, read: bool) -> NewsSnapshot {
+        self.engine
+            .set_read(ids, read, chrono::Utc::now().timestamp_millis())
+    }
+    pub fn set_starred(&self, id: String, starred: bool) -> NewsSnapshot {
+        self.engine
+            .set_starred(&id, starred, chrono::Utc::now().timestamp_millis())
     }
     pub fn cancel_refresh(&self) {
         self.engine.cancel_refresh();
@@ -130,6 +154,7 @@ impl NewsClient {
                     &endpoint,
                 ))],
                 timeout,
+                1794000000000,
             )?,
         })
     }

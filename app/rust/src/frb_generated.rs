@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1621895910;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 770830876;
 
 // Section: executor
 
@@ -229,6 +229,61 @@ fn wire__crate__api__news__NewsClient_refresh_impl(
         },
     )
 }
+fn wire__crate__api__news__NewsClient_set_read_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "NewsClient_set_read",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NewsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_ids = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_read = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Ok::<_, ()>(crate::api::news::NewsClient::set_read(
+                        &*api_that_guard,
+                        api_ids,
+                        api_read,
+                    ))?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__news__NewsClient_set_source_enabled_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -277,6 +332,61 @@ fn wire__crate__api__news__NewsClient_set_source_enabled_impl(
                         &*api_that_guard,
                         api_id,
                         api_enabled,
+                    ))?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__news__NewsClient_set_starred_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "NewsClient_set_starred",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NewsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_id = <String>::sse_decode(&mut deserializer);
+            let api_starred = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Ok::<_, ()>(crate::api::news::NewsClient::set_starred(
+                        &*api_that_guard,
+                        api_id,
+                        api_starred,
                     ))?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -1545,6 +1655,8 @@ impl SseDecode for crate::api::news::NewsItem {
         let mut var_aiSummary = <bool>::sse_decode(deserializer);
         let mut var_origin = <Option<String>>::sse_decode(deserializer);
         let mut var_firstSeenMs = <i64>::sse_decode(deserializer);
+        let mut var_read = <bool>::sse_decode(deserializer);
+        let mut var_starred = <bool>::sse_decode(deserializer);
         return crate::api::news::NewsItem {
             id: var_id,
             source_id: var_sourceId,
@@ -1559,6 +1671,8 @@ impl SseDecode for crate::api::news::NewsItem {
             ai_summary: var_aiSummary,
             origin: var_origin,
             first_seen_ms: var_firstSeenMs,
+            read: var_read,
+            starred: var_starred,
         };
     }
 }
@@ -1570,11 +1684,15 @@ impl SseDecode for crate::api::news::NewsSnapshot {
         let mut var_items = <Vec<crate::api::news::NewsItem>>::sse_decode(deserializer);
         let mut var_refreshing = <bool>::sse_decode(deserializer);
         let mut var_error = <Option<crate::api::news::NewsError>>::sse_decode(deserializer);
+        let mut var_starred = <Vec<crate::api::news::NewsItem>>::sse_decode(deserializer);
+        let mut var_stateError = <Option<crate::api::news::NewsError>>::sse_decode(deserializer);
         return crate::api::news::NewsSnapshot {
             sources: var_sources,
             items: var_items,
             refreshing: var_refreshing,
             error: var_error,
+            starred: var_starred,
+            state_error: var_stateError,
         };
     }
 }
@@ -2667,38 +2785,44 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         4 => wire__crate__api__news__NewsClient_refresh_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__news__NewsClient_set_source_enabled_impl(
+        5 => wire__crate__api__news__NewsClient_set_read_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__news__NewsClient_set_source_enabled_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        6 => wire__crate__api__news__NewsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__news__NewsClient_snapshot_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__stats__StatsClient_breakdown_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__stats__StatsClient_discovery_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__stats__StatsClient_health_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__stats__StatsClient_last_run_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__stats__StatsClient_session_detail_impl(
+        7 => wire__crate__api__news__NewsClient_set_starred_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__news__NewsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__news__NewsClient_snapshot_impl(port, ptr, rust_vec_len, data_len),
+        10 => {
+            wire__crate__api__stats__StatsClient_breakdown_impl(port, ptr, rust_vec_len, data_len)
+        }
+        11 => {
+            wire__crate__api__stats__StatsClient_discovery_impl(port, ptr, rust_vec_len, data_len)
+        }
+        12 => wire__crate__api__stats__StatsClient_health_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__stats__StatsClient_last_run_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__stats__StatsClient_session_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
-        21 => {
+        18 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
+        23 => {
             wire__crate__api__stats__StatsClient_timeseries_impl(port, ptr, rust_vec_len, data_len)
         }
-        22 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2782,6 +2906,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::news::NewsItem {
             self.ai_summary.into_into_dart().into_dart(),
             self.origin.into_into_dart().into_dart(),
             self.first_seen_ms.into_into_dart().into_dart(),
+            self.read.into_into_dart().into_dart(),
+            self.starred.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2800,6 +2926,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::news::NewsSnapshot {
             self.items.into_into_dart().into_dart(),
             self.refreshing.into_into_dart().into_dart(),
             self.error.into_into_dart().into_dart(),
+            self.starred.into_into_dart().into_dart(),
+            self.state_error.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4106,6 +4234,8 @@ impl SseEncode for crate::api::news::NewsItem {
         <bool>::sse_encode(self.ai_summary, serializer);
         <Option<String>>::sse_encode(self.origin, serializer);
         <i64>::sse_encode(self.first_seen_ms, serializer);
+        <bool>::sse_encode(self.read, serializer);
+        <bool>::sse_encode(self.starred, serializer);
     }
 }
 
@@ -4116,6 +4246,8 @@ impl SseEncode for crate::api::news::NewsSnapshot {
         <Vec<crate::api::news::NewsItem>>::sse_encode(self.items, serializer);
         <bool>::sse_encode(self.refreshing, serializer);
         <Option<crate::api::news::NewsError>>::sse_encode(self.error, serializer);
+        <Vec<crate::api::news::NewsItem>>::sse_encode(self.starred, serializer);
+        <Option<crate::api::news::NewsError>>::sse_encode(self.state_error, serializer);
     }
 }
 

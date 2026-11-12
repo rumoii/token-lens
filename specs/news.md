@@ -204,7 +204,7 @@ D2.6 在 D2.5 上增加 AIHOT 来源、条目首次收录时间、本机已读�
  "starred":{"<item_id>":{"starred_at_ms":n,"item":{…NewsItem 全部字段…}}}}
 ```
 
-- 文件不存在，等于空状态。版本未知或文件损坏时报 `cache`，不静默清空；这时缓存的条目照常显示，已读和收藏不可用。
+- 文件不存在，等于空状态。版本未知或文件损坏时报 `cache`，不静默清空；这时缓存的条目照常显示，已读和收藏不可用。状态错误放在独立的 `NewsSnapshot.state_error: Option<NewsError>`（kind 为 `cache`），不占用 `error`；未知版本或损坏文件在本次运行内不覆盖，已读和收藏操作不写文件，错误保留到本次运行结束。
 - 只存条目 id 和收藏副本，不存其他内容，不联网，不上传。
 - 清理：每次成功写状态时，删掉 `read_at_ms` 早于 30 天前、而且当前任何来源缓存里都已没有的已读记录。收藏永不自动清理。
 - 收藏保存条目副本。条目还在缓存里时，每次成功刷新后用最新内容更新副本；离开缓存后，副本照常保留和显示。
@@ -215,6 +215,7 @@ FFI 新增：
 - `set_starred(id: String, starred: bool) -> NewsSnapshot`：收藏或取消收藏。只能收藏当前快照里有、或已在收藏里的 id，否则忽略。
 - `NewsItem` 增加 `read: bool`、`starred: bool`，由状态文件填写。
 - `NewsSnapshot` 增加 `starred: Vec<NewsItem>`：全部收藏，按 `starred_at_ms` 降序；条目还在缓存里时，内容与 `items` 里的一致。
+- `NewsSnapshot` 增加 `state_error: Option<NewsError>`：本机已读与收藏的状态文件错误，kind 为 `cache`，独立于 `error`。
 - 状态写失败时报 `cache`，内存状态回到写之前，返回的快照反映真实落盘结果。
 
 ### 定时刷新

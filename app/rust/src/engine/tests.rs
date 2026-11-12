@@ -4,6 +4,404 @@ use tokio::sync::oneshot;
 
 const FEED: &[u8] = include_bytes!("../sources/fixtures/rss/openai.xml");
 
+const D26B_NOW: i64 = 1794000000000;
+const D26B_MONTH: i64 = 30 * 24 * 60 * 60 * 1000;
+
+fn d26b_open(path: &Path) -> NewsEngine {
+    NewsEngine::new(path, crate::sources::registry(), D26B_NOW).unwrap()
+}
+
+fn d26b_seed(path: &Path) {
+    let mut cache = old_v2_cache();
+    cache["sources"]
+        .as_object_mut()
+        .unwrap()
+        .retain(|id, _| id == "openai");
+    std::fs::write(
+        path.join("news-cache.json"),
+        serde_json::to_vec(&cache).unwrap(),
+    )
+    .unwrap();
+}
+
+fn d26b_disk(path: &Path) -> serde_json::Value {
+    serde_json::from_slice(&std::fs::read(path.join("news-state.json")).unwrap()).unwrap()
+}
+
+fn d26b_commit(engine: &NewsEngine, items: Vec<NewsItem>) {
+    engine.inner.state.lock().unwrap().active = Some((1, CancellationToken::new()));
+    engine.inner.commit(1, 0, Ok(items), D26B_NOW + 100);
+    engine.inner.state.lock().unwrap().active = None;
+}
+
+#[test]
+fn d26b_missing_state_is_empty_and_noops_do_not_write() {
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let engine = d26b_open(dir.path());
+    let snap = engine.snapshot();
+    assert!(snap.state_error.is_none());
+    assert!(snap.starred.is_empty());
+    assert!(snap.items.iter().all(|i| !i.read && !i.starred));
+    engine.set_read(vec![], true, D26B_NOW);
+    engine.set_read(vec!["unknown".into()], true, D26B_NOW);
+    engine.set_starred("unknown", true, D26B_NOW);
+    assert!(!dir.path().join("news-state.json").exists());
+}
+
+#[test]
+fn d26b_persistence_read_timestamp_and_unread() {
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let engine = d26b_open(dir.path());
+    let id = engine.snapshot().items[0].id.clone();
+    assert!(engine.set_read(vec![id.clone()], true, D26B_NOW).items[0].read);
+    engine.set_read(vec![id.clone()], true, D26B_NOW + 1);
+    assert_eq!(d26b_disk(dir.path())["read"][&id], D26B_NOW);
+    let snap = engine.set_starred(&id, true, D26B_NOW + 2);
+    assert!(snap.items[0].starred);
+    assert_eq!(snap.starred, snap.items);
+    let stored = d26b_disk(dir.path());
+    println!("D26B synthetic state: {stored}");
+    assert!(stored["starred"][&id]["item"].get("read").is_none());
+    assert!(stored["starred"][&id]["item"].get("starred").is_none());
+    engine.shutdown();
+    let reopened = d26b_open(dir.path());
+    assert!(reopened.snapshot().items[0].read);
+    assert!(reopened.snapshot().items[0].starred);
+    assert_eq!(reopened.snapshot().starred.len(), 1);
+    assert!(
+        !reopened
+            .set_read(vec![id.clone()], false, D26B_NOW + 3)
+            .items[0]
+            .read
+    );
+    assert!(d26b_disk(dir.path())["read"].get(&id).is_none());
+    assert!(reopened
+        .set_starred(&id, false, D26B_NOW + 4)
+        .starred
+        .is_empty());
+}
+
+#[test]
+fn d26b_corrupt_state_is_sticky_read_only_and_preserves_bytes() {
+    for bytes in [
+        b"{broken".as_slice(),
+        br#"{"version":2,"read":{},"starred":{}}"#,
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        d26b_seed(dir.path());
+        let path = dir.path().join("news-state.json");
+        std::fs::write(&path, bytes).unwrap();
+        let engine = d26b_open(dir.path());
+        let snap = engine.snapshot();
+        assert_eq!(snap.state_error.unwrap().kind, "cache");
+        assert!(snap.error.is_none());
+        assert_eq!(snap.items.len(), 1);
+        let id = snap.items[0].id.clone();
+        for snap in [
+            engine.set_read(vec![id.clone()], true, D26B_NOW),
+            engine.set_starred(&id, true, D26B_NOW),
+        ] {
+            assert_eq!(snap.state_error.unwrap().kind, "cache");
+            assert!(!snap.items[0].read);
+            assert!(!snap.items[0].starred);
+        }
+        assert!(engine
+            .set_source_enabled("openai", false)
+            .state_error
+            .is_some());
+        assert!(engine
+            .set_source_enabled("openai", true)
+            .state_error
+            .is_some());
+        let mut updated = engine.snapshot().items;
+        updated[0].title = "Fresh despite bad state".into();
+        d26b_commit(&engine, updated);
+        assert_eq!(engine.snapshot().items[0].title, "Fresh despite bad state");
+        assert!(engine.snapshot().state_error.is_some());
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    }
+}
+
+#[test]
+fn d26b_cleanup_uses_strict_thirty_day_boundary_and_all_caches() {
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let engine = d26b_open(dir.path());
+    let id = engine.snapshot().items[0].id.clone();
+    engine.shutdown();
+    std::fs::write(
+        dir.path().join("news-state.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version":1,"read":{
+                "gone:boundary": D26B_NOW - D26B_MONTH,
+                "gone:old": D26B_NOW - D26B_MONTH - 1,
+                id.clone(): D26B_NOW - D26B_MONTH - 1
+            },"starred":{}
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let engine = d26b_open(dir.path());
+    engine.set_source_enabled("openai", false);
+    // Disabled caches also protect a read record; toggling read is a successful state write.
+    engine.set_read(vec![id.clone()], true, D26B_NOW);
+    let read = d26b_disk(dir.path())["read"].clone();
+    assert_eq!(read["gone:boundary"], D26B_NOW - D26B_MONTH);
+    assert!(read.get("gone:old").is_none());
+    assert_eq!(read[&id], D26B_NOW - D26B_MONTH - 1);
+}
+
+#[test]
+fn d26b_starred_copy_updates_survives_disappearance_and_disable() {
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let engine = d26b_open(dir.path());
+    let id = engine.snapshot().items[0].id.clone();
+    let mut items = engine.snapshot().items;
+    engine.set_starred(&id, true, D26B_NOW);
+    items[0].title = "Updated title".into();
+    d26b_commit(&engine, items);
+    assert_eq!(engine.snapshot().starred[0].title, "Updated title");
+    assert_eq!(
+        d26b_disk(dir.path())["starred"][&id]["starred_at_ms"],
+        D26B_NOW
+    );
+    engine.set_source_enabled("openai", false);
+    assert!(engine.snapshot().items.is_empty());
+    assert_eq!(engine.snapshot().starred[0].title, "Updated title");
+    engine.set_source_enabled("openai", true);
+    d26b_commit(&engine, Vec::new());
+    assert!(engine.snapshot().items.is_empty());
+    assert_eq!(engine.snapshot().starred[0].title, "Updated title");
+    engine.shutdown();
+    let reopened = d26b_open(dir.path());
+    assert_eq!(reopened.snapshot().starred[0].title, "Updated title");
+    assert!(
+        reopened
+            .set_read(vec![id.clone()], true, D26B_NOW + 1)
+            .starred[0]
+            .read
+    );
+    reopened.set_starred(&id, true, D26B_NOW + 2);
+    assert_eq!(
+        d26b_disk(dir.path())["starred"][&id]["starred_at_ms"],
+        D26B_NOW
+    );
+}
+
+#[test]
+fn d26b_starred_order_flags_not_in_cache_and_closed() {
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let engine = d26b_open(dir.path());
+    let mut items = engine.snapshot().items;
+    let first = items[0].id.clone();
+    let mut other = items[0].clone();
+    other.id = "openai:other".into();
+    other.url = "https://example.com/other".into();
+    let second = other.id.clone();
+    items.push(other);
+    d26b_commit(&engine, items);
+    engine.set_starred(&first, true, D26B_NOW);
+    let snap = engine.set_starred(&second, true, D26B_NOW + 1);
+    assert_eq!(
+        snap.starred.iter().map(|i| &i.id).collect::<Vec<_>>(),
+        [&second, &first]
+    );
+    engine.set_read(vec![first.clone(), second.clone()], true, D26B_NOW + 2);
+    engine.set_source_enabled("openai", false);
+    let json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.path().join("news-cache.json")).unwrap())
+            .unwrap();
+    for item in json["sources"]["openai"]["items"].as_array().unwrap() {
+        assert!(item.get("read").is_none());
+        assert!(item.get("starred").is_none());
+    }
+    engine.shutdown();
+    assert_eq!(
+        engine
+            .set_read(vec![first.clone()], false, D26B_NOW)
+            .error
+            .unwrap()
+            .kind,
+        "closed"
+    );
+    assert_eq!(
+        engine
+            .set_starred(&first, false, D26B_NOW)
+            .error
+            .unwrap()
+            .kind,
+        "closed"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn d26b_state_write_failure_rolls_back_and_refresh_still_commits_cache() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let engine = d26b_open(dir.path());
+    let id = engine.snapshot().items[0].id.clone();
+    engine.set_read(vec![id.clone()], true, D26B_NOW);
+    engine.set_starred(&id, true, D26B_NOW);
+    let previous = std::fs::read(dir.path().join("news-state.json")).unwrap();
+    let held = OpenOptions::new()
+        .read(true)
+        .share_mode(0x1 | 0x2)
+        .open(dir.path().join("news-state.json"))
+        .unwrap();
+    assert!(engine
+        .set_read(vec![], true, D26B_NOW)
+        .state_error
+        .is_none());
+    assert!(engine
+        .set_starred("unknown", true, D26B_NOW)
+        .state_error
+        .is_none());
+    let snap = engine.set_read(vec![id.clone()], false, D26B_NOW + 1);
+    assert_eq!(snap.state_error.unwrap().kind, "cache");
+    assert!(snap.items[0].read);
+    let snap = engine.set_starred(&id, false, D26B_NOW + 1);
+    assert_eq!(snap.state_error.unwrap().kind, "cache");
+    assert!(snap.items[0].starred);
+    let mut items = engine.snapshot().items;
+    items[0].title = "Cache committed".into();
+    d26b_commit(&engine, items);
+    let snap = engine.snapshot();
+    assert!(snap.error.is_none());
+    assert!(snap.sources[0].error.is_none());
+    assert_eq!(snap.items[0].title, "Cache committed");
+    assert!(snap.state_error.is_some());
+    assert_eq!(
+        std::fs::read(dir.path().join("news-state.json")).unwrap(),
+        previous
+    );
+    drop(held);
+    engine.shutdown();
+    let reopened = d26b_open(dir.path());
+    assert_eq!(reopened.snapshot().items[0].title, "Cache committed");
+    // Once absent from cache, the last successfully persisted copy is authoritative.
+    d26b_commit(&reopened, Vec::new());
+    assert_ne!(reopened.snapshot().starred[0].title, "Cache committed");
+}
+
+#[test]
+fn d26b_starred_accepts_only_snapshot_primary_and_keeps_also_in() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("news-cache.json"),
+        serde_json::to_vec(&old_v2_cache()).unwrap(),
+    )
+    .unwrap();
+    let engine = d26b_open(dir.path());
+    let snapshot = engine.snapshot();
+    assert_eq!(snapshot.items.len(), 1);
+    let id = snapshot.items[0].id.clone();
+    assert_eq!(snapshot.items[0].also_in, ["gh-release:openai/codex"]);
+    assert!(engine
+        .set_starred("gh-release:openai/codex:old", true, D26B_NOW)
+        .starred
+        .is_empty());
+    assert!(!dir.path().join("news-state.json").exists());
+    engine.set_starred(&id, true, D26B_NOW);
+    assert_eq!(
+        d26b_disk(dir.path())["starred"][&id]["item"]["also_in"],
+        serde_json::json!(["gh-release:openai/codex"])
+    );
+    engine.set_source_enabled("openai", false);
+    engine.set_starred(&id, true, D26B_NOW + 1);
+    engine.shutdown();
+    let reopened = d26b_open(dir.path());
+    assert!(reopened.snapshot().state_error.is_none());
+    assert_eq!(
+        reopened.snapshot().starred[0].also_in,
+        ["gh-release:openai/codex"]
+    );
+    reopened.set_starred(&id, false, D26B_NOW + 2);
+    // Disabled main items cannot be newly starred even though their source cache is retained.
+    assert!(reopened
+        .set_starred(&id, true, D26B_NOW + 3)
+        .starred
+        .is_empty());
+}
+
+#[tokio::test]
+async fn d26b_read_and_starred_during_real_refresh_survive_its_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let mut server = Server::new().await;
+    let engine = NewsEngine::new(
+        dir.path(),
+        vec![source("openai", Category::Official, &server)],
+        D26B_NOW,
+    )
+    .unwrap();
+    let id = engine.snapshot().items[0].id.clone();
+    let running = start(&engine, None);
+    server.requested().await;
+    let read = engine.set_read(vec![id.clone()], true, D26B_NOW);
+    assert!(read.refreshing);
+    assert!(read.error.is_none());
+    let starred = engine.set_starred(&id, true, D26B_NOW);
+    assert!(starred.refreshing);
+    assert!(starred.error.is_none());
+    server.ok();
+    let result = running.await.unwrap();
+    assert!(!result.refreshing);
+    assert!(result.error.is_none());
+    assert!(result.starred[0].read);
+    engine.shutdown();
+    let reopened = d26b_open(dir.path());
+    assert!(reopened.snapshot().starred[0].read);
+}
+
+#[test]
+fn d26b_invalid_saved_copy_is_read_only_and_cache_flags_are_ignored() {
+    let dir = tempfile::tempdir().unwrap();
+    d26b_seed(dir.path());
+    let engine = d26b_open(dir.path());
+    let item = engine.snapshot().items[0].clone();
+    engine.shutdown();
+    for (field, value) in [
+        ("title", serde_json::json!("")),
+        ("url", serde_json::json!("javascript:bad")),
+        ("first_seen_ms", serde_json::json!(0)),
+        ("also_in", serde_json::json!(["openai"])),
+    ] {
+        let mut bad = serde_json::to_value(&item).unwrap();
+        bad[field] = value;
+        let bytes = serde_json::to_vec(&serde_json::json!({"version":1, "read":{}, "starred":{item.id.clone(): {"starred_at_ms":1,"item":bad}}})).unwrap();
+        std::fs::write(dir.path().join("news-state.json"), &bytes).unwrap();
+        let engine = d26b_open(dir.path());
+        assert_eq!(engine.snapshot().items.len(), 1);
+        assert_eq!(engine.snapshot().state_error.unwrap().kind, "cache");
+        assert!(engine
+            .set_read(vec![item.id.clone()], true, D26B_NOW)
+            .state_error
+            .is_some());
+        assert_eq!(
+            std::fs::read(dir.path().join("news-state.json")).unwrap(),
+            bytes
+        );
+        engine.shutdown();
+    }
+    let mut cache = old_v2_cache();
+    cache["sources"]["openai"]["items"][0]["read"] = true.into();
+    cache["sources"]["openai"]["items"][0]["starred"] = true.into();
+    std::fs::write(
+        dir.path().join("news-cache.json"),
+        serde_json::to_vec(&cache).unwrap(),
+    )
+    .unwrap();
+    let engine = d26b_open(dir.path());
+    assert!(!engine.snapshot().items[0].read);
+    assert!(!engine.snapshot().items[0].starred);
+}
+
 #[test]
 fn d26a_old_v2_fills_fields_without_writing_and_roundtrips() {
     let dir = tempfile::tempdir().unwrap();
@@ -53,7 +451,7 @@ fn d26a_successful_commit_writes_back_other_sources_legacy_fields() {
     let path = dir.path().join("news-cache.json");
     let bytes = serde_json::to_vec(&old_v2_cache()).unwrap();
     std::fs::write(&path, &bytes).unwrap();
-    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
     engine.inner.state.lock().unwrap().active = Some((1, CancellationToken::new()));
     // An empty result is still a successful source commit.
@@ -116,7 +514,7 @@ fn d26a_non_aihot_summary_flag_is_corrupt_cache() {
     json["sources"]["openai"]["items"][0]["ai_summary"] = true.into();
     let bytes = serde_json::to_vec(&json).unwrap();
     std::fs::write(&path, &bytes).unwrap();
-    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
     assert_eq!(
         engine.snapshot().error.as_ref().map(|e| e.kind.as_str()),
         Some("cache")
@@ -233,7 +631,7 @@ fn d26a_snapshot_sorts_by_seen_then_date_then_registry() {
         serde_json::to_vec(&json).unwrap(),
     )
     .unwrap();
-    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
     assert_eq!(
         engine
             .snapshot()
@@ -276,6 +674,7 @@ fn d26a_first_seen_first_refresh_new_and_existing_items() {
                 "https://example.com/",
                 "https://example.invalid/",
             ))],
+            D26B_NOW,
         )
         .unwrap();
         let now_ms = 1794000000000;
@@ -339,7 +738,7 @@ fn d26a_aihot_ranks_after_community_and_merges_earliest_seen() {
         serde_json::to_vec(&cache).unwrap(),
     )
     .unwrap();
-    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
     let snapshot = engine.snapshot();
     assert_eq!(snapshot.items.len(), 1);
     assert_eq!(snapshot.items[0].source_id, "hn-ai");
@@ -447,7 +846,7 @@ fn source(id: &str, category: Category, server: &Server) -> Box<dyn Source> {
 
 fn start(engine: &NewsEngine, ids: Option<Vec<String>>) -> tokio::task::JoinHandle<NewsSnapshot> {
     let engine = engine.clone();
-    tokio::spawn(async move { engine.refresh(ids).await })
+    tokio::spawn(async move { engine.refresh(ids, D26B_NOW).await })
 }
 
 struct LargeBodySource(Box<dyn Source>);
@@ -481,7 +880,7 @@ async fn gzip_body_is_decoded_before_parse_and_size_limit() {
         } else {
             feed
         };
-        let engine = NewsEngine::new(directory.path(), vec![feed]).unwrap();
+        let engine = NewsEngine::new(directory.path(), vec![feed], D26B_NOW).unwrap();
         let task = start(&engine, None);
         server.requested().await;
         server.respond(
@@ -535,7 +934,7 @@ async fn declared_body_limit_applies_to_content_length_and_streaming() {
             } else {
                 feed
             };
-            let engine = NewsEngine::new(dir.path(), vec![feed]).unwrap();
+            let engine = NewsEngine::new(dir.path(), vec![feed], D26B_NOW).unwrap();
             let running = start(&engine, None);
             server.requested().await;
             let length = if with_length {
@@ -583,7 +982,7 @@ async fn four_concurrent_sources_commit_independently_and_refill_slots() {
         .enumerate()
         .map(|(i, s)| source(&format!("s{i}"), Category::Official, s))
         .collect();
-    let engine = NewsEngine::new(dir.path(), sources).unwrap();
+    let engine = NewsEngine::new(dir.path(), sources, D26B_NOW).unwrap();
     let running = start(&engine, None);
     for s in &mut servers[..4] {
         s.requested().await;
@@ -591,7 +990,10 @@ async fn four_concurrent_sources_commit_independently_and_refill_slots() {
     servers[4].not_requested();
     servers[5].not_requested();
     assert!(engine.snapshot().sources.iter().all(|s| s.refreshing));
-    assert_eq!(engine.refresh(None).await.error.unwrap().kind, "busy");
+    assert_eq!(
+        engine.refresh(None, D26B_NOW).await.error.unwrap().kind,
+        "busy"
+    );
     servers[0].ok();
     servers[4].requested().await;
     let snapshot = engine.snapshot();
@@ -655,6 +1057,7 @@ async fn partial_failure_does_not_affect_other_sources() {
             source("a", Category::Official, &a),
             source("b", Category::Official, &b),
         ],
+        D26B_NOW,
     )
     .unwrap();
     let running = start(&engine, None);
@@ -698,6 +1101,7 @@ async fn explicit_refresh_ignores_unknown_disabled_and_duplicate_ids() {
             source("b", Category::Official, &b),
             source("c", Category::Official, &c),
         ],
+        D26B_NOW,
     )
     .unwrap();
     engine.set_source_enabled("c", false);
@@ -713,7 +1117,7 @@ async fn explicit_refresh_ignores_unknown_disabled_and_duplicate_ids() {
     assert!(result.sources[0].last_success_ms.is_none());
     assert!(result.sources[1].last_success_ms.is_some());
     assert!(!result.sources[2].enabled);
-    assert!(!engine.refresh(Some(vec![])).await.refreshing);
+    assert!(!engine.refresh(Some(vec![]), D26B_NOW).await.refreshing);
 }
 
 #[tokio::test]
@@ -730,6 +1134,7 @@ async fn disabling_a_queued_source_prevents_its_request() {
             .enumerate()
             .map(|(i, s)| source(&format!("s{i}"), Category::Official, s))
             .collect(),
+        D26B_NOW,
     )
     .unwrap();
     let running = start(&engine, None);
@@ -765,6 +1170,7 @@ async fn cancel_preserves_committed_sources_and_blocks_late_commits() {
             .enumerate()
             .map(|(i, s)| source(&format!("s{i}"), Category::Official, s))
             .collect(),
+        D26B_NOW,
     )
     .unwrap();
     let running = start(&engine, None);
@@ -791,7 +1197,7 @@ async fn cancel_preserves_committed_sources_and_blocks_late_commits() {
         before
     );
     engine.shutdown();
-    let reopened = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let reopened = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
     assert!(reopened
         .snapshot()
         .sources
@@ -828,8 +1234,12 @@ async fn http_status_and_content_type_failures_are_classified_before_parse() {
     ] {
         let dir = tempfile::tempdir().unwrap();
         let mut server = Server::new().await;
-        let engine =
-            NewsEngine::new(dir.path(), vec![source(id, Category::Official, &server)]).unwrap();
+        let engine = NewsEngine::new(
+            dir.path(),
+            vec![source(id, Category::Official, &server)],
+            D26B_NOW,
+        )
+        .unwrap();
         let running = start(&engine, None);
         server.requested().await;
         server.respond(status, headers, FEED);
@@ -851,6 +1261,7 @@ async fn enabled_state_survives_restart_and_retains_hidden_cache() {
     let engine = NewsEngine::new(
         dir.path(),
         vec![source("openai", Category::Official, &server)],
+        D26B_NOW,
     )
     .unwrap();
     let running = start(&engine, None);
@@ -863,15 +1274,17 @@ async fn enabled_state_survives_restart_and_retains_hidden_cache() {
     let engine = NewsEngine::new(
         dir.path(),
         vec![source("openai", Category::Official, &server)],
+        D26B_NOW,
     )
     .unwrap();
     assert!(!engine.snapshot().sources[0].enabled);
-    assert!(engine.refresh(None).await.items.is_empty());
+    assert!(engine.refresh(None, D26B_NOW).await.items.is_empty());
     assert_eq!(engine.set_source_enabled("openai", true).items, before);
     engine.shutdown();
     let reopened = NewsEngine::new(
         dir.path(),
         vec![source("openai", Category::Official, &server)],
+        D26B_NOW,
     )
     .unwrap();
     assert!(reopened.snapshot().sources[0].enabled);
@@ -884,7 +1297,7 @@ fn cache_v1_migration_is_in_memory_until_commit_and_unknown_versions_are_visible
     let path = dir.path().join("news-cache.json");
     let legacy = br#"{"version":1,"items":[{"id":"old","title":"A <literal>","url":"https://example.com/old","published_at":null,"description":null}],"last_success_ms":123}"#;
     std::fs::write(&path, legacy).unwrap();
-    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
     let snapshot = engine.snapshot();
     assert_eq!(snapshot.items[0].id, "openai:old");
     assert_eq!(snapshot.items[0].source_id, "openai");
@@ -903,7 +1316,7 @@ fn cache_v1_migration_is_in_memory_until_commit_and_unknown_versions_are_visible
         br#"{"version":2,"sources":{},"disabled":"no"}"#.as_slice(),
     ] {
         std::fs::write(&path, invalid).unwrap();
-        let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+        let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
         assert_eq!(engine.snapshot().error.unwrap().kind, "cache");
         assert_eq!(std::fs::read(&path).unwrap(), invalid);
         engine.shutdown();
@@ -1174,7 +1587,7 @@ fn d25_old_v2_cache_uses_source_defaults_without_reclassification_or_disk_write(
     let path = dir.path().join("news-cache.json");
     let bytes = serde_json::to_vec(&old_v2_cache()).unwrap();
     std::fs::write(&path, &bytes).unwrap();
-    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
     assert!(engine.snapshot().error.is_none());
     let state = engine.inner.state.lock().unwrap();
     for (id, expected) in [
@@ -1204,7 +1617,7 @@ fn d25_invalid_cache_kinds_are_visible_and_preserve_disk() {
         cache["sources"]["openai"]["items"][0]["kind"] = invalid;
         let bytes = serde_json::to_vec(&cache).unwrap();
         std::fs::write(&path, &bytes).unwrap();
-        let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+        let engine = NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
         assert_eq!(engine.snapshot().error.unwrap().kind, "cache");
         assert!(engine.snapshot().items.is_empty());
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
@@ -1224,7 +1637,7 @@ fn d25_same_source_urls_survive_and_cross_source_duplicates_join_first_sorted_it
             "https://example.invalid/",
         )) as Box<dyn Source>
     });
-    let engine = NewsEngine::new(dir.path(), sources.into()).unwrap();
+    let engine = NewsEngine::new(dir.path(), sources.into(), D26B_NOW).unwrap();
     {
         let mut state = engine.inner.state.lock().unwrap();
         for id in ["openai", "deepmind"] {
@@ -1530,6 +1943,7 @@ fn snapshot_url_dedup_priority_also_in_and_date_sorting() {
             source("official", Category::Official),
             source("official2", Category::Official),
         ],
+        D26B_NOW,
     )
     .unwrap();
     {
@@ -1620,6 +2034,7 @@ async fn shutdown_and_dropped_refresh_release_lock_and_forbid_late_commit() {
         let engine = NewsEngine::new(
             dir.path(),
             vec![source("openai", Category::Official, &server)],
+            D26B_NOW,
         )
         .unwrap();
         let running = start(&engine, None);
@@ -1629,7 +2044,10 @@ async fn shutdown_and_dropped_refresh_release_lock_and_forbid_late_commit() {
             engine.shutdown();
             server.ok();
             assert_eq!(running.await.unwrap().error.unwrap().kind, "closed");
-            assert_eq!(engine.refresh(None).await.error.unwrap().kind, "closed");
+            assert_eq!(
+                engine.refresh(None, D26B_NOW).await.error.unwrap().kind,
+                "closed"
+            );
             assert_eq!(
                 engine
                     .set_source_enabled("openai", false)
@@ -1649,7 +2067,8 @@ async fn shutdown_and_dropped_refresh_release_lock_and_forbid_late_commit() {
             );
             engine.shutdown();
         }
-        let replacement = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+        let replacement =
+            NewsEngine::new(dir.path(), crate::sources::registry(), D26B_NOW).unwrap();
         assert!(replacement.snapshot().items.is_empty());
         assert!(!dir.path().join("news-cache.json").exists());
     }

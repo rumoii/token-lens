@@ -19,6 +19,14 @@ class RustNewsGateway implements NewsGateway {
       _map(await _client.setSourceEnabled(id: id, enabled: enabled));
 
   @override
+  Future<NewsSnapshot> setRead(List<String> ids, bool read) async =>
+      _map(await _client.setRead(ids: ids, read: read));
+
+  @override
+  Future<NewsSnapshot> setStarred(String id, bool starred) async =>
+      _map(await _client.setStarred(id: id, starred: starred));
+
+  @override
   Future<void> cancelRefresh() => _client.cancelRefresh();
 
   @override
@@ -43,26 +51,28 @@ class RustNewsGateway implements NewsGateway {
         ),
       ),
     ),
-    items: List.unmodifiable(
-      value.items.map(
-        (item) => NewsItem(
-          id: item.id,
-          sourceId: item.sourceId,
-          title: item.title,
-          url: item.url,
-          publishedAt: item.publishedAt,
-          description: item.description,
-          popularityKind: item.popularityKind,
-          popularity: item.popularity,
-          alsoIn: List.unmodifiable(item.alsoIn),
-          kind: item.kind,
-          aiSummary: item.aiSummary,
-          origin: item.origin,
-          firstSeenMs: item.firstSeenMs,
-        ),
-      ),
-    ),
+    items: List.unmodifiable(value.items.map(_item)),
+    starred: List.unmodifiable(value.starred.map(_item)),
     refreshing: value.refreshing,
     error: _error(value.error),
+    stateError: _error(value.stateError),
+  );
+
+  NewsItem _item(native.NewsItem item) => NewsItem(
+    id: item.id,
+    sourceId: item.sourceId,
+    title: item.title,
+    url: item.url,
+    publishedAt: item.publishedAt,
+    description: item.description,
+    popularityKind: item.popularityKind,
+    popularity: item.popularity,
+    alsoIn: List.unmodifiable(item.alsoIn),
+    kind: item.kind,
+    aiSummary: item.aiSummary,
+    origin: item.origin,
+    firstSeenMs: item.firstSeenMs,
+    read: item.read,
+    starred: item.starred,
   );
 }

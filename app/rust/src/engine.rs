@@ -18,6 +18,9 @@ use crate::sources::{Category, ItemKind, PopularityKind, RawItem, Source};
 const MAX_ITEMS: usize = 50;
 const MAX_CACHE_BYTES: usize = 32 * 1024 * 1024;
 
+mod state;
+use state::{ItemState, StarredItem};
+
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub(crate) struct SourceCache {
     pub items: Vec<NewsItem>,
@@ -50,11 +53,15 @@ struct Inner {
     sources: Vec<Arc<dyn Source>>,
     http: Client,
     cache_path: PathBuf,
+    state_path: PathBuf,
     state: Mutex<State>,
 }
 
 struct State {
     cache: Cache,
+    items: ItemState,
+    state_writable: bool,
+    state_error: Option<NewsError>,
     sources: Vec<SourceState>,
     error: Option<NewsError>,
     active: Option<(u64, CancellationToken)>,
@@ -64,14 +71,19 @@ struct State {
 }
 
 impl NewsEngine {
-    pub(crate) fn new(data_dir: &Path, sources: Vec<Box<dyn Source>>) -> Result<Self, String> {
-        Self::open(data_dir, sources, Duration::from_secs(20))
+    pub(crate) fn new(
+        data_dir: &Path,
+        sources: Vec<Box<dyn Source>>,
+        now_ms: i64,
+    ) -> Result<Self, String> {
+        Self::open(data_dir, sources, Duration::from_secs(20), now_ms)
     }
 
     pub(crate) fn open(
         data_dir: &Path,
         sources: Vec<Box<dyn Source>>,
         timeout: Duration,
+        now_ms: i64,
     ) -> Result<Self, String> {
         if !data_dir.is_absolute() {
             return Err("cache: data_dir must be an explicit absolute path.".into());
@@ -94,11 +106,15 @@ impl NewsEngine {
         lock.try_lock_exclusive()
             .map_err(|_| "busy: Cache directory is in use.")?;
         let cache_path = data_dir.join("news-cache.json");
-        let (cache, error) =
-            match load_cache(&cache_path, &sources, chrono::Utc::now().timestamp_millis()) {
-                Ok(cache) => (cache, None),
-                Err(err) => (Cache::default(), Some(err)),
-            };
+        let state_path = data_dir.join("news-state.json");
+        let (items, state_error) = match state::load(&state_path) {
+            Ok(items) => (items, None),
+            Err(err) => (ItemState::default(), Some(err)),
+        };
+        let (cache, error) = match load_cache(&cache_path, &sources, now_ms) {
+            Ok(cache) => (cache, None),
+            Err(err) => (Cache::default(), Some(err)),
+        };
         let states = sources
             .iter()
             .map(|source| {
@@ -128,8 +144,12 @@ impl NewsEngine {
                 sources: sources.into_iter().map(Arc::from).collect(),
                 http,
                 cache_path,
+                state_path,
                 state: Mutex::new(State {
                     cache,
+                    items,
+                    state_writable: state_error.is_none(),
+                    state_error,
                     sources: states,
                     error,
                     active: None,
@@ -145,7 +165,74 @@ impl NewsEngine {
         assemble(&self.inner.state.lock().unwrap())
     }
 
-    pub(crate) async fn refresh(&self, source_ids: Option<Vec<String>>) -> NewsSnapshot {
+    pub(crate) fn set_read(&self, ids: Vec<String>, read: bool, now_ms: i64) -> NewsSnapshot {
+        let mut state = self.inner.state.lock().unwrap();
+        if state.closed {
+            return snapshot_error(&state, "closed", "News client is closed.");
+        }
+        if !state.state_writable || ids.is_empty() {
+            return assemble(&state);
+        }
+        let mut candidate = state.items.clone();
+        let known: HashSet<_> = state
+            .cache
+            .sources
+            .values()
+            .flat_map(|s| s.items.iter().map(|i| i.id.as_str()))
+            .chain(state.items.starred.keys().map(String::as_str))
+            .collect();
+        let mut accepted = false;
+        for id in ids {
+            if !known.contains(id.as_str()) {
+                continue;
+            }
+            accepted = true;
+            if read {
+                candidate.read.entry(id).or_insert(now_ms);
+            } else {
+                candidate.read.remove(&id);
+            }
+        }
+        if accepted {
+            self.inner.save_state(&mut state, candidate, now_ms);
+        }
+        assemble(&state)
+    }
+
+    pub(crate) fn set_starred(&self, id: &str, starred: bool, now_ms: i64) -> NewsSnapshot {
+        let mut state = self.inner.state.lock().unwrap();
+        if state.closed {
+            return snapshot_error(&state, "closed", "News client is closed.");
+        }
+        if !state.state_writable {
+            return assemble(&state);
+        }
+        let mut candidate = state.items.clone();
+        if starred {
+            if !candidate.starred.contains_key(id) {
+                let Some(item) = assemble(&state).items.into_iter().find(|i| i.id == id) else {
+                    return assemble(&state);
+                };
+                candidate.starred.insert(
+                    id.into(),
+                    StarredItem {
+                        starred_at_ms: now_ms,
+                        item,
+                    },
+                );
+            }
+        } else if candidate.starred.remove(id).is_none() {
+            return assemble(&state);
+        }
+        self.inner.save_state(&mut state, candidate, now_ms);
+        assemble(&state)
+    }
+
+    pub(crate) async fn refresh(
+        &self,
+        source_ids: Option<Vec<String>>,
+        now_ms: i64,
+    ) -> NewsSnapshot {
         let (generation, token, selected) = {
             let mut state = self.inner.state.lock().unwrap();
             if state.closed {
@@ -182,7 +269,6 @@ impl NewsEngine {
         };
         let mut tasks = JoinSet::new();
         let mut pending = selected.into_iter();
-        let now_ms = chrono::Utc::now().timestamp_millis();
         'refresh: loop {
             while tasks.len() < 4 {
                 let Some(index) = pending.next() else {
@@ -217,12 +303,7 @@ impl NewsEngine {
                 break;
             };
             match result {
-                Ok((index, result)) => self.inner.commit(
-                    generation,
-                    index,
-                    result,
-                    chrono::Utc::now().timestamp_millis(),
-                ),
+                Ok((index, result)) => self.inner.commit(generation, index, result, now_ms),
                 Err(_) => {
                     let mut state = self.inner.state.lock().unwrap();
                     if state.active.as_ref().map(|v| v.0) == Some(generation) {
@@ -293,6 +374,16 @@ impl NewsEngine {
 }
 
 impl Inner {
+    fn save_state(&self, state: &mut State, mut candidate: ItemState, now_ms: i64) {
+        match state::save(&self.state_path, &mut candidate, &state.cache, now_ms) {
+            Ok(()) => {
+                state.items = candidate;
+                state.state_error = None;
+            }
+            Err(err) => state.state_error = Some(err),
+        }
+    }
+
     async fn fetch(&self, index: usize, now_ms: i64) -> Result<Vec<NewsItem>, NewsError> {
         let source = &self.sources[index];
         let max_bytes = source.max_body_bytes();
@@ -399,6 +490,25 @@ impl Inner {
                         state.cache = cache;
                         state.sources[index].last_success_ms = Some(now_ms);
                         state.sources[index].error = None;
+                        if state.state_writable {
+                            let mut candidate = state.items.clone();
+                            let visible = assemble(&state).items;
+                            let source_id = &state.sources[index].id;
+                            let mut updated = false;
+                            for item in &state.cache.sources[source_id].items {
+                                if let Some(saved) = candidate.starred.get_mut(&item.id) {
+                                    saved.item = visible
+                                        .iter()
+                                        .find(|i| i.id == item.id)
+                                        .unwrap_or(item)
+                                        .clone();
+                                    updated = true;
+                                }
+                            }
+                            if updated {
+                                self.save_state(&mut state, candidate, now_ms);
+                            }
+                        }
                     }
                     Err(err) => state.error = Some(err),
                 }
@@ -587,6 +697,8 @@ pub(crate) fn normalise_items(
             .or(item.kind)
             .unwrap_or(default_kind);
         items.push(NewsItem {
+            read: false,
+            starred: false,
             ai_summary,
             origin: item
                 .origin
@@ -688,11 +800,40 @@ fn assemble(state: &State) -> NewsSnapshot {
         }
     }
     items.sort_by(|(ia, a), (ib, b)| compare_items(a, b).then(ia.cmp(ib)));
+    let items: Vec<_> = items
+        .into_iter()
+        .map(|(_, mut item)| {
+            item.read = state.items.read.contains_key(&item.id);
+            item.starred = state.items.starred.contains_key(&item.id);
+            item
+        })
+        .collect();
+    let mut saved: Vec<_> = state.items.starred.values().collect();
+    saved.sort_by(|a, b| {
+        b.starred_at_ms
+            .cmp(&a.starred_at_ms)
+            .then_with(|| a.item.id.cmp(&b.item.id))
+    });
+    let starred = saved
+        .into_iter()
+        .map(|entry| {
+            let mut item = items
+                .iter()
+                .find(|i| i.id == entry.item.id)
+                .unwrap_or(&entry.item)
+                .clone();
+            item.read = state.items.read.contains_key(&item.id);
+            item.starred = true;
+            item
+        })
+        .collect();
     NewsSnapshot {
         sources: state.sources.clone(),
-        items: items.into_iter().map(|(_, item)| item).collect(),
+        items,
         refreshing: state.active.is_some(),
         error: state.error.clone(),
+        starred,
+        state_error: state.state_error.clone(),
     }
 }
 
@@ -804,6 +945,8 @@ fn load_cache(path: &Path, sources: &[Box<dyn Source>], now_ms: i64) -> Result<C
                     return Err(invalid());
                 }
                 items.push(NewsItem {
+                    read: false,
+                    starred: false,
                     ai_summary: false,
                     origin: None,
                     first_seen_ms: first_seen_fallback(

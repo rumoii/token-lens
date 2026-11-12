@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1621895910;
+  int get rustContentHash => 770830876;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -94,10 +94,22 @@ abstract class RustLibApi extends BaseApi {
     List<String>? sourceIds,
   });
 
+  Future<NewsSnapshot> crateApiNewsNewsClientSetRead({
+    required NewsClient that,
+    required List<String> ids,
+    required bool read,
+  });
+
   Future<NewsSnapshot> crateApiNewsNewsClientSetSourceEnabled({
     required NewsClient that,
     required String id,
     required bool enabled,
+  });
+
+  Future<NewsSnapshot> crateApiNewsNewsClientSetStarred({
+    required NewsClient that,
+    required String id,
+    required bool starred,
   });
 
   Future<void> crateApiNewsNewsClientShutdown({required NewsClient that});
@@ -349,6 +361,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<NewsSnapshot> crateApiNewsNewsClientSetRead({
+    required NewsClient that,
+    required List<String> ids,
+    required bool read,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(ids, serializer);
+          sse_encode_bool(read, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_news_snapshot,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNewsNewsClientSetReadConstMeta,
+        argValues: [that, ids, read],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNewsNewsClientSetReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "NewsClient_set_read",
+        argNames: ["that", "ids", "read"],
+      );
+
+  @override
   Future<NewsSnapshot> crateApiNewsNewsClientSetSourceEnabled({
     required NewsClient that,
     required String id,
@@ -367,7 +419,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -389,6 +441,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<NewsSnapshot> crateApiNewsNewsClientSetStarred({
+    required NewsClient that,
+    required String id,
+    required bool starred,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNewsClient(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          sse_encode_bool(starred, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_news_snapshot,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNewsNewsClientSetStarredConstMeta,
+        argValues: [that, id, starred],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNewsNewsClientSetStarredConstMeta =>
+      const TaskConstMeta(
+        debugName: "NewsClient_set_starred",
+        argNames: ["that", "id", "starred"],
+      );
+
+  @override
   Future<void> crateApiNewsNewsClientShutdown({required NewsClient that}) {
     return handler.executeNormal(
       NormalTask(
@@ -401,7 +493,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 8,
             port: port_,
           );
         },
@@ -434,7 +526,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 9,
             port: port_,
           );
         },
@@ -473,7 +565,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -511,7 +603,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -547,7 +639,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 12,
             port: port_,
           );
         },
@@ -580,7 +672,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 13,
             port: port_,
           );
         },
@@ -624,7 +716,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 14,
             port: port_,
           );
         },
@@ -659,7 +751,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -696,7 +788,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -737,7 +829,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -787,7 +879,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
@@ -821,7 +913,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 19,
             port: port_,
           );
         },
@@ -857,7 +949,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -894,7 +986,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -928,7 +1020,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -967,7 +1059,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -997,7 +1089,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1024,7 +1116,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1051,7 +1143,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1374,8 +1466,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NewsItem dco_decode_news_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 13)
-      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return NewsItem(
       id: dco_decode_String(arr[0]),
       sourceId: dco_decode_String(arr[1]),
@@ -1390,6 +1482,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       aiSummary: dco_decode_bool(arr[10]),
       origin: dco_decode_opt_String(arr[11]),
       firstSeenMs: dco_decode_CastedPrimitive_i_64(arr[12]),
+      read: dco_decode_bool(arr[13]),
+      starred: dco_decode_bool(arr[14]),
     );
   }
 
@@ -1397,13 +1491,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NewsSnapshot dco_decode_news_snapshot(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return NewsSnapshot(
       sources: dco_decode_list_source_state(arr[0]),
       items: dco_decode_list_news_item(arr[1]),
       refreshing: dco_decode_bool(arr[2]),
       error: dco_decode_opt_box_autoadd_news_error(arr[3]),
+      starred: dco_decode_list_news_item(arr[4]),
+      stateError: dco_decode_opt_box_autoadd_news_error(arr[5]),
     );
   }
 
@@ -2629,6 +2725,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_aiSummary = sse_decode_bool(deserializer);
     var var_origin = sse_decode_opt_String(deserializer);
     var var_firstSeenMs = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_read = sse_decode_bool(deserializer);
+    var var_starred = sse_decode_bool(deserializer);
     return NewsItem(
       id: var_id,
       sourceId: var_sourceId,
@@ -2643,6 +2741,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       aiSummary: var_aiSummary,
       origin: var_origin,
       firstSeenMs: var_firstSeenMs,
+      read: var_read,
+      starred: var_starred,
     );
   }
 
@@ -2653,11 +2753,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_items = sse_decode_list_news_item(deserializer);
     var var_refreshing = sse_decode_bool(deserializer);
     var var_error = sse_decode_opt_box_autoadd_news_error(deserializer);
+    var var_starred = sse_decode_list_news_item(deserializer);
+    var var_stateError = sse_decode_opt_box_autoadd_news_error(deserializer);
     return NewsSnapshot(
       sources: var_sources,
       items: var_items,
       refreshing: var_refreshing,
       error: var_error,
+      starred: var_starred,
+      stateError: var_stateError,
     );
   }
 
@@ -4125,6 +4229,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.aiSummary, serializer);
     sse_encode_opt_String(self.origin, serializer);
     sse_encode_CastedPrimitive_i_64(self.firstSeenMs, serializer);
+    sse_encode_bool(self.read, serializer);
+    sse_encode_bool(self.starred, serializer);
   }
 
   @protected
@@ -4134,6 +4240,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_news_item(self.items, serializer);
     sse_encode_bool(self.refreshing, serializer);
     sse_encode_opt_box_autoadd_news_error(self.error, serializer);
+    sse_encode_list_news_item(self.starred, serializer);
+    sse_encode_opt_box_autoadd_news_error(self.stateError, serializer);
   }
 
   @protected
@@ -4918,6 +5026,15 @@ class NewsClientImpl extends RustOpaque implements NewsClient {
       .api
       .crateApiNewsNewsClientRefresh(that: this, sourceIds: sourceIds);
 
+  Future<NewsSnapshot> setRead({
+    required List<String> ids,
+    required bool read,
+  }) => RustLib.instance.api.crateApiNewsNewsClientSetRead(
+    that: this,
+    ids: ids,
+    read: read,
+  );
+
   Future<NewsSnapshot> setSourceEnabled({
     required String id,
     required bool enabled,
@@ -4925,6 +5042,15 @@ class NewsClientImpl extends RustOpaque implements NewsClient {
     that: this,
     id: id,
     enabled: enabled,
+  );
+
+  Future<NewsSnapshot> setStarred({
+    required String id,
+    required bool starred,
+  }) => RustLib.instance.api.crateApiNewsNewsClientSetStarred(
+    that: this,
+    id: id,
+    starred: starred,
   );
 
   Future<void> shutdown() =>

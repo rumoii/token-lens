@@ -31,10 +31,14 @@ abstract class NewsClient implements RustOpaqueInterface {
 
   Future<NewsSnapshot> refresh({List<String>? sourceIds});
 
+  Future<NewsSnapshot> setRead({required List<String> ids, required bool read});
+
   Future<NewsSnapshot> setSourceEnabled({
     required String id,
     required bool enabled,
   });
+
+  Future<NewsSnapshot> setStarred({required String id, required bool starred});
 
   Future<void> shutdown();
 
@@ -73,6 +77,8 @@ class NewsItem {
   final bool aiSummary;
   final String? origin;
   final int firstSeenMs;
+  final bool read;
+  final bool starred;
 
   const NewsItem({
     required this.id,
@@ -88,6 +94,8 @@ class NewsItem {
     required this.aiSummary,
     this.origin,
     required this.firstSeenMs,
+    required this.read,
+    required this.starred,
   });
 
   @override
@@ -104,7 +112,9 @@ class NewsItem {
       kind.hashCode ^
       aiSummary.hashCode ^
       origin.hashCode ^
-      firstSeenMs.hashCode;
+      firstSeenMs.hashCode ^
+      read.hashCode ^
+      starred.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -123,7 +133,9 @@ class NewsItem {
           kind == other.kind &&
           aiSummary == other.aiSummary &&
           origin == other.origin &&
-          firstSeenMs == other.firstSeenMs;
+          firstSeenMs == other.firstSeenMs &&
+          read == other.read &&
+          starred == other.starred;
 }
 
 class NewsSnapshot {
@@ -131,12 +143,16 @@ class NewsSnapshot {
   final List<NewsItem> items;
   final bool refreshing;
   final NewsError? error;
+  final List<NewsItem> starred;
+  final NewsError? stateError;
 
   const NewsSnapshot({
     required this.sources,
     required this.items,
     required this.refreshing,
     this.error,
+    required this.starred,
+    this.stateError,
   });
 
   static Future<NewsSnapshot> default_() =>
@@ -144,7 +160,12 @@ class NewsSnapshot {
 
   @override
   int get hashCode =>
-      sources.hashCode ^ items.hashCode ^ refreshing.hashCode ^ error.hashCode;
+      sources.hashCode ^
+      items.hashCode ^
+      refreshing.hashCode ^
+      error.hashCode ^
+      starred.hashCode ^
+      stateError.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -154,7 +175,9 @@ class NewsSnapshot {
           sources == other.sources &&
           items == other.items &&
           refreshing == other.refreshing &&
-          error == other.error;
+          error == other.error &&
+          starred == other.starred &&
+          stateError == other.stateError;
 }
 
 class SourceState {

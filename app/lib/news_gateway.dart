@@ -54,6 +54,8 @@ class NewsItem {
     this.kind = 'general',
     this.aiSummary = false,
     this.origin,
+    this.read = false,
+    this.starred = false,
   });
 
   final String id;
@@ -69,6 +71,26 @@ class NewsItem {
   final bool aiSummary;
   final String? origin;
   final int firstSeenMs;
+  final bool read;
+  final bool starred;
+
+  NewsItem copyWith({bool? read, bool? starred}) => NewsItem(
+    id: id,
+    sourceId: sourceId,
+    title: title,
+    url: url,
+    firstSeenMs: firstSeenMs,
+    publishedAt: publishedAt,
+    description: description,
+    popularityKind: popularityKind,
+    popularity: popularity,
+    alsoIn: alsoIn,
+    kind: kind,
+    aiSummary: aiSummary,
+    origin: origin,
+    read: read ?? this.read,
+    starred: starred ?? this.starred,
+  );
 }
 
 class NewsError {
@@ -84,18 +106,24 @@ class NewsSnapshot {
     this.items = const [],
     this.refreshing = false,
     this.error,
+    this.starred = const [],
+    this.stateError,
   });
 
   final List<NewsSource> sources;
   final List<NewsItem> items;
   final bool refreshing;
   final NewsError? error;
+  final List<NewsItem> starred;
+  final NewsError? stateError;
 }
 
 abstract interface class NewsGateway {
   Future<NewsSnapshot> snapshot();
   Future<NewsSnapshot> refresh({List<String>? sourceIds});
   Future<NewsSnapshot> setSourceEnabled(String id, bool enabled);
+  Future<NewsSnapshot> setRead(List<String> ids, bool read);
+  Future<NewsSnapshot> setStarred(String id, bool starred);
   Future<void> cancelRefresh();
   Future<void> shutdown();
 }

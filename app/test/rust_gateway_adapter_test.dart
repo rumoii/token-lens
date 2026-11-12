@@ -12,6 +12,88 @@ import 'support/local_news_server.dart';
 void main() {
   setUpAll(() async => RustLib.init());
 
+  test('D26B real FFI persists read and starred state across reopen', () async {
+    final directory = await Directory.systemTemp.createTemp('news-d26b-ffi-');
+    final server = await LocalNewsServer.start();
+    RustNewsGateway? gateway;
+    try {
+      Future<RustNewsGateway> open() async => RustNewsGateway(
+        await native.NewsClient.newForLocalTest(
+          dataDir: directory.path,
+          endpoints: server.endpoints,
+        ),
+      );
+      gateway = await open();
+      final refreshed = await gateway.refresh(sourceIds: ['local-0']);
+      final id = refreshed.items.single.id;
+      expect((await gateway.setRead([id], true)).items.single.read, isTrue);
+      final starred = await gateway.setStarred(id, true);
+      expect(starred.items.single.starred, isTrue);
+      expect(starred.starred.single.read, isTrue);
+      expect(starred.stateError, isNull);
+      await gateway.shutdown();
+      gateway = await open();
+      final reopened = await gateway.snapshot();
+      expect(reopened.items.single.read, isTrue);
+      expect(reopened.items.single.starred, isTrue);
+      expect(reopened.starred.single.id, id);
+      expect(reopened.starred.single.read, isTrue);
+      expect((await gateway.setStarred(id, false)).starred, isEmpty);
+      expect((await gateway.snapshot()).items.single.starred, isFalse);
+      expect(server.requests, ['/0']);
+      await gateway.shutdown();
+      expect((await gateway.setRead([id], false)).error?.kind, 'closed');
+      expect((await gateway.setStarred(id, true)).error?.kind, 'closed');
+    } finally {
+      await gateway?.shutdown();
+      await server.close();
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test(
+    'D26B real FFI keeps corrupt state errors separate and preserves bytes',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'news-d26b-bad-ffi-',
+      );
+      final server = await LocalNewsServer.start();
+      RustNewsGateway? gateway;
+      try {
+        Future<RustNewsGateway> open() async => RustNewsGateway(
+          await native.NewsClient.newForLocalTest(
+            dataDir: directory.path,
+            endpoints: server.endpoints,
+          ),
+        );
+        gateway = await open();
+        final snapshot = await gateway.refresh(sourceIds: ['local-0']);
+        final id = snapshot.items.single.id;
+        await gateway.shutdown();
+        final state = File('${directory.path}/news-state.json');
+        final bytes = utf8.encode('{broken');
+        await state.writeAsBytes(bytes, flush: true);
+        gateway = await open();
+        final bad = await gateway.snapshot();
+        expect(bad.error, isNull);
+        expect(bad.stateError?.kind, 'cache');
+        expect(bad.items.single.id, id);
+        expect((await gateway.setRead([id], true)).items.single.read, isFalse);
+        expect((await gateway.setStarred(id, true)).starred, isEmpty);
+        expect(
+          (await gateway.setSourceEnabled('local-1', false)).stateError?.kind,
+          'cache',
+        );
+        expect(await state.readAsBytes(), bytes);
+        expect(server.requests, ['/0']);
+      } finally {
+        await gateway?.shutdown();
+        await server.close();
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+
   test(
     'D26A real FFI preserves summary, origin and first seen fields',
     () async {
