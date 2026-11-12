@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
-import { parseArgs, environment, ledgerRows, usageDigest, safeNotes, writeJsonl, mirrorSource, validateSnapshot } from './real-common.mjs';
+import { parseArgs, environment, ledgerRows, usageDigest, safeNotes, writeJsonl, mirrorSource, validateSnapshot, copySeed } from './real-common.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const mode = process.env.TL_PARITY_OLD_MODE;
@@ -24,8 +24,9 @@ async function exportOld(options) {
     const db = new DatabaseSync(join(options.out, 'old/ledger.db'), { readOnly: true });
     let tables;
     try { tables = ledgerRows(db); } finally { db.close(); }
-    const rows = [{ type: 'context', format: 1, complete: true, sources: Object.keys(discovered).sort(), ...options }, ...tables];
-    for (const [index, run] of tables.filter(row => row.table === 'ingest_runs').entries()) {
+    const { seed, ...metadata } = options;
+    const rows = [{ type: 'context', format: 1, complete: true, sources: Object.keys(discovered).sort(), ...metadata }, ...tables];
+    for (const [index, run] of tables.filter(row => row.table === 'ingest_runs').slice(-2).entries()) {
       const expected = { ...run.expected, fileCount: Object.values(discovered).reduce((n, files) => n + files.length, 0), anomalies: run.expected.notes?.length ?? 0, durationMs: 0 };
       rows.push({ type: 'run', index, expected });
     }
@@ -72,6 +73,7 @@ try {
     validateSnapshot(options.home);
     if (existsSync(join(options.out, 'old')) || existsSync(join(options.out, 'old.jsonl'))) throw Error('old output already exists');
     mkdirSync(options.out, { recursive: true });
+    if (options.seed) options.seed_sha256 = copySeed(options.seed, join(options.out, 'old'));
     const env = environment(options.home, options.tz, join(options.out, 'temp/old'));
     env.TL_PARITY_NOW = options.now;
     const run = (args, extra = {}) => {

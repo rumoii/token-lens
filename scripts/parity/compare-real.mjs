@@ -95,6 +95,11 @@ function totals(rows) {
 
 export function compare(oldRows, newRows) {
   const old = indexed(oldRows), fresh = indexed(newRows), diffs = [];
+  const hashes = [old, fresh].map(rows => rows.get('context').seed_sha256);
+  if (hashes.some(value => value !== undefined) &&
+      (hashes.some(value => typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) || hashes[0] !== hashes[1])) {
+    throw Error('seed hash missing, invalid or different');
+  }
   for (const key of [...new Set([...old.keys(), ...fresh.keys()])].sort()) {
     const left = old.get(key), right = fresh.get(key), row = left ?? right;
     const base = { kind: row.type, table: row.table ?? null, source: row.source ?? row.expected?.source ?? null,

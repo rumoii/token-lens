@@ -11,13 +11,14 @@ export function inside(root, path) {
 export function parseArgs(args = process.argv.slice(2)) {
   const values = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!['--home', '--out', '--now', '--tz'].includes(args[i]) || !args[i + 1] || values[args[i].slice(2)]) throw Error('invalid arguments');
+    if (!['--home', '--out', '--now', '--tz', '--seed'].includes(args[i]) || !args[i + 1] || values[args[i].slice(2)]) throw Error('invalid arguments');
     values[args[i].slice(2)] = args[i + 1];
   }
   if (!values.now || !values.tz || !isAbsolute(values.home ?? '') || !isAbsolute(values.out ?? '')) throw Error('home/out must be absolute; now/tz required');
   if (!/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(values.now) || !Number.isFinite(Date.parse(values.now))) throw Error('invalid ISO now');
   new Intl.DateTimeFormat('en', { timeZone: values.tz });
   const suppliedHome = resolve(values.home), out = resolve(values.out);
+  if (values.seed !== undefined) values.seed = validateSeed(values.seed, out);
   const userHomes = [...new Set([homedir(), userInfo().homedir])].map(path => resolve(path));
   // Reject protected paths before doing any filesystem work on them.
   for (const userHome of userHomes) {
@@ -27,6 +28,40 @@ export function parseArgs(args = process.argv.slice(2)) {
   for (const userHome of userHomes) if (home.toLowerCase() === userHome.toLowerCase() || inside(join(userHome, '.token-lens'), home)) throw Error('unsafe resolved home');
   if (inside(home, out) || inside(out, home)) throw Error('unsafe home/output');
   return { ...values, home, out, now: new Date(values.now).toISOString() };
+}
+// Validate before creating output or reading any protected ledger. Never open the seed with SQLite.
+export function validateSeed(seed, out) {
+  if (!isAbsolute(seed)) throw Error('seed must be absolute');
+  seed = resolve(seed);
+  const homes = [homedir(), userInfo().homedir, process.env.HOME, process.env.USERPROFILE].filter(Boolean);
+  for (const home of homes) {
+    const ledger = join(resolve(home), '.token-lens');
+    if (inside(ledger, seed) || inside(ledger, out)) throw Error('seed/output inside real ledger');
+  }
+  if (inside(seed, out) || inside(out, seed)) throw Error('seed/output overlap');
+  for (const path of [seed, out]) {
+    for (let cursor = path; ; cursor = dirname(cursor)) {
+      if (existsSync(cursor) && lstatSync(cursor).isSymbolicLink()) throw Error('seed/output path links are not allowed');
+      if (dirname(cursor) === cursor) break;
+    }
+  }
+  seed = realpathSync(seed);
+  for (const home of homes) if (inside(join(resolve(home), '.token-lens'), seed)) throw Error('resolved seed inside real ledger');
+  if (inside(seed, out) || inside(out, seed)) throw Error('resolved seed/output overlap');
+  for (const name of ['ledger.db', 'ledger.db-wal', 'ledger.db-shm']) {
+    const file = join(seed, name);
+    if (name !== 'ledger.db' && !existsSync(file)) continue;
+    const stat = lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw Error('seed ledger must be an ordinary file');
+  }
+  return seed;
+}
+export function copySeed(seed, target) {
+  mkdirSync(target, { recursive: true });
+  for (const name of ['ledger.db', 'ledger.db-wal', 'ledger.db-shm']) {
+    if (existsSync(join(seed, name))) copyFileSync(join(seed, name), join(target, name));
+  }
+  return createHash('sha256').update(readFileSync(join(target, 'ledger.db'))).digest('hex');
 }
 export function environment(home, tz, temp) {
   const env = { ...process.env };

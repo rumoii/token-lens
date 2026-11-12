@@ -30,6 +30,17 @@ test('identical exports match and preserve unknown totals', () => {
   assert.equal(result.diffs.length, 0);
   assert.equal(result.overview[0].old.cost_micros, null);
 });
+test('seed hashes must be present on both sides, valid and identical', () => {
+  const left = sample(), right = sample();
+  left[0].seed_sha256 = 'a'.repeat(64);
+  assert.throws(() => compare(left, right), /seed.*hash/i);
+  right[0].seed_sha256 = 'b'.repeat(64);
+  assert.throws(() => compare(left, right), /seed.*hash/i);
+  right[0].seed_sha256 = left[0].seed_sha256;
+  assert.equal(compare(left, right).diffs.length, 0);
+  left[0].seed_sha256 = right[0].seed_sha256 = 'invalid';
+  assert.throws(() => compare(left, right), /seed.*hash/i);
+});
 test('field mutation, removed row, run anomaly and query mutation are all found', () => {
   const right = sample();
   right[1].expected.input_tokens = 11;
