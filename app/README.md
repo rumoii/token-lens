@@ -1,6 +1,6 @@
 # Token Lens 桌面应用
 
-Flutter + Rust 重写已完成 D3.5 与 D2.6：20 个新闻与工具更新来源（按天分组、本机已读与收藏、当前热点、条目类型筛选、来源内热度排序、启停、本地缓存、每 30 分钟自动刷新与手动刷新、取消和错误反馈），以及完整的统计界面（用量总览、明细、会话、工具来源、价格与设置、首次引导；27 个来源的采集和查询都已迁移）。发布版本在 D4 切换之前仍是仓库原有的 Node/React 版本。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)。
+Flutter + Rust 重写已完成 D2.6、D3.5 与 D4：20 个新闻与工具更新来源（按天分组、本机已读与收藏、当前热点、条目类型筛选、来源内热度排序、启停、本地缓存、每 30 分钟自动刷新与手动刷新、取消和错误反馈），以及完整的统计界面（用量总览、明细、会话、工具来源、价格与设置、首次引导；27 个来源的采集和查询都已迁移）。D4 已在开发机上把日常使用切换到新版；仓库原有的 Node/React 版本仍可运行，用于回退，还没有安装包。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)。
 
 启动打开用量总览，侧栏按「用量 / 资讯 / 设置」分组，「AI 热点」位于资讯组。统计在窗口打开时采集一次，每 5 分钟采集一次，也可点击「同步」；新闻的联网时机见下方「运行与回退」。账本是应用数据目录下的 `ledger.db`，不读取旧版数据目录变量。
 
@@ -54,4 +54,8 @@ Windows release 的程序名为 `token-lens.exe`，产品名和窗口标题为 `
 
 启动先读新闻缓存；所有已启用来源都没有 30 分钟内的成功刷新时，立即刷新一次，之后程序开着时每 30 分钟自动刷新；本地没有任何条目且全部来源失败时，2 分钟、10 分钟后各提前重试一次。也可以手动刷新全部已启用来源或单一来源；单来源失败保留其旧内容，取消保留已经完成的提交。分类、范围、搜索和筛选只处理本地数据；已读和收藏只存在本机；原文在系统浏览器打开。关闭退出，不留常驻进程。一个缓存目录只允许一个写入者。
 
-应用默认使用系统应用支持目录下的 `data`（Windows 为 `%APPDATA%\Token Lens\Token Lens\data`），可以用 `TOKEN_LENS_PREVIEW_DATA_DIR` 覆盖为绝对路径。`TOKEN_LENS_PREVIEW_HOME` 仍用于覆盖日志根目录。它忽略旧版 `TOKEN_LENS_DATA_DIR` 与 `DB_PATH`，不自动读取或迁移旧新闻目录及 `~/.token-lens`。回退只需退出新版并继续使用原版。Windows 单实例互斥量为 `Local\TokenLens.Desktop`，重复启动仅激活类名为 `FLUTTER_RUNNER_WIN32_WINDOW`、标题为 `Token Lens` 的窗口。
+应用默认使用系统应用支持目录下的 `data`（Windows 为 `%APPDATA%\Token Lens\Token Lens\data`），可以用 `TOKEN_LENS_PREVIEW_DATA_DIR` 覆盖为绝对路径。`TOKEN_LENS_PREVIEW_HOME` 仍用于覆盖日志根目录。它忽略旧版 `TOKEN_LENS_DATA_DIR` 与 `DB_PATH`，不自动读取或迁移旧新闻目录及 `~/.token-lens`。
+
+接手旧版账本：先关闭新旧两版，备份 `~/.token-lens`，再把其中的 `ledger.db` 以及存在的 `ledger.db-wal`、`ledger.db-shm` 一起复制到新版数据目录，然后启动新版。三个文件要同时复制，WAL 里可能有尚未合并进 `ledger.db` 的记录。两版账本格式相同（schema v5），新版直接打开，不做转换。
+
+回退：关闭新版，继续使用旧版。新版从不打开 `~/.token-lens`，那里的账本只由旧版自己写入。新版数据目录可以整个删除，或留着下次再用。Windows 单实例互斥量为 `Local\TokenLens.Desktop`，重复启动仅激活类名为 `FLUTTER_RUNNER_WIN32_WINDOW`、标题为 `Token Lens` 的窗口。
