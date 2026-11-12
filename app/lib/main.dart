@@ -63,7 +63,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
       }
       final dataDir =
           override ??
-          '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}news-preview';
+          '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}data';
       final preferenceStore = PreferencesStore(Directory(dataDir));
       final preferences = await preferenceStore.read();
       if (!mounted || _closing) return;
@@ -83,7 +83,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
           preferences: _preferences,
         );
       } catch (_) {
-        _statsInitializationError = '无法打开统计账本，请检查预览目录是否可读写。';
+        _statsInitializationError = '无法打开统计账本，请检查数据目录是否可读写。';
       }
       if (!mounted || _closing) {
         await statsController?.shutdown();
@@ -104,10 +104,10 @@ class _TokenLensAppState extends State<TokenLensApp> {
       final text = error.toString();
       setState(() {
         _initializationError = text.contains('preview-directory-required')
-            ? '开发预览需要设置 TOKEN_LENS_PREVIEW_DATA_DIR 为独立的绝对目录。'
+            ? '调试运行需要设置 TOKEN_LENS_PREVIEW_DATA_DIR 为独立的绝对目录。'
             : text.contains('busy:')
-            ? '预览已在运行，当前数据目录正在使用。请回到已打开的窗口。'
-            : '无法打开新闻预览。请检查应用文件是否完整，以及预览目录是否可读写。';
+            ? 'Token Lens 已在运行，当前数据目录正在使用。请回到已打开的窗口。'
+            : '无法启动 Token Lens。请检查应用文件是否完整，以及数据目录是否可读写。';
       });
     }
   }
@@ -147,7 +147,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
     return WindowTheme(
       themeMode: themeMode,
       child: MaterialApp(
-        title: 'Token Lens · Preview',
+        title: 'Token Lens',
         debugShowCheckedModeBanner: false,
         themeAnimationDuration:
             WidgetsBinding

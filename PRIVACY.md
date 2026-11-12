@@ -4,11 +4,11 @@
 
 本工具 100% 在本地运行：不登录、不上传、零遥测。命令行版和桌面版（Windows、macOS）处理的数据相同。本文说明它处理哪些数据、数据放在哪里、如何删除。
 
-## Flutter 新闻预览
+## Flutter 桌面应用
 
-`app/` 是独立的桌面预览，不读取客户端日志或旧版 `~/.token-lens` 账本。启动只读取本地新闻缓存；用户点击「刷新」后向 `https://openai.com/news/rss.xml` 发送普通 HTTPS 请求。来源服务器可以看到该请求的 IP 和 `TokenLens-News/0.1` User-Agent；请求不携带账户、凭据或用量数据。没有后台刷新、自动重试、远程图片、模型摘要调用或遥测。点击原文才交给系统浏览器访问该文章。
+`app/` 是 Flutter + Rust 桌面应用，Windows 程序名为 `token-lens.exe`，产品名与窗口标题为 `Token Lens`；macOS 应用名为 `Token Lens.app`，bundle id 为 `io.github.rumoii.token-lens`。统计模块只读客户端日志，将用量元数据写入独立应用目录的账本，不自动读取或迁移旧版 `~/.token-lens`。新闻启动先读取本地缓存，程序运行期间每 30 分钟刷新已启用来源，也可手动刷新；启动缓存过期与首次失败重试规则见 [specs/news.md](specs/news.md)「定时刷新」。来源服务器可以看到请求 IP 和 `TokenLens-News/0.1` User-Agent；请求不携带账户、凭据或用量数据。没有远程图片、模型摘要调用或遥测；AIHOT 来源的摘要由该来源生成。点击原文才交给系统浏览器访问该文章。
 
-预览缓存与 `news.lock` 位于系统应用支持目录下的独立 `news-preview` 目录；开发测试使用 `TOKEN_LENS_PREVIEW_DATA_DIR` 指定隔离目录。缓存仅保存来源标题、短描述、日期、链接和最后成功时间；关闭应用后可以删除整个预览目录。预览通过进程内 Rust 库读取数据，不使用 WebView 或本地 HTTP 服务。下面各节描述现有统计版本。
+应用账本、偏好、新闻缓存与 `news.lock` 位于系统应用支持目录下的 `data`（Windows 为 `%APPDATA%\Token Lens\Token Lens\data`）；不会自动读取或迁移旧新闻目录。开发测试使用 `TOKEN_LENS_PREVIEW_DATA_DIR` 指定隔离目录、`TOKEN_LENS_PREVIEW_HOME` 指定合成日志根；调试构建必须显式提供数据目录。新闻缓存只含来源条目和刷新时间，已读与收藏仅保存在本机；关闭应用后可以删除整个应用数据目录。应用通过进程内 Rust 库读取数据，不使用 WebView 或本地 HTTP 服务。下面各节描述旧版 Node/React/wry 的统计与数据目录契约。
 
 ## 处理的数据
 

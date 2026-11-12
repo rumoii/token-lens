@@ -7,7 +7,7 @@ class MainFlutterWindow: NSWindow {
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
-    self.title = "Token Lens Preview"
+    self.title = "Token Lens"
     self.minSize = NSSize(width: 700, height: 500)
 
     RegisterGeneratedPlugins(registry: flutterViewController)

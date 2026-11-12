@@ -7,11 +7,11 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  // The preview has a separate identity from the released statistics app.
-  HANDLE instance_mutex = ::CreateMutexW(nullptr, FALSE, L"Local\\TokenLens.NewsPreview");
+  // Match the Flutter class as the legacy app uses the same window title.
+  HANDLE instance_mutex = ::CreateMutexW(nullptr, FALSE, L"Local\\TokenLens.Desktop");
   if (!instance_mutex) return EXIT_FAILURE;
   if (::GetLastError() == ERROR_ALREADY_EXISTS) {
-    HWND existing = ::FindWindowW(nullptr, L"Token Lens Preview");
+    HWND existing = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"Token Lens");
     if (existing) {
       if (::IsIconic(existing)) ::ShowWindow(existing, SW_RESTORE);
       ::SetForegroundWindow(existing);
@@ -39,7 +39,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1180, 820);
-  if (!window.Create(L"Token Lens Preview", origin, size)) {
+  if (!window.Create(L"Token Lens", origin, size)) {
     ::CoUninitialize();
     ::CloseHandle(instance_mutex);
     return EXIT_FAILURE;

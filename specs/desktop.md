@@ -10,9 +10,11 @@
 
 旧 Node/React/wry 版本在迁移验收前保持可用。新旧版本使用独立目录；新版本不直接升级或双写原账本。真实数据切换需先备份、在副本升级、核对记录身份和计价、证明重复采集幂等，再由用户确认切换；旧库保持可供旧版本回退。公开价格估算与实际支出分开，后者不从 token 推算订阅付款。Skills 管理和多账户切换不属于 D1–D4。
 
+新版 Windows 程序名为 `token-lens.exe`，产品名和窗口标题为 `Token Lens`；单实例互斥量为 `Local\TokenLens.Desktop`，激活时同时匹配 Flutter runner 类名 `FLUTTER_RUNNER_WIN32_WINDOW` 与标题，避免激活旧版窗口。macOS 应用名为 `Token Lens.app`，bundle id 为 `io.github.rumoii.token-lens`。默认数据目录为系统应用支持目录下的 `data`（Windows 为 `%APPDATA%\Token Lens\Token Lens\data`）；不自动读取或迁移旧新闻目录及 `~/.token-lens`。调试运行仍须显式设置 `TOKEN_LENS_PREVIEW_DATA_DIR`；该变量与日志根覆盖变量 `TOKEN_LENS_PREVIEW_HOME` 保持原名。
+
 ## 已发布 W/M 路线
 
-以下记录 Node/React/wry 版本的构建与运行契约；不作为 Flutter 预览的运行方式。
+以下记录 Node/React/wry 版本的构建与运行契约；不作为 Flutter 应用的运行方式。
 
 本文件是 [roadmap.md](roadmap.md) 阶段 W 的展开。交付形态与技术路线已定（见「选型」），本文记录已定需求、体积依据、落选候选、剩余待定项、现有代码对桌面化的约束和验收标准。
 

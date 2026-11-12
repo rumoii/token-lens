@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "Token Lens" "\0"
-            VALUE "FileDescription", "Token Lens Preview" "\0"
+            VALUE "FileDescription", "Token Lens" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "token-lens-preview" "\0"
+            VALUE "InternalName", "token-lens" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 Token Lens contributors." "\0"
-            VALUE "OriginalFilename", "token-lens-preview.exe" "\0"
-            VALUE "ProductName", "Token Lens Preview" "\0"
+            VALUE "OriginalFilename", "token-lens.exe" "\0"
+            VALUE "ProductName", "Token Lens" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

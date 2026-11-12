@@ -144,7 +144,7 @@ void main() {
     final controller = NewsController(gateway);
     addTearDown(controller.dispose);
     final opened = <Uri>[];
-    const error = '无法打开统计账本，请检查预览目录是否可读写。';
+    const error = '无法打开统计账本，请检查数据目录是否可读写。';
     await tester.pumpWidget(
       MaterialApp(
         home: AppShell(
