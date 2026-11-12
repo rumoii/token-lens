@@ -13,6 +13,93 @@ void main() {
   setUpAll(() async => RustLib.init());
 
   test(
+    'D26A real FFI preserves summary, origin and first seen fields',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('news-d26a-ffi-');
+      RustNewsGateway? gateway;
+      try {
+        final cache = File('${directory.path}/news-cache.json');
+        final bytes = utf8.encode(
+          jsonEncode({
+            'version': 2,
+            'disabled': <String>[],
+            'sources': {
+              'aihot': {
+                'last_success_ms': 1794000000100,
+                'items': [
+                  {
+                    'id': 'aihot:one',
+                    'source_id': 'aihot',
+                    'title': 'AIHOT fixture',
+                    'url': 'https://example.com/aihot',
+                    'published_at': '2026-11-05T00:00:00Z',
+                    'description': 'A synthetic summary.',
+                    'popularity_kind': null,
+                    'popularity': null,
+                    'also_in': <String>[],
+                    'kind': 'model',
+                    'ai_summary': true,
+                    'origin': 'OpenRouter：Announcements',
+                    'first_seen_ms': 1794000000001,
+                  },
+                ],
+              },
+              'openai': {
+                'last_success_ms': 123,
+                'items': [
+                  {
+                    'id': 'openai:old',
+                    'source_id': 'openai',
+                    'title': 'Old cached item',
+                    'url': 'https://example.com/old',
+                    'published_at': null,
+                    'description': null,
+                    'popularity_kind': null,
+                    'popularity': null,
+                    'also_in': <String>[],
+                  },
+                ],
+              },
+            },
+          }),
+        );
+        await cache.writeAsBytes(bytes, flush: true);
+        for (var attempt = 0; attempt < 2; attempt++) {
+          final client = await native.NewsClient.newInstance(
+            dataDir: directory.path,
+          );
+          gateway = RustNewsGateway(client);
+          final nativeSnapshot = await client.snapshot();
+          expect(nativeSnapshot.error, isNull);
+          final nativeItem = nativeSnapshot.items.singleWhere(
+            (i) => i.sourceId == 'aihot',
+          );
+          expect(nativeItem.aiSummary, isTrue);
+          expect(nativeItem.origin, 'OpenRouter：Announcements');
+          expect(nativeItem.firstSeenMs, 1794000000001);
+          final snapshot = await gateway.snapshot();
+          expect(snapshot.error, isNull);
+          final item = snapshot.items.singleWhere((i) => i.sourceId == 'aihot');
+          expect(item.aiSummary, isTrue);
+          expect(item.origin, nativeItem.origin);
+          expect(item.firstSeenMs, nativeItem.firstSeenMs);
+          final legacy = snapshot.items.singleWhere(
+            (i) => i.sourceId == 'openai',
+          );
+          expect(legacy.aiSummary, isFalse);
+          expect(legacy.origin, isNull);
+          expect(legacy.firstSeenMs, 123);
+          expect(await cache.readAsBytes(), bytes);
+          await gateway.shutdown();
+        }
+      } finally {
+        await gateway?.shutdown();
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
     'D25E real gateway preserves FFI kinds and old v2 source defaults',
     () async {
       final directory = await Directory.systemTemp.createTemp(

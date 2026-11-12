@@ -1374,8 +1374,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NewsItem dco_decode_news_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return NewsItem(
       id: dco_decode_String(arr[0]),
       sourceId: dco_decode_String(arr[1]),
@@ -1387,6 +1387,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       popularity: dco_decode_opt_CastedPrimitive_i_64(arr[7]),
       alsoIn: dco_decode_list_String(arr[8]),
       kind: dco_decode_String(arr[9]),
+      aiSummary: dco_decode_bool(arr[10]),
+      origin: dco_decode_opt_String(arr[11]),
+      firstSeenMs: dco_decode_CastedPrimitive_i_64(arr[12]),
     );
   }
 
@@ -2623,6 +2626,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_popularity = sse_decode_opt_CastedPrimitive_i_64(deserializer);
     var var_alsoIn = sse_decode_list_String(deserializer);
     var var_kind = sse_decode_String(deserializer);
+    var var_aiSummary = sse_decode_bool(deserializer);
+    var var_origin = sse_decode_opt_String(deserializer);
+    var var_firstSeenMs = sse_decode_CastedPrimitive_i_64(deserializer);
     return NewsItem(
       id: var_id,
       sourceId: var_sourceId,
@@ -2634,6 +2640,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       popularity: var_popularity,
       alsoIn: var_alsoIn,
       kind: var_kind,
+      aiSummary: var_aiSummary,
+      origin: var_origin,
+      firstSeenMs: var_firstSeenMs,
     );
   }
 
@@ -4113,6 +4122,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_CastedPrimitive_i_64(self.popularity, serializer);
     sse_encode_list_String(self.alsoIn, serializer);
     sse_encode_String(self.kind, serializer);
+    sse_encode_bool(self.aiSummary, serializer);
+    sse_encode_opt_String(self.origin, serializer);
+    sse_encode_CastedPrimitive_i_64(self.firstSeenMs, serializer);
   }
 
   @protected

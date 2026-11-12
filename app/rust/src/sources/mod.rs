@@ -5,6 +5,7 @@
 //! validation, ids, de-duplication, caching and state.
 
 pub mod aibase;
+pub mod aihot;
 pub mod anthropic_api;
 pub mod deepseek;
 pub mod github;
@@ -90,6 +91,7 @@ pub struct RawItem {
     /// RFC 3339 in UTC, or `None` when the source gives no usable date.
     pub published_at: Option<String>,
     pub description: Option<String>,
+    pub origin: Option<String>,
     pub popularity: Option<Popularity>,
     /// Set only from explicit source structure, such as a changelog entry's label. Never guessed
     /// from free text here; the client applies the contract's keyword rules.
@@ -127,6 +129,10 @@ pub trait Source: Send + Sync {
         ItemKind::General
     }
 
+    fn ai_summary(&self) -> bool {
+        false
+    }
+
     /// Parses an HTTP 200 body within max_body_bytes(). No I/O and no clock.
     fn parse(&self, body: &[u8]) -> Result<Vec<RawItem>, ParseError>;
 }
@@ -144,11 +150,48 @@ pub fn registry() -> Vec<Box<dyn Source>> {
     feeds.push(hackernews::ai());
     feeds.push(qbitai);
     feeds.push(aibase::daily());
+    feeds.push(Box::new(aihot::Aihot));
     feeds
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn d26a_aihot_parses_captured_feed() {
+        let source = super::registry()
+            .into_iter()
+            .find(|s| s.info().id == "aihot")
+            .expect("AIHOT must be registered");
+        let items = source
+            .parse(include_bytes!("fixtures/aihot/feed.xml"))
+            .unwrap();
+        assert_eq!(items.len(), 5);
+        let item = &items[0];
+        assert_eq!(item.native_id, "vq9nwgwhtm31cgoliyb7ydyde");
+        assert_eq!(
+            item.title,
+            "OpenRouter 实测六模型并给出四层防护，解决 AI Agent 无限循环烧钱问题"
+        );
+        assert_eq!(
+            item.url,
+            "https://openrouter.ai/blog/tutorials/ai-agent-infinite-loop/"
+        );
+        assert_eq!(item.published_at.as_deref(), Some("2026-11-12T00:00:00Z"));
+        assert_eq!(item.description.as_deref(), Some("<p>OpenRouter 发布教程，讲解 AI Agent 因工具反复失败而陷入无限循环的成因，并给出四层防护：doom-loop 检测、loopKey 参数归一化、stopWhen 步数与成本上限、API key 信用额度。</p>"));
+        assert_eq!(item.popularity, None);
+        assert_eq!(item.kind, None);
+        assert_eq!(item.origin.as_deref(), Some("OpenRouter：Announcements"));
+        assert!(!item.description.as_ref().unwrap().contains("阅读原文"));
+        assert!(!item.description.as_ref().unwrap().contains("via AIHOT"));
+        assert!(source.ai_summary());
+        assert_eq!(
+            source.accepts(),
+            ["application/rss+xml", "application/xml", "text/xml"]
+        );
+        assert_eq!(source.url(0), "https://aihot.news/feed.xml");
+        assert_eq!(source.max_body_bytes(), 4 * 1024 * 1024);
+    }
+
     #[test]
     fn registry_defaults_follow_source_contract() {
         for source in super::registry() {
@@ -160,11 +203,12 @@ mod tests {
                 super::ItemKind::General
             };
             assert_eq!(source.default_kind(), expected, "{}", source.info().id);
+            assert_eq!(source.ai_summary(), source.info().id == "aihot");
         }
     }
 
     #[test]
-    fn registry_contains_all_nineteen_sources_in_contract_order() {
+    fn registry_contains_all_twenty_sources_in_contract_order() {
         let ids: Vec<_> = super::registry().iter().map(|s| s.info().id).collect();
         assert_eq!(
             ids,
@@ -187,7 +231,8 @@ mod tests {
                 "hf-papers",
                 "hn-ai",
                 "qbitai",
-                "aibase"
+                "aibase",
+                "aihot"
             ]
         );
     }

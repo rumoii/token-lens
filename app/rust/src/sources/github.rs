@@ -97,6 +97,7 @@ impl Source for ReleaseSource {
                 continue;
             };
             items.push(RawItem {
+                origin: None,
                 kind: None,
                 native_id: id.to_string(),
                 title,
@@ -265,6 +266,7 @@ impl Source for NewRepos {
                     return None;
                 };
                 Some(RawItem {
+                    origin: None,
                     kind: None,
                     native_id: id.to_string(),
                     title,
@@ -469,6 +471,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 kind: None,
                 native_id: "435979892".to_owned(),
                 title: "0.167.0".to_owned(),
@@ -538,6 +541,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 kind: None,
                 native_id: "101".to_owned(),
                 title: "example/ai-helper".to_owned(),

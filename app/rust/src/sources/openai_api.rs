@@ -87,6 +87,7 @@ fn parse_changelog(body: &[u8]) -> Result<Vec<RawItem>, ParseError> {
             continue;
         }
         items.push(RawItem {
+            origin: None,
             native_id: format!(
                 "{}#{:016x}",
                 date.format("%Y-%m-%d"),
@@ -228,6 +229,7 @@ mod tests {
             OpenAiApi.text_is_html(),
             OpenAiApi.info().category,
             OpenAiApi.default_kind(),
+            OpenAiApi.ai_summary(),
         )
         .expect("entry should normalise")
         .remove(0)
@@ -291,6 +293,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 native_id: "2026-11-05#bdacc639970cd1f2".to_owned(),
                 title: "Use GPT-6-Cyber to investigate vulnerabilities, reproduce them in an authorized test environment, and verify fixes.".to_owned(),
                 url: PAGE_URL.to_owned(),

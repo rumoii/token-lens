@@ -94,10 +94,11 @@ impl NewsEngine {
         lock.try_lock_exclusive()
             .map_err(|_| "busy: Cache directory is in use.")?;
         let cache_path = data_dir.join("news-cache.json");
-        let (cache, error) = match load_cache(&cache_path, &sources) {
-            Ok(cache) => (cache, None),
-            Err(err) => (Cache::default(), Some(err)),
-        };
+        let (cache, error) =
+            match load_cache(&cache_path, &sources, chrono::Utc::now().timestamp_millis()) {
+                Ok(cache) => (cache, None),
+                Err(err) => (Cache::default(), Some(err)),
+            };
         let states = sources
             .iter()
             .map(|source| {
@@ -216,7 +217,12 @@ impl NewsEngine {
                 break;
             };
             match result {
-                Ok((index, result)) => self.inner.commit(generation, index, result),
+                Ok((index, result)) => self.inner.commit(
+                    generation,
+                    index,
+                    result,
+                    chrono::Utc::now().timestamp_millis(),
+                ),
                 Err(_) => {
                     let mut state = self.inner.state.lock().unwrap();
                     if state.active.as_ref().map(|v| v.0) == Some(generation) {
@@ -354,10 +360,17 @@ impl Inner {
             source.text_is_html(),
             info.category,
             source.default_kind(),
+            source.ai_summary(),
         )
     }
 
-    fn commit(&self, generation: u64, index: usize, result: Result<Vec<NewsItem>, NewsError>) {
+    fn commit(
+        &self,
+        generation: u64,
+        index: usize,
+        result: Result<Vec<NewsItem>, NewsError>,
+        now_ms: i64,
+    ) {
         let mut state = self.state.lock().unwrap();
         if state.closed || state.active.as_ref().map(|v| v.0) != Some(generation) {
             return;
@@ -367,20 +380,24 @@ impl Inner {
             return;
         }
         match result {
-            Ok(items) => {
-                let now = chrono::Utc::now().timestamp_millis();
+            Ok(mut items) => {
                 let mut cache = state.cache.clone();
+                stamp_first_seen(
+                    &mut items,
+                    cache.sources.get(&state.sources[index].id),
+                    now_ms,
+                );
                 cache.sources.insert(
                     state.sources[index].id.clone(),
                     SourceCache {
                         items,
-                        last_success_ms: Some(now),
+                        last_success_ms: Some(now_ms),
                     },
                 );
                 match save_cache(&self.cache_path, &cache) {
                     Ok(()) => {
                         state.cache = cache;
-                        state.sources[index].last_success_ms = Some(now);
+                        state.sources[index].last_success_ms = Some(now_ms);
                         state.sources[index].error = None;
                     }
                     Err(err) => state.error = Some(err),
@@ -388,6 +405,38 @@ impl Inner {
             }
             Err(err) => state.sources[index].error = Some(err),
         }
+    }
+}
+
+fn stamp_first_seen(items: &mut [NewsItem], previous: Option<&SourceCache>, now_ms: i64) {
+    let seen: BTreeMap<_, _> = previous
+        .into_iter()
+        .flat_map(|cache| &cache.items)
+        .map(|item| (item.id.as_str(), item.first_seen_ms))
+        .collect();
+    for item in items {
+        item.first_seen_ms = seen.get(item.id.as_str()).copied().unwrap_or_else(|| {
+            if previous.is_none() {
+                first_seen_fallback(item.published_at.as_deref(), Some(now_ms), now_ms)
+            } else {
+                now_ms
+            }
+        });
+    }
+}
+
+fn first_seen_fallback(
+    published_at: Option<&str>,
+    last_success_ms: Option<i64>,
+    now_ms: i64,
+) -> i64 {
+    let published_ms = published_at
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|d| d.timestamp_millis());
+    match (published_ms, last_success_ms) {
+        (Some(published), Some(success)) => published.min(success),
+        (Some(time), None) | (None, Some(time)) => time,
+        (None, None) => now_ms,
     }
 }
 
@@ -484,6 +533,7 @@ pub(crate) fn normalise_items(
     text_is_html: bool,
     category: Category,
     default_kind: ItemKind,
+    ai_summary: bool,
 ) -> Result<Vec<NewsItem>, NewsError> {
     let normalise_text: fn(&str, usize) -> String = if text_is_html {
         plain_text
@@ -537,6 +587,13 @@ pub(crate) fn normalise_items(
             .or(item.kind)
             .unwrap_or(default_kind);
         items.push(NewsItem {
+            ai_summary,
+            origin: item
+                .origin
+                .map(|s| literal_text(&s, 120))
+                .filter(|s| !s.is_empty()),
+            // Assigned under the state lock when this source successfully commits.
+            first_seen_ms: 0,
             kind: kind.as_str().into(),
             id: format!("{source_id}:{}", item.native_id),
             source_id: source_id.into(),
@@ -561,6 +618,12 @@ fn item_time(item: &NewsItem) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     item.published_at
         .as_ref()
         .and_then(|v| chrono::DateTime::parse_from_rfc3339(v).ok())
+}
+
+fn compare_items(a: &NewsItem, b: &NewsItem) -> std::cmp::Ordering {
+    b.first_seen_ms
+        .cmp(&a.first_seen_ms)
+        .then_with(|| item_time(b).cmp(&item_time(a)))
 }
 
 fn canonical_url(raw: &str) -> String {
@@ -590,6 +653,7 @@ fn assemble(state: &State) -> NewsSnapshot {
         .collect();
     ordered.sort_by_key(|(index, source)| {
         (
+            source.id == "aihot",
             match source.category.as_str() {
                 "official" => 0,
                 "chinese" => 1,
@@ -604,12 +668,13 @@ fn assemble(state: &State) -> NewsSnapshot {
     for (index, source) in ordered {
         if let Some(cache) = state.cache.sources.get(&source.id) {
             let mut sorted: Vec<_> = cache.items.iter().collect();
-            sorted.sort_by_cached_key(|item| std::cmp::Reverse(item_time(item)));
+            sorted.sort_by(|a, b| compare_items(a, b));
             for item in sorted {
                 let key = canonical_url(&item.url);
                 if let Some(&position) = urls.get(&key) {
                     let (_, kept): &mut (usize, NewsItem) = &mut items[position];
                     if kept.source_id != source.id {
+                        kept.first_seen_ms = kept.first_seen_ms.min(item.first_seen_ms);
                         if !kept.also_in.contains(&source.id) {
                             kept.also_in.push(source.id.clone());
                         }
@@ -622,7 +687,7 @@ fn assemble(state: &State) -> NewsSnapshot {
             }
         }
     }
-    items.sort_by(|(ia, a), (ib, b)| item_time(b).cmp(&item_time(a)).then(ia.cmp(ib)));
+    items.sort_by(|(ia, a), (ib, b)| compare_items(a, b).then(ia.cmp(ib)));
     NewsSnapshot {
         sources: state.sources.clone(),
         items: items.into_iter().map(|(_, item)| item).collect(),
@@ -659,7 +724,7 @@ fn valid_text(value: &str, limit: usize) -> bool {
     value.chars().count() <= limit && !value.chars().any(char::is_control)
 }
 
-fn load_cache(path: &Path, sources: &[Box<dyn Source>]) -> Result<Cache, NewsError> {
+fn load_cache(path: &Path, sources: &[Box<dyn Source>], now_ms: i64) -> Result<Cache, NewsError> {
     let invalid = || {
         error(
             "cache",
@@ -683,6 +748,7 @@ fn load_cache(path: &Path, sources: &[Box<dyn Source>]) -> Result<Cache, NewsErr
         Some(2) => {
             if let Some(cached_sources) = json.get_mut("sources").and_then(|v| v.as_object_mut()) {
                 for (id, cached) in cached_sources {
+                    let last_success_ms = cached.get("last_success_ms").and_then(|v| v.as_i64());
                     let default_kind = sources
                         .iter()
                         .find(|s| s.info().id == *id)
@@ -690,6 +756,16 @@ fn load_cache(path: &Path, sources: &[Box<dyn Source>]) -> Result<Cache, NewsErr
                     if let Some(items) = cached.get_mut("items").and_then(|v| v.as_array_mut()) {
                         for item in items {
                             if let Some(fields) = item.as_object_mut() {
+                                let first_seen_ms = first_seen_fallback(
+                                    fields.get("published_at").and_then(|v| v.as_str()),
+                                    last_success_ms,
+                                    now_ms,
+                                );
+                                fields
+                                    .entry("first_seen_ms")
+                                    .or_insert_with(|| first_seen_ms.into());
+                                fields.entry("ai_summary").or_insert_with(|| false.into());
+                                fields.entry("origin").or_insert(serde_json::Value::Null);
                                 fields
                                     .entry("kind")
                                     .or_insert_with(|| default_kind.as_str().into());
@@ -728,6 +804,13 @@ fn load_cache(path: &Path, sources: &[Box<dyn Source>]) -> Result<Cache, NewsErr
                     return Err(invalid());
                 }
                 items.push(NewsItem {
+                    ai_summary: false,
+                    origin: None,
+                    first_seen_ms: first_seen_fallback(
+                        item.published_at.as_deref(),
+                        Some(legacy.last_success_ms),
+                        now_ms,
+                    ),
                     kind: ItemKind::General.as_str().into(),
                     id: format!("openai:{}", item.id),
                     source_id: "openai".into(),
@@ -782,16 +865,22 @@ fn load_cache(path: &Path, sources: &[Box<dyn Source>]) -> Result<Cache, NewsErr
 }
 
 fn validate_cached_item(source: &str, item: &NewsItem) -> Result<(), ()> {
-    if ![
-        ItemKind::Release,
-        ItemKind::Api,
-        ItemKind::Deprecation,
-        ItemKind::Pricing,
-        ItemKind::Model,
-        ItemKind::General,
-    ]
-    .iter()
-    .any(|kind| kind.as_str() == item.kind)
+    if item.first_seen_ms <= 0
+        || (item.ai_summary && source != "aihot")
+        || item
+            .origin
+            .as_ref()
+            .is_some_and(|s| s.is_empty() || !valid_text(s, 120))
+        || ![
+            ItemKind::Release,
+            ItemKind::Api,
+            ItemKind::Deprecation,
+            ItemKind::Pricing,
+            ItemKind::Model,
+            ItemKind::General,
+        ]
+        .iter()
+        .any(|kind| kind.as_str() == item.kind)
         || item.source_id != source
         || !item.id.starts_with(&format!("{source}:"))
         || item.id.len() <= source.len() + 1

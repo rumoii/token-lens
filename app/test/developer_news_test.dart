@@ -71,6 +71,7 @@ void main() {
         sources: [openaiSource, hnSource.copyWith(enabled: false)],
         items: const [
           NewsItem(
+            firstSeenMs: 1700000000000,
             id: 'x',
             sourceId: 'openai',
             title: 'X',
@@ -127,6 +128,7 @@ void main() {
           sources: const [openaiSource, hnSource],
           items: const [
             NewsItem(
+              firstSeenMs: 1700000000000,
               id: 'a',
               sourceId: 'openai',
               title: 'A',
@@ -135,6 +137,7 @@ void main() {
               popularity: 0,
             ),
             NewsItem(
+              firstSeenMs: 1700000000000,
               id: 'b',
               sourceId: 'hn-ai',
               title: 'B',
@@ -168,6 +171,7 @@ void main() {
       controller.setSort(NewsSort.hot);
       gateway.refreshedItems['hn-ai'] = const [
         NewsItem(
+          firstSeenMs: 1700000000000,
           id: 'changed',
           sourceId: 'hn-ai',
           title: 'Changed',
@@ -176,6 +180,7 @@ void main() {
           popularityKind: 'stars',
         ),
         NewsItem(
+          firstSeenMs: 1700000000000,
           id: 'points',
           sourceId: 'hn-ai',
           title: 'Points',
@@ -202,6 +207,7 @@ void main() {
           sources: [openaiSource, hnSource],
           items: [
             NewsItem(
+              firstSeenMs: 1700000000000,
               id: 'unknown',
               sourceId: 'hn-ai',
               title: 'Unknown',
@@ -209,6 +215,7 @@ void main() {
               publishedAt: 'invalid',
             ),
             NewsItem(
+              firstSeenMs: 1793890800000,
               id: 'h',
               sourceId: 'hn-ai',
               title: 'HN',
@@ -216,6 +223,7 @@ void main() {
               publishedAt: '2026-11-05T15:00:00Z',
             ),
             NewsItem(
+              firstSeenMs: 1793890800000,
               id: 'o',
               sourceId: 'openai',
               title: 'Official',
@@ -339,6 +347,7 @@ void main() {
             sources: developerSources,
             items: [
               NewsItem(
+                firstSeenMs: 1700000000000,
                 id: 'aibase-date',
                 sourceId: 'aibase',
                 title: 'AIbase 日报日期',

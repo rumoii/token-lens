@@ -42,7 +42,7 @@ void main() {
         final snapshot = await gateway.snapshot();
         expect(snapshot.items.single.title, 'A cached <example>');
         expect(snapshot.items.single.kind, 'general');
-        expect(snapshot.sources, hasLength(19));
+        expect(snapshot.sources, hasLength(20));
         expect(snapshot.sources.first.id, 'openai');
         expect(snapshot.sources.first.lastSuccessMs, 1700000000000);
         expect(snapshot.items.single.id, 'openai:fixture-1');
@@ -175,7 +175,7 @@ void main() {
         );
         final snapshot = await gateway.snapshot();
         expect(snapshot.error, isNull);
-        expect(snapshot.sources, hasLength(19));
+        expect(snapshot.sources, hasLength(20));
         expect(
           snapshot.sources.map((s) => s.category).toSet(),
           SourceCategory.values.toSet(),

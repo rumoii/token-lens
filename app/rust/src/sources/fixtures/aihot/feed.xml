@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>AIHOT — 精选</title>
+    <link>https://aihot.news/</link>
+    <description>最新 50 条 AIHOT 精选摘要，保留标题、站内阅读与原文入口；需要阅读器内全文可改订 /feed/full.xml。</description>
+    <language>zh-CN</language>
+    <atom:link href="https://aihot.news/feed.xml" rel="self" type="application/rss+xml" />
+    <ttl>30</ttl>
+    <generator>AIHOT (https://aihot.news/agent)</generator>
+    <item>
+      <title><![CDATA[OpenRouter 实测六模型并给出四层防护，解决 AI Agent 无限循环烧钱问题]]></title>
+      <link>https://aihot.news/items/vq9nwgwhtm31cgoliyb7ydyde</link>
+      <description><![CDATA[<p>OpenRouter 发布教程，讲解 AI Agent 因工具反复失败而陷入无限循环的成因，并给出四层防护：doom-loop 检测、loopKey 参数归一化、stopWhen 步数与成本上限、API key 信用额度。</p>
+<p>🔗 <a href="https://openrouter.ai/blog/tutorials/ai-agent-infinite-loop/">阅读原文</a></p>
+<p>via AIHOT · <a href="https://aihot.news/items/vq9nwgwhtm31cgoliyb7ydyde">https://aihot.news/items/vq9nwgwhtm31cgoliyb7ydyde</a></p>]]></description>
+      <category>教程</category>
+      <pubDate>Thu, 12 Nov 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="false">vq9nwgwhtm31cgoliyb7ydyde</guid>
+      <author>noreply@aihot.news (OpenRouter：Announcements)</author>
+    </item>
+    <item>
+      <title><![CDATA[WSJ 报道 Nvidia 董事会接近决定是否罢免 CEO 黄仁勋]]></title>
+      <link>https://aihot.news/items/aoxmmcsudy1gf9xmti7slu1wd</link>
+      <description><![CDATA[<p>WSJ 报道，Nvidia 董事会此前公开支持黄仁勋，如今接近决定是否罢免这位创始人 CEO。起因是黄仁勋与一名被指为中国情报人员的女子交往，随后又曝出与一名 Nvidia 员工的第二段婚外情；周日开始独立调查时董事会表示没有理由认为 Nvidia 机密泄露。</p>
+<p>🔗 <a href="https://x.com/rohanpaul_ai/status/2120663635479625930">阅读原文</a></p>
+<p>via AIHOT · <a href="https://aihot.news/items/aoxmmcsudy1gf9xmti7slu1wd">https://aihot.news/items/aoxmmcsudy1gf9xmti7slu1wd</a></p>]]></description>
+      <category>行业动态</category>
+      <pubDate>Wed, 11 Nov 2026 23:43:05 GMT</pubDate>
+      <guid isPermaLink="false">aoxmmcsudy1gf9xmti7slu1wd</guid>
+      <author>noreply@aihot.news (Rohan Paul)</author>
+    </item>
+    <item>
+      <title><![CDATA[Runway 开源 27B 世界动作模型 Praxis-1，权重采用 Apache 2.0 许可]]></title>
+      <link>https://aihot.news/items/bx3sq4dxfqblyztkuiktiz0wv</link>
+      <description><![CDATA[<p>Runway 宣布世界动作模型 Praxis-1 以 Apache 2.0 开放权重面向所有人开放。该模型为 27B 参数 MoE 扩散 Transformer，同时预测视频与动作，在 NVIDIA RoboLab-120 榜单以 46.2% 成功率居首，超过 FLUX 3 Action（42.9%）、Cosmos3 Nano（36.8%）和 π0.5（28.0%）。</p>
+<p>🔗 <a href="https://runwayml.com/news/company-news/praxis-1-is-now-available">阅读原文</a></p>
+<p>via AIHOT · <a href="https://aihot.news/items/bx3sq4dxfqblyztkuiktiz0wv">https://aihot.news/items/bx3sq4dxfqblyztkuiktiz0wv</a></p>]]></description>
+      <category>AI 模型</category>
+      <pubDate>Wed, 11 Nov 2026 23:25:00 GMT</pubDate>
+      <guid isPermaLink="false">bx3sq4dxfqblyztkuiktiz0wv</guid>
+      <author>noreply@aihot.news (Runway：News)</author>
+    </item>
+    <item>
+      <title><![CDATA[Google 发布 Gemini Decisions API 与 Gemini Decision 1 模型，专注快速多模态封闭式决策]]></title>
+      <link>https://aihot.news/items/r8hsm3m3munjwk1n3u885zszw</link>
+      <description><![CDATA[<p>Google 推出 Gemini Decisions API，由新模型 Gemini Decision 1 驱动，可在 150-250ms 端到端延迟内对文本、图像、音频、视频和 PDF（最多 256K tokens）一次性评估最多 1000 个是/否、多选和评分题。</p>
+<p>🔗 <a href="https://blog.google/innovation-and-ai/technology/developers-tools/gemini-decisions-api/">阅读原文</a></p>
+<p>via AIHOT · <a href="https://aihot.news/items/r8hsm3m3munjwk1n3u885zszw">https://aihot.news/items/r8hsm3m3munjwk1n3u885zszw</a></p>]]></description>
+      <category>AI 产品</category>
+      <pubDate>Wed, 11 Nov 2026 18:00:00 GMT</pubDate>
+      <guid isPermaLink="false">r8hsm3m3munjwk1n3u885zszw</guid>
+      <author>noreply@aihot.news (Google Blog：AI)</author>
+    </item>
+    <item>
+      <title><![CDATA[Claude Code 中如何选择 Fable 5.2 与 Opus 等模型]]></title>
+      <link>https://aihot.news/items/ep5oqt7m4l7gn3tqieilznmuk</link>
+      <description><![CDATA[<p>Claude 发布视频教程，讲解在 Claude Code 中何时使用 Fable 5.2、Opus 5.5，何时降级到 Sonnet 5.5 或 Haiku 5.5，以及如何把一个任务拆分给多个模型。视频覆盖复杂编码与开放式技术工作、低成本明确任务等场景，并提供在自有任务上测量各模型表现的指南链接；可用性与用量限制因套餐而异。</p>
+<p>🔗 <a href="https://www.youtube.com/watch?v=C33hJGt-ySg">阅读原文</a></p>
+<p>via AIHOT · <a href="https://aihot.news/items/ep5oqt7m4l7gn3tqieilznmuk">https://aihot.news/items/ep5oqt7m4l7gn3tqieilznmuk</a></p>]]></description>
+      <category>教程</category>
+      <pubDate>Wed, 11 Nov 2026 17:30:20 GMT</pubDate>
+      <guid isPermaLink="false">ep5oqt7m4l7gn3tqieilznmuk</guid>
+      <author>noreply@aihot.news (Claude：YouTube)</author>
+    </item>  </channel>
+</rss>

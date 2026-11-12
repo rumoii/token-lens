@@ -24,6 +24,9 @@ pub struct NewsItem {
     pub popularity: Option<i64>,
     pub also_in: Vec<String>,
     pub kind: String,
+    pub ai_summary: bool,
+    pub origin: Option<String>,
+    pub first_seen_ms: i64,
 }
 
 #[derive(Clone, Debug)]

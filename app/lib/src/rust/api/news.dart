@@ -70,6 +70,9 @@ class NewsItem {
   final int? popularity;
   final List<String> alsoIn;
   final String kind;
+  final bool aiSummary;
+  final String? origin;
+  final int firstSeenMs;
 
   const NewsItem({
     required this.id,
@@ -82,6 +85,9 @@ class NewsItem {
     this.popularity,
     required this.alsoIn,
     required this.kind,
+    required this.aiSummary,
+    this.origin,
+    required this.firstSeenMs,
   });
 
   @override
@@ -95,7 +101,10 @@ class NewsItem {
       popularityKind.hashCode ^
       popularity.hashCode ^
       alsoIn.hashCode ^
-      kind.hashCode;
+      kind.hashCode ^
+      aiSummary.hashCode ^
+      origin.hashCode ^
+      firstSeenMs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -111,7 +120,10 @@ class NewsItem {
           popularityKind == other.popularityKind &&
           popularity == other.popularity &&
           alsoIn == other.alsoIn &&
-          kind == other.kind;
+          kind == other.kind &&
+          aiSummary == other.aiSummary &&
+          origin == other.origin &&
+          firstSeenMs == other.firstSeenMs;
 }
 
 class NewsSnapshot {

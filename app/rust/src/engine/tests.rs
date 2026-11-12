@@ -4,6 +4,365 @@ use tokio::sync::oneshot;
 
 const FEED: &[u8] = include_bytes!("../sources/fixtures/rss/openai.xml");
 
+#[test]
+fn d26a_old_v2_fills_fields_without_writing_and_roundtrips() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    let mut json = old_v2_cache();
+    json["sources"]["openai"]["items"][0]["published_at"] = "1970-01-01T00:00:00.100Z".into();
+    let bytes = serde_json::to_vec(&json).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
+    let cache = load_cache(&path, &crate::sources::registry(), 1794000000000).unwrap();
+    let item = serde_json::to_value(&cache.sources["openai"].items[0]).unwrap();
+    assert_eq!(item["first_seen_ms"], 100);
+    assert_eq!(item["ai_summary"], false);
+    assert_eq!(item["origin"], serde_json::Value::Null);
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    save_cache(&path, &cache).unwrap();
+    let reopened = load_cache(&path, &crate::sources::registry(), 1794000000000).unwrap();
+    assert_eq!(
+        reopened.sources["openai"].items,
+        cache.sources["openai"].items
+    );
+    assert_eq!(reopened.version, 2);
+}
+
+#[test]
+fn d26a_old_v2_first_seen_fallback_matrix_uses_fixed_clock() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    for (published, success, expected) in [
+        (Some("1970-01-01T00:00:00.100Z"), Some(123), 100),
+        (Some("1970-01-01T00:00:01Z"), Some(123), 123),
+        (Some("1970-01-01T00:00:00.100Z"), None, 100),
+        (None, Some(123), 123),
+        (None, None, 999),
+    ] {
+        let mut json = old_v2_cache();
+        json["sources"]["openai"]["last_success_ms"] = serde_json::json!(success);
+        json["sources"]["openai"]["items"][0]["published_at"] = serde_json::json!(published);
+        std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
+        let cache = load_cache(&path, &crate::sources::registry(), 999).unwrap();
+        assert_eq!(cache.sources["openai"].items[0].first_seen_ms, expected);
+    }
+}
+
+#[test]
+fn d26a_successful_commit_writes_back_other_sources_legacy_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    let bytes = serde_json::to_vec(&old_v2_cache()).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    engine.inner.state.lock().unwrap().active = Some((1, CancellationToken::new()));
+    // An empty result is still a successful source commit.
+    engine.inner.commit(1, 1, Ok(Vec::new()), 1794000000000);
+    let stored: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(stored["version"], 2);
+    assert_eq!(
+        stored["sources"]["openai"]["items"][0]["first_seen_ms"],
+        123
+    );
+    assert_eq!(stored["sources"]["openai"]["items"][0]["ai_summary"], false);
+    assert_eq!(
+        stored["sources"]["openai"]["items"][0]["origin"],
+        serde_json::Value::Null
+    );
+    let reopened = load_cache(&path, &crate::sources::registry(), 1794000000100).unwrap();
+    assert_eq!(
+        reopened.sources["openai"].items,
+        engine.inner.state.lock().unwrap().cache.sources["openai"].items
+    );
+}
+
+#[test]
+fn d26a_invalid_cached_new_fields_are_cache_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    for (field, value) in [
+        ("first_seen_ms", serde_json::json!(0)),
+        ("first_seen_ms", serde_json::json!(-1)),
+        ("first_seen_ms", serde_json::Value::Null),
+        ("first_seen_ms", serde_json::json!("123")),
+        ("ai_summary", serde_json::json!("true")),
+        ("ai_summary", serde_json::Value::Null),
+        ("origin", serde_json::json!("x".repeat(121))),
+        ("origin", serde_json::json!("bad\u{1}origin")),
+        ("origin", serde_json::json!("")),
+        ("origin", serde_json::json!(123)),
+    ] {
+        let mut json = old_v2_cache();
+        json["sources"]["openai"]["items"][0][field] = value;
+        let bytes = serde_json::to_vec(&json).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        assert_eq!(
+            load_cache(&path, &crate::sources::registry(), 999)
+                .err()
+                .unwrap()
+                .kind,
+            "cache",
+            "{field}"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    }
+}
+
+#[test]
+fn d26a_non_aihot_summary_flag_is_corrupt_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("news-cache.json");
+    let mut json = old_v2_cache();
+    json["sources"]["openai"]["items"][0]["ai_summary"] = true.into();
+    let bytes = serde_json::to_vec(&json).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    assert_eq!(
+        engine.snapshot().error.as_ref().map(|e| e.kind.as_str()),
+        Some("cache")
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+}
+
+#[test]
+fn d26a_origin_normalises_as_literal_text() {
+    let mut item = raw("one", "https://example.com/one", None);
+    item.origin = Some("  <Publisher>\n News\u{1} &amp;  ".into());
+    let items = normalise_items(
+        "aihot",
+        vec![item],
+        true,
+        Category::Chinese,
+        ItemKind::General,
+        true,
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(&items[0]).unwrap()["origin"],
+        "<Publisher> News &amp;"
+    );
+    assert!(items[0].ai_summary);
+    for (origin, expected) in [
+        ("字".repeat(121), Some("字".repeat(120))),
+        ("\n\t\u{1} ".into(), None),
+    ] {
+        let mut item = raw("origin", "https://example.com/origin", None);
+        item.origin = Some(origin);
+        let items = normalise_items(
+            "aihot",
+            vec![item],
+            true,
+            Category::Chinese,
+            ItemKind::General,
+            true,
+        )
+        .unwrap();
+        assert_eq!(items[0].origin, expected);
+    }
+}
+
+#[test]
+fn d26a_aihot_model_kind_and_limits_survive_normalisation() {
+    let source = crate::sources::aihot::Aihot;
+    let body =
+        include_str!("../sources/fixtures/aihot/model.xml").replace("Summary", &"字".repeat(4001));
+    let parsed = source.parse(body.as_bytes()).unwrap();
+    let items = normalise_items(
+        &source.info().id,
+        parsed,
+        source.text_is_html(),
+        source.info().category,
+        source.default_kind(),
+        source.ai_summary(),
+    )
+    .unwrap();
+    assert_eq!(items[0].kind, "model");
+    assert!(items[0].ai_summary);
+    assert_eq!(items[0].title, "Title & text");
+    assert_eq!(items[0].description.as_ref().unwrap().chars().count(), 4000);
+    assert!(!items[0].description.as_ref().unwrap().contains("via AIHOT"));
+    assert_eq!(items[0].origin.as_deref(), Some("Publisher：News"));
+    assert_eq!(items[0].popularity, None);
+}
+
+#[test]
+fn d26a_previously_empty_source_uses_refresh_time_for_new_items() {
+    let mut items = normalise_items(
+        "openai",
+        vec![raw(
+            "one",
+            "https://example.com/one",
+            Some("1970-01-01T00:00:00.100Z"),
+        )],
+        true,
+        Category::Official,
+        ItemKind::General,
+        false,
+    )
+    .unwrap();
+    let previous = SourceCache {
+        items: Vec::new(),
+        last_success_ms: Some(123),
+    };
+    stamp_first_seen(&mut items, Some(&previous), 999);
+    assert_eq!(items[0].first_seen_ms, 999);
+}
+
+#[test]
+fn d26a_snapshot_sorts_by_seen_then_date_then_registry() {
+    let dir = tempfile::tempdir().unwrap();
+    let entry = |source: &str, id: &str, seen: i64, date: Option<&str>| {
+        serde_json::json!({
+            "id": format!("{source}:{id}"), "source_id": source, "title": id,
+            "url": format!("https://example.com/{source}/{id}"), "published_at": date,
+            "description": null, "popularity_kind": null, "popularity": null,
+            "also_in": [], "first_seen_ms": seen
+        })
+    };
+    let json = serde_json::json!({"version":2,"disabled":[],"sources":{
+        "openai":{"last_success_ms":400,"items":[
+            entry("openai","old-seen-new-date",100,Some("2026-11-10T00:00:00Z")),
+            entry("openai","new-seen",300,None),
+            entry("openai","same-seen-dated",200,Some("2026-11-05T00:00:00Z")),
+            entry("openai","same-seen-undated",200,None)]},
+        "deepmind":{"last_success_ms":400,"items":[
+            entry("deepmind","tie",200,Some("2026-11-05T00:00:00Z"))]}
+    }});
+    std::fs::write(
+        dir.path().join("news-cache.json"),
+        serde_json::to_vec(&json).unwrap(),
+    )
+    .unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    assert_eq!(
+        engine
+            .snapshot()
+            .items
+            .iter()
+            .map(|i| i.id.clone())
+            .collect::<Vec<_>>(),
+        [
+            "openai:new-seen",
+            "openai:same-seen-dated",
+            "deepmind:tie",
+            "openai:same-seen-undated",
+            "openai:old-seen-new-date"
+        ]
+    );
+}
+
+#[test]
+fn d26a_first_seen_first_refresh_new_and_existing_items() {
+    for initial in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        if initial {
+            let mut cache = old_v2_cache();
+            let mut kept = cache["sources"]["openai"]["items"][0].clone();
+            kept["id"] = "openai:one".into();
+            kept["first_seen_ms"] = 42.into();
+            cache["sources"]["openai"]["items"] = serde_json::json!([kept]);
+            std::fs::write(
+                dir.path().join("news-cache.json"),
+                serde_json::to_vec(&cache).unwrap(),
+            )
+            .unwrap();
+        }
+        let engine = NewsEngine::new(
+            dir.path(),
+            vec![Box::new(RssSource::new(
+                "openai",
+                "OpenAI",
+                Category::Official,
+                "https://example.com/",
+                "https://example.invalid/",
+            ))],
+        )
+        .unwrap();
+        let now_ms = 1794000000000;
+        engine.inner.state.lock().unwrap().active = Some((1, CancellationToken::new()));
+        let body = br#"<rss version="2.0"><channel><title>Test</title><link>https://example.com</link><description>Test</description>
+            <item><guid>one</guid><title>One</title><link>https://example.com/one</link><pubDate>Wed, 04 Nov 2026 00:00:00 GMT</pubDate></item>
+            <item><guid>two</guid><title>Two</title><link>https://example.com/two</link><pubDate>Thu, 05 Nov 2026 00:00:00 GMT</pubDate></item>
+            <item><guid>undated</guid><title>Undated</title><link>https://example.com/undated</link></item>
+            <item><guid>future</guid><title>Future</title><link>https://example.com/future</link><pubDate>Fri, 01 Jan 2100 00:00:00 GMT</pubDate></item>
+            </channel></rss>"#;
+        let parsed = engine.inner.sources[0].parse(body).unwrap();
+        let items = normalise_items(
+            "openai",
+            parsed,
+            true,
+            Category::Official,
+            ItemKind::General,
+            false,
+        )
+        .unwrap();
+        engine.inner.commit(1, 0, Ok(items), now_ms);
+        let snapshot = engine.snapshot();
+        assert!(snapshot.error.is_none());
+        assert_eq!(snapshot.items.len(), 4);
+        let values = snapshot
+            .items
+            .iter()
+            .map(|i| (i.id.clone(), serde_json::to_value(i).unwrap()))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            values["openai:one"]["first_seen_ms"],
+            if initial { 42 } else { 1793750400000_i64 }
+        );
+        if initial {
+            assert_eq!(values["openai:two"]["first_seen_ms"], now_ms);
+        } else {
+            assert_eq!(values["openai:two"]["first_seen_ms"], 1793836800000_i64);
+        }
+        for id in ["openai:undated", "openai:future"] {
+            assert_eq!(values[id]["first_seen_ms"], now_ms);
+        }
+    }
+}
+
+#[test]
+fn d26a_aihot_ranks_after_community_and_merges_earliest_seen() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut cache = old_v2_cache();
+    let entry = |id: &str, seen: i64| {
+        serde_json::json!({
+            "items": [{"id": format!("{id}:same"), "source_id": id, "title": id,
+            "url": "https://example.com/shared", "published_at": null,
+            "description": null, "popularity_kind": null, "popularity": null,
+            "also_in": [], "first_seen_ms": seen}], "last_success_ms": 300
+        })
+    };
+    cache["sources"] =
+        serde_json::json!({"aihot": entry("aihot", 100), "hn-ai": entry("hn-ai", 200)});
+    std::fs::write(
+        dir.path().join("news-cache.json"),
+        serde_json::to_vec(&cache).unwrap(),
+    )
+    .unwrap();
+    let engine = NewsEngine::new(dir.path(), crate::sources::registry()).unwrap();
+    let snapshot = engine.snapshot();
+    assert_eq!(snapshot.items.len(), 1);
+    assert_eq!(snapshot.items[0].source_id, "hn-ai");
+    assert_eq!(snapshot.items[0].also_in, ["aihot"]);
+    assert_eq!(
+        serde_json::to_value(&snapshot.items[0]).unwrap()["first_seen_ms"],
+        100
+    );
+    for category in ["official", "chinese", "tools", "community"] {
+        let mut state = engine.inner.state.lock().unwrap();
+        state
+            .sources
+            .iter_mut()
+            .find(|s| s.id == "aihot")
+            .unwrap()
+            .category = category.into();
+        let snapshot = assemble(&state);
+        assert_eq!(snapshot.items[0].source_id, "hn-ai");
+        assert_eq!(snapshot.items[0].first_seen_ms, 100);
+        assert_eq!(state.cache.sources["hn-ai"].items[0].first_seen_ms, 200);
+    }
+}
+
 struct Server {
     url: String,
     seen: oneshot::Receiver<String>,
@@ -194,7 +553,7 @@ async fn declared_body_limit_applies_to_content_length_and_streaming() {
                 );
                 assert_eq!(snapshot.items.len(), 3);
                 assert_eq!(
-                    load_cache(&dir.path().join("news-cache.json"), &[])
+                    load_cache(&dir.path().join("news-cache.json"), &[], 1794000000000)
                         .unwrap()
                         .sources["test"]
                         .items
@@ -238,7 +597,7 @@ async fn four_concurrent_sources_commit_independently_and_refill_slots() {
     let snapshot = engine.snapshot();
     assert!(snapshot.sources[0].last_success_ms.is_some());
     assert!(!snapshot.sources[0].refreshing);
-    let disk = load_cache(&dir.path().join("news-cache.json"), &[]).unwrap();
+    let disk = load_cache(&dir.path().join("news-cache.json"), &[], 1794000000000).unwrap();
     assert_eq!(disk.sources.len(), 1);
     assert!(disk.sources.contains_key("s0"));
     servers[1].ok();
@@ -253,7 +612,7 @@ async fn four_concurrent_sources_commit_independently_and_refill_slots() {
         .iter()
         .all(|s| s.last_success_ms.is_some() && s.error.is_none()));
     assert_eq!(
-        load_cache(&dir.path().join("news-cache.json"), &[])
+        load_cache(&dir.path().join("news-cache.json"), &[], 1794000000000)
             .unwrap()
             .sources
             .len(),
@@ -266,14 +625,16 @@ async fn partial_failure_does_not_affect_other_sources() {
     let dir = tempfile::tempdir().unwrap();
     let mut a = Server::new().await;
     let mut b = Server::new().await;
-    let old_items = normalise_items(
+    let mut old_items = normalise_items(
         "b",
         vec![raw("kept", "https://example.com/old-b", None)],
         true,
         Category::Official,
         ItemKind::General,
+        false,
     )
     .unwrap();
+    stamp_first_seen(&mut old_items, None, 55);
     save_cache(
         &dir.path().join("news-cache.json"),
         &Cache {
@@ -313,7 +674,7 @@ async fn partial_failure_does_not_affect_other_sources() {
             .unwrap();
     assert_eq!(json["sources"]["b"]["last_success_ms"], 55);
     assert_eq!(
-        load_cache(&dir.path().join("news-cache.json"), &[])
+        load_cache(&dir.path().join("news-cache.json"), &[], 1794000000000)
             .unwrap()
             .sources["b"]
             .items,
@@ -535,7 +896,7 @@ fn cache_v1_migration_is_in_memory_until_commit_and_unknown_versions_are_visible
     assert_eq!(snapshot.sources[0].last_success_ms, Some(123));
     assert_eq!(std::fs::read(&path).unwrap(), legacy);
     engine.set_source_enabled("qbitai", false);
-    assert_eq!(load_cache(&path, &[]).unwrap().version, 2);
+    assert_eq!(load_cache(&path, &[], 1794000000000).unwrap().version, 2);
     engine.shutdown();
     for invalid in [
         br#"{"version":99}"#.as_slice(),
@@ -551,6 +912,7 @@ fn cache_v1_migration_is_in_memory_until_commit_and_unknown_versions_are_visible
 
 fn raw(id: &str, url: &str, date: Option<&str>) -> RawItem {
     RawItem {
+        origin: None,
         kind: None,
         native_id: id.into(),
         title: "<b>Title &amp; text</b><script>hidden</script>".into(),
@@ -590,7 +952,7 @@ fn normalised_kind(
     item.title = title.into();
     item.description = Some("deprecated pricing 弃用 定价".into());
     item.kind = structured;
-    normalise_items("kind", vec![item], true, category, default)
+    normalise_items("kind", vec![item], true, category, default, false)
         .unwrap()
         .remove(0)
         .kind
@@ -792,11 +1154,11 @@ fn d25_all_valid_cache_kinds_survive_roundtrip_without_reclassification() {
         let mut json = old_v2_cache();
         json["sources"]["openai"]["items"][0]["kind"] = kind.into();
         std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
-        let cache = load_cache(&path, &crate::sources::registry()).unwrap();
+        let cache = load_cache(&path, &crate::sources::registry(), 1794000000000).unwrap();
         assert_eq!(cache.sources["openai"].items[0].kind, kind);
         save_cache(&path, &cache).unwrap();
         assert_eq!(
-            load_cache(&path, &crate::sources::registry())
+            load_cache(&path, &crate::sources::registry(), 1794000000000)
                 .unwrap()
                 .sources["openai"]
                 .items[0]
@@ -883,6 +1245,7 @@ fn d25_same_source_urls_survive_and_cross_source_duplicates_join_first_sorted_it
                 true,
                 Category::Official,
                 ItemKind::General,
+                false,
             )
             .unwrap();
             // A valid cache need not arrive in display order.
@@ -934,6 +1297,7 @@ fn release_plain_text_survives_normalisation() {
         source.text_is_html(),
         source.info().category,
         source.default_kind(),
+        source.ai_summary(),
     )
     .unwrap();
     assert_eq!(
@@ -960,6 +1324,7 @@ fn hn_script_literal_survives_normalisation() {
         source.text_is_html(),
         source.info().category,
         source.default_kind(),
+        source.ai_summary(),
     )
     .unwrap();
     let item = items
@@ -988,6 +1353,7 @@ fn html_feed_tags_are_removed_during_normalisation() {
         source.text_is_html(),
         source.info().category,
         source.default_kind(),
+        source.ai_summary(),
     )
     .unwrap();
     assert_eq!(items[0].title, "Title & text");
@@ -1018,6 +1384,7 @@ fn json_text_normalisation_preserves_literals_and_limits() {
             source.text_is_html(),
             source.info().category,
             source.default_kind(),
+            source.ai_summary(),
         )
         .unwrap();
         assert_eq!(
@@ -1054,8 +1421,15 @@ fn per_source_limits_identity_and_framework_validation() {
             Some("2026-11-05T10:00:00-05:00"),
         ));
     }
-    let items =
-        normalise_items("source", input, true, Category::Official, ItemKind::General).unwrap();
+    let items = normalise_items(
+        "source",
+        input,
+        true,
+        Category::Official,
+        ItemKind::General,
+        false,
+    )
+    .unwrap();
     assert_eq!(items.len(), 50);
     assert_eq!(items[0].id, "source:0");
     assert_eq!(items[0].title, "Title & text");
@@ -1075,6 +1449,7 @@ fn per_source_limits_identity_and_framework_validation() {
         true,
         Category::Official,
         ItemKind::General,
+        false,
     )
     .unwrap();
     assert_eq!(duplicates.len(), 1);
@@ -1085,17 +1460,23 @@ fn per_source_limits_identity_and_framework_validation() {
             vec![raw("bad", "file:///bad", None)],
             true,
             Category::Official,
-            ItemKind::General
+            ItemKind::General,
+            false
         )
         .unwrap_err()
         .kind,
         "parse"
     );
-    assert!(
-        normalise_items("s", vec![], true, Category::Official, ItemKind::General)
-            .unwrap()
-            .is_empty()
-    );
+    assert!(normalise_items(
+        "s",
+        vec![],
+        true,
+        Category::Official,
+        ItemKind::General,
+        false
+    )
+    .unwrap()
+    .is_empty());
 }
 
 #[test]
@@ -1104,7 +1485,7 @@ fn normalised_text_can_always_be_reloaded_from_cache() {
     let mut item = raw("controls", "https://example.com/controls", None);
     item.title = "Title\u{1} text".into();
     item.description = Some("Description\u{7}".into());
-    let cache = Cache {
+    let mut cache = Cache {
         sources: BTreeMap::from([(
             "s".into(),
             SourceCache {
@@ -1114,6 +1495,7 @@ fn normalised_text_can_always_be_reloaded_from_cache() {
                     true,
                     Category::Official,
                     ItemKind::General,
+                    false,
                 )
                 .unwrap(),
                 last_success_ms: Some(1),
@@ -1122,8 +1504,9 @@ fn normalised_text_can_always_be_reloaded_from_cache() {
         ..Cache::default()
     };
     let path = dir.path().join("news-cache.json");
+    stamp_first_seen(&mut cache.sources.get_mut("s").unwrap().items, None, 1);
     save_cache(&path, &cache).unwrap();
-    assert!(load_cache(&path, &[]).is_ok());
+    assert!(load_cache(&path, &[], 1794000000000).is_ok());
 }
 
 #[test]
@@ -1165,6 +1548,7 @@ fn snapshot_url_dedup_priority_also_in_and_date_sorting() {
                 true,
                 Category::Official,
                 ItemKind::General,
+                false,
             )
             .unwrap();
             state.cache.sources.insert(
@@ -1188,6 +1572,7 @@ fn snapshot_url_dedup_priority_also_in_and_date_sorting() {
                 true,
                 Category::Official,
                 ItemKind::General,
+                false,
             )
             .unwrap()
             .remove(0),

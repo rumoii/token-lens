@@ -1542,6 +1542,9 @@ impl SseDecode for crate::api::news::NewsItem {
         let mut var_popularity = <Option<i64>>::sse_decode(deserializer);
         let mut var_alsoIn = <Vec<String>>::sse_decode(deserializer);
         let mut var_kind = <String>::sse_decode(deserializer);
+        let mut var_aiSummary = <bool>::sse_decode(deserializer);
+        let mut var_origin = <Option<String>>::sse_decode(deserializer);
+        let mut var_firstSeenMs = <i64>::sse_decode(deserializer);
         return crate::api::news::NewsItem {
             id: var_id,
             source_id: var_sourceId,
@@ -1553,6 +1556,9 @@ impl SseDecode for crate::api::news::NewsItem {
             popularity: var_popularity,
             also_in: var_alsoIn,
             kind: var_kind,
+            ai_summary: var_aiSummary,
+            origin: var_origin,
+            first_seen_ms: var_firstSeenMs,
         };
     }
 }
@@ -2773,6 +2779,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::news::NewsItem {
             self.popularity.into_into_dart().into_dart(),
             self.also_in.into_into_dart().into_dart(),
             self.kind.into_into_dart().into_dart(),
+            self.ai_summary.into_into_dart().into_dart(),
+            self.origin.into_into_dart().into_dart(),
+            self.first_seen_ms.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4094,6 +4103,9 @@ impl SseEncode for crate::api::news::NewsItem {
         <Option<i64>>::sse_encode(self.popularity, serializer);
         <Vec<String>>::sse_encode(self.also_in, serializer);
         <String>::sse_encode(self.kind, serializer);
+        <bool>::sse_encode(self.ai_summary, serializer);
+        <Option<String>>::sse_encode(self.origin, serializer);
+        <i64>::sse_encode(self.first_seen_ms, serializer);
     }
 }
 

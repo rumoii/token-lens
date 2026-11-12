@@ -26,6 +26,7 @@ const qbitSource = NewsSource(
   homeUrl: 'https://www.qbitai.com/',
 );
 const cachedItem = NewsItem(
+  firstSeenMs: 1700000000000,
   id: 'cached',
   sourceId: 'openai',
   title: 'Cached article',
@@ -33,6 +34,7 @@ const cachedItem = NewsItem(
   description: 'A cached source excerpt.',
 );
 const freshItem = NewsItem(
+  firstSeenMs: 1700000000000,
   id: 'fresh',
   sourceId: 'openai',
   title: 'Fresh article',
@@ -163,6 +165,7 @@ const multiNews = NewsSnapshot(
   sources: previewSources,
   items: [
     NewsItem(
+      firstSeenMs: 1793890800000,
       id: 'o',
       sourceId: 'openai',
       title: 'OpenAI 模型更新',
@@ -172,6 +175,7 @@ const multiNews = NewsSnapshot(
       alsoIn: ['hn-ai'],
     ),
     NewsItem(
+      firstSeenMs: 1793887200000,
       id: 'c',
       sourceId: 'gh-release:openai/codex',
       title: 'Codex 新版本',
@@ -182,6 +186,7 @@ const multiNews = NewsSnapshot(
       popularity: 1200,
     ),
     NewsItem(
+      firstSeenMs: 1793883600000,
       id: 'h',
       sourceId: 'hn-ai',
       title: 'Community MODEL discussion',
@@ -192,6 +197,7 @@ const multiNews = NewsSnapshot(
       popularity: 312,
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'q',
       sourceId: 'qbitai',
       title: '本周 AI 研究动态',
@@ -199,6 +205,7 @@ const multiNews = NewsSnapshot(
       description: '中文资讯与研究进展。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-1',
       sourceId: 'deepmind',
       title: 'Google DeepMind · 发布动态',
@@ -206,6 +213,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-2',
       sourceId: 'google-ai',
       title: 'Google AI · 发布动态',
@@ -213,6 +221,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-3',
       sourceId: 'deepseek',
       title: 'DeepSeek · 发布动态',
@@ -220,6 +229,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-4',
       sourceId: 'gh-release:anthropics/claude-code',
       title: 'Claude Code · 发布动态',
@@ -227,6 +237,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-6',
       sourceId: 'gh-release:google-gemini/gemini-cli',
       title: 'Gemini CLI · 发布动态',
@@ -234,6 +245,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-7',
       sourceId: 'gh-release:anomalyco/opencode',
       title: 'OpenCode · 发布动态',
@@ -241,6 +253,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-8',
       sourceId: 'gh-release:earendil-works/pi',
       title: 'Pi · 发布动态',
@@ -248,6 +261,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-9',
       sourceId: 'gh-release:ollama/ollama',
       title: 'Ollama · 发布动态',
@@ -255,6 +269,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-10',
       sourceId: 'github-new',
       title: 'GitHub 新项目 · 发布动态',
@@ -262,6 +277,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-11',
       sourceId: 'hf-models',
       title: 'Hugging Face 模型 · 发布动态',
@@ -269,6 +285,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-12',
       sourceId: 'hf-spaces',
       title: 'Hugging Face Spaces · 发布动态',
@@ -276,6 +293,7 @@ const multiNews = NewsSnapshot(
       description: '来源内容的本地合成样例，用于验证多来源布局。',
     ),
     NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'preview-13',
       sourceId: 'hf-papers',
       title: 'Hugging Face 论文 · 发布动态',

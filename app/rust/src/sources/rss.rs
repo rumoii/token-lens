@@ -79,7 +79,7 @@ impl Source for RssSource {
     }
 }
 
-fn text(node: roxmltree::Node<'_, '_>, name: &str) -> String {
+pub(crate) fn text(node: roxmltree::Node<'_, '_>, name: &str) -> String {
     node.children()
         .find(|n| {
             n.is_element()
@@ -97,7 +97,7 @@ fn text(node: roxmltree::Node<'_, '_>, name: &str) -> String {
         .to_owned()
 }
 
-fn parse(body: &[u8]) -> Result<Vec<RawItem>, ParseError> {
+pub(crate) fn parse(body: &[u8]) -> Result<Vec<RawItem>, ParseError> {
     let invalid = || ParseError("Response is not a valid RSS or Atom news feed.".into());
     let input = std::str::from_utf8(body).map_err(|_| invalid())?;
     let doc = roxmltree::Document::parse(input).map_err(|_| invalid())?;
@@ -230,6 +230,7 @@ fn parse(body: &[u8]) -> Result<Vec<RawItem>, ParseError> {
         });
         let description = text(entry, if atom { "summary" } else { "description" });
         items.push(RawItem {
+            origin: None,
             kind: None,
             native_id: if identity.is_empty() {
                 url.clone()
@@ -317,6 +318,7 @@ mod tests {
                 assert_eq!(
                     items,
                     vec![RawItem {
+                        origin: None,
                         kind: None,
                         native_id: "one".into(),
                         title: "One".into(),

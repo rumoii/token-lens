@@ -31,6 +31,7 @@ final developerNews = NewsSnapshot(
   items: [
     for (final item in multiNews.items)
       NewsItem(
+        firstSeenMs: 1700000000000,
         id: item.id,
         sourceId: item.sourceId,
         title: item.title,
@@ -53,6 +54,7 @@ final developerNews = NewsSnapshot(
         },
       ),
     const NewsItem(
+      firstSeenMs: 1793836800000,
       id: 'api',
       sourceId: 'openai-api',
       title: '新增批量请求状态字段',
@@ -62,6 +64,7 @@ final developerNews = NewsSnapshot(
       kind: 'api',
     ),
     const NewsItem(
+      firstSeenMs: 1793836800000,
       id: 'deprecation',
       sourceId: 'anthropic-api',
       title: '旧版请求参数即将停用',
@@ -71,6 +74,7 @@ final developerNews = NewsSnapshot(
       kind: 'deprecation',
     ),
     const NewsItem(
+      firstSeenMs: 1793750400000,
       id: 'aibase',
       sourceId: 'aibase',
       title: 'AIbase 日报 · 开发工具与模型动态',
@@ -79,6 +83,7 @@ final developerNews = NewsSnapshot(
       description: '合成日报摘要，不请求详情。',
     ),
     const NewsItem(
+      firstSeenMs: 1793793600000,
       id: 'hot-older',
       sourceId: 'hn-ai',
       title: 'A popular AI tooling discussion',
@@ -88,6 +93,7 @@ final developerNews = NewsSnapshot(
       popularity: 480,
     ),
     const NewsItem(
+      firstSeenMs: 1793797200000,
       id: 'hot-newer',
       sourceId: 'hn-ai',
       title: 'A newer AI tooling discussion',
@@ -97,12 +103,14 @@ final developerNews = NewsSnapshot(
       popularity: 480,
     ),
     const NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'unranked',
       sourceId: 'hn-ai',
       title: 'AI tooling without heat or date',
       url: 'https://example.com/hn/unranked',
     ),
     const NewsItem(
+      firstSeenMs: 1700000000000,
       id: 'stars',
       sourceId: 'github-new',
       title: 'A local agent toolkit',

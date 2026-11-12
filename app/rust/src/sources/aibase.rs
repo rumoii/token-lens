@@ -90,6 +90,7 @@ fn parse_daily(body: &[u8]) -> Result<Vec<RawItem>, ParseError> {
         }
         let published_at = issue_date(&anchor).map(format_date);
         items.push(RawItem {
+            origin: None,
             kind: None,
             native_id,
             title,
@@ -211,6 +212,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 kind: None,
                 native_id: "32121".to_owned(),
                 title: "AI日报：iOS 27.3 beta正式接入千问；豆包工作首次接入第三方模型；雷军晒小米机器人做家务视频".to_owned(),

@@ -47,7 +47,7 @@ fn persist_cache(path: &Path, cache: &Cache, fail_before_replace: bool) -> Resul
     }
     engine::replace_cache(path, temp)
 }
-fn parse_feed(bytes: &[u8]) -> Result<Vec<NewsItem>, NewsError> {
+fn parse_feed(bytes: &[u8], first_seen_ms: i64) -> Result<Vec<NewsItem>, NewsError> {
     let source = rss::feeds().remove(0);
     let raw = source
         .parse(bytes)
@@ -58,7 +58,14 @@ fn parse_feed(bytes: &[u8]) -> Result<Vec<NewsItem>, NewsError> {
         source.text_is_html(),
         source.info().category,
         source.default_kind(),
+        source.ai_summary(),
     )
+    .map(|mut items| {
+        for item in &mut items {
+            item.first_seen_ms = first_seen_ms;
+        }
+        items
+    })
 }
 fn cached_items(path: &Path) -> Vec<NewsItem> {
     NewsClient::new(path.parent().unwrap().to_string_lossy().into_owned())
@@ -119,7 +126,7 @@ async fn d25_refresh_exposes_kind_and_persists_it_across_restart() {
 #[test]
 fn d2_atom_and_utc_dates() {
     let atom = include_bytes!("../../sources/fixtures/rss/atom-normal.xml");
-    let items = parse_feed(atom).unwrap();
+    let items = parse_feed(atom, 1234).unwrap();
     assert_eq!(
         items[0].published_at.as_deref(),
         Some("2026-11-05T15:00:00Z")
@@ -128,23 +135,23 @@ fn d2_atom_and_utc_dates() {
 
 #[test]
 fn accepts_empty_rss_but_rejects_html() {
-    assert!(parse_feed(b"<rss version=\"2.0\"><channel><title>News</title><link>https://openai.com/news/</link><description>News</description></channel></rss>").unwrap().is_empty());
-    assert!(parse_feed(b"<html><body>Unavailable</body></html>").is_err());
+    assert!(parse_feed(b"<rss version=\"2.0\"><channel><title>News</title><link>https://openai.com/news/</link><description>News</description></channel></rss>", 1234).unwrap().is_empty());
+    assert!(parse_feed(b"<html><body>Unavailable</body></html>", 1234).is_err());
 }
 
 #[test]
 fn rss_boundary_rejects_all_invalid_items_but_accepts_empty_and_mixed() {
-    assert!(parse_feed(rss("").as_bytes()).unwrap().is_empty());
+    assert!(parse_feed(rss("").as_bytes(), 1234).unwrap().is_empty());
     let invalid = "<item><title>No link</title></item><item><link>https://openai.com/missing-title</link></item>";
     assert_eq!(
-        parse_feed(rss(invalid).as_bytes()).unwrap_err().kind,
+        parse_feed(rss(invalid).as_bytes(), 1234).unwrap_err().kind,
         "parse"
     );
     let mixed = rss(&format!(
         "{invalid}{}",
         item("valid", "https://openai.com/valid", "Valid")
     ));
-    assert_eq!(parse_feed(mixed.as_bytes()).unwrap().len(), 1);
+    assert_eq!(parse_feed(mixed.as_bytes(), 1234).unwrap().len(), 1);
 }
 
 async fn assert_rejected_response_preserves_cache(
@@ -154,8 +161,11 @@ async fn assert_rejected_response_preserves_cache(
 ) {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("news-cache.json");
-    let items =
-        parse_feed(rss(&item("kept", "https://openai.com/kept", "Kept")).as_bytes()).unwrap();
+    let items = parse_feed(
+        rss(&item("kept", "https://openai.com/kept", "Kept")).as_bytes(),
+        1234,
+    )
+    .unwrap();
     persist_cache(
         &path,
         &Cache {
@@ -286,7 +296,7 @@ fn sanitizes_deduplicates_and_limits_feed() {
             "News",
         );
     }
-    let items = parse_feed(rss(&input).as_bytes()).unwrap();
+    let items = parse_feed(rss(&input).as_bytes(), 1234).unwrap();
     assert_eq!(items.len(), 50);
     assert_eq!(items[0].title, "One");
     assert_eq!(items[0].description.as_deref(), Some("Hello & world"));
@@ -457,6 +467,7 @@ fn cache_roundtrip_preserves_literal_angle_brackets() {
             "<p>&lt;example&gt; &amp; 3 &lt; 5</p>",
         ))
         .as_bytes(),
+        12,
     )
     .unwrap();
     persist_cache(
@@ -485,7 +496,7 @@ fn unicode_url_boundary_survives_cache_roundtrip() {
         item("oversized", &oversized, "Oversized"),
         valid
     ));
-    let items = parse_feed(feed.as_bytes()).unwrap();
+    let items = parse_feed(feed.as_bytes(), 1234).unwrap();
     persist_cache(
         &path,
         &Cache {
@@ -500,14 +511,21 @@ fn unicode_url_boundary_survives_cache_roundtrip() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].id, "openai:valid");
     assert_eq!(
-        parse_feed(rss(&item("oversized", &oversized, "Oversized")).as_bytes())
-            .unwrap_err()
-            .kind,
+        parse_feed(
+            rss(&item("oversized", &oversized, "Oversized")).as_bytes(),
+            1234
+        )
+        .unwrap_err()
+        .kind,
         "parse"
     );
 
     let within_limit = format!("https://openai.com/{}", "é".repeat(1300));
-    let items = parse_feed(rss(&item("unicode", &within_limit, "Unicode")).as_bytes()).unwrap();
+    let items = parse_feed(
+        rss(&item("unicode", &within_limit, "Unicode")).as_bytes(),
+        1234,
+    )
+    .unwrap();
     assert_eq!(items.len(), 1);
     persist_cache(
         &path,
@@ -595,7 +613,7 @@ async fn redirects_and_oversized_responses_are_rejected() {
 fn latest_dates_and_link_fallback_identity() {
     let input = rss(&format!("{}{}<item><title>Latest</title><link>https://openai.com/latest</link><pubDate>Wed, 04 Nov 2026 12:00:00 GMT</pubDate></item>",
         item("old", "https://openai.com/old", "Old"), item("duplicate-url", "https://openai.com/old", "Duplicate")));
-    let items = parse_feed(input.as_bytes()).unwrap();
+    let items = parse_feed(input.as_bytes(), 1234).unwrap();
     assert_eq!(items.len(), 3);
     assert_eq!(items[0].id, "openai:https://openai.com/latest");
 }
@@ -637,8 +655,11 @@ async fn every_fetch_failure_and_cancellation_keep_existing_cache() {
     for (kind, response) in cases {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("news-cache.json");
-        let items =
-            parse_feed(rss(&item("kept", "https://openai.com/kept", "Kept")).as_bytes()).unwrap();
+        let items = parse_feed(
+            rss(&item("kept", "https://openai.com/kept", "Kept")).as_bytes(),
+            1234,
+        )
+        .unwrap();
         persist_cache(
             &path,
             &Cache {
@@ -697,8 +718,11 @@ async fn cache_commit_failure_preserves_memory_and_disk() {
     use std::os::windows::fs::OpenOptionsExt;
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("news-cache.json");
-    let items =
-        parse_feed(rss(&item("kept", "https://openai.com/kept", "Kept")).as_bytes()).unwrap();
+    let items = parse_feed(
+        rss(&item("kept", "https://openai.com/kept", "Kept")).as_bytes(),
+        1234,
+    )
+    .unwrap();
     persist_cache(
         &path,
         &Cache {

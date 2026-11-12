@@ -103,6 +103,7 @@ fn parse_entry(entry: ElementRef<'_>, date: NaiveDate, anchor: Option<&str>) -> 
     let mut url = Url::parse(PAGE_URL).expect("the Anthropic release notes URL is valid");
     url.set_fragment(anchor);
     Some(RawItem {
+        origin: None,
         native_id: format!(
             "{}#{:016x}",
             date.format("%Y-%m-%d"),
@@ -195,6 +196,7 @@ mod tests {
             AnthropicApi.text_is_html(),
             AnthropicApi.info().category,
             AnthropicApi.default_kind(),
+            AnthropicApi.ai_summary(),
         )
         .expect("entry should normalise")
         .remove(0)
@@ -260,6 +262,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 native_id: "2026-11-05#d6376c932f4ece27".to_owned(),
                 title: "You can now set up an IP allowlist for your organization in the Claude Console, in beta.".to_owned(),
                 url: "https://platform.claude.com/docs/en/release-notes/overview#november-5-2026".to_owned(),

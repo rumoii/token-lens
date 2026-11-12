@@ -90,6 +90,7 @@ impl Source for Models {
             };
             let url = format!("https://huggingface.co/{id}");
             items.push(RawItem {
+                origin: None,
                 kind: None,
                 native_id: id.clone(),
                 title: id,
@@ -135,6 +136,7 @@ impl Source for Spaces {
             let card = entry.get("cardData");
             let title = text(card.and_then(|card| card.get("title"))).unwrap_or_else(|| id.clone());
             items.push(RawItem {
+                origin: None,
                 kind: None,
                 native_id: id.clone(),
                 title,
@@ -187,6 +189,7 @@ impl Source for Papers {
             let published_at =
                 date(entry.get("publishedAt")).or_else(|| date(paper.get("publishedAt")));
             items.push(RawItem {
+                origin: None,
                 kind: None,
                 native_id: id.clone(),
                 title,
@@ -226,6 +229,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 kind: None,
                 native_id: "moonshotai/Kimi-K3.1-Pro".to_string(),
                 title: "moonshotai/Kimi-K3.1-Pro".to_string(),
@@ -283,6 +287,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 kind: None,
                 native_id: "a-test-user-in-the-wrold/qwen-image-21-uncensored".to_string(),
                 // The list API omits cardData, so the title falls back to the Space id.
@@ -349,6 +354,7 @@ mod tests {
         assert_eq!(
             items[0],
             RawItem {
+                origin: None,
                 kind: None,
                 native_id: "2611.06425".to_string(),
                 title: "D3D: Decoupled Diffusion Drafting for Asynchronous Speculative Decoding"

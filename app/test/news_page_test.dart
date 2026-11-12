@@ -23,6 +23,7 @@ void main() {
           sources: [openaiSource],
           items: [
             NewsItem(
+              firstSeenMs: 1700000000000,
               id: 'short',
               sourceId: 'openai',
               title: 'Short article',
@@ -30,6 +31,7 @@ void main() {
               description: 'A short excerpt.',
             ),
             NewsItem(
+              firstSeenMs: 1700000000000,
               id: 'long',
               sourceId: 'openai',
               title: 'Long article',

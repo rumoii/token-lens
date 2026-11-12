@@ -45,12 +45,15 @@ class NewsItem {
     required this.sourceId,
     required this.title,
     required this.url,
+    required this.firstSeenMs,
     this.publishedAt,
     this.description,
     this.popularityKind,
     this.popularity,
     this.alsoIn = const [],
     this.kind = 'general',
+    this.aiSummary = false,
+    this.origin,
   });
 
   final String id;
@@ -63,6 +66,9 @@ class NewsItem {
   final int? popularity;
   final List<String> alsoIn;
   final String kind;
+  final bool aiSummary;
+  final String? origin;
+  final int firstSeenMs;
 }
 
 class NewsError {
