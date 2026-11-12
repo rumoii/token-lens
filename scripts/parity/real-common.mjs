@@ -132,6 +132,8 @@ export function mirrorSource(home, files, target, source) {
   for (const file of files) {
     copy(file);
     for (const suffix of ['-wal', '-shm']) copy(`${file}${suffix}`);
+    if (source === 'grok') copy(join(dirname(file), 'summary.json'));
+    if (source === 'cline') copy(join(dirname(file), 'ui_messages.json'));
     if (source === 'openhands') copy(join(dirname(file), 'events'));
     if (source === 'codebuddy' && file.endsWith('index.json')) copy(join(dirname(dirname(file)), 'index.json'));
     if (source === 'copilot') {
