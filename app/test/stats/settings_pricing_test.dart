@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -129,6 +130,7 @@ Future<SettingsController> showSettings(
   bool reduced = true,
   UiPreferences preferences = const UiPreferences(unitSystem: 'english'),
   Future<bool> Function(Uri)? openLink,
+  Future<Directory?> Function()? downloadsDirectory,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 2400);
@@ -148,7 +150,11 @@ Future<SettingsController> showSettings(
           body: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: StatsSettingsPage(controller: c, openLink: openLink),
+              child: StatsSettingsPage(
+                controller: c,
+                openLink: openLink,
+                downloadsDirectory: downloadsDirectory,
+              ),
             ),
           ),
         ),

@@ -14,6 +14,10 @@ pub(super) struct PruneCache {
 
 const SUMS:&str="count(*) AS record_count,sum(input_tokens) AS input_tokens,sum(output_tokens) AS output_tokens,sum(cache_read_tokens) AS cache_read_tokens,sum(cache_write_tokens) AS cache_write_tokens,sum(cost_micros IS NULL) AS unpriced_records,sum(cost_micros) AS cost_micros";
 
+const REQUESTS: &str = "nullif(sum(kind='event'),0) AS request_count";
+
+const EVENT_GROSS: &str = "coalesce(sum(CASE WHEN kind='event' THEN input_tokens END),0)+coalesce(sum(CASE WHEN kind='event' THEN output_tokens END),0)+coalesce(sum(CASE WHEN kind='event' THEN cache_read_tokens END),0)+coalesce(sum(CASE WHEN kind='event' THEN cache_write_tokens END),0) AS event_gross_tokens";
+
 fn dimension(name: &str) -> Result<&'static str> {
     match name {
         "source" => Ok("source"),
@@ -187,6 +191,32 @@ fn bucket_expr(granularity: &str, offset: i64, column: &str) -> Result<String> {
     }
 }
 
+fn session_sql(clause: &str, order: &str) -> String {
+    let lifetime_sums = SUMS.replace("sum(", "sum(u.");
+    let lifetime_requests = REQUESTS.replace("kind", "u.kind");
+    let lifetime_events = EVENT_GROSS
+        .replace("kind", "u.kind")
+        .replace("THEN ", "THEN u.");
+    format!("WITH scoped AS MATERIALIZED (
+        SELECT source,session_id,max(coalesce(ended_at,observed_at)) AS last_seen_at,{SUMS},{REQUESTS},{EVENT_GROSS}
+        FROM usage_records WHERE {clause} AND session_id IS NOT NULL GROUP BY source,session_id
+    ), page AS MATERIALIZED (
+        SELECT scoped.* FROM scoped ORDER BY {order} LIMIT ? OFFSET ?
+    ), lifetime AS (
+        SELECT u.source,u.session_id,max(u.project_key) AS project_key,count(DISTINCT u.project_key) AS project_key_variants,
+        min(u.observed_at) AS started_at,max(coalesce(u.ended_at,u.observed_at)) AS last_seen_at,
+        {lifetime_sums},{lifetime_requests},{lifetime_events},max(u.kind='cumulative') AS has_cumulative
+        FROM page CROSS JOIN usage_records u INDEXED BY idx_usage_session
+        ON u.source=page.source AND u.session_id=page.session_id WHERE +u.active=1 GROUP BY u.source,u.session_id
+    ) SELECT scoped.*,lifetime.project_key,lifetime.project_key_variants,lifetime.started_at,lifetime.last_seen_at,lifetime.has_cumulative,
+        lifetime.input_tokens AS cumulative_input_tokens,lifetime.output_tokens AS cumulative_output_tokens,
+        lifetime.cache_read_tokens AS cumulative_cache_read_tokens,lifetime.cache_write_tokens AS cumulative_cache_write_tokens,
+        lifetime.cost_micros AS cumulative_cost_micros,lifetime.record_count AS cumulative_record_count,
+        lifetime.unpriced_records AS cumulative_unpriced_records,lifetime.request_count AS cumulative_request_count,
+        lifetime.event_gross_tokens AS cumulative_event_gross_tokens
+        FROM page AS scoped JOIN lifetime USING(source,session_id) ORDER BY {order}")
+}
+
 impl Ledger {
     pub fn timeseries(&self, granularity: &str, filter: &Value) -> Result<Value> {
         self.time_buckets(granularity, None, filter)
@@ -215,7 +245,7 @@ impl Ledger {
             .map_or((String::new(), "bucket".to_owned()), |column| {
                 (format!(",{column} AS grp"), "bucket,grp".into())
             });
-        let mut points = rows(&self.db, &format!("SELECT {expr} AS bucket{group_select},{SUMS} FROM usage_records WHERE {clause} AND (kind='event' OR (kind='cumulative' AND {same})) GROUP BY {group_by} ORDER BY bucket ASC"), &args)?;
+        let mut points = rows(&self.db, &format!("SELECT {expr} AS bucket{group_select},{SUMS},{REQUESTS},{EVENT_GROSS} FROM usage_records WHERE {clause} AND (kind='event' OR (kind='cumulative' AND {same})) GROUP BY {group_by} ORDER BY bucket ASC"), &args)?;
         for row in &mut points {
             if let Some(group) = row.as_object_mut().unwrap().remove("grp") {
                 row["group"] = group;
@@ -246,8 +276,23 @@ impl Ledger {
     ) -> Result<(Vec<Value>, Option<u64>)> {
         let limit = limit.filter(|n| *n != 0).unwrap_or(50).clamp(1, 200);
         let (clause, mut args) = scope(self, filter)?;
+        let order = if filter["from"].as_str().is_some_and(|v| !v.is_empty())
+            || filter["to"].as_str().is_some_and(|v| !v.is_empty())
+        {
+            "coalesce(scoped.input_tokens,0)+coalesce(scoped.output_tokens,0)+coalesce(scoped.cache_read_tokens,0)+coalesce(scoped.cache_write_tokens,0) DESC,session_id ASC,source ASC"
+        } else if ["model", "project"]
+            .iter()
+            .any(|key| filter[*key].as_str().is_some_and(|v| !v.is_empty()))
+        {
+            // Project/model filters limit the period sums, not the lifetime activity order.
+            "(SELECT max(coalesce(sort.ended_at,sort.observed_at)) FROM usage_records sort INDEXED BY idx_usage_session WHERE sort.source=scoped.source AND sort.session_id=scoped.session_id AND +sort.active=1) DESC,session_id ASC,source ASC"
+        } else {
+            "scoped.last_seen_at DESC,session_id ASC,source ASC"
+        };
         args.extend([json!(limit + 1), json!(offset)]);
-        let mut items = rows(&self.db, &format!("SELECT source,session_id,max(project_key) AS project_key,count(DISTINCT project_key) AS project_key_variants,min(observed_at) AS started_at,max(coalesce(ended_at,observed_at)) AS last_seen_at,{SUMS} FROM usage_records WHERE {clause} AND session_id IS NOT NULL GROUP BY source,session_id ORDER BY last_seen_at DESC,session_id ASC LIMIT ? OFFSET ?"), &args)?;
+        // Membership and period sums use exactly the totals scope. Lifetime metadata and
+        // sums include all active rows of those (source, session_id) identities.
+        let mut items = rows(&self.db, &session_sql(&clause, order), &args)?;
         let next = (items.len() > limit as usize).then(|| offset + limit as u64);
         items.truncate(limit as usize);
         for row in &mut items {
@@ -255,6 +300,26 @@ impl Ledger {
                 row["project_key"] = Value::Null;
             }
             row.as_object_mut().unwrap().remove("project_key_variants");
+            row["has_cumulative"] = json!(row["has_cumulative"] == 1);
+            let mut cumulative = json!({});
+            for key in [
+                "input_tokens",
+                "output_tokens",
+                "cache_read_tokens",
+                "cache_write_tokens",
+                "cost_micros",
+                "record_count",
+                "unpriced_records",
+                "request_count",
+                "event_gross_tokens",
+            ] {
+                cumulative[key] = row
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(&format!("cumulative_{key}"))
+                    .unwrap();
+            }
+            row["cumulative"] = shape(cumulative);
             *row = shape(row.clone());
         }
         Ok((items, next))
@@ -275,7 +340,7 @@ impl Ledger {
             self,
             &json!({"source":source,"session":session,"offsetMinutes":offset}),
         )?;
-        let row = rows(&self.db, &format!("SELECT min(observed_at) AS started_at,max(coalesce(ended_at,observed_at)) AS last_seen_at,{SUMS},max(project_key) AS project_key,count(DISTINCT project_key) AS project_variants,sum(CASE WHEN kind='event' THEN 1 ELSE 0 END) AS event_records,sum(CASE WHEN kind='cumulative' THEN 1 ELSE 0 END) AS cumulative_records FROM usage_records WHERE {clause}"), &args)?.remove(0);
+        let row = rows(&self.db, &format!("SELECT min(observed_at) AS started_at,max(coalesce(ended_at,observed_at)) AS last_seen_at,{SUMS},{REQUESTS},{EVENT_GROSS},max(project_key) AS project_key,count(DISTINCT project_key) AS project_variants,sum(CASE WHEN kind='event' THEN 1 ELSE 0 END) AS event_records,sum(CASE WHEN kind='cumulative' THEN 1 ELSE 0 END) AS cumulative_records FROM usage_records WHERE {clause}"), &args)?.remove(0);
         if row["record_count"] == 0 {
             return Ok(None);
         }
@@ -288,8 +353,8 @@ impl Ledger {
         for key in ["project_variants", "event_records", "cumulative_records"] {
             summary.as_object_mut().unwrap().remove(key);
         }
-        let models: Vec<_> = rows(&self.db, &format!("SELECT model,{SUMS} FROM usage_records WHERE {clause} GROUP BY model ORDER BY record_count DESC"), &args)?.into_iter().map(shape).collect();
-        let timeline: Vec<_> = rows(&self.db, &format!("SELECT {expr} AS bucket,{SUMS} FROM usage_records WHERE {clause} AND kind='event' GROUP BY bucket ORDER BY bucket ASC"), &args)?.into_iter().map(shape).collect();
+        let models: Vec<_> = rows(&self.db, &format!("SELECT model,{SUMS},{EVENT_GROSS} FROM usage_records WHERE {clause} GROUP BY model ORDER BY record_count DESC"), &args)?.into_iter().map(shape).collect();
+        let timeline: Vec<_> = rows(&self.db, &format!("SELECT {expr} AS bucket,{SUMS},{REQUESTS},{EVENT_GROSS} FROM usage_records WHERE {clause} AND kind='event' GROUP BY bucket ORDER BY bucket ASC"), &args)?.into_iter().map(shape).collect();
         Ok(Some(
             json!({"summary":summary,"models":models,"timeline":timeline,"kinds":{"event":row["event_records"],"cumulative":row["cumulative_records"]}}),
         ))
@@ -350,13 +415,13 @@ impl Ledger {
     pub fn breakdown(&self, by: &str, filter: &Value) -> Result<Vec<Value>> {
         let column = dimension(by)?;
         let (clause, args) = scope(self, filter)?;
-        Ok(rows(&self.db,&format!("SELECT {column} AS bucket,{SUMS} FROM usage_records WHERE {clause} GROUP BY {column} ORDER BY cost_micros DESC,record_count DESC"),&args)?.into_iter().map(shape).collect())
+        Ok(rows(&self.db,&format!("SELECT {column} AS bucket,{SUMS},{REQUESTS},{EVENT_GROSS} FROM usage_records WHERE {clause} GROUP BY {column} ORDER BY cost_micros DESC,record_count DESC"),&args)?.into_iter().map(shape).collect())
     }
     pub fn grouped(&self, outer: &str, inner: &str, filter: &Value) -> Result<Vec<Value>> {
         let a = dimension(outer)?;
         let b = dimension(inner)?;
         let (clause, args) = scope(self, filter)?;
-        Ok(rows(&self.db,&format!("SELECT {a} AS outer_key,{b} AS inner_key,{SUMS} FROM usage_records WHERE {clause} GROUP BY outer_key,inner_key ORDER BY cost_micros DESC"),&args)?.into_iter().map(shape).collect())
+        Ok(rows(&self.db,&format!("SELECT {a} AS outer_key,{b} AS inner_key,{SUMS},{REQUESTS},{EVENT_GROSS} FROM usage_records WHERE {clause} GROUP BY outer_key,inner_key ORDER BY cost_micros DESC"),&args)?.into_iter().map(shape).collect())
     }
     pub fn activity(&self, filter: &Value) -> Result<Value> {
         let (clause, args) = scope(self, filter)?;
@@ -411,6 +476,229 @@ mod d33_tests {
     use super::*;
     use crate::stats::{clock::Clock, pricing};
     use std::path::Path;
+
+    #[test]
+    fn fix1_lifetime_lookup_is_indexed_and_follows_pagination() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        let sql = session_sql(
+            "+active=1",
+            "scoped.last_seen_at DESC,session_id ASC,source ASC",
+        );
+        let plan = rows(
+            &ledger.db,
+            &format!("EXPLAIN QUERY PLAN {sql}"),
+            &[json!(6), json!(0)],
+        )
+        .unwrap();
+        println!("FIX1 EXPLAIN: {plan:?}");
+        let details: Vec<_> = plan.iter().map(|r| r["detail"].as_str().unwrap()).collect();
+        assert!(
+            details.iter().any(|s| s
+                .contains("SEARCH u USING INDEX idx_usage_session (source=? AND session_id=?)")),
+            "{details:?}"
+        );
+        assert!(
+            !details
+                .iter()
+                .any(|s| *s == "SCAN u" || s.starts_with("SCAN u ")),
+            "{details:?}"
+        );
+        assert!(
+            sql.contains("page AS MATERIALIZED"),
+            "Lifetime must aggregate the selected page"
+        );
+    }
+
+    #[test]
+    fn fix1_event_gross_excludes_snapshots_and_counts_partial_tokens() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        ledger.batch(&[
+            json!({"record_key":"event","source":"codex","session_id":"mixed","model":"m","observed_at":"2026-01-15T00:00:00.000Z","input_tokens":100,"cache_read_tokens":30}),
+            json!({"record_key":"snapshot","source":"codex","session_id":"mixed","model":"m","kind":"cumulative","observed_at":"2026-01-15T00:00:00.000Z","input_tokens":10000}),
+            json!({"record_key":"pure","source":"dsh","session_id":"snapshot","model":"s","kind":"cumulative","observed_at":"2026-01-15T00:00:00.000Z","output_tokens":900}),
+        ], None,None,&[],pricing::cost_of).unwrap();
+        let groups = ledger.breakdown("source", &json!({})).unwrap();
+        let mixed = groups.iter().find(|r| r["bucket"] == "codex").unwrap();
+        assert_eq!(mixed["gross_tokens"], 10130);
+        assert_eq!(mixed["request_count"], 1);
+        assert_eq!(mixed["event_gross_tokens"], 130);
+        assert_eq!(
+            groups.iter().find(|r| r["bucket"] == "dsh").unwrap()["event_gross_tokens"],
+            0
+        );
+        assert_eq!(
+            ledger
+                .grouped("source", "model", &json!({}))
+                .unwrap()
+                .iter()
+                .find(|r| r["outer_key"] == "codex")
+                .unwrap()["event_gross_tokens"],
+            130
+        );
+        let (sessions, _) = ledger
+            .sessions(None, 0, &json!({"source":"codex"}))
+            .unwrap();
+        assert_eq!(sessions[0]["event_gross_tokens"], 130);
+        assert_eq!(sessions[0]["cumulative"]["event_gross_tokens"], 130);
+        let detail = ledger
+            .session_detail("codex", "mixed", "day", 0)
+            .unwrap()
+            .unwrap();
+        assert_eq!(detail["summary"]["event_gross_tokens"], 130);
+        assert_eq!(detail["timeline"][0]["event_gross_tokens"], 130);
+    }
+
+    #[test]
+    fn fix1_project_scope_preserves_lifetime_order_and_detail_totals() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        ledger.batch(&[
+            json!({"record_key":"a1","source":"codex","session_id":"a","project_key":"target","observed_at":"2026-01-01T00:00:00.000Z","input_tokens":10}),
+            json!({"record_key":"a2","source":"codex","session_id":"a","project_key":"other","observed_at":"2026-01-20T00:00:00.000Z","input_tokens":100}),
+            json!({"record_key":"b1","source":"codex","session_id":"b","project_key":"target","observed_at":"2026-01-10T00:00:00.000Z","input_tokens":20}),
+        ],None,None,&[],pricing::cost_of).unwrap();
+        let (items, next) = ledger
+            .sessions(Some(1), 0, &json!({"project":"target"}))
+            .unwrap();
+        assert_eq!(items[0]["session_id"], "a");
+        assert_eq!(items[0]["gross_tokens"], 10);
+        assert_eq!(items[0]["cumulative"]["gross_tokens"], 110);
+        assert_eq!(next, Some(1));
+        let filter =
+            json!({"from":"2026-01-01","to":"2026-01-10","project":"target","source":"codex"});
+        let (items, _) = ledger.sessions(Some(50), 0, &filter).unwrap();
+        assert_eq!(items[0]["session_id"], "b");
+        let mut params = filter;
+        params["session_id"] = json!("a");
+        params["granularity"] = json!("day");
+        let detail = crate::stats::service::session_detail(&ledger, &params, 0, "UTC")
+            .unwrap()
+            .unwrap();
+        assert_eq!(detail["period"]["gross_tokens"], items[1]["gross_tokens"]);
+        assert_eq!(detail["period"]["request_count"], 1);
+        assert_eq!(detail["period"]["event_gross_tokens"], 10);
+        assert_eq!(detail["session"]["gross_tokens"], 110);
+        assert_eq!(detail["session"]["request_count"], 2);
+    }
+
+    #[test]
+    fn e3_session_attribution_requests_and_partition() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        let event = |key: &str, session: Option<&str>, day: &str, n: i64| {
+            json!({
+                "record_key":key,"source":"codex","session_id":session,
+                "project_key":"demo","model":"claude-fable-5-1","observed_at":format!("{day}T12:00:00.000Z"),
+                "input_tokens":n,"output_tokens":n*2,"cache_read_tokens":n*3,"cache_write_tokens":n*4
+            })
+        };
+        let mut snapshot = event("snapshot", Some("snapshot"), "2026-01-13", 50);
+        snapshot["kind"] = json!("cumulative");
+        snapshot["ended_at"] = json!("2026-01-15T13:00:00.000Z");
+        ledger
+            .batch(
+                &[
+                    event("old", Some("long"), "2025-12-15", 100),
+                    event("resumed", Some("long"), "2026-01-15", 10),
+                    event("new", Some("new"), "2026-01-15", 20),
+                    event("anonymous", None, "2026-01-15", 3),
+                    snapshot,
+                ],
+                None,
+                None,
+                &[],
+                pricing::cost_of,
+            )
+            .unwrap();
+        ledger
+            .batch(
+                &[event("inactive", Some("long"), "2026-01-15", 999)],
+                None,
+                None,
+                &[],
+                pricing::cost_of,
+            )
+            .unwrap();
+        ledger
+            .db
+            .execute(
+                "UPDATE usage_records SET active=0 WHERE record_key='inactive'",
+                [],
+            )
+            .unwrap();
+        let filter = json!({"from":"2026-01-15","to":"2026-01-15","offsetMinutes":0});
+        let (items, next) = ledger.sessions(Some(1), 0, &filter).unwrap();
+        assert_eq!(items[0]["session_id"], "new");
+        assert_eq!(next, Some(1));
+        let (items, next) = ledger.sessions(Some(50), 0, &filter).unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(next, None);
+        let long = items.iter().find(|r| r["session_id"] == "long").unwrap();
+        assert_eq!(long["started_at"], "2025-12-15T12:00:00.000Z");
+        assert_eq!(long["last_seen_at"], "2026-01-15T12:00:00.000Z");
+        assert_eq!(long["request_count"], 1);
+        assert_eq!(long["has_cumulative"], false);
+        for (field, period, lifetime) in [
+            ("input_tokens", 10, 110),
+            ("output_tokens", 20, 220),
+            ("cache_read_tokens", 30, 330),
+            ("cache_write_tokens", 40, 440),
+            ("gross_tokens", 100, 1100),
+            ("request_count", 1, 2),
+        ] {
+            assert_eq!(long[field], period, "period {field}");
+            assert_eq!(long["cumulative"][field], lifetime, "lifetime {field}");
+        }
+        assert!(long["cost_micros"].as_i64().unwrap() > 0);
+        assert!(
+            long["cumulative"]["cost_micros"].as_i64().unwrap()
+                > long["cost_micros"].as_i64().unwrap()
+        );
+        let (clause, args) = scope(&ledger, &filter).unwrap();
+        let anonymous = shape(
+            rows(
+                &ledger.db,
+                &format!("SELECT {SUMS} FROM usage_records WHERE {clause} AND session_id IS NULL"),
+                &args,
+            )
+            .unwrap()
+            .remove(0),
+        )["gross_tokens"]
+            .as_i64()
+            .unwrap();
+        assert_eq!(anonymous, 30);
+        assert_eq!(
+            items
+                .iter()
+                .map(|r| r["gross_tokens"].as_i64().unwrap())
+                .sum::<i64>()
+                + anonymous,
+            ledger.totals(&filter).unwrap()["gross_tokens"]
+        );
+        let (all, _) = ledger.sessions(None, 0, &json!({})).unwrap();
+        assert_eq!(all[0]["session_id"], "snapshot");
+        let snap = all.iter().find(|r| r["session_id"] == "snapshot").unwrap();
+        assert_eq!(snap["request_count"], Value::Null);
+        assert_eq!(snap["cumulative"]["request_count"], Value::Null);
+        assert_eq!(snap["has_cumulative"], true);
+        let groups = ledger.breakdown("source", &filter).unwrap();
+        assert_eq!(groups[0]["request_count"], 3);
+        assert_eq!(
+            ledger
+                .breakdown("source", &json!({"from":"2026-01-13","to":"2026-01-13"}))
+                .unwrap()[0]["request_count"],
+            Value::Null
+        );
+        assert_eq!(
+            ledger.grouped("source", "model", &filter).unwrap()[0]["request_count"],
+            3
+        );
+        let detail = ledger
+            .session_detail("codex", "long", "day", 0)
+            .unwrap()
+            .unwrap();
+        assert_eq!(detail["summary"]["request_count"], 2);
+        assert_eq!(detail["timeline"][0]["request_count"], 1);
+        assert_eq!(detail["timeline"][1]["request_count"], 1);
+    }
 
     #[test]
     fn d33_prune_plans_cache_and_external_version() {

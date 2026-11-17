@@ -33,7 +33,7 @@ mod zed;
 mod zstd;
 use super::{jscompat::LocalZone, Error, Result};
 #[cfg(test)]
-use lines::file_tag;
+pub(super) use lines::file_tag;
 #[cfg(test)]
 use num::plus;
 use serde_json::{json, Value};
@@ -228,7 +228,18 @@ mod tests {
                     &LocalZone::Fixed(480),
                 )
                 .unwrap();
-                assert_eq!(json!(records), row["records"], "{file}");
+                let mut expected = row["records"].clone();
+                if row["source"] == "codex" && file.starts_with("test/fixtures/parity/codex.jsonl")
+                {
+                    // Intentional Rust-only short-ID identity rule; retain the Node golden verbatim.
+                    assert_eq!(expected[0]["record_key"], "codex|codex-s|r1");
+                    expected[0]["record_key"] = json!(format!(
+                        "codex|codex-s|{}:2",
+                        file_tag(file.strip_suffix(".zst").unwrap_or(file))
+                    ));
+                    expected[0]["replaces"] = json!(["codex|codex-s|r1"]);
+                }
+                assert_eq!(json!(records), expected, "{file}");
                 assert_eq!(notes, row["notes"], "{file}");
             }
             if row["type"] == "identity" {
@@ -280,7 +291,7 @@ mod tests {
 
 pub const PARSER_REV: &[(&str, i64)] = &[
     ("claude", 3),
-    ("codex", 4),
+    ("codex", 5),
     ("qwen", 7),
     ("dsh", 3),
     ("grok", 3),
@@ -319,6 +330,12 @@ mod revision_tests {
     fn node_parser_revisions() {
         for line in include_str!("../../../tests/golden/parser-rev.jsonl").lines() {
             let row: serde_json::Value = serde_json::from_str(line).unwrap();
+            if row["source"] == "codex" {
+                // Node is the independent rollback path; see specs/stats.md, allowed differences.
+                assert_eq!(row["expected"], 4);
+                assert_eq!(super::parser_rev("codex"), 5);
+                continue;
+            }
             assert_eq!(
                 super::parser_rev(row["source"].as_str().unwrap()),
                 row["expected"].as_i64().unwrap(),

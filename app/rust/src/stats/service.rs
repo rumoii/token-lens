@@ -44,6 +44,11 @@ fn totals_shape(value: &Value) -> Value {
     ] {
         result[name] = value[name].clone();
     }
+    for key in ["request_count", "event_gross_tokens"] {
+        if let Some(value) = value.get(key) {
+            result[key] = value.clone();
+        }
+    }
     result["cost_usd"] = money(&value["cost_micros"]);
     result
 }
@@ -239,7 +244,24 @@ pub fn sessions(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resul
     let filter = filter(params, offset)?;
     let cursor = super::jscompat::decode_cursor(params["cursor"].as_str());
     let (items, next) = ledger.sessions(params["limit"].as_i64(), cursor, &filter)?;
-    let items: Vec<_> = items.iter().map(|row| json!({"session_id":row["session_id"],"source":row["source"],"project_key":row["project_key"],"started_at":row["started_at"],"last_seen_at":row["last_seen_at"],"gross_tokens":row["gross_tokens"],"cost_usd":money(&row["cost_micros"]),"record_count":row["record_count"]})).collect();
+    let items: Vec<_> = items
+        .iter()
+        .map(|row| {
+            let mut result = totals_shape(row);
+            for key in [
+                "session_id",
+                "source",
+                "project_key",
+                "started_at",
+                "last_seen_at",
+                "has_cumulative",
+            ] {
+                result[key] = row[key].clone();
+            }
+            result["cumulative"] = totals_shape(&row["cumulative"]);
+            result
+        })
+        .collect();
     Ok(
         json!({"items":items,"next_cursor":next.map(super::jscompat::encode_cursor),"snapshot":snapshot(ledger,&filter,tz)}),
     )
@@ -299,10 +321,19 @@ pub fn session_detail(
             value
         })
         .collect();
+    let mut period_filter = filter(params, offset)?;
+    period_filter["source"] = json!(source);
+    period_filter["session"] = json!(session);
+    let (period_items, _) = ledger.sessions(Some(1), 0, &period_filter)?;
+    let period = period_items.first().map(totals_shape).unwrap_or_else(|| json!({
+        "gross_tokens":0,"input_tokens":0,"output_tokens":0,"cache_read_tokens":0,
+        "cache_write_tokens":0,"cost_usd":"0.000000","unpriced_records":0,
+        "record_count":0,"event_gross_tokens":0,"request_count":if detail["kinds"]["event"] == 0 {Value::Null} else {json!(0)}
+    }));
     let mut snapshot = snapshot(ledger, &json!({"source":source,"session_id":session}), tz);
     snapshot["granularity"] = json!(granularity);
     Ok(Some(
-        json!({"session":summary,"models":models,"timeline":timeline,"kinds":detail["kinds"],"granularity":granularity,"snapshot":snapshot}),
+        json!({"period":period,"session":summary,"models":models,"timeline":timeline,"kinds":detail["kinds"],"granularity":granularity,"snapshot":snapshot}),
     ))
 }
 

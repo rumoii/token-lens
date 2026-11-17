@@ -65,7 +65,7 @@ class SourcesGateway extends FakeStatsGateway {
   }
 
   @override
-  Future<StatsSync> sync() async {
+  Future<StatsSync> sync({String trigger = 'manual'}) async {
     syncs++;
     if (syncFailure != null) throw StateError(syncFailure!);
     await syncBarrier?.future;

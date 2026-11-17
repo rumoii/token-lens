@@ -171,7 +171,7 @@ void main() {
         gap(
           tester,
           cardWith(page, '常用模型'),
-          cardWith(page, '最近会话'),
+          cardWith(page, '本月的会话'),
           expected,
           'home $width models -> recent',
         );

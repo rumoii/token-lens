@@ -35,7 +35,7 @@ codex_cli:
     provider: "$.payload.model_provider（type=session_meta）；只在该会话内继承，下一 session_meta 缺失则清空，不从模型名推断"
     record_type: "只有 $.type == 'token_usage_record' 的 payload 带 per-response 用量；其余行必须跳过"
     session_id: "$.payload.session_id"
-    identity: "$.payload.response_id（每次模型响应唯一，作为 record_key 的依据）"
+    identity: "Rust revision 5：可靠 response_id 保留 codex|<session>|<response_id>；只按 id 形状判定，去掉开头 resp_ 后为空、全 ASCII 数字或少于 16 字符的 id 不可靠，改用 codex|<session>|<用量行 thread_id>|<原始时间戳>；同一新键按文件内有效用量行顺序加 #2、#3。缺 thread_id 或原始时间戳则用去掉末尾 .zst 的路径 hash＋物理行号。每条新身份 replaces 旧响应键；无 response_id 保持既有位置回退。正常形状长 id 被上游复用时仍按旧 key 合并、原地更新，与 E1 之前相同。Node revision 4 仍保留旧规则，见 specs/stats.md「允许的差异」"
     timestamp: "$.timestamp (ISO8601)"
     model: "$.payload.usage.model，缺失时沿用会话内已见的模型名"
     usage:

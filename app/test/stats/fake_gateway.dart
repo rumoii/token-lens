@@ -32,6 +32,11 @@ const zeroCounts = StatsCounts(
 );
 
 class FakeStatsGateway implements StatsGateway {
+  @override
+  Future<String> exportDiagnostics(String directory) async =>
+      '$directory/synthetic.txt';
+  @override
+  Future<void> logError(String type, String message, String stack) async {}
   int syncs = 0, closes = 0;
   String? failure, syncFailure;
   String? failingResource;
@@ -314,6 +319,21 @@ class FakeStatsGateway implements StatsGateway {
                 StatsSessionItem(
                   source: toolIds[[0, 2, 0, 1, 3][i % 5]],
                   sessionId: 'session-$i',
+                  unpricedRecords: 0,
+                  requestCount: 5,
+                  hasCumulative: false,
+                  cumulative: StatsTotals(
+                    grossTokens: [
+                      1080000,
+                      257000,
+                      1200000,
+                      480000,
+                      93000,
+                    ][i % 5],
+                    recordCount: 5,
+                    requestCount: 5,
+                    unpricedRecords: 0,
+                  ),
                   projectKey: [
                     'lumen',
                     'harbor-api',
@@ -340,8 +360,9 @@ class FakeStatsGateway implements StatsGateway {
   Future<StatsSessionDetail?> sessionDetail(
     String source,
     String sessionId,
-    String granularity,
-  ) async => null;
+    String granularity, {
+    StatsFilter filter = const StatsFilter(),
+  }) async => null;
   @override
   Future<StatsSources> sources() async {
     await _read('sources');
@@ -426,7 +447,7 @@ class FakeStatsGateway implements StatsGateway {
     schemaVersion: 5,
   );
   @override
-  Future<StatsSync> sync() async {
+  Future<StatsSync> sync({String trigger = 'manual'}) async {
     syncs++;
     if (syncFailure != null) throw StateError(syncFailure!);
     await syncBarrier?.future;

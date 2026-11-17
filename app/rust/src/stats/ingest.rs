@@ -127,6 +127,7 @@ pub fn sync(
     cancel: &AtomicBool,
 ) -> Result<Value> {
     let started = Instant::now();
+    let log = crate::diagnostics::RuntimeLog::new(data, Some(home));
     let _lock = SyncLock::acquire(data)?;
     let ledger = Ledger::open(&data.join("ledger.db"), clock)?;
     let run = ledger.begin_run()?;
@@ -134,6 +135,7 @@ pub fn sync(
         let mut totals = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"repriced":0,"counts":{"read_failed":0,"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0,"cross_file_copies":0},"anomalies":[]});
         let mut file_count = 0;
         for (source, files) in discovery::discover_with_env(home, environment)? {
+            let discovered_files = files.clone();
             file_count += files.len();
             let mut parsed = Vec::new();
             for path in files {
@@ -163,14 +165,31 @@ pub fn sync(
                     Err(error) => {
                         totals["counts"]["read_failed"] =
                             json!(totals["counts"]["read_failed"].as_i64().unwrap() + 1);
+                        let note = format!("read_failed: {source} {file} — {error}");
+                        log.write(
+                            "WARN",
+                            "sync",
+                            &crate::diagnostics::safe_anomaly(&note, &discovered_files),
+                        );
                         totals["anomalies"]
                             .as_array_mut()
                             .unwrap()
-                            .push(json!(format!("read_failed: {source} {file} — {error}")));
+                            .push(json!(note));
                     }
                 }
             }
+            let previous_anomalies = totals["anomalies"].as_array().unwrap().len();
             let elsewhere = settle(&mut parsed, &mut totals);
+            for note in totals["anomalies"].as_array().unwrap()[previous_anomalies..]
+                .iter()
+                .filter_map(Value::as_str)
+            {
+                log.write(
+                    "WARN",
+                    "sync",
+                    &crate::diagnostics::safe_anomaly(note, &discovered_files),
+                );
+            }
             for file in parsed {
                 let stats = ledger.batch_cancellable(
                     &file.records,
@@ -180,6 +199,18 @@ pub fn sync(
                     pricing::cost_of,
                     || cancel.load(Ordering::Acquire),
                 )?;
+                for note in stats["anomalies"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                {
+                    log.write(
+                        "WARN",
+                        "sync",
+                        &crate::diagnostics::safe_anomaly(note, &discovered_files),
+                    );
+                }
                 for field in ["attempted", "inserted", "updated", "unchanged", "rejected"] {
                     totals[field] =
                         json!(totals[field].as_i64().unwrap() + stats[field].as_i64().unwrap());
@@ -213,10 +244,24 @@ pub fn sync(
         )?;
         totals["fileCount"] = json!(file_count);
         totals["durationMs"] = json!(started.elapsed().as_millis() as u64);
+        log.write("INFO", "sync", &format!("end durationMs={} files={file_count} attempted={} inserted={} updated={} unchanged={} rejected={} counts={}", totals["durationMs"], totals["attempted"], totals["inserted"], totals["updated"], totals["unchanged"], totals["rejected"], totals["counts"]));
         Ok(totals)
     })();
     if let Err(error) = &result {
         let _ = ledger.fail_run(run, &error.to_string());
+        log.write(
+            if error.0 == "cancelled" {
+                "WARN"
+            } else {
+                "ERROR"
+            },
+            "sync",
+            &format!(
+                "end status={} durationMs={}",
+                crate::diagnostics::error_kind(&error.0),
+                started.elapsed().as_millis()
+            ),
+        );
     }
     result
 }
@@ -272,12 +317,25 @@ mod tests {
             row["source_file"] =
                 json!(&row["source_file"].as_str().unwrap()[home.to_string_lossy().len() + 1..]);
         }
-        let expected: Vec<Value> = include_str!("../../tests/golden/ingest.jsonl")
+        let mut expected: Vec<Value> = include_str!("../../tests/golden/ingest.jsonl")
             .lines()
             .map(|s| serde_json::from_str::<Value>(s).unwrap())
             .filter(|r| r["type"] == "ledger_row")
             .map(|r| r["expected"].clone())
             .collect();
+        for row in &mut expected {
+            if row["source"] == "codex" {
+                // Explicit Rust-only short-ID divergence; Node golden and all other fields stay pinned.
+                assert_eq!(row["record_key"], "codex|codex-s|response-local");
+                assert_eq!(row["parser_rev"], 4);
+                let file = home.join(row["source_file"].as_str().unwrap());
+                row["record_key"] = json!(format!(
+                    "codex|codex-s|{}:2",
+                    adapters::file_tag(file.to_str().unwrap())
+                ));
+                row["parser_rev"] = json!(5);
+            }
+        }
         assert_eq!(actual, expected);
     }
     #[test]

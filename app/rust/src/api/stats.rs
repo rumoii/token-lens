@@ -33,6 +33,8 @@ pub struct StatsTotals {
     pub cost_micros: Option<i64>,
     pub unpriced_records: i64,
     pub record_count: i64,
+    pub request_count: Option<i64>,
+    pub event_gross_tokens: Option<i64>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsActivity {
@@ -111,6 +113,8 @@ pub struct StatsGroup {
     pub record_count: i64,
     pub price_state: Option<String>,
     pub cost_by_kind: Option<StatsCostParts>,
+    pub request_count: Option<i64>,
+    pub event_gross_tokens: Option<i64>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsBreakdown {
@@ -191,6 +195,8 @@ pub struct StatsBucket {
     pub cost_micros: Option<i64>,
     pub unpriced_records: i64,
     pub record_count: i64,
+    pub request_count: Option<i64>,
+    pub event_gross_tokens: Option<i64>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsUnallocated {
@@ -226,6 +232,15 @@ pub struct StatsSessionItem {
     pub cost_usd: Option<String>,
     pub cost_micros: Option<i64>,
     pub record_count: i64,
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub cache_read_tokens: Option<i64>,
+    pub cache_write_tokens: Option<i64>,
+    pub unpriced_records: i64,
+    pub request_count: Option<i64>,
+    pub cumulative: StatsTotals,
+    pub has_cumulative: bool,
+    pub event_gross_tokens: Option<i64>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSessions {
@@ -249,6 +264,8 @@ pub struct StatsSessionSummary {
     pub cost_micros: Option<i64>,
     pub unpriced_records: i64,
     pub record_count: i64,
+    pub request_count: Option<i64>,
+    pub event_gross_tokens: Option<i64>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSessionModel {
@@ -263,6 +280,7 @@ pub struct StatsSessionModel {
     pub cost_micros: Option<i64>,
     pub unpriced_records: i64,
     pub record_count: i64,
+    pub event_gross_tokens: Option<i64>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSessionKinds {
@@ -277,6 +295,7 @@ pub struct StatsSessionDetail {
     pub kinds: StatsSessionKinds,
     pub granularity: String,
     pub snapshot: StatsSnapshot,
+    pub period: Option<StatsTotals>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsRetention {
@@ -416,6 +435,7 @@ struct State {
     running: AtomicBool,
     clock: Clock,
     discovery: Mutex<Option<(i64, StatsDiscovery)>>,
+    log: crate::diagnostics::RuntimeLog,
 }
 
 #[flutter_rust_bridge::frb(opaque)]
@@ -424,7 +444,7 @@ pub struct StatsClient {
     state: Arc<State>,
 }
 
-// The core retains the exact /api/v1 shapes. Only the typed FFI adds integer money.
+// Core queries preserve existing fields; the typed FFI also adds integer money.
 fn with_micros(mut value: Value) -> Value {
     fn parse(usd: &Value) -> Option<i64> {
         let text = usd.as_str()?;
@@ -466,7 +486,14 @@ fn with_micros(mut value: Value) -> Value {
 
 impl StatsClient {
     pub fn new(data_dir: String, logs_home: Option<String>) -> Result<Self, String> {
-        Self::with_clock(data_dir, logs_home, Clock::System)
+        let log = crate::diagnostics::RuntimeLog::new(
+            std::path::Path::new(&data_dir),
+            logs_home.as_deref().map(std::path::Path::new),
+        );
+        log.ffi(
+            "StatsClient.new",
+            Self::with_clock(data_dir, logs_home, Clock::System),
+        )
     }
     #[flutter_rust_bridge::frb(ignore)]
     pub fn new_with_fixed_clock(
@@ -504,6 +531,7 @@ impl StatsClient {
         drop(Ledger::open(&data.join("ledger.db"), clock.clone()).map_err(|e| e.to_string())?);
         Ok(Self {
             state: Arc::new(State {
+                log: crate::diagnostics::RuntimeLog::new(&data, Some(&home)),
                 data,
                 home,
                 timezone: timezone::system_timezone().map_err(|e| e.to_string())?,
@@ -515,6 +543,33 @@ impl StatsClient {
         })
     }
     pub fn sync(&self) -> Result<StatsSync, String> {
+        self.sync_triggered("manual".into())
+    }
+    pub fn sync_triggered(&self, trigger: String) -> Result<StatsSync, String> {
+        let trigger = match trigger.as_str() {
+            "startup" => "startup",
+            "timer" => "timer",
+            _ => "manual",
+        };
+        self.state
+            .log
+            .write("INFO", "sync", &format!("start trigger={trigger}"));
+        let result = self.sync_inner();
+        if let Err(error) = &result {
+            self.state.log.write(
+                if error == "cancelled" {
+                    "WARN"
+                } else {
+                    "ERROR"
+                },
+                "sync",
+                &format!("end {}", crate::diagnostics::error_kind(error)),
+            );
+        }
+        self.state.log.ffi("sync", result)
+    }
+    #[flutter_rust_bridge::frb(ignore)]
+    fn sync_inner(&self) -> Result<StatsSync, String> {
         if self.state.closed.load(Ordering::Acquire) {
             return Err("closed".into());
         }
@@ -552,15 +607,18 @@ impl StatsClient {
         filter: StatsFilter,
         offset_minutes: i32,
     ) -> Result<StatsSummary, String> {
-        let ledger = self.open()?;
-        let value = service::summary(
-            &ledger,
-            &serde_json::to_value(filter).unwrap(),
-            offset_minutes,
-            &self.state.timezone,
-        )
-        .map_err(|e| e.to_string())?;
-        serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let value = service::summary(
+                &ledger,
+                &serde_json::to_value(filter).unwrap(),
+                offset_minutes,
+                &self.state.timezone,
+            )
+            .map_err(|e| e.to_string())?;
+            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("summary", result)
     }
     pub fn breakdown(
         &self,
@@ -568,16 +626,22 @@ impl StatsClient {
         filter: StatsFilter,
         offset_minutes: i32,
     ) -> Result<StatsBreakdown, String> {
-        let ledger = self.open()?;
-        let mut params = serde_json::to_value(filter).unwrap();
-        params["by"] = json!(by);
-        let value = service::breakdown(&ledger, &params, offset_minutes, &self.state.timezone)
-            .map_err(|e| e.to_string())?;
-        serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let mut params = serde_json::to_value(filter).unwrap();
+            params["by"] = json!(by);
+            let value = service::breakdown(&ledger, &params, offset_minutes, &self.state.timezone)
+                .map_err(|e| e.to_string())?;
+            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("breakdown", result)
     }
     pub fn last_run(&self) -> Result<Option<StatsRun>, String> {
-        let value = self.open()?.last_run().map_err(|e| e.to_string())?;
-        serde_json::from_value(value).map_err(|e| e.to_string())
+        let result = (|| {
+            let value = self.open()?.last_run().map_err(|e| e.to_string())?;
+            serde_json::from_value(value).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("last_run", result)
     }
     pub fn timeseries(
         &self,
@@ -585,12 +649,15 @@ impl StatsClient {
         filter: StatsFilter,
         offset_minutes: i32,
     ) -> Result<StatsTimeseries, String> {
-        let ledger = self.open()?;
-        let mut params = serde_json::to_value(filter).unwrap();
-        params["granularity"] = json!(granularity);
-        let value = service::timeseries(&ledger, &params, offset_minutes, &self.state.timezone)
-            .map_err(|e| e.to_string())?;
-        serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let mut params = serde_json::to_value(filter).unwrap();
+            params["granularity"] = json!(granularity);
+            let value = service::timeseries(&ledger, &params, offset_minutes, &self.state.timezone)
+                .map_err(|e| e.to_string())?;
+            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("timeseries", result)
     }
     pub fn matrix(
         &self,
@@ -599,13 +666,16 @@ impl StatsClient {
         filter: StatsFilter,
         offset_minutes: i32,
     ) -> Result<StatsMatrix, String> {
-        let ledger = self.open()?;
-        let mut params = serde_json::to_value(filter).unwrap();
-        params["granularity"] = json!(granularity);
-        params["by"] = json!(by);
-        let value = service::matrix(&ledger, &params, offset_minutes, &self.state.timezone)
-            .map_err(|e| e.to_string())?;
-        serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let mut params = serde_json::to_value(filter).unwrap();
+            params["granularity"] = json!(granularity);
+            params["by"] = json!(by);
+            let value = service::matrix(&ledger, &params, offset_minutes, &self.state.timezone)
+                .map_err(|e| e.to_string())?;
+            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("matrix", result)
     }
     pub fn sessions(
         &self,
@@ -614,13 +684,16 @@ impl StatsClient {
         filter: StatsFilter,
         offset_minutes: i32,
     ) -> Result<StatsSessions, String> {
-        let ledger = self.open()?;
-        let mut params = serde_json::to_value(filter).unwrap();
-        params["limit"] = json!(limit);
-        params["cursor"] = json!(cursor);
-        let value = service::sessions(&ledger, &params, offset_minutes, &self.state.timezone)
-            .map_err(|e| e.to_string())?;
-        serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let mut params = serde_json::to_value(filter).unwrap();
+            params["limit"] = json!(limit);
+            params["cursor"] = json!(cursor);
+            let value = service::sessions(&ledger, &params, offset_minutes, &self.state.timezone)
+                .map_err(|e| e.to_string())?;
+            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("sessions", result)
     }
     pub fn session_detail(
         &self,
@@ -629,44 +702,92 @@ impl StatsClient {
         granularity: String,
         offset_minutes: i32,
     ) -> Result<Option<StatsSessionDetail>, String> {
-        let ledger = self.open()?;
-        let value = service::session_detail(
-            &ledger,
-            &json!({"source":source,"session_id":session_id,"granularity":granularity}),
+        self.session_detail_in_period(
+            source,
+            session_id,
+            granularity,
+            StatsFilter::default(),
             offset_minutes,
-            &self.state.timezone,
         )
-        .map_err(|e| e.to_string())?;
-        value
-            .map(|value| serde_json::from_value(with_micros(value)).map_err(|e| e.to_string()))
-            .transpose()
+    }
+    pub fn session_detail_in_period(
+        &self,
+        source: String,
+        session_id: String,
+        granularity: String,
+        filter: StatsFilter,
+        offset_minutes: i32,
+    ) -> Result<Option<StatsSessionDetail>, String> {
+        let result = (|| {
+            let ledger = self.open()?;
+            let mut params = serde_json::to_value(filter).map_err(|e| e.to_string())?;
+            params["source"] = json!(source);
+            params["session_id"] = json!(session_id);
+            params["granularity"] = json!(granularity);
+            let value =
+                service::session_detail(&ledger, &params, offset_minutes, &self.state.timezone)
+                    .map_err(|e| e.to_string())?;
+            value
+                .map(|value| serde_json::from_value(with_micros(value)).map_err(|e| e.to_string()))
+                .transpose()
+        })();
+        self.state.log.ffi("session_detail_in_period", result)
     }
     pub fn sources(&self) -> Result<StatsSources, String> {
-        let ledger = self.open()?;
-        let value = service::sources(
-            &ledger,
-            &self.state.clock.iso(),
-            |path| std::path::Path::new(path).exists(),
-            &self.state.timezone,
-        )
-        .map_err(|e| e.to_string())?;
-        serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let value = service::sources(
+                &ledger,
+                &self.state.clock.iso(),
+                |path| std::path::Path::new(path).exists(),
+                &self.state.timezone,
+            )
+            .map_err(|e| e.to_string())?;
+            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("sources", result)
     }
     pub fn discovery(&self, fresh: bool) -> Result<StatsDiscovery, String> {
-        self.discovery_with_env(fresh, &ingest::Environment::process())
+        let result = self.discovery_with_env(fresh, &ingest::Environment::process());
+        self.state.log.ffi("discovery", result)
     }
     pub fn pricing(&self) -> Result<StatsPricing, String> {
-        let ledger = self.open()?;
-        let value = service::pricing(&ledger, &self.state.timezone).map_err(|e| e.to_string())?;
-        serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let value =
+                service::pricing(&ledger, &self.state.timezone).map_err(|e| e.to_string())?;
+            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("pricing", result)
     }
     pub fn health(&self) -> Result<StatsHealth, String> {
-        let ledger = self.open()?;
-        let schema_version: i64 = ledger
-            .db
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-        serde_json::from_value(json!({"ok":true,"version":env!("CARGO_PKG_VERSION"),"data_dir":self.state.data.to_string_lossy(),"ledger_path":self.state.data.join("ledger.db").to_string_lossy(),"schema_version":schema_version})).map_err(|e| e.to_string())
+        let result = (|| {
+            let ledger = self.open()?;
+            let schema_version: i64 = ledger
+                .db
+                .query_row("PRAGMA user_version", [], |row| row.get(0))
+                .map_err(|e| e.to_string())?;
+            serde_json::from_value(json!({"ok":true,"version":env!("CARGO_PKG_VERSION"),"data_dir":self.state.data.to_string_lossy(),"ledger_path":self.state.data.join("ledger.db").to_string_lossy(),"schema_version":schema_version})).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("health", result)
+    }
+    pub fn export_diagnostics(&self, directory: String) -> Result<String, String> {
+        let result = (|| {
+            let ledger = self.open()?;
+            self.state
+                .log
+                .export(
+                    &ledger,
+                    &PathBuf::from(directory),
+                    &self.state.home,
+                    &ingest::Environment::process(),
+                )
+                .map(|p| p.to_string_lossy().into_owned())
+        })();
+        self.state.log.ffi("export_diagnostics", result)
+    }
+    pub fn log_error(&self, error_type: String, message: String, stack: String) {
+        self.state.log.flutter_error(&error_type, &message, &stack);
     }
     pub async fn shutdown(&self) {
         self.state.closed.store(true, Ordering::Release);

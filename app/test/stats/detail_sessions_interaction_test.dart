@@ -403,7 +403,7 @@ void main() {
     await tester.tap(find.text('lumen'));
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('会话详情'), findsOneWidget);
-    expect(fake.details.last, ('claude', 'session-0', 'hour'));
+    expect(fake.details.last, ('claude', 'session-0', 'day'));
     await tester.tap(find.byTooltip('关闭'));
     await tester.pumpAndSettle();
     state.navigate('home');

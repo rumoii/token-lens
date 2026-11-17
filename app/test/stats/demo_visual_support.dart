@@ -98,8 +98,11 @@ class _DemoGateway extends RustStatsGateway {
   Future<StatsSessionDetail?> sessionDetail(
     String source,
     String sessionId,
-    String granularity,
-  ) => track(super.sessionDetail(source, sessionId, granularity));
+    String granularity, {
+    StatsFilter filter = const StatsFilter(),
+  }) => track(
+    super.sessionDetail(source, sessionId, granularity, filter: filter),
+  );
   @override
   Future<StatsSources> sources() => track(super.sources());
   @override
@@ -110,7 +113,7 @@ class _DemoGateway extends RustStatsGateway {
   @override
   Future<StatsHealth> health() => track(super.health());
   @override
-  Future<StatsSync> sync() =>
+  Future<StatsSync> sync({String trigger = 'manual'}) =>
       throw StateError('Demo visual test must never sync');
 }
 

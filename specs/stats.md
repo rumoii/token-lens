@@ -52,6 +52,17 @@ D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 F
 4. **会话游标**。`jscompat` 自己实现 base64，只接受解出来是非负十进制整数的游标。`Number()` 才接受的写法（十六进制、科学计数、前后空白）按无效处理，从头开始。游标只来自 `next_cursor`，不影响正常翻页。
 5. **`health`**。没有 HTTP 服务，因此去掉 `port`，版本号取 Rust crate 的版本，字段是 `ok`、`version`、`data_dir`、`ledger_path`、`schema_version`。这一项不对拍。
 6. **会话详情的粒度**。FFI 上 `granularity` 必填，只接受 `hour` 或 `day`，不设默认值。
+7. **Codex 不可靠响应 ID**。Rust `PARSER_REV=5`，Node 回滚路径仍为 4，分别写独立账本。可靠 id 的 key 字节不变；只按 id 形状判定，去掉开头 `resp_` 后为空、全 ASCII 数字或少于 16 字符的 id 不可靠，判定不依赖文件内容，部分历史副本也保持相同身份。Rust 用 `codex|<session>|<用量行 thread_id>|<原始时间戳>`，同一新键按文件内有效用量行顺序加 `#2`、`#3`，不使用 token 数；缺 thread/time 时回退规范化路径 hash＋物理行号。每条新身份的 `replaces` 均含旧响应键，首条停用旧 active 行，其余独立新增；`superseded_by` 指向首条承接记录，不表示完整的一对多关系。无响应 id 保持原位置回退。正常 id 的只读样本后缀长 35、48 或 50，16 字符阈值低于样本下限。Node golden 不重写；Rust 对拍只为明确的合成短 id `r1`、`response-local` 调整期望身份和 Codex revision，其余字段仍严格比较。回归覆盖独立子线程、完整与部分 Copied 历史、同时间序号、重复采集、追加、一对多重采集和压缩替换。真实账本执行仍需备份、副本演练及用户确认；Node 旧解析器不能用来重新采集 Rust revision 5 的账本。
+
+   已知限制：上游复用正常形状的长 id 时仍按旧 key 合并、原地更新，与 E1 之前的行为相同；不能据此保全复用长 id 的独立请求总数。2026-11-16 只读核查同事证据和本机日志，同一 session 与正常形状 id 对应不同原始时间戳或 usage 的情况均为 0，跨文件核查也包括在内。
+
+   - 同一 thread、同一原始时间戳有多条不可靠请求时，日志前面的行被裁剪会使 `#n` 前移，可能覆盖旧行，造成多算。2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0。
+   - 同一文件里完全重复的用量行会得到 `#2`，造成多算。2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0。
+   - 不可靠 id 缺 `thread_id` 或原始时间戳不是字符串时，退回路径 hash 加行号，跨文件副本无法去重。2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0。
+
+8. **请求数与会话时段归属**。桌面查询追加 `request_count`，只数 active event，纯 cumulative 分组返回 NULL。会话列表的顶层用量与请求数属于所选时段，按 `scope()` 的 `observed_at` 归属；`cumulative` 是整个会话的汇总，起止时间与 `has_cumulative` 也取整个会话。有时段按时段 gross 降序，无时段按最近活动降序。快照算在开始那天，不做按天摊分。golden 只追加这些字段，保留旧字段的值。
+
+分组、时间桶和会话另带 `event_gross_tokens`：只加 event 的四类 token，各列先 coalesce 再相加。“平均每次”使用此值除以 `request_count`，合并模型/工具时同时合并这两个字段，快照不进入分子。会话详情的 `period` 沿用列表的时段、工具和项目筛选，`session` 的累计不受筛选影响。累计查询先分页会话身份，再用 `idx_usage_session(source, session_id)` 取对应 active 记录；无时段而带项目/模型筛选时，排序仍以整个会话的最后活动为准。开始日期 chip 使用查询快照的固定偏移，非今年的日期包含年份；首页累计与时段 gross 不同时显示累计行。
 
 D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分别处理 DST；`pricing_snapshot` 只存 `{version}`、不能按旧版本重新估值（`write.js:481–485`）；会话详情默认粒度三处不一致（`read.js:587`、`api/v1/sessions.js:47`、`api/router.js:33`）；`ended_at` 不是 NULL 又解析不了时，这条 `cumulative` 记录既不进时间桶也不进 `unallocated`（`read.js:46–49`）。最后这一条 Rust 原样复现，并由独立的 golden 场景固定；适配器写入的 `ended_at` 只会是 ISO 时间或 NULL，现有数据碰不到。
 
@@ -92,6 +103,7 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 | `matrix` | `/usage/matrix` | 总览、明细 |
 | `breakdown` | `/usage/breakdown` | 总览、明细、来源、设置、会话 |
 | `sessions`、`session_detail` | `/sessions`、`/sessions/detail` | 总览、会话 |
+| `session_detail_in_period` | 桌面扩展 | 会话详情的时段汇总；`period` 使用同一 `StatsFilter`，`session` 与 day timeline 保留整个会话 |
 | `sources` | `/sources` | 总览、来源、会话 |
 | `discovery` | `/discovery` | 引导 |
 | `pricing` | `/pricing` | 总览、设置 |

@@ -41,7 +41,7 @@ void main() {
 
   testWidgets('数据显示总览区块', (tester) async {
     await show(tester, FakeStatsGateway());
-    for (final label in ['趋势', '常用模型', '最近会话', '这一年']) {
+    for (final label in ['趋势', '常用模型', '本周的会话', '这一年']) {
       expect(find.text(label), findsOneWidget);
     }
     expect(find.byKey(const Key('home-hero')), findsOneWidget);

@@ -57,17 +57,24 @@ pub struct NewsSnapshot {
 #[derive(Clone)]
 pub struct NewsClient {
     engine: NewsEngine,
+    data: std::path::PathBuf,
 }
 
 impl NewsClient {
     /// Opens the cache without making source requests.
     pub fn new(data_dir: String) -> Result<NewsClient, String> {
         Ok(Self {
+            data: data_dir.clone().into(),
             engine: NewsEngine::new(
                 Path::new(&data_dir),
                 sources::registry(),
                 chrono::Utc::now().timestamp_millis(),
-            )?,
+            )
+            .inspect_err(|e| {
+                crate::diagnostics::RuntimeLog::new(Path::new(&data_dir), None)
+                    .ffi::<()>("NewsClient.new", Err(e.clone()))
+                    .ok();
+            })?,
         })
     }
 
@@ -105,32 +112,67 @@ impl NewsClient {
             )));
         }
         Ok(Self {
+            data: data_dir.clone().into(),
             engine: NewsEngine::new(
                 Path::new(&data_dir),
                 sources,
                 chrono::Utc::now().timestamp_millis(),
-            )?,
+            )
+            .inspect_err(|e| {
+                crate::diagnostics::RuntimeLog::new(Path::new(&data_dir), None)
+                    .ffi::<()>("NewsClient.new", Err(e.clone()))
+                    .ok();
+            })?,
         })
     }
 
+    #[flutter_rust_bridge::frb(ignore)]
+    fn logged_snapshot(&self, operation: &str, snapshot: NewsSnapshot) -> NewsSnapshot {
+        let log = crate::diagnostics::RuntimeLog::new(&self.data, None);
+        for error in snapshot.error.iter().chain(snapshot.state_error.iter()) {
+            log.write("ERROR", "ffi", &format!("{operation}: {}", error.kind));
+        }
+        for source in &snapshot.sources {
+            if let Some(error) = &source.error {
+                log.write(
+                    "ERROR",
+                    "news",
+                    &format!("{operation} source={} kind={}", source.id, error.kind),
+                );
+            }
+        }
+        snapshot
+    }
     pub fn snapshot(&self) -> NewsSnapshot {
-        self.engine.snapshot()
+        self.logged_snapshot("snapshot", self.engine.snapshot())
     }
     pub async fn refresh(&self, source_ids: Option<Vec<String>>) -> NewsSnapshot {
-        self.engine
-            .refresh(source_ids, chrono::Utc::now().timestamp_millis())
-            .await
+        self.logged_snapshot(
+            "refresh",
+            self.engine
+                .refresh(source_ids, chrono::Utc::now().timestamp_millis())
+                .await,
+        )
     }
     pub fn set_source_enabled(&self, id: String, enabled: bool) -> NewsSnapshot {
-        self.engine.set_source_enabled(&id, enabled)
+        self.logged_snapshot(
+            "set_source_enabled",
+            self.engine.set_source_enabled(&id, enabled),
+        )
     }
     pub fn set_read(&self, ids: Vec<String>, read: bool) -> NewsSnapshot {
-        self.engine
-            .set_read(ids, read, chrono::Utc::now().timestamp_millis())
+        self.logged_snapshot(
+            "set_read",
+            self.engine
+                .set_read(ids, read, chrono::Utc::now().timestamp_millis()),
+        )
     }
     pub fn set_starred(&self, id: String, starred: bool) -> NewsSnapshot {
-        self.engine
-            .set_starred(&id, starred, chrono::Utc::now().timestamp_millis())
+        self.logged_snapshot(
+            "set_starred",
+            self.engine
+                .set_starred(&id, starred, chrono::Utc::now().timestamp_millis()),
+        )
     }
     pub fn cancel_refresh(&self) {
         self.engine.cancel_refresh();
@@ -146,6 +188,7 @@ impl NewsClient {
         timeouts: crate::engine::RequestTimeouts,
     ) -> Result<Self, String> {
         Ok(Self {
+            data: data_dir.to_path_buf(),
             engine: NewsEngine::open(
                 data_dir,
                 vec![Box::new(rss::RssSource::new(

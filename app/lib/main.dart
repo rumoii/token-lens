@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' show AppExitResponse, AppExitType;
+import 'dart:ui' show AppExitResponse, AppExitType, PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -20,13 +20,30 @@ import 'stats_gateway.dart';
 import 'stats/preferences.dart';
 import 'stats/theme/palette.dart';
 import 'window_theme.dart';
+import 'runtime_errors.dart';
+import 'src/rust/api/diagnostics.dart' as diagnostics;
+
+final _runtimeErrors = RuntimeErrors();
 
 Future<bool> _openLink(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const TokenLensApp());
+  runZonedGuarded(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      _runtimeErrors.report(
+        details.exception,
+        details.stack ?? StackTrace.current,
+      );
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      _runtimeErrors.report(error, stack);
+      return true;
+    };
+    runApp(const TokenLensApp());
+  }, _runtimeErrors.report);
 }
 
 class TokenLensApp extends StatefulWidget {
@@ -43,6 +60,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
   String? _statsInitializationError;
   String? _initializationError;
   bool _closing = false;
+  String? _runtimeData;
   UiPreferences _preferences = const UiPreferences();
   void _statsChanged() {
     if (mounted && !_closing) setState(() {});
@@ -64,11 +82,24 @@ class _TokenLensAppState extends State<TokenLensApp> {
       final dataDir =
           override ??
           '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}data';
+      await RustLib.init();
+      _runtimeData = dataDir;
+      final logsHome = Platform.environment['TOKEN_LENS_PREVIEW_HOME'];
+      _runtimeErrors.sink = (type, message, stack) =>
+          diagnostics.writeRuntimeError(
+            dataDir: dataDir,
+            logsHome: logsHome,
+            errorType: type,
+            message: message,
+            stack: stack,
+          );
+      await writeRuntimeEvent(
+        () => diagnostics.runtimeStart(dataDir: dataDir, logsHome: logsHome),
+      );
       final preferenceStore = PreferencesStore(Directory(dataDir));
       final preferences = await preferenceStore.read();
       if (!mounted || _closing) return;
       setState(() => _preferences = preferences);
-      await RustLib.init();
       final client = await native.NewsClient.newInstance(dataDir: dataDir);
       final controller = NewsController(RustNewsGateway(client));
       StatsController? statsController;
@@ -82,7 +113,8 @@ class _TokenLensAppState extends State<TokenLensApp> {
           store: preferenceStore,
           preferences: _preferences,
         );
-      } catch (_) {
+      } catch (error, stack) {
+        _runtimeErrors.report(error, stack);
         _statsInitializationError = '无法打开统计账本，请检查数据目录是否可读写。';
       }
       if (!mounted || _closing) {
@@ -99,7 +131,8 @@ class _TokenLensAppState extends State<TokenLensApp> {
       unawaited(controller.start());
       statsController?.addListener(_statsChanged);
       if (statsController != null) unawaited(statsController.start());
-    } catch (error) {
+    } catch (error, stack) {
+      _runtimeErrors.report(error, stack);
       if (!mounted || _closing) return;
       final text = error.toString();
       setState(() {
@@ -122,6 +155,18 @@ class _TokenLensAppState extends State<TokenLensApp> {
       ]).timeout(const Duration(seconds: 3));
     } catch (_) {
       // Exit must remain available after partial initialization or I/O failure.
+    }
+    if (_runtimeData case final dataDir?) {
+      try {
+        await writeRuntimeEvent(
+          () => diagnostics.runtimeExit(
+            dataDir: dataDir,
+            logsHome: Platform.environment['TOKEN_LENS_PREVIEW_HOME'],
+          ),
+        );
+      } catch (_) {
+        /* Exit remains available after an FFI failure. */
+      }
     }
     return AppExitResponse.exit;
   }

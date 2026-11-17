@@ -91,9 +91,9 @@ class StatsController extends ChangeNotifier {
     if (_closed) return;
     _timer = Timer.periodic(
       const Duration(minutes: 5),
-      (_) => unawaited(sync()),
+      (_) => unawaited(sync(trigger: 'timer')),
     );
-    await sync();
+    await sync(trigger: 'startup');
   }
 
   Future<void> setPreferences(UiPreferences value) async {
@@ -179,7 +179,7 @@ class StatsController extends ChangeNotifier {
         ),
         resource(
           'recent',
-          gateway.sessions(const StatsFilter()),
+          gateway.sessions(filter),
           overview?.recent ??
               const StatsSessions(items: [], snapshot: emptySnapshot),
         ),
@@ -256,12 +256,12 @@ class StatsController extends ChangeNotifier {
     }
   }
 
-  Future<void> sync() {
+  Future<void> sync({String trigger = 'manual'}) {
     if (_closed || phase == StatsSyncPhase.conflict) return Future.value();
-    return _sync ??= _synchronize().whenComplete(() => _sync = null);
+    return _sync ??= _synchronize(trigger).whenComplete(() => _sync = null);
   }
 
-  Future<void> _synchronize() async {
+  Future<void> _synchronize(String trigger) async {
     _statusGeneration++;
     _conflictTimer?.cancel();
     phase = StatsSyncPhase.running;
@@ -270,7 +270,7 @@ class StatsController extends ChangeNotifier {
     warning = null;
     _notify();
     try {
-      final result = await gateway.sync();
+      final result = await gateway.sync(trigger: trigger);
       if (_closed) return;
       lastSync = result;
       ledgerVersion++;

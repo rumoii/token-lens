@@ -7,11 +7,14 @@ import '../stats_controller.dart';
 import '../stats_gateway.dart';
 import 'detail_page.dart' show projectName;
 import 'logic/format.dart';
+import 'logic/period.dart';
 import 'logic/home_data.dart';
 import 'logic/tools.dart';
 import 'logic/tool_order.dart';
 import 'theme/palette.dart';
 import 'widgets/filters.dart';
+import 'widgets/date_range.dart';
+import 'widgets/session_usage.dart';
 import 'widgets/primitives.dart';
 import 'widgets/resource.dart';
 import 'widgets/side_panel.dart';
@@ -77,6 +80,13 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   bool _panel = false, _navigating = false;
   StatsController get c => widget.controller;
   Map<String, String> get q => Uri.splitQueryString(widget.query);
+  StatsPeriod get period => q.containsKey('period')
+      ? StatsPeriod.parse(widget.query)
+      : c.preferences.period;
+  bool get scoped =>
+      period.period != 'all' ||
+      ['tool', 'project', 'model'].any((key) => q[key]?.isNotEmpty == true);
+  String get periodLabel => sessionUsageLabel(period, usageFilter);
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   void changed() {
@@ -111,19 +121,31 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     super.dispose();
   }
 
+  StatsFilter get usageFilter {
+    final range = period.range(c.clock()), params = q;
+    return StatsFilter(
+      from: range.from,
+      to: range.to,
+      source: params['tool']?.isNotEmpty == true ? params['tool'] : null,
+      project: params['project']?.isNotEmpty == true ? params['project'] : null,
+      model: params['model']?.isNotEmpty == true ? params['model'] : null,
+    );
+  }
+
+  int get offsetMinutes =>
+      page.data?.snapshot.filters.offsetMinutes ??
+      c.clock().timeZoneOffset.inMinutes;
+
   void refresh() {
     final params = q;
     final identity =
-        '${c.ledgerVersion}|${params['tool']}|${params['project']}';
+        '${c.ledgerVersion}|${params['tool']}|${params['project']}|${params['model']}|${period.query}|${period.range(c.clock())}';
     if (_pageIdentity != identity) {
       _pageIdentity = identity;
       history = [];
       cursor = null;
     }
-    final filter = StatsFilter(
-      source: params['tool']?.isNotEmpty == true ? params['tool'] : null,
-      project: params['project']?.isNotEmpty == true ? params['project'] : null,
-    );
+    final filter = usageFilter;
     final at = cursor;
     page.read(
       '$identity|$cursor',
@@ -182,6 +204,8 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         controller: c,
         source: source,
         sessionId: sessionId,
+        period: period,
+        filter: usageFilter,
         onDetail: (params) {
           _navigating = true;
           Navigator.pop(context);
@@ -242,9 +266,20 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
           value: projectName(q['project']) ?? q['project']!,
           onRemove: () => filter('project', ''),
         ),
+      if (q['model']?.isNotEmpty == true)
+        FilterTag(
+          label: '模型',
+          value: q['model']!,
+          onRemove: () => filter('model', ''),
+        ),
     ],
   );
   Widget list() {
+    final filter = usageFilter;
+    final groupByDate = ![
+      filter.from,
+      filter.to,
+    ].any((value) => value?.isNotEmpty == true);
     final groups = <({String key, List<StatsSessionItem> rows})>[];
     for (final row in items) {
       final day = dayName(row.lastSeenAt, c.clock());
@@ -268,43 +303,64 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       return width;
     }
 
-    const labels = ['会话', '开始', '时长', '用量', '约值'];
+    final labels = scoped
+        ? [
+            '会话',
+            '开始',
+            periodLabel,
+            '$periodLabel请求',
+            '累计',
+            '累计请求',
+            '$periodLabel约值',
+          ]
+        : ['会话', '开始', '时长', '用量', '约值', '请求'];
+    String nt(int n) => tokenCount(n, unitSystem: c.preferences.unitSystem);
+    String requests(int? n, {int? lifetimeCount}) => n == null
+        ? requestText(null, lifetimeCount: lifetimeCount)
+        : toDisplayNumber(n);
+    List<String> values(StatsSessionItem r) => [
+      projectName(r.projectKey) ?? '没有记录项目',
+      startText(r, c.clock()),
+      if (scoped) ...[
+        nt(r.grossTokens),
+        requests(r.requestCount, lifetimeCount: r.cumulative.requestCount),
+        nt(r.cumulative.grossTokens),
+        requests(r.cumulative.requestCount),
+      ] else ...[
+        spanText(r.startedAt, r.lastSeenAt),
+        nt(r.grossTokens),
+      ],
+      r.costMicros == null
+          ? '未定价'
+          : usdCurrency(
+              microsUsd(r.costMicros!),
+              currency: c.preferences.currency,
+              rate: rateFor(c.preferences.rates, c.preferences.currency),
+            ),
+      if (!scoped)
+        requests(r.requestCount, lifetimeCount: r.cumulative.requestCount),
+    ];
     final preferred = [
       for (final label in labels) textWidth(label, p.text(12)),
     ];
     for (final r in items) {
-      final cost = r.costMicros == null ? null : microsUsd(r.costMicros!);
-      final rate = rateFor(c.preferences.rates, c.preferences.currency);
-      final converted = cost == null ? null : double.parse(cost) * rate;
-      final values = [
-        38.0 +
-            math.max(
-              textWidth(
-                projectName(r.projectKey) ?? '没有记录项目',
-                p.text(13, null, FontWeight.w500),
-              ),
-              textWidth(toolOf(r.source).name, p.text(12)),
-            ),
-        textWidth(startText(r, c.clock()), p.text(13)),
-        textWidth(spanText(r.startedAt, r.lastSeenAt), p.text(13)),
-        textWidth(
-          tokenCount(r.grossTokens, unitSystem: c.preferences.unitSystem),
-          p.text(13, null, FontWeight.w600),
-        ),
-        textWidth(
-          cost == null
-              ? '未定价'
-              : usdCurrency(
-                  cost,
-                  currency: c.preferences.currency,
-                  rate: rate,
-                  decimals: converted! > 0 && converted < .01 ? 4 : 2,
-                ),
-          p.text(13),
-        ),
-      ];
+      final texts = values(r);
       for (var i = 0; i < preferred.length; i++) {
-        preferred[i] = math.max(preferred[i], values[i]);
+        var width = textWidth(texts[i], p.text(13));
+        if (i == 0) {
+          width =
+              math.max(width, textWidth(toolOf(r.source).name, p.text(12))) +
+              38;
+          if (sessionStartedBefore(
+            r.startedAt,
+            period,
+            c.clock(),
+            offsetMinutes: offsetMinutes,
+          )) {
+            width += 132;
+          }
+        }
+        preferred[i] = math.max(preferred[i], width);
       }
     }
     for (var i = 0; i < preferred.length; i++) {
@@ -334,12 +390,28 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                  style: p
-                      .text(narrow ? 14 : 13, null, FontWeight.w500)
-                      .copyWith(height: 1.5),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      overflow: TextOverflow.ellipsis,
+                      style: p
+                          .text(narrow ? 14 : 13, null, FontWeight.w500)
+                          .copyWith(height: 1.5),
+                    ),
+                    if (sessionStartedBefore(
+                      r.startedAt,
+                      period,
+                      c.clock(),
+                      offsetMinutes: offsetMinutes,
+                    ))
+                      SessionStartChip(
+                        startedAt: r.startedAt,
+                        now: c.clock(),
+                        offsetMinutes: offsetMinutes,
+                      ),
+                  ],
                 ),
                 Text(
                   toolOf(r.source).name,
@@ -382,10 +454,20 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                         Row(
                           children: [
                             Expanded(child: name),
-                            TokenText(
-                              r.grossTokens,
-                              unitSystem: c.preferences.unitSystem,
-                              style: p.text(14, null, FontWeight.w600),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (scoped)
+                                  Text(
+                                    '$periodLabel ',
+                                    style: p.text(12.5, p.secondary),
+                                  ),
+                                TokenText(
+                                  r.grossTokens,
+                                  unitSystem: c.preferences.unitSystem,
+                                  style: p.text(14, null, FontWeight.w600),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -399,13 +481,22 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                                 style: p.text(12.5, p.secondary),
                               ),
                               Text(
-                                spanText(r.startedAt, r.lastSeenAt),
+                                scoped
+                                    ? '累计 ${nt(r.cumulative.grossTokens)} · ${requestText(r.cumulative.requestCount)}'
+                                    : spanText(r.startedAt, r.lastSeenAt),
+                                style: p.text(12.5, p.secondary),
+                              ),
+                              Text(
+                                '${scoped ? '$periodLabel ' : ''}${requestText(r.requestCount, lifetimeCount: r.cumulative.requestCount)}',
                                 style: p.text(12.5, p.secondary),
                               ),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('约值 ', style: p.text(12.5, p.secondary)),
+                                  Text(
+                                    '${scoped ? periodLabel : ''}约值 ',
+                                    style: p.text(12.5, p.secondary),
+                                  ),
                                   money(r.costMicros),
                                 ],
                               ),
@@ -425,22 +516,24 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                           1,
                           right: false,
                         ),
-                        cell(
-                          Text(
-                            spanText(r.startedAt, r.lastSeenAt),
-                            style: p.text(13, p.secondary),
+                        for (var i = 2; i < labels.length; i++)
+                          cell(
+                            i == (scoped ? 6 : 4)
+                                ? money(r.costMicros)
+                                : Text(
+                                    values(r)[i],
+                                    style: p.text(
+                                      13,
+                                      (scoped && i == 2 || !scoped && i == 3)
+                                          ? null
+                                          : p.secondary,
+                                      (scoped && i == 2 || !scoped && i == 3)
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                    ),
+                                  ),
+                            i,
                           ),
-                          2,
-                        ),
-                        cell(
-                          TokenText(
-                            r.grossTokens,
-                            unitSystem: c.preferences.unitSystem,
-                            style: p.text(13, null, FontWeight.w600),
-                          ),
-                          3,
-                        ),
-                        cell(money(r.costMicros), 4),
                       ],
                     ),
             ),
@@ -465,39 +558,38 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             ),
             child: Row(
               children: [
-                for (final e in [
-                  ('会话', 0, false),
-                  ('开始', 1, false),
-                  ('时长', 2, true),
-                  ('用量', 3, true),
-                  ('约值', 4, true),
-                ])
+                for (var i = 0; i < labels.length; i++)
                   cell(
                     Text(
-                      e.$1,
+                      labels[i],
                       style: p.text(12, p.muted).copyWith(height: 1.4),
                     ),
-                    e.$2,
-                    right: e.$3,
+                    i,
+                    right: i > 1,
                   ),
               ],
             ),
           ),
-        for (final g in groups) ...[
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              narrow ? 22 : 10,
-              narrow ? 2 : 16,
-              0,
-              6,
+        if (!groupByDate)
+          ...items.map(row)
+        else
+          for (final g in groups) ...[
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                narrow ? 22 : 10,
+                narrow ? 2 : 16,
+                0,
+                6,
+              ),
+              child: Text(
+                g.key,
+                style: p
+                    .text(12, p.muted, FontWeight.w500)
+                    .copyWith(height: 1.4),
+              ),
             ),
-            child: Text(
-              g.key,
-              style: p.text(12, p.muted, FontWeight.w500).copyWith(height: 1.4),
-            ),
-          ),
-          ...g.rows.map(row),
-        ],
+            ...g.rows.map(row),
+          ],
       ],
     );
     return narrow
@@ -506,8 +598,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: LayoutBuilder(
               builder: (context, box) {
-                tableWidth = box.maxWidth;
-                return content();
+                tableWidth = math.max(total, box.maxWidth);
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(width: tableWidth, child: content()),
+                );
               },
             ),
           );
@@ -527,10 +622,28 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          '每次打开 AI 工具做的一件事，最近的在最上面。点一个看它用了哪些模型、花在什么时候。',
+          scoped
+              ? period.period == 'all'
+                    ? '筛选后的用量，累计是整个会话的总数，不受筛选影响。'
+                    : '$periodLabel有用量的会话，按时段内用量排序。累计是整个会话的总数。'
+              : '每次打开 AI 工具做的一件事，最近的在最上面。点一个看它用了哪些模型、花在什么时候。',
           style: p.text(14, p.secondary),
         ),
         SizedBox(height: narrow ? 12 : 16),
+        PeriodControl(
+          period: period,
+          now: c.clock(),
+          onChanged: (value) {
+            final next = {...q}
+              ..remove('period')
+              ..remove('from')
+              ..remove('to');
+            next.addAll(Uri.splitQueryString(value.query));
+            widget.onQuery(Uri(queryParameters: next).query);
+            unawaited(c.setPeriod(value));
+          },
+        ),
+        const SizedBox(height: 12),
         ResourceBlock(
           resource: projects,
           rows: 1,
@@ -603,7 +716,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ),
         SizedBox(height: narrow ? 12 : 16),
         Text(
-          '有些工具（比如 DSH）只记录每个会话的总数，这类会话看不到时间线；会话按最后一次活动的那天分组。',
+          '时段用量按记录发生时间归属；只记录总数的会话算在开始那天，不记录请求数。全部会话按最近活动排序。',
           style: p.text(12, p.muted).copyWith(height: 1.4),
         ),
       ],
@@ -618,7 +731,11 @@ class SessionDetail extends StatefulWidget {
     required this.source,
     required this.sessionId,
     required this.onDetail,
+    this.period,
+    this.filter,
   });
+  final StatsPeriod? period;
+  final StatsFilter? filter;
   final StatsController controller;
   final String source, sessionId;
   final ValueChanged<Map<String, String>> onDetail;
@@ -635,10 +752,23 @@ class _SessionDetailState extends State<SessionDetail> {
     if (mounted) setState(() {});
   }
 
-  void refresh() => detail.read(
-    '${widget.source}|${widget.sessionId}|${c.ledgerVersion}',
-    () => c.gateway.sessionDetail(widget.source, widget.sessionId, 'hour'),
-  );
+  StatsPeriod get period => widget.period ?? c.preferences.period;
+  String get periodLabel =>
+      sessionUsageLabel(period, widget.filter ?? const StatsFilter());
+  void refresh() {
+    final range = period.range(c.clock());
+    final filter = widget.filter ?? StatsFilter(from: range.from, to: range.to);
+    detail.read(
+      '${widget.source}|${widget.sessionId}|${c.ledgerVersion}|${period.query}|${filter.from}|${filter.to}|${filter.source}|${filter.model}|${filter.project}',
+      () => c.gateway.sessionDetail(
+        widget.source,
+        widget.sessionId,
+        'day',
+        filter: filter,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -706,16 +836,34 @@ class _SessionDetailState extends State<SessionDetail> {
     }
     final s = value.session,
         onlyTotals = value.kinds.cumulative > 0 && value.kinds.event == 0;
-    final cacheBase = s.inputTokens == null || s.cacheReadTokens == null
-        ? null
-        : s.inputTokens! + s.cacheReadTokens!;
-    final hit = cacheBase != null && cacheBase > 0
-        ? s.cacheReadTokens! / cacheBase
-        : null;
-    final peak = value.timeline.fold<int>(
-      1,
-      (n, b) => math.max(n, b.grossTokens),
-    );
+    final input = value.period != null
+        ? value.period!.inputTokens
+        : s.inputTokens;
+    final cached = value.period != null
+        ? value.period!.cacheReadTokens
+        : s.cacheReadTokens;
+    final cacheBase = input == null || cached == null ? null : input + cached;
+    final hit = cacheBase != null && cacheBase > 0 ? cached! / cacheBase : null;
+    final days = [...value.timeline]
+      ..sort((a, b) => b.bucket.compareTo(a.bucket));
+    final peak = days.fold<int>(1, (n, b) => math.max(n, b.grossTokens));
+    final start = DateTime.tryParse(s.startedAt)?.toLocal(),
+        end = DateTime.tryParse(s.lastSeenAt)?.toLocal();
+    final spanDays = start == null || end == null
+        ? 1
+        : math.max(
+            1,
+            DateTime.utc(end.year, end.month, end.day)
+                    .difference(
+                      DateTime.utc(start.year, start.month, start.day),
+                    )
+                    .inDays +
+                1,
+          );
+    final periodTokens = value.period?.grossTokens ?? s.grossTokens;
+    final periodRequests = value.period != null
+        ? value.period!.requestCount
+        : (onlyTotals ? null : s.requestCount);
     final topModel = value.models.fold<int>(
       1,
       (n, m) => math.max(n, m.grossTokens),
@@ -736,7 +884,10 @@ class _SessionDetailState extends State<SessionDetail> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           border: Border(
-            left: label == '用量'
+            left:
+                label == periodLabel ||
+                    label == '约值' ||
+                    label == '$periodLabel约值'
                 ? BorderSide.none
                 : BorderSide(
                     width: LensPalette.hairline(context),
@@ -767,27 +918,205 @@ class _SessionDetailState extends State<SessionDetail> {
     final children = <Widget>[
       LensCard(
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             mini(
-              '用量',
-              token(
-                s.grossTokens,
-                style: p
-                    .serif(19, weight: FontWeight.w600)
-                    .copyWith(height: 1.5),
+              periodLabel,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  token(
+                    periodTokens,
+                    style: p.serif(28, weight: FontWeight.w600),
+                  ),
+                  Text(
+                    requestText(periodRequests, lifetimeCount: s.requestCount),
+                    style: p.text(12, p.muted),
+                  ),
+                ],
               ),
             ),
             mini(
-              '约值',
+              '整个会话累计',
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  token(
+                    s.grossTokens,
+                    style: p.serif(
+                      28,
+                      color: p.secondary,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    '${requestText(s.requestCount)} · 跨 $spanDays 天',
+                    style: p.text(12, p.muted),
+                  ),
+                  Text('不受筛选影响', style: p.text(11.5, p.muted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      if (onlyTotals)
+        card(
+          '只记录总数',
+          null,
+          Text(
+            '${toolOf(widget.source).name} 只记录每个会话的总数，算在开始那天，没有每次请求的时间，无法按天拆分。',
+            style: p.text(13, p.muted),
+          ),
+        )
+      else
+        card(
+          '按天',
+          '这个会话每天用了多少；今天高亮',
+          LayoutBuilder(
+            builder: (context, box) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: math.max(480, box.maxWidth),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        for (final title in ['日期', '用量', '请求', '平均每次', '约值'])
+                          Expanded(
+                            flex: title == '用量' ? 2 : 1,
+                            child: Text(
+                              title,
+                              textAlign: title == '日期'
+                                  ? TextAlign.left
+                                  : TextAlign.right,
+                              style: p.text(12, p.muted),
+                            ),
+                          ),
+                      ],
+                    ),
+                    for (final day in days)
+                      Container(
+                        key: Key('session-day-${day.bucket}'),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: day.bucket == dayKey(c.clock())
+                              ? p['clay-wash']
+                              : null,
+                          border: Border(
+                            bottom: BorderSide(
+                              width: LensPalette.hairline(context),
+                              color: p['line-soft'],
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                day.bucket == dayKey(c.clock())
+                                    ? '今天'
+                                    : day.bucket,
+                                style: p.text(12, p.secondary),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  SizedBox(
+                                    width: 32,
+                                    child: bar(
+                                      day.grossTokens / peak,
+                                      p['clay'],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  token(day.grossTokens),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                day.requestCount == null
+                                    ? requestText(
+                                        null,
+                                        lifetimeCount: s.requestCount,
+                                      )
+                                    : toDisplayNumber(day.requestCount),
+                                textAlign: TextAlign.right,
+                                style: p.text(12, p.secondary),
+                              ),
+                            ),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: day.requestCount == null
+                                    ? Text(
+                                        requestText(
+                                          null,
+                                          lifetimeCount: s.requestCount,
+                                        ),
+                                        style: p.text(12, p.muted),
+                                      )
+                                    : token(
+                                        day.requestCount! > 0 &&
+                                                day.eventGrossTokens != null
+                                            ? (day.eventGrossTokens! /
+                                                      day.requestCount!)
+                                                  .round()
+                                            : null,
+                                      ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: money(day.costMicros),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (days.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text('没有按天记录', style: p.text(13, p.muted)),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      LensCard(
+        child: Row(
+          children: [
+            mini(
+              value.period != null ? '$periodLabel约值' : '约值',
               money(
-                s.costMicros,
+                value.period != null ? value.period!.costMicros : s.costMicros,
                 style: p
                     .serif(19, weight: FontWeight.w600)
                     .copyWith(height: 1.5),
               ),
             ),
+            if (value.period != null)
+              mini(
+                '累计约值',
+                money(
+                  s.costMicros,
+                  style: p
+                      .serif(19, weight: FontWeight.w600)
+                      .copyWith(height: 1.5),
+                ),
+              ),
             mini(
-              '缓存命中',
+              value.period != null ? '$periodLabel缓存命中' : '缓存命中',
               Text(
                 hit == null ? '—' : '${(hit * 100).round()}%',
                 style: p
@@ -844,61 +1173,6 @@ class _SessionDetailState extends State<SessionDetail> {
               ),
           ],
         ),
-      ),
-      card(
-        '时间线',
-        onlyTotals || value.timeline.isEmpty ? null : '这次会话里每小时用了多少',
-        onlyTotals || value.timeline.isEmpty
-            ? Text(
-                '${toolOf(widget.source).name} 只记录每个会话的总数，没有每次请求的时间，所以画不出时间线。',
-                style: p.text(13, p.muted),
-              )
-            : Column(
-                children: [
-                  Semantics(
-                    label: '会话时间线',
-                    image: true,
-                    child: SizedBox(
-                      height: 70,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          for (var i = 0; i < value.timeline.length; i++)
-                            Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.only(left: i == 0 ? 0 : 2),
-                                child: Tooltip(
-                                  message:
-                                      '${int.parse(value.timeline[i].bucket.substring(11, 13))}:00 · ${nt(value.timeline[i].grossTokens)} token',
-                                  child: Container(
-                                    height: math.max(
-                                      4.2,
-                                      value.timeline[i].grossTokens / peak * 70,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: p['clay'].withValues(alpha: .85),
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(3),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(hm(s.startedAt), style: p.text(11, p.faint)),
-                      Text(hm(s.lastSeenAt), style: p.text(11, p.faint)),
-                    ],
-                  ),
-                ],
-              ),
       ),
       card(
         'token 是怎么构成的',

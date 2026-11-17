@@ -1,6 +1,6 @@
 pub(crate) mod adapters;
 pub(crate) mod clock;
-mod discovery;
+pub(crate) mod discovery;
 pub(crate) mod ingest;
 pub(crate) mod jscompat;
 pub(crate) mod ledger;

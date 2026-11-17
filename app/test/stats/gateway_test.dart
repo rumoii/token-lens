@@ -13,7 +13,7 @@ class ClientSpy implements StatsClient {
         const StatsSessions(items: [], snapshot: demoSnapshot),
       );
     }
-    if (invocation.memberName == #sessionDetail) {
+    if (invocation.memberName == #sessionDetailInPeriod) {
       return Future<StatsSessionDetail?>.value(null);
     }
     return super.noSuchMethod(invocation);
@@ -36,11 +36,12 @@ void main() {
     final spy = ClientSpy();
     final gateway = RustStatsGateway(spy);
     expect(await gateway.sessionDetail('claude', 'demo:1/2', 'hour'), isNull);
-    expect(spy.calls.single.memberName, #sessionDetail);
+    expect(spy.calls.single.memberName, #sessionDetailInPeriod);
     expect(spy.calls.single.namedArguments, {
       #source: 'claude',
       #sessionId: 'demo:1/2',
       #granularity: 'hour',
+      #filter: const StatsFilter(),
       #offsetMinutes: DateTime.now().timeZoneOffset.inMinutes,
     });
   });

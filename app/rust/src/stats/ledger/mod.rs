@@ -215,6 +215,10 @@ impl Ledger {
             }
             transaction.execute_batch("CREATE INDEX IF NOT EXISTS idx_usage_file ON usage_records(source_file, active); PRAGMA user_version=5;")?;
             transaction.commit()?;
+            if path != Path::new(":memory:") {
+                crate::diagnostics::RuntimeLog::new(path.parent().unwrap_or(Path::new(".")), None)
+                    .write("INFO", "ledger", &format!("migration schema={current}->5"));
+            }
         }
         Ok(Self {
             db,

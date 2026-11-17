@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `open`, `with_clock`, `with_micros`
+// These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `open`, `sync_inner`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
@@ -22,9 +22,17 @@ abstract class StatsClient implements RustOpaqueInterface {
 
   Future<StatsDiscovery> discovery({required bool fresh});
 
+  Future<String> exportDiagnostics({required String directory});
+
   Future<StatsHealth> health();
 
   Future<StatsRun?> lastRun();
+
+  Future<void> logError({
+    required String errorType,
+    required String message,
+    required String stack,
+  });
 
   Future<StatsMatrix> matrix({
     required String granularity,
@@ -51,6 +59,14 @@ abstract class StatsClient implements RustOpaqueInterface {
     required int offsetMinutes,
   });
 
+  Future<StatsSessionDetail?> sessionDetailInPeriod({
+    required String source,
+    required String sessionId,
+    required String granularity,
+    required StatsFilter filter,
+    required int offsetMinutes,
+  });
+
   Future<StatsSessions> sessions({
     int? limit,
     String? cursor,
@@ -68,6 +84,8 @@ abstract class StatsClient implements RustOpaqueInterface {
   });
 
   Future<StatsSync> sync_();
+
+  Future<StatsSync> syncTriggered({required String trigger});
 
   Future<StatsTimeseries> timeseries({
     required String granularity,
@@ -198,6 +216,8 @@ class StatsBucket {
   final int? costMicros;
   final int unpricedRecords;
   final int recordCount;
+  final int? requestCount;
+  final int? eventGrossTokens;
 
   const StatsBucket({
     required this.bucket,
@@ -211,6 +231,8 @@ class StatsBucket {
     this.costMicros,
     required this.unpricedRecords,
     required this.recordCount,
+    this.requestCount,
+    this.eventGrossTokens,
   });
 
   @override
@@ -225,7 +247,9 @@ class StatsBucket {
       costUsd.hashCode ^
       costMicros.hashCode ^
       unpricedRecords.hashCode ^
-      recordCount.hashCode;
+      recordCount.hashCode ^
+      requestCount.hashCode ^
+      eventGrossTokens.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -242,7 +266,9 @@ class StatsBucket {
           costUsd == other.costUsd &&
           costMicros == other.costMicros &&
           unpricedRecords == other.unpricedRecords &&
-          recordCount == other.recordCount;
+          recordCount == other.recordCount &&
+          requestCount == other.requestCount &&
+          eventGrossTokens == other.eventGrossTokens;
 }
 
 class StatsCostParts {
@@ -451,6 +477,8 @@ class StatsGroup {
   final int recordCount;
   final String? priceState;
   final StatsCostParts? costByKind;
+  final int? requestCount;
+  final int? eventGrossTokens;
 
   const StatsGroup({
     this.key,
@@ -467,6 +495,8 @@ class StatsGroup {
     required this.recordCount,
     this.priceState,
     this.costByKind,
+    this.requestCount,
+    this.eventGrossTokens,
   });
 
   @override
@@ -484,7 +514,9 @@ class StatsGroup {
       unpricedRecords.hashCode ^
       recordCount.hashCode ^
       priceState.hashCode ^
-      costByKind.hashCode;
+      costByKind.hashCode ^
+      requestCount.hashCode ^
+      eventGrossTokens.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -504,7 +536,9 @@ class StatsGroup {
           unpricedRecords == other.unpricedRecords &&
           recordCount == other.recordCount &&
           priceState == other.priceState &&
-          costByKind == other.costByKind;
+          costByKind == other.costByKind &&
+          requestCount == other.requestCount &&
+          eventGrossTokens == other.eventGrossTokens;
 }
 
 class StatsHealth {
@@ -893,6 +927,7 @@ class StatsSessionDetail {
   final StatsSessionKinds kinds;
   final String granularity;
   final StatsSnapshot snapshot;
+  final StatsTotals? period;
 
   const StatsSessionDetail({
     required this.session,
@@ -901,6 +936,7 @@ class StatsSessionDetail {
     required this.kinds,
     required this.granularity,
     required this.snapshot,
+    this.period,
   });
 
   @override
@@ -910,7 +946,8 @@ class StatsSessionDetail {
       timeline.hashCode ^
       kinds.hashCode ^
       granularity.hashCode ^
-      snapshot.hashCode;
+      snapshot.hashCode ^
+      period.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -922,7 +959,8 @@ class StatsSessionDetail {
           timeline == other.timeline &&
           kinds == other.kinds &&
           granularity == other.granularity &&
-          snapshot == other.snapshot;
+          snapshot == other.snapshot &&
+          period == other.period;
 }
 
 class StatsSessionItem {
@@ -935,6 +973,15 @@ class StatsSessionItem {
   final String? costUsd;
   final int? costMicros;
   final int recordCount;
+  final int? inputTokens;
+  final int? outputTokens;
+  final int? cacheReadTokens;
+  final int? cacheWriteTokens;
+  final int unpricedRecords;
+  final int? requestCount;
+  final StatsTotals cumulative;
+  final bool hasCumulative;
+  final int? eventGrossTokens;
 
   const StatsSessionItem({
     required this.source,
@@ -946,6 +993,15 @@ class StatsSessionItem {
     this.costUsd,
     this.costMicros,
     required this.recordCount,
+    this.inputTokens,
+    this.outputTokens,
+    this.cacheReadTokens,
+    this.cacheWriteTokens,
+    required this.unpricedRecords,
+    this.requestCount,
+    required this.cumulative,
+    required this.hasCumulative,
+    this.eventGrossTokens,
   });
 
   @override
@@ -958,7 +1014,16 @@ class StatsSessionItem {
       grossTokens.hashCode ^
       costUsd.hashCode ^
       costMicros.hashCode ^
-      recordCount.hashCode;
+      recordCount.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cacheReadTokens.hashCode ^
+      cacheWriteTokens.hashCode ^
+      unpricedRecords.hashCode ^
+      requestCount.hashCode ^
+      cumulative.hashCode ^
+      hasCumulative.hashCode ^
+      eventGrossTokens.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -973,7 +1038,16 @@ class StatsSessionItem {
           grossTokens == other.grossTokens &&
           costUsd == other.costUsd &&
           costMicros == other.costMicros &&
-          recordCount == other.recordCount;
+          recordCount == other.recordCount &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cacheReadTokens == other.cacheReadTokens &&
+          cacheWriteTokens == other.cacheWriteTokens &&
+          unpricedRecords == other.unpricedRecords &&
+          requestCount == other.requestCount &&
+          cumulative == other.cumulative &&
+          hasCumulative == other.hasCumulative &&
+          eventGrossTokens == other.eventGrossTokens;
 }
 
 class StatsSessionKinds {
@@ -1006,6 +1080,7 @@ class StatsSessionModel {
   final int? costMicros;
   final int unpricedRecords;
   final int recordCount;
+  final int? eventGrossTokens;
 
   const StatsSessionModel({
     this.model,
@@ -1019,6 +1094,7 @@ class StatsSessionModel {
     this.costMicros,
     required this.unpricedRecords,
     required this.recordCount,
+    this.eventGrossTokens,
   });
 
   @override
@@ -1033,7 +1109,8 @@ class StatsSessionModel {
       costUsd.hashCode ^
       costMicros.hashCode ^
       unpricedRecords.hashCode ^
-      recordCount.hashCode;
+      recordCount.hashCode ^
+      eventGrossTokens.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1050,7 +1127,8 @@ class StatsSessionModel {
           costUsd == other.costUsd &&
           costMicros == other.costMicros &&
           unpricedRecords == other.unpricedRecords &&
-          recordCount == other.recordCount;
+          recordCount == other.recordCount &&
+          eventGrossTokens == other.eventGrossTokens;
 }
 
 class StatsSessionSummary {
@@ -1068,6 +1146,8 @@ class StatsSessionSummary {
   final int? costMicros;
   final int unpricedRecords;
   final int recordCount;
+  final int? requestCount;
+  final int? eventGrossTokens;
 
   const StatsSessionSummary({
     required this.source,
@@ -1084,6 +1164,8 @@ class StatsSessionSummary {
     this.costMicros,
     required this.unpricedRecords,
     required this.recordCount,
+    this.requestCount,
+    this.eventGrossTokens,
   });
 
   @override
@@ -1101,7 +1183,9 @@ class StatsSessionSummary {
       costUsd.hashCode ^
       costMicros.hashCode ^
       unpricedRecords.hashCode ^
-      recordCount.hashCode;
+      recordCount.hashCode ^
+      requestCount.hashCode ^
+      eventGrossTokens.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1121,7 +1205,9 @@ class StatsSessionSummary {
           costUsd == other.costUsd &&
           costMicros == other.costMicros &&
           unpricedRecords == other.unpricedRecords &&
-          recordCount == other.recordCount;
+          recordCount == other.recordCount &&
+          requestCount == other.requestCount &&
+          eventGrossTokens == other.eventGrossTokens;
 }
 
 class StatsSessions {
@@ -1544,6 +1630,8 @@ class StatsTotals {
   final int? costMicros;
   final int unpricedRecords;
   final int recordCount;
+  final int? requestCount;
+  final int? eventGrossTokens;
 
   const StatsTotals({
     required this.grossTokens,
@@ -1555,6 +1643,8 @@ class StatsTotals {
     this.costMicros,
     required this.unpricedRecords,
     required this.recordCount,
+    this.requestCount,
+    this.eventGrossTokens,
   });
 
   @override
@@ -1567,7 +1657,9 @@ class StatsTotals {
       costUsd.hashCode ^
       costMicros.hashCode ^
       unpricedRecords.hashCode ^
-      recordCount.hashCode;
+      recordCount.hashCode ^
+      requestCount.hashCode ^
+      eventGrossTokens.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1582,7 +1674,9 @@ class StatsTotals {
           costUsd == other.costUsd &&
           costMicros == other.costMicros &&
           unpricedRecords == other.unpricedRecords &&
-          recordCount == other.recordCount;
+          recordCount == other.recordCount &&
+          requestCount == other.requestCount &&
+          eventGrossTokens == other.eventGrossTokens;
 }
 
 class StatsUnallocated {

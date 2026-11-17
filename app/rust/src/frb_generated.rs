@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 770830876;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1109765508;
 
 // Section: executor
 
@@ -603,6 +603,59 @@ fn wire__crate__api__stats__StatsClient_discovery_impl(
         },
     )
 }
+fn wire__crate__api__stats__StatsClient_export_diagnostics_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_export_diagnostics",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_directory = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::export_diagnostics(
+                        &*api_that_guard,
+                        api_directory,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats__StatsClient_health_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -695,6 +748,65 @@ fn wire__crate__api__stats__StatsClient_last_run_impl(
                     }
                     let api_that_guard = api_that_guard.unwrap();
                     let output_ok = crate::api::stats::StatsClient::last_run(&*api_that_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__stats__StatsClient_log_error_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_log_error",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_error_type = <String>::sse_decode(&mut deserializer);
+            let api_message = <String>::sse_decode(&mut deserializer);
+            let api_stack = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Ok::<_, ()>({
+                        crate::api::stats::StatsClient::log_error(
+                            &*api_that_guard,
+                            api_error_type,
+                            api_message,
+                            api_stack,
+                        );
+                    })?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -895,6 +1007,67 @@ fn wire__crate__api__stats__StatsClient_session_detail_impl(
                         api_source,
                         api_session_id,
                         api_granularity,
+                        api_offset_minutes,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_session_detail_in_period",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_source = <String>::sse_decode(&mut deserializer);
+            let api_session_id = <String>::sse_decode(&mut deserializer);
+            let api_granularity = <String>::sse_decode(&mut deserializer);
+            let api_filter = <crate::api::stats::StatsFilter>::sse_decode(&mut deserializer);
+            let api_offset_minutes = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::session_detail_in_period(
+                        &*api_that_guard,
+                        api_source,
+                        api_session_id,
+                        api_granularity,
+                        api_filter,
                         api_offset_minutes,
                     )?;
                     std::result::Result::Ok(output_ok)
@@ -1172,6 +1345,59 @@ fn wire__crate__api__stats__StatsClient_sync_impl(
         },
     )
 }
+fn wire__crate__api__stats__StatsClient_sync_triggered_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_sync_triggered",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_trigger = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::sync_triggered(
+                        &*api_that_guard,
+                        api_trigger,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats__StatsClient_timeseries_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1261,6 +1487,78 @@ fn wire__crate__api__news__news_snapshot_default_impl(
         },
     )
 }
+fn wire__crate__api__diagnostics__runtime_exit_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "runtime_exit",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_logs_home = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>({
+                        crate::api::diagnostics::runtime_exit(api_data_dir, api_logs_home);
+                    })?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__diagnostics__runtime_start_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "runtime_start",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_logs_home = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>({
+                        crate::api::diagnostics::runtime_start(api_data_dir, api_logs_home);
+                    })?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats__stats_counts_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1319,6 +1617,51 @@ fn wire__crate__api__stats__stats_filter_default_impl(
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Ok::<_, ()>(crate::api::stats::StatsFilter::default())?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__diagnostics__write_runtime_error_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "write_runtime_error",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_logs_home = <Option<String>>::sse_decode(&mut deserializer);
+            let api_error_type = <String>::sse_decode(&mut deserializer);
+            let api_message = <String>::sse_decode(&mut deserializer);
+            let api_stack = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>({
+                        crate::api::diagnostics::write_runtime_error(
+                            api_data_dir,
+                            api_logs_home,
+                            api_error_type,
+                            api_message,
+                            api_stack,
+                        );
+                    })?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -1839,6 +2182,17 @@ impl SseDecode for Option<crate::api::stats::StatsTimeOfDay> {
     }
 }
 
+impl SseDecode for Option<crate::api::stats::StatsTotals> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::stats::StatsTotals>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::stats::StatsUnallocated> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1981,6 +2335,8 @@ impl SseDecode for crate::api::stats::StatsBucket {
         let mut var_costMicros = <Option<i64>>::sse_decode(deserializer);
         let mut var_unpricedRecords = <i64>::sse_decode(deserializer);
         let mut var_recordCount = <i64>::sse_decode(deserializer);
+        let mut var_requestCount = <Option<i64>>::sse_decode(deserializer);
+        let mut var_eventGrossTokens = <Option<i64>>::sse_decode(deserializer);
         return crate::api::stats::StatsBucket {
             bucket: var_bucket,
             key: var_key,
@@ -1993,6 +2349,8 @@ impl SseDecode for crate::api::stats::StatsBucket {
             cost_micros: var_costMicros,
             unpriced_records: var_unpricedRecords,
             record_count: var_recordCount,
+            request_count: var_requestCount,
+            event_gross_tokens: var_eventGrossTokens,
         };
     }
 }
@@ -2116,6 +2474,8 @@ impl SseDecode for crate::api::stats::StatsGroup {
         let mut var_priceState = <Option<String>>::sse_decode(deserializer);
         let mut var_costByKind =
             <Option<crate::api::stats::StatsCostParts>>::sse_decode(deserializer);
+        let mut var_requestCount = <Option<i64>>::sse_decode(deserializer);
+        let mut var_eventGrossTokens = <Option<i64>>::sse_decode(deserializer);
         return crate::api::stats::StatsGroup {
             key: var_key,
             source: var_source,
@@ -2131,6 +2491,8 @@ impl SseDecode for crate::api::stats::StatsGroup {
             record_count: var_recordCount,
             price_state: var_priceState,
             cost_by_kind: var_costByKind,
+            request_count: var_requestCount,
+            event_gross_tokens: var_eventGrossTokens,
         };
     }
 }
@@ -2352,6 +2714,7 @@ impl SseDecode for crate::api::stats::StatsSessionDetail {
         let mut var_kinds = <crate::api::stats::StatsSessionKinds>::sse_decode(deserializer);
         let mut var_granularity = <String>::sse_decode(deserializer);
         let mut var_snapshot = <crate::api::stats::StatsSnapshot>::sse_decode(deserializer);
+        let mut var_period = <Option<crate::api::stats::StatsTotals>>::sse_decode(deserializer);
         return crate::api::stats::StatsSessionDetail {
             session: var_session,
             models: var_models,
@@ -2359,6 +2722,7 @@ impl SseDecode for crate::api::stats::StatsSessionDetail {
             kinds: var_kinds,
             granularity: var_granularity,
             snapshot: var_snapshot,
+            period: var_period,
         };
     }
 }
@@ -2375,6 +2739,15 @@ impl SseDecode for crate::api::stats::StatsSessionItem {
         let mut var_costUsd = <Option<String>>::sse_decode(deserializer);
         let mut var_costMicros = <Option<i64>>::sse_decode(deserializer);
         let mut var_recordCount = <i64>::sse_decode(deserializer);
+        let mut var_inputTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_outputTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_cacheReadTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_cacheWriteTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_unpricedRecords = <i64>::sse_decode(deserializer);
+        let mut var_requestCount = <Option<i64>>::sse_decode(deserializer);
+        let mut var_cumulative = <crate::api::stats::StatsTotals>::sse_decode(deserializer);
+        let mut var_hasCumulative = <bool>::sse_decode(deserializer);
+        let mut var_eventGrossTokens = <Option<i64>>::sse_decode(deserializer);
         return crate::api::stats::StatsSessionItem {
             source: var_source,
             session_id: var_sessionId,
@@ -2385,6 +2758,15 @@ impl SseDecode for crate::api::stats::StatsSessionItem {
             cost_usd: var_costUsd,
             cost_micros: var_costMicros,
             record_count: var_recordCount,
+            input_tokens: var_inputTokens,
+            output_tokens: var_outputTokens,
+            cache_read_tokens: var_cacheReadTokens,
+            cache_write_tokens: var_cacheWriteTokens,
+            unpriced_records: var_unpricedRecords,
+            request_count: var_requestCount,
+            cumulative: var_cumulative,
+            has_cumulative: var_hasCumulative,
+            event_gross_tokens: var_eventGrossTokens,
         };
     }
 }
@@ -2415,6 +2797,7 @@ impl SseDecode for crate::api::stats::StatsSessionModel {
         let mut var_costMicros = <Option<i64>>::sse_decode(deserializer);
         let mut var_unpricedRecords = <i64>::sse_decode(deserializer);
         let mut var_recordCount = <i64>::sse_decode(deserializer);
+        let mut var_eventGrossTokens = <Option<i64>>::sse_decode(deserializer);
         return crate::api::stats::StatsSessionModel {
             model: var_model,
             price_state: var_priceState,
@@ -2427,6 +2810,7 @@ impl SseDecode for crate::api::stats::StatsSessionModel {
             cost_micros: var_costMicros,
             unpriced_records: var_unpricedRecords,
             record_count: var_recordCount,
+            event_gross_tokens: var_eventGrossTokens,
         };
     }
 }
@@ -2448,6 +2832,8 @@ impl SseDecode for crate::api::stats::StatsSessionSummary {
         let mut var_costMicros = <Option<i64>>::sse_decode(deserializer);
         let mut var_unpricedRecords = <i64>::sse_decode(deserializer);
         let mut var_recordCount = <i64>::sse_decode(deserializer);
+        let mut var_requestCount = <Option<i64>>::sse_decode(deserializer);
+        let mut var_eventGrossTokens = <Option<i64>>::sse_decode(deserializer);
         return crate::api::stats::StatsSessionSummary {
             source: var_source,
             session_id: var_sessionId,
@@ -2463,6 +2849,8 @@ impl SseDecode for crate::api::stats::StatsSessionSummary {
             cost_micros: var_costMicros,
             unpriced_records: var_unpricedRecords,
             record_count: var_recordCount,
+            request_count: var_requestCount,
+            event_gross_tokens: var_eventGrossTokens,
         };
     }
 }
@@ -2697,6 +3085,8 @@ impl SseDecode for crate::api::stats::StatsTotals {
         let mut var_costMicros = <Option<i64>>::sse_decode(deserializer);
         let mut var_unpricedRecords = <i64>::sse_decode(deserializer);
         let mut var_recordCount = <i64>::sse_decode(deserializer);
+        let mut var_requestCount = <Option<i64>>::sse_decode(deserializer);
+        let mut var_eventGrossTokens = <Option<i64>>::sse_decode(deserializer);
         return crate::api::stats::StatsTotals {
             gross_tokens: var_grossTokens,
             input_tokens: var_inputTokens,
@@ -2707,6 +3097,8 @@ impl SseDecode for crate::api::stats::StatsTotals {
             cost_micros: var_costMicros,
             unpriced_records: var_unpricedRecords,
             record_count: var_recordCount,
+            request_count: var_requestCount,
+            event_gross_tokens: var_eventGrossTokens,
         };
     }
 }
@@ -2801,28 +3193,57 @@ fn pde_ffi_dispatcher_primary_impl(
         11 => {
             wire__crate__api__stats__StatsClient_discovery_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__api__stats__StatsClient_health_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__stats__StatsClient_last_run_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__stats__StatsClient_session_detail_impl(
+        12 => wire__crate__api__stats__StatsClient_export_diagnostics_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
-        23 => {
+        13 => wire__crate__api__stats__StatsClient_health_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__stats__StatsClient_last_run_impl(port, ptr, rust_vec_len, data_len),
+        15 => {
+            wire__crate__api__stats__StatsClient_log_error_impl(port, ptr, rust_vec_len, data_len)
+        }
+        16 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__stats__StatsClient_session_detail_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        20 => wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        21 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        27 => {
             wire__crate__api__stats__StatsClient_timeseries_impl(port, ptr, rust_vec_len, data_len)
         }
-        24 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__diagnostics__write_runtime_error_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
         _ => unreachable!(),
     }
 }
@@ -3056,6 +3477,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsBucket {
             self.cost_micros.into_into_dart().into_dart(),
             self.unpriced_records.into_into_dart().into_dart(),
             self.record_count.into_into_dart().into_dart(),
+            self.request_count.into_into_dart().into_dart(),
+            self.event_gross_tokens.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3214,6 +3637,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsGroup {
             self.record_count.into_into_dart().into_dart(),
             self.price_state.into_into_dart().into_dart(),
             self.cost_by_kind.into_into_dart().into_dart(),
+            self.request_count.into_into_dart().into_dart(),
+            self.event_gross_tokens.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3500,6 +3925,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSessionDetail {
             self.kinds.into_into_dart().into_dart(),
             self.granularity.into_into_dart().into_dart(),
             self.snapshot.into_into_dart().into_dart(),
+            self.period.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3528,6 +3954,15 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSessionItem {
             self.cost_usd.into_into_dart().into_dart(),
             self.cost_micros.into_into_dart().into_dart(),
             self.record_count.into_into_dart().into_dart(),
+            self.input_tokens.into_into_dart().into_dart(),
+            self.output_tokens.into_into_dart().into_dart(),
+            self.cache_read_tokens.into_into_dart().into_dart(),
+            self.cache_write_tokens.into_into_dart().into_dart(),
+            self.unpriced_records.into_into_dart().into_dart(),
+            self.request_count.into_into_dart().into_dart(),
+            self.cumulative.into_into_dart().into_dart(),
+            self.has_cumulative.into_into_dart().into_dart(),
+            self.event_gross_tokens.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3579,6 +4014,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSessionModel {
             self.cost_micros.into_into_dart().into_dart(),
             self.unpriced_records.into_into_dart().into_dart(),
             self.record_count.into_into_dart().into_dart(),
+            self.event_gross_tokens.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3612,6 +4048,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSessionSummary {
             self.cost_micros.into_into_dart().into_dart(),
             self.unpriced_records.into_into_dart().into_dart(),
             self.record_count.into_into_dart().into_dart(),
+            self.request_count.into_into_dart().into_dart(),
+            self.event_gross_tokens.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3910,6 +4348,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsTotals {
             self.cost_micros.into_into_dart().into_dart(),
             self.unpriced_records.into_into_dart().into_dart(),
             self.record_count.into_into_dart().into_dart(),
+            self.request_count.into_into_dart().into_dart(),
+            self.event_gross_tokens.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4371,6 +4811,16 @@ impl SseEncode for Option<crate::api::stats::StatsTimeOfDay> {
     }
 }
 
+impl SseEncode for Option<crate::api::stats::StatsTotals> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::stats::StatsTotals>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::stats::StatsUnallocated> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4472,6 +4922,8 @@ impl SseEncode for crate::api::stats::StatsBucket {
         <Option<i64>>::sse_encode(self.cost_micros, serializer);
         <i64>::sse_encode(self.unpriced_records, serializer);
         <i64>::sse_encode(self.record_count, serializer);
+        <Option<i64>>::sse_encode(self.request_count, serializer);
+        <Option<i64>>::sse_encode(self.event_gross_tokens, serializer);
     }
 }
 
@@ -4552,6 +5004,8 @@ impl SseEncode for crate::api::stats::StatsGroup {
         <i64>::sse_encode(self.record_count, serializer);
         <Option<String>>::sse_encode(self.price_state, serializer);
         <Option<crate::api::stats::StatsCostParts>>::sse_encode(self.cost_by_kind, serializer);
+        <Option<i64>>::sse_encode(self.request_count, serializer);
+        <Option<i64>>::sse_encode(self.event_gross_tokens, serializer);
     }
 }
 
@@ -4688,6 +5142,7 @@ impl SseEncode for crate::api::stats::StatsSessionDetail {
         <crate::api::stats::StatsSessionKinds>::sse_encode(self.kinds, serializer);
         <String>::sse_encode(self.granularity, serializer);
         <crate::api::stats::StatsSnapshot>::sse_encode(self.snapshot, serializer);
+        <Option<crate::api::stats::StatsTotals>>::sse_encode(self.period, serializer);
     }
 }
 
@@ -4703,6 +5158,15 @@ impl SseEncode for crate::api::stats::StatsSessionItem {
         <Option<String>>::sse_encode(self.cost_usd, serializer);
         <Option<i64>>::sse_encode(self.cost_micros, serializer);
         <i64>::sse_encode(self.record_count, serializer);
+        <Option<i64>>::sse_encode(self.input_tokens, serializer);
+        <Option<i64>>::sse_encode(self.output_tokens, serializer);
+        <Option<i64>>::sse_encode(self.cache_read_tokens, serializer);
+        <Option<i64>>::sse_encode(self.cache_write_tokens, serializer);
+        <i64>::sse_encode(self.unpriced_records, serializer);
+        <Option<i64>>::sse_encode(self.request_count, serializer);
+        <crate::api::stats::StatsTotals>::sse_encode(self.cumulative, serializer);
+        <bool>::sse_encode(self.has_cumulative, serializer);
+        <Option<i64>>::sse_encode(self.event_gross_tokens, serializer);
     }
 }
 
@@ -4728,6 +5192,7 @@ impl SseEncode for crate::api::stats::StatsSessionModel {
         <Option<i64>>::sse_encode(self.cost_micros, serializer);
         <i64>::sse_encode(self.unpriced_records, serializer);
         <i64>::sse_encode(self.record_count, serializer);
+        <Option<i64>>::sse_encode(self.event_gross_tokens, serializer);
     }
 }
 
@@ -4748,6 +5213,8 @@ impl SseEncode for crate::api::stats::StatsSessionSummary {
         <Option<i64>>::sse_encode(self.cost_micros, serializer);
         <i64>::sse_encode(self.unpriced_records, serializer);
         <i64>::sse_encode(self.record_count, serializer);
+        <Option<i64>>::sse_encode(self.request_count, serializer);
+        <Option<i64>>::sse_encode(self.event_gross_tokens, serializer);
     }
 }
 
@@ -4893,6 +5360,8 @@ impl SseEncode for crate::api::stats::StatsTotals {
         <Option<i64>>::sse_encode(self.cost_micros, serializer);
         <i64>::sse_encode(self.unpriced_records, serializer);
         <i64>::sse_encode(self.record_count, serializer);
+        <Option<i64>>::sse_encode(self.request_count, serializer);
+        <Option<i64>>::sse_encode(self.event_gross_tokens, serializer);
     }
 }
 

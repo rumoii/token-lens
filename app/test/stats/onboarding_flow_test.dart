@@ -62,7 +62,7 @@ class OnboardingGateway extends FakeStatsGateway {
   }
 
   @override
-  Future<StatsSync> sync() async {
+  Future<StatsSync> sync({String trigger = 'manual'}) async {
     final result = await super.sync();
     empty = false;
     return result;

@@ -365,6 +365,175 @@ fn get_zcode_files(home: &Path, env: &Environment) -> Vec<PathBuf> {
     files
 }
 
+/// Metadata for the same configured roots used by discovery. This never walks directories.
+pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<PathBuf> {
+    let roaming = || env.absolute("APPDATA", home.join("AppData/Roaming"));
+    let local = || env.absolute("LOCALAPPDATA", home.join("AppData/Local"));
+    let parents = |paths: Vec<PathBuf>| {
+        paths
+            .iter()
+            .filter_map(|p| p.parent().map(Path::to_path_buf))
+            .collect::<Vec<_>>()
+    };
+    match source {
+        "claude" => vec![home.join(".claude/projects")],
+        "codex" => vec![home.join(".codex/sessions")],
+        "qwen" => vec![home.join(".qwen/usage")],
+        "dsh" => vec![home.join(".dsh/storages/session_projcache/sessions")],
+        "grok" => vec![home.join(".grok/sessions")],
+        "aider" | "cursor" | "trae" => {
+            let mut roots = vec![home.into()];
+            if source == "cursor" {
+                roots.extend(parents(vec![get_cursor_state_db_path(home, env)]));
+            }
+            if source == "trae" {
+                roots.extend(global_bases(
+                    home,
+                    env,
+                    &["TRAE SOLO", "Trae CN", "TRAE SOLO CN", "trae"],
+                ));
+            }
+            roots
+        }
+        "pi" => vec![home.join(".pi/agent/sessions")],
+        "hermes" => parents(vec![get_hermes_db_path(home, env)]),
+        "cline" => global_bases(
+            home,
+            env,
+            &["Code", "Code - Insiders", "VSCodium", "Cursor"],
+        )
+        .iter()
+        .flat_map(|p| {
+            [
+                p.join("saoudrizwan.claude-dev/tasks"),
+                p.join("rooveterinaryinc.roo-cline/tasks"),
+            ]
+        })
+        .collect(),
+        "gemini" => vec![
+            env.absolute("GEMINI_HOME", home.join(".gemini"))
+                .join("sessions"),
+            home.join(".config/gemini/sessions"),
+        ],
+        "opencode" => {
+            let data = xdg_data(home, env).join("opencode");
+            match env.get("OPENCODE_DB") {
+                Some(":memory:") => vec![],
+                Some(value) => parents(vec![if Path::new(value).is_absolute() {
+                    value.into()
+                } else {
+                    data.join(value)
+                }]),
+                None => vec![data, home.join(".opencode")],
+            }
+        }
+        "kilo" => parents(get_kilo_db_path(home, env).into_iter().collect()),
+        "openhands" => {
+            if let Some(value) = env.get("OPENHANDS_CONVERSATIONS_DIR") {
+                Path::new(value)
+                    .is_absolute()
+                    .then(|| PathBuf::from(value))
+                    .into_iter()
+                    .collect()
+            } else if let Some(value) = env.get("OPENHANDS_PERSISTENCE_DIR") {
+                Path::new(value)
+                    .is_absolute()
+                    .then(|| Path::new(value).join("conversations"))
+                    .into_iter()
+                    .collect()
+            } else {
+                vec![home.join(".openhands/conversations")]
+            }
+        }
+        "goose" => {
+            let mut roots = parents(get_goose_db_paths(home, env));
+            roots.push(
+                env.absolute("GOOSE_PATH_ROOT", home.join(".goose"))
+                    .join("data/sessions"),
+            );
+            roots
+        }
+        "zed" => {
+            let mut roots = parents(vec![get_zed_db_path(home, env)]);
+            roots.push(home.join(".local/share/zed/threads"));
+            roots
+        }
+        "continue" => vec![home.join(".continue/sessions")],
+        "copilot" => vec![env.absolute("COPILOT_HOME", home.join(".copilot"))],
+        "openclaw" => vec![env
+            .absolute(
+                "OPENCLAW_HOME",
+                env.absolute("OPENCLAW_STATE_DIR", home.join(".openclaw")),
+            )
+            .join("agents")],
+        "mimo" => {
+            let base = env
+                .get("MIMOCODE_HOME")
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .map(|p| p.join("data"))
+                .unwrap_or_else(|| xdg_data(home, env).join("mimocode"));
+            let mut roots = match env.get("MIMOCODE_DB") {
+                Some(":memory:") => vec![],
+                Some(value) if !value.is_empty() && base.is_absolute() => {
+                    parents(vec![if Path::new(value).is_absolute() {
+                        value.into()
+                    } else {
+                        base.join(value)
+                    }])
+                }
+                _ if base.is_absolute() => vec![base],
+                _ => vec![],
+            };
+            roots.push(roaming().join("Xiaomi MiMo/mimocode"));
+            roots
+        }
+        "kimi" => vec![
+            home.join(".kimi-code/sessions"),
+            env.get("KIMI_SHARE_DIR")
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".kimi")),
+            roaming().join("kimi"),
+            roaming().join("Kimi"),
+            local().join("kimi"),
+            local().join("Kimi"),
+            home.join(".config/kimi"),
+        ]
+        .into_iter()
+        .filter(|p| p.is_absolute())
+        .collect(),
+        "minimax" => match env.get("MINIMAX_DATA_DIR").filter(|s| !s.is_empty()) {
+            Some(value) => Path::new(value)
+                .is_absolute()
+                .then(|| PathBuf::from(value))
+                .into_iter()
+                .collect(),
+            None => vec![home.join(".minimax"), home.into()],
+        },
+        "codebuddy" => {
+            let base = match env.platform.as_str() {
+                "win32" => local(),
+                "darwin" => home.join("Library/Application Support"),
+                _ => home.join(".local/share"),
+            };
+            vec![
+                home.join(".codebuddy/projects"),
+                home.join(".workbuddy/projects"),
+                home.join(".workbuddy-ai/projects"),
+                base.join("CodeBuddyExtension/Data"),
+            ]
+        }
+        "zcode" => parents(get_zcode_files(home, env)),
+        "commandcode" => vec![home.join(".commandcode/projects")],
+        "anythingllm" => parents(vec![get_anythingllm_db_path(home, env)]),
+        _ => vec![],
+    }
+    .into_iter()
+    .map(|p| normalize(&p))
+    .collect()
+}
+
 pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, Vec<PathBuf>)>> {
     let home = normalize(home);
     let home = home.as_path();

@@ -15,13 +15,16 @@ abstract interface class StatsGateway {
   Future<StatsSessionDetail?> sessionDetail(
     String source,
     String sessionId,
-    String granularity,
-  );
+    String granularity, {
+    StatsFilter filter = const StatsFilter(),
+  });
   Future<StatsSources> sources();
   Future<StatsPricing> pricing();
   Future<StatsDiscovery> discovery({bool fresh = false});
   Future<StatsHealth> health();
-  Future<StatsSync> sync();
+  Future<StatsSync> sync({String trigger = 'manual'});
+  Future<String> exportDiagnostics(String directory);
+  Future<void> logError(String type, String message, String stack);
   Future<void> shutdown();
 }
 
@@ -68,11 +71,13 @@ class RustStatsGateway implements StatsGateway {
   Future<StatsSessionDetail?> sessionDetail(
     String source,
     String sessionId,
-    String granularity,
-  ) => client.sessionDetail(
+    String granularity, {
+    StatsFilter filter = const StatsFilter(),
+  }) => client.sessionDetailInPeriod(
     source: source,
     sessionId: sessionId,
     granularity: granularity,
+    filter: filter,
     offsetMinutes: _offset,
   );
   @override
@@ -85,7 +90,14 @@ class RustStatsGateway implements StatsGateway {
   @override
   Future<StatsHealth> health() => client.health();
   @override
-  Future<StatsSync> sync() => client.sync_();
+  Future<StatsSync> sync({String trigger = 'manual'}) =>
+      client.syncTriggered(trigger: trigger);
+  @override
+  Future<String> exportDiagnostics(String directory) =>
+      client.exportDiagnostics(directory: directory);
+  @override
+  Future<void> logError(String type, String message, String stack) =>
+      client.logError(errorType: type, message: message, stack: stack);
   @override
   Future<void> shutdown() => client.shutdown();
 }

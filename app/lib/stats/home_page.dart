@@ -12,6 +12,7 @@ import 'logic/tool_order.dart';
 import 'logic/tools.dart';
 import 'theme/palette.dart';
 import 'widgets/primitives.dart';
+import 'widgets/session_usage.dart';
 import 'widgets/charts.dart';
 import 'widgets/date_range.dart';
 import 'widgets/motion.dart';
@@ -496,6 +497,12 @@ class _StatsHomeState extends State<StatsHome> {
             },
           ),
         ),
+        if (total.grossTokens > 0 && total.recordCount > 0)
+          Text(
+            '= ${tokenCount(total.grossTokens, unitSystem: c.preferences.unitSystem == 'chinese' ? 'english' : 'chinese')} token',
+            key: const Key('home-conversion'),
+            style: p.text(13, p.muted),
+          ),
         const SizedBox(height: 8),
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -1407,7 +1414,12 @@ class _StatsHomeState extends State<StatsHome> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        secHead('最近会话', '每次打开工具做的一件事'),
+        secHead(
+          data.period.period == 'all'
+              ? '最近会话'
+              : '${sessionPeriodLabel(data.period)}的会话',
+          data.period.period == 'all' ? '每次打开工具做的一件事' : '按这段时间的用量排序',
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
           child: Column(
@@ -1416,6 +1428,7 @@ class _StatsHomeState extends State<StatsHome> {
               for (final item in data.recent.items)
                 rowLink(
                   onTap: () => widget.onSessions({
+                    ...Uri.splitQueryString(data.period.query),
                     'source': item.source,
                     'session': item.sessionId,
                   }),
@@ -1429,18 +1442,53 @@ class _StatsHomeState extends State<StatsHome> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                item.projectKey
-                                        ?.split(RegExp(r'[/\\]'))
-                                        .where((s) => s.isNotEmpty)
-                                        .lastOrNull ??
-                                    '没有记录项目',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: p.text(13.5, null, FontWeight.w500),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      item.projectKey
+                                              ?.split(RegExp(r'[/\\]'))
+                                              .where((s) => s.isNotEmpty)
+                                              .lastOrNull ??
+                                          '没有记录项目',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: p.text(
+                                        13.5,
+                                        null,
+                                        FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  if (sessionStartedBefore(
+                                    item.startedAt,
+                                    data.period,
+                                    c.clock(),
+                                    offsetMinutes: data
+                                        .recent
+                                        .snapshot
+                                        .filters
+                                        .offsetMinutes,
+                                  ))
+                                    SessionStartChip(
+                                      startedAt: item.startedAt,
+                                      now: c.clock(),
+                                      offsetMinutes: data
+                                          .recent
+                                          .snapshot
+                                          .filters
+                                          .offsetMinutes,
+                                    ),
+                                ],
                               ),
                               Text(
-                                '${toolOf(item.source).name} · ${ago(item.lastSeenAt)} · ${span(item.startedAt, item.lastSeenAt)}',
+                                item.requestCount == null &&
+                                        item.cumulative.requestCount != null
+                                    ? '${toolOf(item.source).name} · 本时段没有逐次请求'
+                                    : item.hasCumulative &&
+                                          item.cumulative.requestCount == null
+                                    ? '只记录总数，算在开始那天'
+                                    : '${toolOf(item.source).name} · ${requestText(item.requestCount)}',
                                 maxLines: 2,
                                 style: p.text(12, p.muted),
                               ),
@@ -1448,42 +1496,35 @@ class _StatsHomeState extends State<StatsHome> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        token(item.grossTokens, style: p.text(13)),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${data.period.period == 'all' ? '累计' : sessionPeriodLabel(data.period)} ${nt(item.grossTokens)}',
+                              style: p.text(13, null, FontWeight.w600),
+                            ),
+                            if (item.cumulative.grossTokens != item.grossTokens)
+                              Text(
+                                '累计 ${nt(item.cumulative.grossTokens)}',
+                                style: p.text(11.5, p.muted),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
                 ),
-              link('查看全部会话', () => widget.onSessions({})),
+              link(
+                '查看全部会话',
+                () =>
+                    widget.onSessions(Uri.splitQueryString(data.period.query)),
+              ),
             ],
           ),
         ),
       ],
     ),
   );
-  String ago(String iso) {
-    final minutes =
-        (c.clock().difference(DateTime.parse(iso)).inMilliseconds / 60000)
-            .round();
-    return minutes < 1
-        ? '刚刚'
-        : minutes < 60
-        ? '$minutes 分钟前'
-        : minutes < 1440
-        ? '${(minutes / 60).round()} 小时前'
-        : '${(minutes / 1440).round()} 天前';
-  }
-
-  String span(String start, String end) {
-    final minutes = math.max(
-      0,
-      (DateTime.parse(end).difference(DateTime.parse(start)).inMilliseconds /
-              60000)
-          .round(),
-    );
-    return minutes < 60
-        ? '$minutes 分钟'
-        : '${minutes ~/ 60} 小时 ${minutes % 60} 分';
-  }
 }
 
 class _SparkPainter extends CustomPainter {

@@ -42,6 +42,8 @@ class DetailRow {
     required this.tokens,
     required this.kinds,
     this.costMicros,
+    this.requestCount,
+    this.eventGrossTokens,
     this.sub,
     this.drill,
     this.tools = const [],
@@ -49,7 +51,7 @@ class DetailRow {
   final String id, name;
   final int tokens;
   final List<int?> kinds;
-  final int? costMicros;
+  final int? costMicros, requestCount, eventGrossTokens;
   final String? sub;
   final (String, String)? drill;
   final List<String> tools;
@@ -68,6 +70,8 @@ List<DetailRow> detailRows(
             id: r.bucket,
             name: bucketText(r.bucket),
             tokens: r.grossTokens,
+            requestCount: r.requestCount,
+            eventGrossTokens: r.eventGrossTokens,
             costMicros: r.costMicros,
             kinds: [
               r.inputTokens,
@@ -91,11 +95,18 @@ List<DetailRow> detailRows(
       for (final e in groups.entries)
         (() {
           final kinds = <int?>[null, null, null, null];
-          int? cost;
+          int? cost, requests;
+          int? eventGross = 0;
           var tokens = 0;
           final tools = <String>{};
           for (final g in e.value) {
             tokens += g.grossTokens;
+            eventGross = eventGross == null || g.eventGrossTokens == null
+                ? null
+                : eventGross + g.eventGrossTokens!;
+            if (g.requestCount != null) {
+              requests = (requests ?? 0) + g.requestCount!;
+            }
             if (g.source != null) tools.add(g.source!);
             if (g.costMicros != null) cost = (cost ?? 0) + g.costMicros!;
             final values = [
@@ -112,6 +123,8 @@ List<DetailRow> detailRows(
             id: e.key ?? '—',
             name: e.key ?? '没写模型',
             tokens: tokens,
+            requestCount: requests,
+            eventGrossTokens: eventGross,
             kinds: kinds,
             costMicros: cost,
             tools: tools.toList(),
@@ -133,6 +146,8 @@ List<DetailRow> detailRows(
             : projectName(g.key) ?? '没有记录项目',
         sub: dim == 'project' ? g.key ?? '工具没有写工作目录' : null,
         tokens: g.grossTokens,
+        requestCount: g.requestCount,
+        eventGrossTokens: g.eventGrossTokens,
         kinds: [
           g.inputTokens,
           g.outputTokens,
@@ -667,6 +682,17 @@ class _StatsDetailState extends State<StatsDetail> {
       if (r.drill != null) setFilter(r.drill!.$1, r.drill!.$2);
     }
 
+    Widget requests(DetailRow r) => Text(
+      r.requestCount == null ? '不记录' : toDisplayNumber(r.requestCount),
+      style: p.text(13, p.secondary),
+    );
+    Widget average(DetailRow r) => r.requestCount == null
+        ? Text('不记录', style: p.text(13, p.muted))
+        : token(
+            r.requestCount! > 0 && r.eventGrossTokens != null
+                ? (r.eventGrossTokens! / r.requestCount!).round()
+                : null,
+          );
     Widget row(DetailRow r) {
       final name = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -727,6 +753,14 @@ class _StatsDetailState extends State<StatsDetail> {
                               children: [
                                 Text('约值 ', style: p.text(12.5, p.secondary)),
                                 money(r.costMicros),
+                              ],
+                            ),
+                            requests(r),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('平均每次 ', style: p.text(12.5, p.secondary)),
+                                average(r),
                               ],
                             ),
                             Text(
@@ -799,6 +833,14 @@ class _StatsDetailState extends State<StatsDetail> {
                               child: token(k),
                             ),
                           ),
+                        for (final child in [requests(r), average(r)])
+                          Expanded(
+                            flex: 12,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: child,
+                            ),
+                          ),
                       ],
                     ),
             ),
@@ -824,7 +866,7 @@ class _StatsDetailState extends State<StatsDetail> {
                       ? ' ↑'
                       : ' ↓'
                 : ''}',
-            textAlign: key == null && text != '占比'
+            textAlign: key == null && !['占比', '请求', '平均每次'].contains(text)
                 ? TextAlign.left
                 : TextAlign.right,
             style: p.text(12, p.muted).copyWith(height: 1.4),
@@ -853,7 +895,7 @@ class _StatsDetailState extends State<StatsDetail> {
               builder: (context, box) => SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SizedBox(
-                  width: math.max(620, box.maxWidth),
+                  width: math.max(860, box.maxWidth),
                   child: Column(
                     children: [
                       Padding(
@@ -875,6 +917,8 @@ class _StatsDetailState extends State<StatsDetail> {
                             header('占比', null, 20),
                             for (var i = 0; i < 4; i++)
                               header(['新输入', '输出', '读缓存', '写缓存'][i], 'k$i', 11),
+                            header('请求', null, 12),
+                            header('平均每次', null, 12),
                           ],
                         ),
                       ),

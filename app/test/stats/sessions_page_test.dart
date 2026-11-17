@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/preferences.dart';
+import 'package:token_lens_app/stats/logic/period.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
@@ -34,6 +35,15 @@ class SessionsGateway extends FakeStatsGateway {
               StatsSessionItem(
                 source: 'codex',
                 sessionId: cursor == null ? 's1' : 's2',
+                unpricedRecords: 0,
+                requestCount: 1,
+                hasCumulative: false,
+                cumulative: const StatsTotals(
+                  grossTokens: 42,
+                  recordCount: 1,
+                  requestCount: 1,
+                  unpricedRecords: 0,
+                ),
                 projectKey: cursor == null ? null : 'C:/demo',
                 startedAt: '2026-11-09T05:00:00Z',
                 lastSeenAt: '2026-11-09T06:00:00Z',
@@ -52,8 +62,9 @@ class SessionsGateway extends FakeStatsGateway {
   Future<StatsSessionDetail?> sessionDetail(
     String source,
     String sessionId,
-    String granularity,
-  ) async {
+    String granularity, {
+    StatsFilter filter = const StatsFilter(),
+  }) async {
     details.add((source, sessionId, granularity));
     if (failure != null) throw StateError(failure!);
     if (missing) return null;
@@ -95,7 +106,10 @@ Future<StatsController> mountSessions(
   final c = StatsController(
     fake,
     clock: () => demoNow,
-    preferences: const UiPreferences(onboarded: true),
+    preferences: const UiPreferences(
+      onboarded: true,
+      period: StatsPeriod('all'),
+    ),
   );
   addTearDown(c.dispose);
   await c.load();
@@ -144,7 +158,7 @@ void main() {
       query: 'source=codex&session=s9&tool=codex',
     );
     expect(find.bySemanticsLabel('会话详情'), findsOneWidget);
-    expect(fake.details.single, ('codex', 's9', 'hour'));
+    expect(fake.details.single, ('codex', 's9', 'day'));
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('会话详情'), findsNothing);
