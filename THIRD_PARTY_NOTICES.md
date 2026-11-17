@@ -390,4 +390,10 @@ dart --packages=app/.dart_tool/package_config.json scripts/generate-desktop-noti
 dart --packages=app/.dart_tool/package_config.json scripts/generate-desktop-notices.dart --check
 ```
 
-脚本不安装工具、不解析新版本，Cargo 始终 locked/offline；缓存缺失或许可证无法识别时失败。只替换本生成标记之后的内容，保留前面的旧版声明。`--check` 不写文件，清单过期时返回非零。许可证全文以各链接、缓存中的许可文件及 Flutter 产物 NOTICES 为准；此清单不等于法律适用性判断。
+发布包的 Rust 许可全文由同一遍历生成，按目标平台收录 normal 依赖；相同全文去重，无许可文件的包使用 `scripts/licenses/` 中的 SPDX 标准文本并保留 Cargo authors 和 repository。MPL-2.0 包附源码获取说明。以 Windows 为例（macOS 使用 aarch64-apple-darwin）：
+
+```sh
+dart --packages=app/.dart_tool/package_config.json scripts/generate-desktop-notices.dart --rust-licenses THIRD_PARTY_LICENSES.txt --target x86_64-pc-windows-msvc
+```
+
+脚本不安装工具、不解析新版本，Cargo 始终 locked/offline；缓存缺失、许可证无法识别或所需标准文本缺失时失败。默认模式只替换本生成标记之后的内容，保留前面的旧版声明。`--check` 不写文件，清单过期时返回非零。发布包附 `LICENSE`、本清单和 `THIRD_PARTY_LICENSES.txt`；Dart/Flutter 许可全文保留在 Flutter 产物 NOTICES 中。

@@ -107,10 +107,16 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $release = 'build/windows/x64/runner/Release'
           if (-not (Test-Path "$release/token-lens.exe" -PathType Leaf)) {
             throw 'Release executable is missing.'
           }
+          dart --packages=.dart_tool/package_config.json ../scripts/generate-desktop-notices.dart --rust-licenses "$release/THIRD_PARTY_LICENSES.txt" --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Rust license generation failed.'
+          }
+          Copy-Item -LiteralPath '../LICENSE', '../THIRD_PARTY_NOTICES.md' -Destination $release
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Compress-Archive -Path "$release/*" -DestinationPath "dist/token-lens-$env:RELEASE_VERSION-windows-x64.zip"
 
@@ -118,9 +124,13 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           test -d 'build/macos/Build/Products/Release/Token Lens.app'
+          stage="$(mktemp -d "$RUNNER_TEMP/token-lens-package.XXXXXX")"
           mkdir -p dist
-          ditto -c -k --sequesterRsrc --keepParent \
-            'build/macos/Build/Products/Release/Token Lens.app' \
+          ditto 'build/macos/Build/Products/Release/Token Lens.app' "$stage/Token Lens.app"
+          cp ../LICENSE ../THIRD_PARTY_NOTICES.md "$stage/"
+          dart --packages=.dart_tool/package_config.json ../scripts/generate-desktop-notices.dart \
+            --rust-licenses "$stage/THIRD_PARTY_LICENSES.txt" --target aarch64-apple-darwin
+          ditto -c -k --sequesterRsrc "$stage" \
             "dist/token-lens-$RELEASE_VERSION-macos.zip"
 
       - name: Write SHA-256 checksum

@@ -75,5 +75,5 @@ Windows 单实例互斥量为 `Local\TokenLens.Desktop`，重复启动仅激活�
 
 1. 修改 `pubspec.yaml` 的 `version`，提交到 main。
 2. 在这个提交上打标签 `v<版本>`（例如 `v0.1.0`）并推送。
-3. `.github/workflows/release.yml` 先核对标签与 `pubspec.yaml` 的版本一致，不一致就失败；一致时在 GitHub 托管的 Windows、macOS runner 上构建，打成 `token-lens-<版本>-windows-x64.zip`（Release 目录的全部内容）和 `token-lens-<版本>-macos.zip`（`Token Lens.app`），各附一个 `.sha256` 校验文件，然后建草稿 Release 并上传这四个文件。同一标签的 Release 已存在时失败，不覆盖。
+3. `.github/workflows/release.yml` 先核对标签与 `pubspec.yaml` 的版本一致，不一致就失败；一致时在 GitHub 托管的 Windows、macOS runner 上构建，打成 `token-lens-<版本>-windows-x64.zip`（Release 目录的全部内容，含 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`THIRD_PARTY_LICENSES.txt`）和 `token-lens-<版本>-macos.zip`（顶层为 `Token Lens.app` 和这三个文本文件），各附一个 `.sha256` 校验文件，然后建草稿 Release 并上传这四个文件。同一标签的 Release 已存在时失败，不覆盖。
 4. 检查草稿里的文件和说明，再在 GitHub 上手动发布。

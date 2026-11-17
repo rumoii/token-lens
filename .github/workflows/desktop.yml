@@ -7,6 +7,10 @@ on:
       - 'specs/**'
       - '.github/workflows/desktop.yml'
       - 'scripts/smoke-desktop.py'
+      - 'scripts/generate-desktop-notices.dart'
+      - 'scripts/licenses/**'
+      - 'THIRD_PARTY_NOTICES.md'
+      - '.github/workflows/release.yml'
   push:
     branches: [main]
     paths:
@@ -14,6 +18,10 @@ on:
       - 'specs/**'
       - '.github/workflows/desktop.yml'
       - 'scripts/smoke-desktop.py'
+      - 'scripts/generate-desktop-notices.dart'
+      - 'scripts/licenses/**'
+      - 'THIRD_PARTY_NOTICES.md'
+      - '.github/workflows/release.yml'
 
 permissions:
   contents: read
@@ -30,10 +38,12 @@ jobs:
         include:
           - os: windows-latest
             target: windows
+            rust_target: x86_64-pc-windows-msvc
             python: python
             executable: build/windows/x64/runner/Release/token-lens.exe
           - os: macos-latest
             target: macos
+            rust_target: aarch64-apple-darwin
             python: python3
             executable: build/macos/Build/Products/Release/Token Lens.app/Contents/MacOS/Token Lens
     runs-on: ${{ matrix.os }}
@@ -94,6 +104,11 @@ jobs:
 
       - name: Build release
         run: flutter build ${{ matrix.target }} --release --no-pub
+
+      - name: Generate Rust license texts
+        run: >-
+          dart --packages=.dart_tool/package_config.json ../scripts/generate-desktop-notices.dart
+          --rust-licenses "$RUNNER_TEMP/THIRD_PARTY_LICENSES.txt" --target ${{ matrix.rust_target }}
 
       - name: Check lockfiles
         run: git diff --exit-code -- pubspec.lock rust/Cargo.lock
