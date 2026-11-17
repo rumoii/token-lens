@@ -312,7 +312,7 @@ fn e2_fix1_contended_file_lock_has_a_deadline() {
             Some(temp.path().to_string_lossy().into()),
         )
         .unwrap();
-        client.sync()
+        client.sync_isolated()
     });
     FileExt::unlock(&lock).unwrap();
     worker.join().unwrap();
@@ -619,7 +619,7 @@ fn e2_unwritable_logs_do_not_fail_business() {
         Some(home.to_string_lossy().into()),
     )
     .unwrap();
-    assert!(client.sync().is_ok());
+    assert!(client.sync_isolated().is_ok());
     assert_eq!(client.health().unwrap().schema_version, 6);
 }
 
@@ -644,7 +644,7 @@ fn e2_export_all_sections_ten_runs_all_anomalies_and_privacy() {
         Some(home.to_string_lossy().into()),
     )
     .unwrap();
-    let result = client.sync().unwrap();
+    let result = client.sync_isolated().unwrap();
     assert!(!result.anomalies.is_empty());
     assert!(result.counts.read_failed > 0);
     // A failed run and arbitrary pre-existing note must never copy parser data into diagnostics.

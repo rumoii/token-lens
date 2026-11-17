@@ -587,6 +587,26 @@ impl StatsClient {
         self.sync_triggered("manual".into())
     }
     pub fn sync_triggered(&self, trigger: String) -> Result<StatsSync, String> {
+        self.sync_with_env(trigger, &ingest::Environment::process())
+    }
+    #[cfg(test)]
+    #[flutter_rust_bridge::frb(ignore)]
+    pub(crate) fn sync_isolated(&self) -> Result<StatsSync, String> {
+        // Keep platform discovery, but resolve all directories under the synthetic home.
+        self.sync_with_env(
+            "manual".into(),
+            &ingest::Environment {
+                platform: ingest::Environment::process().platform,
+                ..Default::default()
+            },
+        )
+    }
+    #[flutter_rust_bridge::frb(ignore)]
+    fn sync_with_env(
+        &self,
+        trigger: String,
+        environment: &ingest::Environment,
+    ) -> Result<StatsSync, String> {
         let trigger = match trigger.as_str() {
             "startup" => "startup",
             "timer" => "timer",
@@ -595,7 +615,7 @@ impl StatsClient {
         self.state
             .log
             .write("INFO", "sync", &format!("start trigger={trigger}"));
-        let result = self.sync_inner();
+        let result = self.sync_inner(environment);
         if let Err(error) = &result {
             if error != "cancelled" {
                 self.state.log.write(
@@ -608,7 +628,7 @@ impl StatsClient {
         self.state.log.ffi("sync", result)
     }
     #[flutter_rust_bridge::frb(ignore)]
-    fn sync_inner(&self) -> Result<StatsSync, String> {
+    fn sync_inner(&self, environment: &ingest::Environment) -> Result<StatsSync, String> {
         if self.state.closed.load(Ordering::Acquire) {
             return Err("closed".into());
         }
@@ -633,7 +653,7 @@ impl StatsClient {
         let result = ingest::sync(
             &self.state.data,
             &self.state.home,
-            &ingest::Environment::process(),
+            environment,
             self.state.clock.clone(),
             &LocalZone::System,
             &self.state.closed,
@@ -915,9 +935,9 @@ mod tests {
             .execute("UPDATE usage_records SET price_version='old'", [])
             .unwrap();
         drop(seed);
-        let first = client.sync().unwrap();
+        let first = client.sync_isolated().unwrap();
         assert!(first.inserted > 0);
-        let second = client.sync().unwrap();
+        let second = client.sync_isolated().unwrap();
         assert_eq!((second.inserted, second.updated), (0, 0));
         let ledger = client.open().unwrap();
         let runs: Vec<(i64, i64)> = ledger
@@ -1124,7 +1144,7 @@ mod tests {
             Some(0)
         );
         assert!(client.last_run().unwrap().is_none());
-        assert_eq!(client.sync().unwrap().file_count, 0);
+        assert_eq!(client.sync_isolated().unwrap().file_count, 0);
         assert_eq!(client.last_run().unwrap().unwrap().status, "ok");
         client.shutdown().await;
         client.shutdown().await;
