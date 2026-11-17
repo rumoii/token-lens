@@ -11,6 +11,10 @@ struct ClaudeEntry {
     time: Option<String>,
     usage: [Option<i64>; 4],
     split: [Option<i64>; 2],
+    timing_ref: Option<String>,
+    timing_ambiguous: bool,
+    timing_end: Option<i64>,
+    timing_completed: bool,
 }
 
 pub(super) fn parse(
@@ -23,12 +27,21 @@ pub(super) fn parse(
     let mut orphans = Vec::new();
     let mut indexes = HashMap::new();
     let mut cwd = None;
+    let mut requests: HashMap<String, Vec<Option<i64>>> = HashMap::new();
     for (object, line) in lines(bytes, notes) {
         if !object.is_object() && !object.is_array() {
             continue;
         }
         if cwd.is_none() {
             cwd = project(&object["cwd"]);
+        }
+        if object["type"] == "api-request" {
+            if let Some(id) = object["id"].as_str().filter(|s| !s.is_empty()) {
+                requests
+                    .entry(id.into())
+                    .or_default()
+                    .push(super::timing::timestamp(&object["timestamp"], zone));
+            }
         }
         let usage = if jscompat::truthy(&object["message"]["usage"]) {
             &object["message"]["usage"]
@@ -77,8 +90,19 @@ pub(super) fn parse(
         };
         let model = jscompat::truthy(raw_model).then(|| jscompat::string(raw_model));
         let time = jscompat::normalize_timestamp(&object["timestamp"], zone);
+        let timing_ref = object["requestRef"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned);
+        let timing_end = super::timing::timestamp(&object["timestamp"], zone);
+        let timing_completed = object["message"]["stop_reason"]
+            .as_str()
+            .is_some_and(|reason| !trim(reason).is_empty());
         if let Some(index) = id.as_ref().and_then(|id| indexes.get(id)).copied() {
             let entry: &mut ClaudeEntry = &mut entries[index];
+            entry.timing_ambiguous |= timing_ref.is_none() || timing_ref != entry.timing_ref;
+            entry.timing_end = timing_end;
+            entry.timing_completed = timing_completed;
             for (old, new) in entry.usage.iter_mut().zip(tokens) {
                 *old = (*old).max(new);
             }
@@ -104,6 +128,10 @@ pub(super) fn parse(
                 time,
                 usage: tokens,
                 split,
+                timing_ref,
+                timing_ambiguous: false,
+                timing_end,
+                timing_completed,
             };
             if let Some(id) = id {
                 indexes.insert(id, entries.len());
@@ -115,7 +143,29 @@ pub(super) fn parse(
     }
     let mut output = Vec::new();
     let mut orphan_index = 0;
+    let mut messages_per_request = HashMap::<String, usize>::new();
+    for entry in entries.iter().chain(&orphans) {
+        if let Some(reference) = &entry.timing_ref {
+            *messages_per_request.entry(reference.clone()).or_default() += 1;
+        }
+    }
     for entry in entries.into_iter().chain(orphans) {
+        let duration = if entry.timing_ambiguous
+            || entry.id.is_none()
+            || entry
+                .timing_ref
+                .as_ref()
+                .is_some_and(|reference| messages_per_request.get(reference) != Some(&1))
+        {
+            None
+        } else {
+            entry
+                .timing_ref
+                .as_ref()
+                .and_then(|id| requests.get(id))
+                .filter(|starts| starts.len() == 1)
+                .and_then(|starts| super::timing::difference(entry.timing_end, starts[0]))
+        };
         let (key, old) = if let Some(id) = entry.id {
             (
                 format!("claude|{id}"),
@@ -140,6 +190,16 @@ pub(super) fn parse(
                 record["cache_write_1h_tokens"] = json!(b);
             }
         }
+        record["timing"] = super::timing::duration(
+            duration,
+            "log_timestamps",
+            if entry.timing_completed {
+                "completed"
+            } else {
+                "partial"
+            },
+            &record["output_tokens"],
+        );
         output.push(record);
     }
     output

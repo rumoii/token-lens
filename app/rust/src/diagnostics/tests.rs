@@ -620,7 +620,7 @@ fn e2_unwritable_logs_do_not_fail_business() {
     )
     .unwrap();
     assert!(client.sync().is_ok());
-    assert_eq!(client.health().unwrap().schema_version, 5);
+    assert_eq!(client.health().unwrap().schema_version, 6);
 }
 
 #[test]
@@ -677,7 +677,7 @@ fn e2_export_all_sections_ten_runs_all_anomalies_and_privacy() {
     assert_eq!(text.matches("anomaly ").count(), 9 * 6 + 1);
     assert!(text.contains("files=2"));
     assert!(text.contains(".claude"));
-    assert!(text.contains("schema=5"));
+    assert!(text.contains("schema=6"));
     assert!(text.contains("~/folder") || text.contains("~\\folder"));
     let filename = path.file_name().unwrap().to_str().unwrap();
     assert!(chrono::NaiveDateTime::parse_from_str(

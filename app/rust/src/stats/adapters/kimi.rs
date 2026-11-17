@@ -2,7 +2,7 @@ use super::super::{
     jscompat::{self, LocalZone},
     Result,
 };
-use super::{lines::*, num::*};
+use super::{lines::*, num::*, timing};
 use serde_json::{json, Value};
 use std::path::Path;
 
@@ -123,8 +123,41 @@ pub(super) fn parse(
         }
     } else {
         let wire = wire_session(identity);
+        let mut step_usage: Vec<(usize, Value)> = Vec::new();
         for (row, line) in lines(bytes, notes) {
             if !row.is_object() && !row.is_array() {
+                continue;
+            }
+            if row["type"] == "context.append_loop_event" {
+                let e = &row["event"];
+                if e["type"] == "step.begin" {
+                    step_usage.clear();
+                }
+                if e["type"] == "step.end" {
+                    let matches = step_usage
+                        .iter()
+                        .filter(|(_, u)| u == &e["usage"])
+                        .collect::<Vec<_>>();
+                    if matches.len() == 1 {
+                        let r = &mut out[matches[0].0];
+                        let status = match e["finishReason"].as_str() {
+                            Some("end_turn" | "tool_use" | "stop" | "length" | "max_tokens") => {
+                                "completed"
+                            }
+                            Some("cancelled" | "aborted") => "cancelled",
+                            Some("error" | "failed") => "failed",
+                            _ => "unknown",
+                        };
+                        r["timing"] = timing::request(
+                            timing::milliseconds(&e["llmFirstTokenLatencyMs"]),
+                            timing::milliseconds(&e["llmStreamDurationMs"]),
+                            "client_reported",
+                            status,
+                            &r["output_tokens"],
+                        );
+                    }
+                    step_usage.clear();
+                }
                 continue;
             }
             if row["type"] == "usage.record" {
@@ -156,6 +189,14 @@ pub(super) fn parse(
                     tokens,
                 );
                 r["session_id"] = json!(session);
+                r["timing"] = timing::request(
+                    None,
+                    None,
+                    "client_reported",
+                    "unknown",
+                    &r["output_tokens"],
+                );
+                step_usage.push((out.len(), u.clone()));
                 out.push(r);
                 continue;
             }

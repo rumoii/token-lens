@@ -99,6 +99,8 @@ pub struct StatsCostParts {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsGroup {
+    pub timing: Option<StatsTiming>,
+    pub model_timing: Option<StatsTiming>,
     pub key: Option<String>,
     pub source: Option<String>,
     pub model: Option<String>,
@@ -115,6 +117,44 @@ pub struct StatsGroup {
     pub cost_by_kind: Option<StatsCostParts>,
     pub request_count: Option<i64>,
     pub event_gross_tokens: Option<i64>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsTtft {
+    pub method: String,
+    pub sample_count: i64,
+    pub median_ms: i64,
+    pub p90_ms: i64,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsSpeed {
+    pub method: String,
+    pub sample_count: i64,
+    pub output_tokens: i64,
+    pub generation_ms: i64,
+    pub tokens_per_second: f64,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsTiming {
+    pub request_count: i64,
+    pub ttft: Option<Vec<StatsTtft>>,
+    pub speed: Option<Vec<StatsSpeed>>,
+    pub throughput: Option<Vec<StatsThroughput>>,
+    pub turn: Option<StatsTurnTiming>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsThroughput {
+    pub method: String,
+    pub sample_count: i64,
+    pub output_tokens: i64,
+    pub duration_ms: i64,
+    pub tokens_per_second: f64,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsTurnTiming {
+    pub turn_count: i64,
+    pub ttft: Option<Vec<StatsTtft>>,
+    pub speed: Option<Vec<StatsSpeed>>,
+    pub throughput: Option<Vec<StatsThroughput>>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsBreakdown {
@@ -289,6 +329,7 @@ pub struct StatsSessionKinds {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSessionDetail {
+    pub timing: Option<StatsTiming>,
     pub session: StatsSessionSummary,
     pub models: Vec<StatsSessionModel>,
     pub timeline: Vec<StatsBucket>,
@@ -961,7 +1002,7 @@ mod tests {
         assert_eq!(health.version, env!("CARGO_PKG_VERSION"));
         assert_eq!(health.data_dir, data.to_string_lossy());
         assert_eq!(health.ledger_path, data.join("ledger.db").to_string_lossy());
-        assert_eq!(health.schema_version, 5);
+        assert_eq!(health.schema_version, 6);
         assert!(serde_json::to_value(health).unwrap().get("port").is_none());
     }
     #[test]
@@ -1011,7 +1052,7 @@ mod tests {
         assert_eq!(run.anomalies.len(), 5);
         assert_eq!(run.finished_at, None);
         assert_eq!(run.counts.unwrap().get("bad_times"), Some(&2));
-        assert_eq!(client.health().unwrap().schema_version, 5);
+        assert_eq!(client.health().unwrap().schema_version, 6);
         let prices = client.pricing().unwrap();
         assert_eq!(
             prices

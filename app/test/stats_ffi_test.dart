@@ -118,7 +118,7 @@ void main() {
       'session_detail_in_period',
       'FormatException',
       'ERROR ffi',
-      'schema=5',
+      'schema=6',
     ]) {
       expect(text, contains(event));
     }

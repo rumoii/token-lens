@@ -173,6 +173,14 @@ void main() {
         find.descendant(of: row, matching: find.text('—')),
         findsNWidgets(partial ? 1 : 3),
       );
+      // Unknown token columns remain visible; missing timing adds no row.
+      for (final metric in ['ttft', 'speed', 'throughput']) {
+        expect(find.byKey(Key('detail-$metric-same-model')), findsNothing);
+      }
+      expect(
+        find.descendant(of: row, matching: find.text('每次请求')),
+        findsNothing,
+      );
       if (partial) {
         expect(
           find.descendant(of: row, matching: find.text('50')),

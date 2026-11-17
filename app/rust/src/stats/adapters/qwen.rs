@@ -100,6 +100,12 @@ pub(super) fn parse(
         if !jscompat::truthy(&obj["id"]) {
             r["replaces"] = json!([format!("qwen|{session}|#{ordinal}")]);
         }
+        r["timing"] = super::timing::duration(
+            super::timing::positive_ms(&obj["apiDurationMs"]),
+            "client_reported",
+            "completed",
+            &r["output_tokens"],
+        );
         out.push(r);
     }
     Ok(out)

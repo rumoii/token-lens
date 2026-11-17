@@ -106,6 +106,8 @@ pub fn summary(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Result
 }
 
 pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Result<Value> {
+    // All usage and timing projections in this response share a committed snapshot.
+    let _snapshot = ledger.db.unchecked_transaction()?;
     let by = params["by"]
         .as_str()
         .filter(|s| !s.is_empty())
@@ -142,6 +144,12 @@ pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resu
     } else {
         ledger.breakdown(by, &filter)?
     };
+    let timings = ledger.timing_groups(by, &filter)?;
+    let model_timings = if by == "source_model" {
+        ledger.timing_groups("model", &filter)?
+    } else {
+        HashMap::new()
+    };
     let groups: Vec<Value> = raw
         .iter()
         .map(|row| {
@@ -167,6 +175,16 @@ pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resu
             } else {
                 key.to_string()
             };
+            result["timing"] = timings
+                .get(&kind_key)
+                .cloned()
+                .unwrap_or(json!({"request_count":0,"ttft":null,"speed":null}));
+            if by == "source_model" {
+                result["model_timing"] = model_timings
+                    .get(&key.to_string())
+                    .cloned()
+                    .unwrap_or(json!({"request_count":0,"ttft":null,"speed":null}));
+            }
             result["cost_by_kind"] = kinds
                 .get(&kind_key)
                 .filter(|(parts, invalid)| {
@@ -273,6 +291,7 @@ pub fn session_detail(
     offset: i32,
     tz: &str,
 ) -> Result<Option<Value>> {
+    let _snapshot = ledger.db.unchecked_transaction()?;
     validate_range(params)?;
     let source = params["source"].as_str().unwrap_or("").trim();
     let session = params["session_id"].as_str().unwrap_or("").trim();
@@ -333,7 +352,7 @@ pub fn session_detail(
     let mut snapshot = snapshot(ledger, &json!({"source":source,"session_id":session}), tz);
     snapshot["granularity"] = json!(granularity);
     Ok(Some(
-        json!({"period":period,"session":summary,"models":models,"timeline":timeline,"kinds":detail["kinds"],"granularity":granularity,"snapshot":snapshot}),
+        json!({"timing":ledger.timing_summary(&period_filter)?,"period":period,"session":summary,"models":models,"timeline":timeline,"kinds":detail["kinds"],"granularity":granularity,"snapshot":snapshot}),
     ))
 }
 
@@ -709,6 +728,16 @@ mod tests {
             let mut actual = actual;
             let mut expected = row["expected"].clone();
             if let Some(groups) = actual.get_mut("groups") {
+                // Desktop-only timing fields are checked separately; retain Node's usage contract.
+                for group in groups.as_array_mut().unwrap() {
+                    group.as_object_mut().unwrap().remove("model_timing");
+                    let timing = group.as_object_mut().unwrap().remove("timing").unwrap();
+                    assert_eq!(
+                        timing["request_count"],
+                        group["request_count"].as_i64().unwrap_or(0)
+                    );
+                    assert!(timing["ttft"].is_null() && timing["speed"].is_null());
+                }
                 *groups = sorted(groups.clone());
             }
             if let Some(groups) = expected.get_mut("groups") {

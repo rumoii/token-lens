@@ -3,8 +3,19 @@ use super::super::{
     Result,
 };
 use super::{lines::*, num::*};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::path::Path;
+#[derive(Default)]
+struct TurnWindow {
+    user_seen: bool,
+    output_seen: bool,
+    start: Option<i64>,
+    first: Option<i64>,
+}
+fn has_text(content: &Value) -> bool {
+    content["text"].as_str().is_some_and(|s| !s.is_empty())
+        || content.as_array().is_some_and(|a| a.iter().any(has_text))
+}
 
 pub(super) fn parse(
     _identity: &str,
@@ -30,9 +41,33 @@ pub(super) fn parse(
     }
     let mut out = Vec::new();
     let mut ordinal = 0;
+    let mut windows = std::collections::HashMap::<String, TurnWindow>::new();
     for (obj, _) in lines(bytes, notes) {
         let p = &obj["params"];
         let u = &p["update"];
+        let session_key = p["sessionId"].as_str().filter(|s| !s.is_empty());
+        let mut completed = None;
+        if let Some(session) = session_key {
+            let window = windows.entry(session.into()).or_default();
+            let time = super::timing::milliseconds(&p["_meta"]["agentTimestampMs"]);
+            match u["sessionUpdate"].as_str() {
+                Some("user_message_chunk") if !window.user_seen => {
+                    window.user_seen = true;
+                    window.start = time;
+                }
+                Some("agent_message_chunk") if !window.output_seen && has_text(&u["content"]) => {
+                    window.output_seen = true;
+                    window.first = time;
+                }
+                Some("turn_completed") => {
+                    completed = windows.remove(session);
+                }
+                Some("turn_cancelled" | "turn_aborted" | "turn_failed") => {
+                    windows.remove(session);
+                }
+                _ => {}
+            }
+        }
         if u["sessionUpdate"] != "turn_completed" || !jscompat::truthy(&u["usage"]) {
             continue;
         }
@@ -74,14 +109,26 @@ pub(super) fn parse(
         } else {
             format!("{}|{ordinal}", time.as_deref().unwrap_or("null"))
         };
-        out.push(event(
+        let mut record = event(
             "grok",
             format!("grok|{session}|{key}"),
             session,
             model.clone(),
             time,
             tokens,
-        ));
+        );
+        let mut timing = super::timing::duration(
+            super::timing::positive_ms(&u0["apiDurationMs"]),
+            "client_reported",
+            "completed",
+            &record["output_tokens"],
+        );
+        let ttft = completed.and_then(|w| super::timing::difference(w.first, w.start));
+        timing["ttft_ms"] = json!(ttft);
+        timing["ttft_method"] = json!(ttft.map(|_| "log_timestamps"));
+        timing["scope"] = json!("turn");
+        record["timing"] = timing;
+        out.push(record);
     }
     Ok(out)
 }

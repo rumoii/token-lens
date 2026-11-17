@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `open`, `sync_inner`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -463,6 +463,8 @@ class StatsFilter {
 }
 
 class StatsGroup {
+  final StatsTiming? timing;
+  final StatsTiming? modelTiming;
   final String? key;
   final String? source;
   final String? model;
@@ -481,6 +483,8 @@ class StatsGroup {
   final int? eventGrossTokens;
 
   const StatsGroup({
+    this.timing,
+    this.modelTiming,
     this.key,
     this.source,
     this.model,
@@ -501,6 +505,8 @@ class StatsGroup {
 
   @override
   int get hashCode =>
+      timing.hashCode ^
+      modelTiming.hashCode ^
       key.hashCode ^
       source.hashCode ^
       model.hashCode ^
@@ -523,6 +529,8 @@ class StatsGroup {
       identical(this, other) ||
       other is StatsGroup &&
           runtimeType == other.runtimeType &&
+          timing == other.timing &&
+          modelTiming == other.modelTiming &&
           key == other.key &&
           source == other.source &&
           model == other.model &&
@@ -921,6 +929,7 @@ class StatsRun {
 }
 
 class StatsSessionDetail {
+  final StatsTiming? timing;
   final StatsSessionSummary session;
   final List<StatsSessionModel> models;
   final List<StatsBucket> timeline;
@@ -930,6 +939,7 @@ class StatsSessionDetail {
   final StatsTotals? period;
 
   const StatsSessionDetail({
+    this.timing,
     required this.session,
     required this.models,
     required this.timeline,
@@ -941,6 +951,7 @@ class StatsSessionDetail {
 
   @override
   int get hashCode =>
+      timing.hashCode ^
       session.hashCode ^
       models.hashCode ^
       timeline.hashCode ^
@@ -954,6 +965,7 @@ class StatsSessionDetail {
       identical(this, other) ||
       other is StatsSessionDetail &&
           runtimeType == other.runtimeType &&
+          timing == other.timing &&
           session == other.session &&
           models == other.models &&
           timeline == other.timeline &&
@@ -1468,6 +1480,41 @@ class StatsSources {
           snapshot == other.snapshot;
 }
 
+class StatsSpeed {
+  final String method;
+  final int sampleCount;
+  final int outputTokens;
+  final int generationMs;
+  final double tokensPerSecond;
+
+  const StatsSpeed({
+    required this.method,
+    required this.sampleCount,
+    required this.outputTokens,
+    required this.generationMs,
+    required this.tokensPerSecond,
+  });
+
+  @override
+  int get hashCode =>
+      method.hashCode ^
+      sampleCount.hashCode ^
+      outputTokens.hashCode ^
+      generationMs.hashCode ^
+      tokensPerSecond.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSpeed &&
+          runtimeType == other.runtimeType &&
+          method == other.method &&
+          sampleCount == other.sampleCount &&
+          outputTokens == other.outputTokens &&
+          generationMs == other.generationMs &&
+          tokensPerSecond == other.tokensPerSecond;
+}
+
 class StatsSummary {
   final StatsTotals totals;
   final StatsActivity activity;
@@ -1554,6 +1601,41 @@ class StatsSync {
           durationMs == other.durationMs;
 }
 
+class StatsThroughput {
+  final String method;
+  final int sampleCount;
+  final int outputTokens;
+  final int durationMs;
+  final double tokensPerSecond;
+
+  const StatsThroughput({
+    required this.method,
+    required this.sampleCount,
+    required this.outputTokens,
+    required this.durationMs,
+    required this.tokensPerSecond,
+  });
+
+  @override
+  int get hashCode =>
+      method.hashCode ^
+      sampleCount.hashCode ^
+      outputTokens.hashCode ^
+      durationMs.hashCode ^
+      tokensPerSecond.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsThroughput &&
+          runtimeType == other.runtimeType &&
+          method == other.method &&
+          sampleCount == other.sampleCount &&
+          outputTokens == other.outputTokens &&
+          durationMs == other.durationMs &&
+          tokensPerSecond == other.tokensPerSecond;
+}
+
 class StatsTimeOfDay {
   final int utcOffsetMinutes;
   final List<StatsPricePeak> peak;
@@ -1620,6 +1702,41 @@ class StatsTimeseries {
           snapshot == other.snapshot;
 }
 
+class StatsTiming {
+  final int requestCount;
+  final List<StatsTtft>? ttft;
+  final List<StatsSpeed>? speed;
+  final List<StatsThroughput>? throughput;
+  final StatsTurnTiming? turn;
+
+  const StatsTiming({
+    required this.requestCount,
+    this.ttft,
+    this.speed,
+    this.throughput,
+    this.turn,
+  });
+
+  @override
+  int get hashCode =>
+      requestCount.hashCode ^
+      ttft.hashCode ^
+      speed.hashCode ^
+      throughput.hashCode ^
+      turn.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsTiming &&
+          runtimeType == other.runtimeType &&
+          requestCount == other.requestCount &&
+          ttft == other.ttft &&
+          speed == other.speed &&
+          throughput == other.throughput &&
+          turn == other.turn;
+}
+
 class StatsTotals {
   final int grossTokens;
   final int? inputTokens;
@@ -1677,6 +1794,65 @@ class StatsTotals {
           recordCount == other.recordCount &&
           requestCount == other.requestCount &&
           eventGrossTokens == other.eventGrossTokens;
+}
+
+class StatsTtft {
+  final String method;
+  final int sampleCount;
+  final int medianMs;
+  final int p90Ms;
+
+  const StatsTtft({
+    required this.method,
+    required this.sampleCount,
+    required this.medianMs,
+    required this.p90Ms,
+  });
+
+  @override
+  int get hashCode =>
+      method.hashCode ^
+      sampleCount.hashCode ^
+      medianMs.hashCode ^
+      p90Ms.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsTtft &&
+          runtimeType == other.runtimeType &&
+          method == other.method &&
+          sampleCount == other.sampleCount &&
+          medianMs == other.medianMs &&
+          p90Ms == other.p90Ms;
+}
+
+class StatsTurnTiming {
+  final int turnCount;
+  final List<StatsTtft>? ttft;
+  final List<StatsSpeed>? speed;
+  final List<StatsThroughput>? throughput;
+
+  const StatsTurnTiming({
+    required this.turnCount,
+    this.ttft,
+    this.speed,
+    this.throughput,
+  });
+
+  @override
+  int get hashCode =>
+      turnCount.hashCode ^ ttft.hashCode ^ speed.hashCode ^ throughput.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsTurnTiming &&
+          runtimeType == other.runtimeType &&
+          turnCount == other.turnCount &&
+          ttft == other.ttft &&
+          speed == other.speed &&
+          throughput == other.throughput;
 }
 
 class StatsUnallocated {

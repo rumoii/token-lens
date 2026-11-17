@@ -86,6 +86,27 @@ pub(super) fn parse(
         if !jscompat::truthy(&obj["id"]) {
             r["replaces"] = json!([format!("pi|{session}|#{ordinal}")]);
         }
+        let (duration, method) = if msg.get("durationMs").is_some_and(|v| !v.is_null()) {
+            (
+                super::timing::positive_ms(&msg["durationMs"]),
+                "client_reported",
+            )
+        } else {
+            (
+                super::timing::difference(
+                    super::timing::timestamp(&obj["timestamp"], zone),
+                    super::timing::milliseconds(&msg["timestamp"]),
+                ),
+                "log_timestamps",
+            )
+        };
+        let status = match msg["stopReason"].as_str() {
+            Some("stop" | "length" | "toolUse") => "completed",
+            Some("error") => "failed",
+            Some("aborted") => "cancelled",
+            _ => "unknown",
+        };
+        r["timing"] = super::timing::duration(duration, method, status, &r["output_tokens"]);
         out.push(r);
     }
     Ok(out)

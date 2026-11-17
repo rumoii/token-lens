@@ -100,7 +100,94 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
     Ok((clauses.join(" AND "), args))
 }
 
+fn summarize_timing(records: &[Value]) -> Value {
+    let requests: Vec<_> = records
+        .iter()
+        .filter(|r| r["source"] != "grok" && r["scope"] != "turn")
+        .cloned()
+        .collect();
+    let turns: Vec<_> = records
+        .iter()
+        .filter(|r| r["source"] == "grok" || r["scope"] == "turn")
+        .cloned()
+        .collect();
+    let mut result = summarize_scope(&requests);
+    let mut turn = summarize_scope(&turns);
+    turn["turn_count"] = turn
+        .as_object_mut()
+        .unwrap()
+        .remove("request_count")
+        .unwrap();
+    result["turn"] = turn;
+    result
+}
+fn summarize_scope(records: &[Value]) -> Value {
+    let mut ttft = std::collections::BTreeMap::<String, Vec<i64>>::new();
+    let mut speed = std::collections::BTreeMap::<String, (i64, i64, i64)>::new();
+    let mut throughput = std::collections::BTreeMap::<String, (i64, i64, i64)>::new();
+    for r in records {
+        if let (Some(method), Some(ms)) = (
+            r["ttft_method"].as_str(),
+            r["ttft_ms"].as_i64().filter(|n| *n >= 0),
+        ) {
+            ttft.entry(method.into()).or_default().push(ms);
+        }
+        if r["status"] != "completed" {
+            continue;
+        }
+        for (groups, field, method_field) in [
+            (&mut speed, "generation_ms", "generation_method"),
+            (&mut throughput, "duration_ms", "duration_method"),
+        ] {
+            if let (Some(method), Some(ms), Some(output)) = (
+                r[method_field].as_str(),
+                r[field].as_i64().filter(|n| *n > 0),
+                r["timing_output_tokens"].as_i64().filter(|n| *n >= 0),
+            ) {
+                let group = groups.entry(method.into()).or_default();
+                group.0 += output;
+                group.1 += ms;
+                group.2 += 1;
+            }
+        }
+    }
+    let ttft:Vec<_>=ttft.into_iter().map(|(method,mut values)| {
+        values.sort_unstable();
+        // Nearest rank: sorted[ceil(p*n)-1], including the lower median for even n.
+        let percentile=|percent:usize|values[(values.len()*percent).div_ceil(100)-1];
+        json!({"method":method,"sample_count":values.len(),"median_ms":percentile(50),"p90_ms":percentile(90)})
+    }).collect();
+    let speed:Vec<_>=speed.into_iter().map(|(method,(output,ms,n))|json!({"method":method,"sample_count":n,"output_tokens":output,"generation_ms":ms,"tokens_per_second":output as f64*1000.0/ms as f64})).collect();
+    let throughput:Vec<_>=throughput.into_iter().map(|(method,(output,ms,n))|json!({"method":method,"sample_count":n,"output_tokens":output,"duration_ms":ms,"tokens_per_second":output as f64*1000.0/ms as f64})).collect();
+    json!({"request_count":records.len(),"ttft":if ttft.is_empty(){Value::Null}else{json!(ttft)},"speed":if speed.is_empty(){Value::Null}else{json!(speed)},"throughput":if throughput.is_empty(){Value::Null}else{json!(throughput)}})
+}
+
 impl Ledger {
+    fn timing_rows(&self, filter: &Value) -> Result<Vec<Value>> {
+        let (clause, args) = scope(self, filter)?;
+        rows(&self.db,&format!("SELECT u.source,u.model,u.project_key,t.scope,t.ttft_ms,t.ttft_method,t.generation_ms,t.generation_method,t.duration_ms,t.duration_method,t.timing_output_tokens,t.status FROM (SELECT record_key,source,model,project_key FROM usage_records WHERE {clause} AND kind='event') u LEFT JOIN usage_timings t ON t.record_key=u.record_key"),&args)
+    }
+    pub fn timing_summary(&self, filter: &Value) -> Result<Value> {
+        Ok(summarize_timing(&self.timing_rows(filter)?))
+    }
+    pub fn timing_groups(&self, by: &str, filter: &Value) -> Result<HashMap<String, Value>> {
+        if by != "source_model" {
+            dimension(by)?;
+        }
+        let mut groups = HashMap::<String, Vec<Value>>::new();
+        for row in self.timing_rows(filter)? {
+            let key = if by == "source_model" {
+                json!([row["source"], row["model"]]).to_string()
+            } else {
+                row[if by == "project" { "project_key" } else { by }].to_string()
+            };
+            groups.entry(key).or_default().push(row);
+        }
+        Ok(groups
+            .into_iter()
+            .map(|(key, rows)| (key, summarize_timing(&rows)))
+            .collect())
+    }
     pub fn data_version(&self) -> Result<i64> {
         Ok(self
             .db

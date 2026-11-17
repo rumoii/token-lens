@@ -136,6 +136,7 @@ pub(super) fn parse(
             "directory",
             notes
         )?);
+        record["timing"] = super::timing::content_event(&data, &record["output_tokens"]);
         out.push(record);
     }
     Ok(out)

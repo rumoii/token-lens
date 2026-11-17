@@ -8,6 +8,12 @@ pub(crate) mod lock;
 pub(crate) mod pricing;
 pub(crate) mod service;
 pub(crate) mod timezone;
+#[cfg(test)]
+mod timing_e4b_tests;
+#[cfg(test)]
+mod timing_fix1_tests;
+#[cfg(test)]
+mod timing_tests;
 
 #[derive(Debug)]
 pub struct Error(pub String);

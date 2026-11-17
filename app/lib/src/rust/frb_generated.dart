@@ -1657,9 +1657,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsTiming dco_decode_box_autoadd_stats_timing(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_stats_timing(raw);
+  }
+
+  @protected
   StatsTotals dco_decode_box_autoadd_stats_totals(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_stats_totals(raw);
+  }
+
+  @protected
+  StatsTurnTiming dco_decode_box_autoadd_stats_turn_timing(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_stats_turn_timing(raw);
   }
 
   @protected
@@ -1788,6 +1800,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<StatsSourceNote> dco_decode_list_stats_source_note(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_stats_source_note).toList();
+  }
+
+  @protected
+  List<StatsSpeed> dco_decode_list_stats_speed(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_stats_speed).toList();
+  }
+
+  @protected
+  List<StatsThroughput> dco_decode_list_stats_throughput(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_stats_throughput).toList();
+  }
+
+  @protected
+  List<StatsTtft> dco_decode_list_stats_ttft(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_stats_ttft).toList();
   }
 
   @protected
@@ -1924,9 +1954,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsTiming? dco_decode_opt_box_autoadd_stats_timing(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_stats_timing(raw);
+  }
+
+  @protected
   StatsTotals? dco_decode_opt_box_autoadd_stats_totals(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_stats_totals(raw);
+  }
+
+  @protected
+  StatsTurnTiming? dco_decode_opt_box_autoadd_stats_turn_timing(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_stats_turn_timing(raw);
   }
 
   @protected
@@ -1945,6 +1987,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<StatsPriceTier>? dco_decode_opt_list_stats_price_tier(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_stats_price_tier(raw);
+  }
+
+  @protected
+  List<StatsSpeed>? dco_decode_opt_list_stats_speed(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_stats_speed(raw);
+  }
+
+  @protected
+  List<StatsThroughput>? dco_decode_opt_list_stats_throughput(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_stats_throughput(raw);
+  }
+
+  @protected
+  List<StatsTtft>? dco_decode_opt_list_stats_ttft(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_stats_ttft(raw);
   }
 
   @protected
@@ -2129,25 +2189,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsGroup dco_decode_stats_group(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 16)
-      throw Exception('unexpected arr length: expect 16 but see ${arr.length}');
+    if (arr.length != 18)
+      throw Exception('unexpected arr length: expect 18 but see ${arr.length}');
     return StatsGroup(
-      key: dco_decode_opt_String(arr[0]),
-      source: dco_decode_opt_String(arr[1]),
-      model: dco_decode_opt_String(arr[2]),
-      grossTokens: dco_decode_CastedPrimitive_i_64(arr[3]),
-      inputTokens: dco_decode_opt_CastedPrimitive_i_64(arr[4]),
-      outputTokens: dco_decode_opt_CastedPrimitive_i_64(arr[5]),
-      cacheReadTokens: dco_decode_opt_CastedPrimitive_i_64(arr[6]),
-      cacheWriteTokens: dco_decode_opt_CastedPrimitive_i_64(arr[7]),
-      costUsd: dco_decode_opt_String(arr[8]),
-      costMicros: dco_decode_opt_CastedPrimitive_i_64(arr[9]),
-      unpricedRecords: dco_decode_CastedPrimitive_i_64(arr[10]),
-      recordCount: dco_decode_CastedPrimitive_i_64(arr[11]),
-      priceState: dco_decode_opt_String(arr[12]),
-      costByKind: dco_decode_opt_box_autoadd_stats_cost_parts(arr[13]),
-      requestCount: dco_decode_opt_CastedPrimitive_i_64(arr[14]),
-      eventGrossTokens: dco_decode_opt_CastedPrimitive_i_64(arr[15]),
+      timing: dco_decode_opt_box_autoadd_stats_timing(arr[0]),
+      modelTiming: dco_decode_opt_box_autoadd_stats_timing(arr[1]),
+      key: dco_decode_opt_String(arr[2]),
+      source: dco_decode_opt_String(arr[3]),
+      model: dco_decode_opt_String(arr[4]),
+      grossTokens: dco_decode_CastedPrimitive_i_64(arr[5]),
+      inputTokens: dco_decode_opt_CastedPrimitive_i_64(arr[6]),
+      outputTokens: dco_decode_opt_CastedPrimitive_i_64(arr[7]),
+      cacheReadTokens: dco_decode_opt_CastedPrimitive_i_64(arr[8]),
+      cacheWriteTokens: dco_decode_opt_CastedPrimitive_i_64(arr[9]),
+      costUsd: dco_decode_opt_String(arr[10]),
+      costMicros: dco_decode_opt_CastedPrimitive_i_64(arr[11]),
+      unpricedRecords: dco_decode_CastedPrimitive_i_64(arr[12]),
+      recordCount: dco_decode_CastedPrimitive_i_64(arr[13]),
+      priceState: dco_decode_opt_String(arr[14]),
+      costByKind: dco_decode_opt_box_autoadd_stats_cost_parts(arr[15]),
+      requestCount: dco_decode_opt_CastedPrimitive_i_64(arr[16]),
+      eventGrossTokens: dco_decode_opt_CastedPrimitive_i_64(arr[17]),
     );
   }
 
@@ -2323,16 +2385,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSessionDetail dco_decode_stats_session_detail(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return StatsSessionDetail(
-      session: dco_decode_stats_session_summary(arr[0]),
-      models: dco_decode_list_stats_session_model(arr[1]),
-      timeline: dco_decode_list_stats_bucket(arr[2]),
-      kinds: dco_decode_stats_session_kinds(arr[3]),
-      granularity: dco_decode_String(arr[4]),
-      snapshot: dco_decode_stats_snapshot(arr[5]),
-      period: dco_decode_opt_box_autoadd_stats_totals(arr[6]),
+      timing: dco_decode_opt_box_autoadd_stats_timing(arr[0]),
+      session: dco_decode_stats_session_summary(arr[1]),
+      models: dco_decode_list_stats_session_model(arr[2]),
+      timeline: dco_decode_list_stats_bucket(arr[3]),
+      kinds: dco_decode_stats_session_kinds(arr[4]),
+      granularity: dco_decode_String(arr[5]),
+      snapshot: dco_decode_stats_snapshot(arr[6]),
+      period: dco_decode_opt_box_autoadd_stats_totals(arr[7]),
     );
   }
 
@@ -2536,6 +2599,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsSpeed dco_decode_stats_speed(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return StatsSpeed(
+      method: dco_decode_String(arr[0]),
+      sampleCount: dco_decode_CastedPrimitive_i_64(arr[1]),
+      outputTokens: dco_decode_CastedPrimitive_i_64(arr[2]),
+      generationMs: dco_decode_CastedPrimitive_i_64(arr[3]),
+      tokensPerSecond: dco_decode_f_64(arr[4]),
+    );
+  }
+
+  @protected
   StatsSummary dco_decode_stats_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -2570,6 +2648,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsThroughput dco_decode_stats_throughput(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return StatsThroughput(
+      method: dco_decode_String(arr[0]),
+      sampleCount: dco_decode_CastedPrimitive_i_64(arr[1]),
+      outputTokens: dco_decode_CastedPrimitive_i_64(arr[2]),
+      durationMs: dco_decode_CastedPrimitive_i_64(arr[3]),
+      tokensPerSecond: dco_decode_f_64(arr[4]),
+    );
+  }
+
+  @protected
   StatsTimeOfDay dco_decode_stats_time_of_day(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -2599,6 +2692,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsTiming dco_decode_stats_timing(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return StatsTiming(
+      requestCount: dco_decode_CastedPrimitive_i_64(arr[0]),
+      ttft: dco_decode_opt_list_stats_ttft(arr[1]),
+      speed: dco_decode_opt_list_stats_speed(arr[2]),
+      throughput: dco_decode_opt_list_stats_throughput(arr[3]),
+      turn: dco_decode_opt_box_autoadd_stats_turn_timing(arr[4]),
+    );
+  }
+
+  @protected
   StatsTotals dco_decode_stats_totals(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -2616,6 +2724,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       recordCount: dco_decode_CastedPrimitive_i_64(arr[8]),
       requestCount: dco_decode_opt_CastedPrimitive_i_64(arr[9]),
       eventGrossTokens: dco_decode_opt_CastedPrimitive_i_64(arr[10]),
+    );
+  }
+
+  @protected
+  StatsTtft dco_decode_stats_ttft(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return StatsTtft(
+      method: dco_decode_String(arr[0]),
+      sampleCount: dco_decode_CastedPrimitive_i_64(arr[1]),
+      medianMs: dco_decode_CastedPrimitive_i_64(arr[2]),
+      p90Ms: dco_decode_CastedPrimitive_i_64(arr[3]),
+    );
+  }
+
+  @protected
+  StatsTurnTiming dco_decode_stats_turn_timing(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return StatsTurnTiming(
+      turnCount: dco_decode_CastedPrimitive_i_64(arr[0]),
+      ttft: dco_decode_opt_list_stats_ttft(arr[1]),
+      speed: dco_decode_opt_list_stats_speed(arr[2]),
+      throughput: dco_decode_opt_list_stats_throughput(arr[3]),
     );
   }
 
@@ -2843,11 +2979,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsTiming sse_decode_box_autoadd_stats_timing(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_stats_timing(deserializer));
+  }
+
+  @protected
   StatsTotals sse_decode_box_autoadd_stats_totals(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_stats_totals(deserializer));
+  }
+
+  @protected
+  StatsTurnTiming sse_decode_box_autoadd_stats_turn_timing(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_stats_turn_timing(deserializer));
   }
 
   @protected
@@ -3075,6 +3227,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<StatsSpeed> sse_decode_list_stats_speed(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StatsSpeed>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_stats_speed(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<StatsThroughput> sse_decode_list_stats_throughput(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StatsThroughput>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_stats_throughput(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<StatsTtft> sse_decode_list_stats_ttft(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StatsTtft>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_stats_ttft(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   NewsError sse_decode_news_error(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_kind = sse_decode_String(deserializer);
@@ -3287,6 +3477,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsTiming? sse_decode_opt_box_autoadd_stats_timing(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_stats_timing(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   StatsTotals? sse_decode_opt_box_autoadd_stats_totals(
     SseDeserializer deserializer,
   ) {
@@ -3294,6 +3497,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_stats_totals(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  StatsTurnTiming? sse_decode_opt_box_autoadd_stats_turn_timing(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_stats_turn_timing(deserializer));
     } else {
       return null;
     }
@@ -3331,6 +3547,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_list_stats_price_tier(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  List<StatsSpeed>? sse_decode_opt_list_stats_speed(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_stats_speed(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  List<StatsThroughput>? sse_decode_opt_list_stats_throughput(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_stats_throughput(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  List<StatsTtft>? sse_decode_opt_list_stats_ttft(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_stats_ttft(deserializer));
     } else {
       return null;
     }
@@ -3557,6 +3812,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   StatsGroup sse_decode_stats_group(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_timing = sse_decode_opt_box_autoadd_stats_timing(deserializer);
+    var var_modelTiming = sse_decode_opt_box_autoadd_stats_timing(deserializer);
     var var_key = sse_decode_opt_String(deserializer);
     var var_source = sse_decode_opt_String(deserializer);
     var var_model = sse_decode_opt_String(deserializer);
@@ -3580,6 +3837,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       deserializer,
     );
     return StatsGroup(
+      timing: var_timing,
+      modelTiming: var_modelTiming,
       key: var_key,
       source: var_source,
       model: var_model,
@@ -3792,6 +4051,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_timing = sse_decode_opt_box_autoadd_stats_timing(deserializer);
     var var_session = sse_decode_stats_session_summary(deserializer);
     var var_models = sse_decode_list_stats_session_model(deserializer);
     var var_timeline = sse_decode_list_stats_bucket(deserializer);
@@ -3800,6 +4060,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_snapshot = sse_decode_stats_snapshot(deserializer);
     var var_period = sse_decode_opt_box_autoadd_stats_totals(deserializer);
     return StatsSessionDetail(
+      timing: var_timing,
       session: var_session,
       models: var_models,
       timeline: var_timeline,
@@ -4082,6 +4343,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsSpeed sse_decode_stats_speed(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_sampleCount = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_outputTokens = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_generationMs = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_tokensPerSecond = sse_decode_f_64(deserializer);
+    return StatsSpeed(
+      method: var_method,
+      sampleCount: var_sampleCount,
+      outputTokens: var_outputTokens,
+      generationMs: var_generationMs,
+      tokensPerSecond: var_tokensPerSecond,
+    );
+  }
+
+  @protected
   StatsSummary sse_decode_stats_summary(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_totals = sse_decode_stats_totals(deserializer);
@@ -4124,6 +4402,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsThroughput sse_decode_stats_throughput(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_sampleCount = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_outputTokens = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_durationMs = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_tokensPerSecond = sse_decode_f_64(deserializer);
+    return StatsThroughput(
+      method: var_method,
+      sampleCount: var_sampleCount,
+      outputTokens: var_outputTokens,
+      durationMs: var_durationMs,
+      tokensPerSecond: var_tokensPerSecond,
+    );
+  }
+
+  @protected
   StatsTimeOfDay sse_decode_stats_time_of_day(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_utcOffsetMinutes = sse_decode_i_32(deserializer);
@@ -4158,6 +4453,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsTiming sse_decode_stats_timing(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_requestCount = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_ttft = sse_decode_opt_list_stats_ttft(deserializer);
+    var var_speed = sse_decode_opt_list_stats_speed(deserializer);
+    var var_throughput = sse_decode_opt_list_stats_throughput(deserializer);
+    var var_turn = sse_decode_opt_box_autoadd_stats_turn_timing(deserializer);
+    return StatsTiming(
+      requestCount: var_requestCount,
+      ttft: var_ttft,
+      speed: var_speed,
+      throughput: var_throughput,
+      turn: var_turn,
+    );
+  }
+
+  @protected
   StatsTotals sse_decode_stats_totals(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_grossTokens = sse_decode_CastedPrimitive_i_64(deserializer);
@@ -4187,6 +4499,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       recordCount: var_recordCount,
       requestCount: var_requestCount,
       eventGrossTokens: var_eventGrossTokens,
+    );
+  }
+
+  @protected
+  StatsTtft sse_decode_stats_ttft(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_sampleCount = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_medianMs = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_p90Ms = sse_decode_CastedPrimitive_i_64(deserializer);
+    return StatsTtft(
+      method: var_method,
+      sampleCount: var_sampleCount,
+      medianMs: var_medianMs,
+      p90Ms: var_p90Ms,
+    );
+  }
+
+  @protected
+  StatsTurnTiming sse_decode_stats_turn_timing(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_turnCount = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_ttft = sse_decode_opt_list_stats_ttft(deserializer);
+    var var_speed = sse_decode_opt_list_stats_speed(deserializer);
+    var var_throughput = sse_decode_opt_list_stats_throughput(deserializer);
+    return StatsTurnTiming(
+      turnCount: var_turnCount,
+      ttft: var_ttft,
+      speed: var_speed,
+      throughput: var_throughput,
     );
   }
 
@@ -4433,12 +4775,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_stats_timing(
+    StatsTiming self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_stats_timing(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_stats_totals(
     StatsTotals self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_stats_totals(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_stats_turn_timing(
+    StatsTurnTiming self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_stats_turn_timing(self, serializer);
   }
 
   @protected
@@ -4654,6 +5014,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_stats_speed(
+    List<StatsSpeed> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_stats_speed(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_stats_throughput(
+    List<StatsThroughput> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_stats_throughput(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_stats_ttft(
+    List<StatsTtft> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_stats_ttft(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_news_error(NewsError self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.kind, serializer);
@@ -4842,6 +5238,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_stats_timing(
+    StatsTiming? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_stats_timing(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_stats_totals(
     StatsTotals? self,
     SseSerializer serializer,
@@ -4851,6 +5260,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_stats_totals(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_turn_timing(
+    StatsTurnTiming? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_stats_turn_timing(self, serializer);
     }
   }
 
@@ -4890,6 +5312,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_list_stats_price_tier(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_stats_speed(
+    List<StatsSpeed>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_stats_speed(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_stats_throughput(
+    List<StatsThroughput>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_stats_throughput(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_stats_ttft(
+    List<StatsTtft>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_stats_ttft(self, serializer);
     }
   }
 
@@ -5039,6 +5500,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_stats_group(StatsGroup self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_stats_timing(self.timing, serializer);
+    sse_encode_opt_box_autoadd_stats_timing(self.modelTiming, serializer);
     sse_encode_opt_String(self.key, serializer);
     sse_encode_opt_String(self.source, serializer);
     sse_encode_opt_String(self.model, serializer);
@@ -5197,6 +5660,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_stats_timing(self.timing, serializer);
     sse_encode_stats_session_summary(self.session, serializer);
     sse_encode_list_stats_session_model(self.models, serializer);
     sse_encode_list_stats_bucket(self.timeline, serializer);
@@ -5375,6 +5839,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_stats_speed(StatsSpeed self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_CastedPrimitive_i_64(self.sampleCount, serializer);
+    sse_encode_CastedPrimitive_i_64(self.outputTokens, serializer);
+    sse_encode_CastedPrimitive_i_64(self.generationMs, serializer);
+    sse_encode_f_64(self.tokensPerSecond, serializer);
+  }
+
+  @protected
   void sse_encode_stats_summary(StatsSummary self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_stats_totals(self.totals, serializer);
@@ -5396,6 +5870,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_String(self.anomalies, serializer);
     sse_encode_CastedPrimitive_i_64(self.fileCount, serializer);
     sse_encode_CastedPrimitive_i_64(self.durationMs, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_throughput(
+    StatsThroughput self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_CastedPrimitive_i_64(self.sampleCount, serializer);
+    sse_encode_CastedPrimitive_i_64(self.outputTokens, serializer);
+    sse_encode_CastedPrimitive_i_64(self.durationMs, serializer);
+    sse_encode_f_64(self.tokensPerSecond, serializer);
   }
 
   @protected
@@ -5424,6 +5911,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_stats_timing(StatsTiming self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_CastedPrimitive_i_64(self.requestCount, serializer);
+    sse_encode_opt_list_stats_ttft(self.ttft, serializer);
+    sse_encode_opt_list_stats_speed(self.speed, serializer);
+    sse_encode_opt_list_stats_throughput(self.throughput, serializer);
+    sse_encode_opt_box_autoadd_stats_turn_timing(self.turn, serializer);
+  }
+
+  @protected
   void sse_encode_stats_totals(StatsTotals self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_CastedPrimitive_i_64(self.grossTokens, serializer);
@@ -5437,6 +5934,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_CastedPrimitive_i_64(self.recordCount, serializer);
     sse_encode_opt_CastedPrimitive_i_64(self.requestCount, serializer);
     sse_encode_opt_CastedPrimitive_i_64(self.eventGrossTokens, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_ttft(StatsTtft self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_CastedPrimitive_i_64(self.sampleCount, serializer);
+    sse_encode_CastedPrimitive_i_64(self.medianMs, serializer);
+    sse_encode_CastedPrimitive_i_64(self.p90Ms, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_turn_timing(
+    StatsTurnTiming self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_CastedPrimitive_i_64(self.turnCount, serializer);
+    sse_encode_opt_list_stats_ttft(self.ttft, serializer);
+    sse_encode_opt_list_stats_speed(self.speed, serializer);
+    sse_encode_opt_list_stats_throughput(self.throughput, serializer);
   }
 
   @protected

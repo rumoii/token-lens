@@ -20,6 +20,13 @@ claude_code:
       output_tokens: "$.message.usage.output_tokens"
       cache_read_tokens: "$.message.usage.cache_read_input_tokens"
       cache_write_tokens: "$.message.usage.cache_creation_input_tokens"
+  request_timing:
+    timing_rev: 2
+    fields: "type=api-request 的唯一 id/timestamp，经 requestRef 关联至消息最后有效 usage 块 timestamp（ISO 毫秒）"
+    method: "log_timestamps"
+    scope: "request"
+    completion: "最后有效 usage 块 message.stop_reason 为非空字符串时 completed，否则 partial；只取该块标志，不继承早先块，不从后续消息推断结束"
+    limits: "仅整次耗时；缺关联、缺消息 id、同请求多消息、重复请求 id 或消息引用冲突 NULL；不改 observed_at；非正差值、单位不明或配对歧义 NULL"
 
 codex_cli:
   description: "OpenAI Codex CLI 工具的本地会话记录与 Rollout"
@@ -50,6 +57,14 @@ codex_cli:
       - 结论: "四种表示只能取一种，取 $.payload.usage，其余一律不读，否则同一笔用量被计多次"
     cross_check: "usage.input_tokens + usage.output_tokens == usage.total_tokens（实测 190798 + 382 = 191180）"
   token_semantics: "cached ⊂ input。落库前须算 input_exclusive = input_tokens - cached_input_tokens；旧实现直接落 input_tokens 且漏读 cached_input_tokens，两个方向都错"
+  request_timing:
+    timing_rev: 1
+    method: "log_timestamps"
+    start: "之前最近的边界外层 timestamp：response_item.message role=user、event_msg.item_completed.UserMessage、response_item.function_call_output/custom_tool_call_output、event_msg.task_started/turn_started；developer 消息不是边界"
+    first_output: "event_msg.payload.type=item_completed，payload.item.type 为 Reasoning 或 AgentMessage，仅 payload.completed_at_ms 存在且大于 started_at_ms 的项合格，取最小 payload.started_at_ms（Unix 毫秒）；不读正文"
+    end: "本次 token_usage_record 的外层 timestamp"
+    formula: "ttft_ms=first-start，generation_ms=end-first，分别要求差值>0；timing_output_tokens 取该用量记录 output_tokens"
+    limits: "turn_aborted、新回合开始、每条 usage 消费后清空未配对窗口；旧日志没有 started_at_ms 时保持 NULL；零时长项只有隐藏推理的完成时刻，缺完成时间/完成早于开始也跳过，无合格项则两项 NULL，不回退其他时间。输出下限在 usage、turn_aborted、回合开始、用户消息及工具结果边界推进到该行落盘时间，只增不减；边界或中断的时间早于下限或无法解析时整行忽略，不清首输出、不重置起点，普通边界严格晚于下限、或等于下限且尚无首输出时才重置；等于下限且已有首输出时整行忽略；turn_aborted 不早于下限就仍清空窗口；started_at_ms 必须 >= 下限，早到旧请求的晚到项直接忽略，中断无 usage 也同样保护。工具调用/命令执行/文件修改等生命周期项不作首输出或工具结果消息，工具专用请求可能没有首点；落盘与缓冲影响近似精度"
 
 qwen_code:
   description: "Qwen Code CLI 工具与侧车账本 (token-usage / opus-usage)"
@@ -76,6 +91,12 @@ qwen_code:
     - "最终规则（qwen PARSER_REV=7，适配器与独立 oracle 均实现）：authType 为 openai、openai-responses、qwen-oauth、anthropic 时输出取 rawOutput；rawOutput 未知且 thoughts>0 时取 thoughts 作为已知下界并记一次 bad_fields，无正 thoughts 则仍为 NULL。rawOutput 已知但小于 thoughts 时保留 rawOutput（含 0）并记一次 bad_fields；诊断先于零用量过滤。为 gemini、vertex-ai 时取 rawOutput + thoughts，忽略 total 的归属推断。相加时一项未知取另一已知项，两项未知才为 NULL；不把 tool-use prompt 的余量加到输出。"
     - "认证映射依据同一上游 packages/core/src/utils/auth-type.ts:8-15 与 core/contentGenerator.ts:553-604；qwen/qwenContentGenerator.ts:25-43 的 QwenContentGenerator 继承 OpenAIContentGenerator；core/anthropicContentGenerator/usage.ts:44-64 的 buildAnthropicUsageMetadata 保留完整 output 为 candidates，不额外登记 thoughts。"
     - "total 不一定是服务端自报：上游 tokenUsageService.ts:219-228（calculateTotalTokens）在 total 缺失或为 0 时回填 input + output + thoughts。已知认证不依赖 total；未知/缺失认证仅在 rawInput、rawOutput 均已知且 total 为正安全整数并等于 rawInput + rawOutput 时取 rawOutput，否则保留分列相加的兼容回退。rawInput 是扣缓存前的输入；未知认证的默认分列不是已证实的上游语义。"
+  request_timing:
+    timing_rev: 1
+    fields: "apiDurationMs（毫秒）"
+    method: "client_reported"
+    scope: "request"
+    limits: "completed；无独立首输出点；非正差值、单位不明或配对歧义 NULL"
 
 deepseek_harness:
   description: "DeepSeek Harness (DSH) 本地任务会话记录"
@@ -118,6 +139,12 @@ grok_build:
       cache_read_tokens: "$.params.update.usage.cachedReadTokens (或 cache_read_input_tokens)"
       cache_write_tokens: "$.params.update.usage.cachedWriteTokens (或 cache_creation_tokens)"
     model: "同级 summary.json 中的 current_model_id 或 grok-4"
+  request_timing:
+    timing_rev: 1
+    fields: "params._meta.agentTimestampMs 的首个 user_message_chunk/首个非空 agent_message_chunk；turn_completed.usage.apiDurationMs（毫秒）"
+    method: "首字 log_timestamps；整次 client_reported"
+    scope: "turn"
+    limits: "回合独立汇总和覆盖率；不混入请求分位数；无生成时长；非正差值、单位不明或配对歧义 NULL"
 
 aider:
   description: "Aider 终端 AI 编程助手交互日志 (.aider.llm.history)"
@@ -161,6 +188,12 @@ pi_agent:
       output_tokens: "$.message.usage.output"
       cache_read_tokens: "$.message.usage.cacheRead"
       cache_write_tokens: "$.message.usage.cacheWrite"
+  request_timing:
+    timing_rev: 1
+    fields: "message.durationMs（毫秒）；缺失时外层 timestamp - message.timestamp（Unix 毫秒）"
+    method: "client_reported / log_timestamps"
+    scope: "request"
+    limits: "stop/length/toolUse completed；error failed；aborted cancelled；其余 unknown；显式无效不回退；非正差值、单位不明或配对歧义 NULL"
 
 hermes_agent:
   description: "Hermes Agent 本地状态与用量数据库 (state.db)"
@@ -273,6 +306,12 @@ opencode:
       output_tokens: "$.data.tokens.output + ($.data.tokens.reasoning || 0)"
       cache_read_tokens: "$.data.tokens.cache.read"
       cache_write_tokens: "$.data.tokens.cache.write"
+  request_timing:
+    timing_rev: 1
+    fields: "data.time.created/completed，首个 data.content[type=reasoning].time.created（Unix 毫秒）"
+    method: "首字/生成 content_event_proxy；整次 log_timestamps"
+    scope: "request"
+    limits: "有 completed 为 completed，否则 partial；任一推理缺起点则首字/生成未知；文本无等价首点；非正差值、单位不明或配对歧义 NULL"
 
 kilo_code:
   description: "Kilo Code 新内核 SQLite 账本；仅 session_message，旧版 JSON 任务目录未接入"
@@ -320,6 +359,12 @@ kilo_code:
     - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/runner/publish-llm-event.ts#L18-L27"
     - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/llm/src/schema/events.ts#L9-L68"
     - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/kilo-vscode/src/legacy-migration/sessions/lib/messages.ts#L55-L76"
+  request_timing:
+    timing_rev: 1
+    fields: "session_message.data.time.created/completed 与 content[type=reasoning].time.created（Unix 毫秒）"
+    method: "首字/生成 content_event_proxy；整次 log_timestamps"
+    scope: "request"
+    limits: "本机无样本，合成验证，现场待验收；非正差值、单位不明或配对歧义 NULL"
 
 openhands:
   description: "OpenHands CLI 原生会话；不支持 SDK 自定义脚本、ACP、服务端／容器／远程 runtime"
@@ -376,6 +421,12 @@ openhands:
     - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/hooks/executor.py#L236-L292"
     - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/hooks/executor.py#L354-L365"
     - "https://github.com/BerriAI/litellm/blob/v1.87.0/litellm/llms/anthropic/chat/transformation.py#L2162-L2250"
+  request_timing:
+    timing_rev: 1
+    fields: "stats.usage_to_metrics[usageId].response_latencies[].latency（秒）按唯一 response_id 对应同组 token_usages"
+    method: "client_reported"
+    scope: "request"
+    limits: "重复 usage/latency 为 NULL；本机无样本，合成验证；非正差值、单位不明或配对歧义 NULL"
 
 block_goose:
   description: "Block Goose (block/goose) 本地 Agent 会话数据库 (sessions.db / data.db)"
@@ -537,6 +588,12 @@ mimo:
       output_tokens: "data.tokens.output + data.tokens.reasoning（独立推理）"
       cache_read_tokens: "data.tokens.cache.read"
       cache_write_tokens: "data.tokens.cache.write"
+  request_timing:
+    timing_rev: 1
+    fields: "同 OpenCode 的消息起止及 reasoning.time.created（Unix 毫秒），缺字段 NULL"
+    method: "首字/生成 content_event_proxy；整次 log_timestamps"
+    scope: "request"
+    limits: "本机无样本，合成验证，现场待验收；非正差值、单位不明或配对歧义 NULL"
 
 kimi_and_kimi_code:
   description: "Kimi / Kimi Code (月之暗面 Moonshot AI 编码工具与插件) 会话与转录日志"
@@ -560,6 +617,15 @@ kimi_and_kimi_code:
     usage_scope: "wire 的 turn 与 session 都是单次调用；session 是会话压缩，不是累计汇总"
     wire_non_usage: "wire 里只有 type == 'usage.record' 是一次调用。subagent.completed 的 $.usage 是该子 agent 整次运行的汇总，子 agent 自己的 wire.jsonl 已逐条记录，不另计"
     cross_check: "同一 agent、同一 time 的 token_counting.measured.tokens 等于 usage.record 的 inputOther + output + inputCacheRead + inputCacheCreation"
+  request_timing:
+    timing_rev: 1
+    event: "$.type=context.append_loop_event，$.event.type=step.end"
+    ttft_ms: "$.event.llmFirstTokenLatencyMs，客户端时钟，不改用 llmServerFirstTokenMs"
+    generation_ms: "$.event.llmStreamDurationMs，客户端首次内容到流结束"
+    method: "两个时长都为 client_reported"
+    association: "step.begin/end 范围内，step.end.event.usage 与唯一一条 usage.record.usage 完全相等；只给这条用量记录挂计时，step.end 不另计用量"
+    status: "event.finishReason 的 end_turn/tool_use/stop/length/max_tokens 为 completed；cancelled/aborted 为 cancelled；error/failed 为 failed；其余 unknown"
+    limits: "缺字段/负值按指标独立为 NULL；关联不唯一则两项未知。无 step.end 的压缩调用和旧格式未知，短流/缓冲可产生很高的近似速度"
 
 minimax_code:
   description: "MiniMax Code 的逐请求用量；source 为 minimax"
@@ -618,6 +684,14 @@ zcode:
       cache_read_tokens: "cache_read_input_tokens"
       cache_write_tokens: "cache_creation_input_tokens"
     usage_scope: "不叠加 turn_usage 等汇总或 provider/computed total；失败/重试有用量照计，四项全零/未知时跳过"
+  request_timing:
+    timing_rev: 1
+    evidence: "上面 upstream commit 的 schema.baseline.sql:model_usage、usage-observability.ts；本机无真实样本，使用合成表验证"
+    ttft_ms: "model_usage.time_to_first_token_ms；仅缺失时回退 first_token_at-started_at"
+    generation_ms: "model_usage.completed_at-model_usage.first_token_at；时间列均为 Unix 毫秒"
+    method: "client_reported"
+    status: "model_usage.status completed/error/cancelled/running -> completed/failed/cancelled/partial；缺失或其他为 unknown"
+    limits: "旧表缺计时列按 NULL，显式负首字不回退，负差值为 NULL，0 ms 为已知值但不作速度分母；首点捕获非空 text/reasoning delta，工具专用输出可能无首点；只有 completed 进入速度统计"
 
 commandcode:
   description: "Command Code CLI 的 v3 transcript；source 为 commandcode，证据 B（合成）"
@@ -674,6 +748,12 @@ anythingllm:
       cache_read_tokens: "NULL（无统一可靠细分，未知不是零）"
       cache_write_tokens: "NULL（无统一可靠细分，未知不是零）"
   retention: "include=false 只是软隐藏，照计；删除 workspace 在应用层批量删 chats，账本保留已采集用量"
+  request_timing:
+    timing_rev: 1
+    fields: "response.metrics.duration（秒）"
+    method: "client_reported"
+    scope: "request"
+    limits: "completed；无首点；本机无样本，合成验证；非正差值、单位不明或配对歧义 NULL"
 
 codebuddy_and_workbuddy:
   description: "CodeBuddy / WorkBuddy CLI 与桌面请求索引；第三方逆向依据，证据 B（合成）"

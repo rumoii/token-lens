@@ -53,7 +53,7 @@ cache_write_tokens
 | # | source | 身份（已实现） | 时间含义 | 包含关系 | 类型 | 已知限制 | 等级 |
 |---|---|---|---|---|---|---|---|
 | 1 | `claude` | `claude\|<session>\|<message.id>` | 该消息落盘时刻 | 输入不含缓存读写 | 事件 | 无 ID 的消息落到 `#<序号>` | **A** |
-| 2 | `codex` | Rust rev 5：可靠 id 保持 `codex\|<session>\|<response_id>`；只按 id 形状判定，去掉开头 `resp_` 后为空、全 ASCII 数字或少于 16 字符时，改用 `codex\|<session>\|<用量行 thread_id>\|<原始时间戳>`，相同新键依文件内有效用量行顺序加 `#2`、`#3`；缺 thread/time 或无响应 id 用去掉末尾 `.zst` 的路径 hash+物理行号 | 该响应落盘时刻 | **cached ⊂ input** | 事件 | 正常形状长 id 被上游复用时仍按旧 key 合并、原地更新，与 E1 之前相同；同一 thread 同一原始时间戳有多条不可靠请求时，非前缀的部分历史副本可能使 `#n` 错位（P3 已知限制，完整历史前缀副本不受此问题影响）；同一 thread、同一原始时间戳有多条不可靠请求时，日志前面的行被裁剪会使 `#n` 前移，可能覆盖旧行，造成多算（2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0）；同一文件里完全重复的用量行会得到 `#2`，造成多算（2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0）；不可靠 id 缺 `thread_id` 或原始时间戳不是字符串时，退回路径 hash 加行号，跨文件副本无法去重（2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0）；新身份 `replaces` 旧响应键；复制历史沿用原行 thread/time 去重；`turn_id` 不当作响应 id；压缩替换不改变身份；只取 `usage`；Node rev 4 保持旧规则，见 [stats.md](stats.md#允许的差异) | **A** |
+| 2 | `codex` | Rust PARSER_REV=5，计时 TIMING_REV=1：可靠 id 保持 `codex\|<session>\|<response_id>`；只按 id 形状判定，去掉开头 `resp_` 后为空、全 ASCII 数字或少于 16 字符时，改用 `codex\|<session>\|<用量行 thread_id>\|<原始时间戳>`，相同新键依文件内有效用量行顺序加 `#2`、`#3`；缺 thread/time 或无响应 id 用去掉末尾 `.zst` 的路径 hash+物理行号 | 该响应落盘时刻 | **cached ⊂ input** | 事件 | 正常形状长 id 被上游复用时仍按旧 key 合并、原地更新，与 E1 之前相同；同一 thread 同一原始时间戳有多条不可靠请求时，非前缀的部分历史副本可能使 `#n` 错位（P3 已知限制，完整历史前缀副本不受此问题影响）；同一 thread、同一原始时间戳有多条不可靠请求时，日志前面的行被裁剪会使 `#n` 前移，可能覆盖旧行，造成多算（2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0）；同一文件里完全重复的用量行会得到 `#2`，造成多算（2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0）；不可靠 id 缺 `thread_id` 或原始时间戳不是字符串时，退回路径 hash 加行号，跨文件副本无法去重（2026-11-16 用同事证据只读核查：3,238 条用量行全部带 `thread_id`，68 条不可靠 id 中同 thread、同毫秒的重复为 0）；新身份 `replaces` 旧响应键；复制历史沿用原行 thread/time 去重；`turn_id` 不当作响应 id；压缩替换不改变身份；只取 `usage`；Node rev 4 保持旧规则，见 [stats.md](stats.md#允许的差异) | **A** |
 | 3 | `qwen` | `qwen\|<session>\|<条目 id>` | 事件时刻 | `inputTokens` 含缓存需扣；旧输入字段已分列 | 事件 | `thoughtsTokens` 是否另加随上游认证/字段口径而异，见下文；`id` 是条目身份，不是会话身份；缺模型存 NULL | **A** |
 | 4 | `dsh` | `dsh\|<session>` | 会话创建时刻；`ended_at` 取 `timeContext.lastMessageTime` | 输入已是 `uncachedInputTokens` | **累计** | 全量覆写文件；生产与 oracle 的 session 均为文件 stem 剥除开头一个 `session-` | **A** |
 | 5 | `grok` | `grok\|<session>\|<turn>`，无 turn 用时间+序号 | 回合完成时刻 | 输入/缓存分开报 | 事件 | 只有 `turn_completed` 带用量；本机无用量样本；缺模型存 NULL | B |
@@ -146,6 +146,31 @@ CodeBuddy 的路径、格式及包含关系仅来自第三方 NextAgentX/qoder-t
 真实样本夹具在 `test/fixtures/<source>/`；`pi` 的夹具只保留 `type`/`id`/`timestamp`/`message.usage`，正文已丢弃。
 
 ## 五、验收口径
+
+### E4a 请求计时（Rust）
+
+Kimi Code、ZCode、Codex 的请求计时与下表的扩展计时共用独立存储，不改变用量、身份、时间、content_hash 或计价。计时单独挂到 event.record_key，未知保留 NULL，查询定义见 stats.md「E4」。
+
+- **Kimi Code（PARSER_REV=5，TIMING_REV=1）**：wire 的 `context.append_loop_event.event.type=step.end` 中读取 `llmFirstTokenLatencyMs` 和 `llmStreamDurationMs`，两者都是客户端时钟，method 为 client_reported。该事件的 usage 与当前 step 中的独立 usage.record 必须完全相等且唯一匹配；step.begin/end 隔开配对范围。缺一个或为负值只使对应指标为 NULL，关联歧义使两项均未知。只用这条 usage.record 的 output，不把 step.end 再记一次用量。无计时的压缩调用、旧 JSON/普通 JSONL 保留未知。finishReason 为 end_turn/tool_use/stop/length/max_tokens 记 completed，cancelled/aborted 记 cancelled，error/failed 记 failed，其他为 unknown。
+- **ZCode（PARSER_REV=1，TIMING_REV=1，合成验证，现场待验收）**：只读 model_usage，首字优先 time_to_first_token_ms，缺失时取 first_token_at−started_at；生成时长为 completed_at−first_token_at。时间均为毫秒，method 为 client_reported。显式负首字不回退，负时间差为 NULL，0 ms 保留为已知值（生成时长为 0 不进入速度统计）；老表没有这些列时按 NULL 读取，保留原有用量。status completed/error/cancelled/running 分别映射 completed/failed/cancelled/partial，其他或缺列为 unknown。字段来源沿用 timestamp-report.md 所引用的 ZCode commit 3c5b227649371507ddc4eb46ac5133afe6db1cab 表结构；没有本机真实样本。
+- **Codex（PARSER_REV=5，TIMING_REV=1）**：method 为 log_timestamps。起点是最近一条已落盘用户消息（response_item.message role=user 或 item_completed.UserMessage）、工具结果消息（response_item.function_call_output/custom_tool_call_output）、回合开始（event_msg.task_started/turn_started）的外层 timestamp。developer 消息不改边界。首次输出只取 event_msg.item_completed 的 Reasoning/AgentMessage 项的最小 payload.started_at_ms，且必须有 payload.completed_at_ms > started_at_ms。零时长项可能只暴露隐藏推理的完成时刻，不能当作输出开始；缺完成时间或结束早于开始也跳过，没有合格项则两个指标均为 NULL，不回退其他时间。维护单调推进的输出下限：遇到 token_usage_record、turn_aborted、task_started/turn_started，或任一用户消息/工具结果边界时，用该行落盘时间推进下限（不因旧时间戳后退，边界与中断时间早于下限或无法解析时整行忽略，不重置当前起点或首输出；普通边界仅在时间严格晚于下限、或等于下限且尚无首输出时重置窗口；等于下限且已有首输出时整行忽略；turn_aborted 只要不早于下限仍清空窗口）。只有 started_at_ms ≥ 下限的输出项可参与首输出，早于下限的晚到项直接忽略；因此中断且没有 usage 的旧请求也不能污染下一回合。结束取 token_usage_record.timestamp。两个差值分别要求大于 0，否则对应值 NULL。每条用量消费并清除当前窗口；turn_aborted、回合重新开始清掉未配对窗口。没有 started_at_ms 的旧日志不从相邻行补时间。工具调用、CommandExecution、FileChange 及其他生命周期项既不作为首输出，也不替代工具结果消息。日志落盘、隐藏推理、并发输出和缓冲会影响覆盖率与近似程度；没有可见思考/回复的工具专用请求仍计入分母。
+
+
+### 扩展计时与请求平均吞吐
+
+下列 source 中 claude 的 TIMING_REV 为 2，其余为 1；PARSER_REV 保持原值。未知不以零补齐；整组保留和替换见 stats.md。耗时为毫秒整数；客户端浮点耗时四舍五入到毫秒，非正值、非数字、非有限值或溢出均为 NULL。首字和速度不借用整次耗时。
+
+| source | 计时字段与单位 | method / scope | 状态与限制 |
+| --- | --- | --- | --- |
+| qwen | apiDurationMs，毫秒，仅吞吐 | client_reported / request | 独立 API response 用量视为 completed；保留现有 thoughts 输出口径 |
+| pi | 优先 message.durationMs（毫秒）；仅缺失/NULL 时用外层 ISO timestamp − message.timestamp（Unix 毫秒） | 前者 client_reported，后者 log_timestamps / request | stop/length/toolUse 为 completed，error 为 failed，aborted 为 cancelled，其他 unknown；显式无效 duration 不回退 |
+| openhands | 同一 usage_to_metrics 中唯一 response_id 的 response_latencies[].latency，秒 × 1000 | client_reported / request | 终结响应 completed；同 response 重复 usage 或 latency 时 NULL；本机无样本，依据 timestamp-report 的上游结构做合成验证 |
+| anythingllm | response.metrics.duration，秒 × 1000 | client_reported / request | 终结记录 completed；起点受取得 stream 对象时刻及 provider 覆盖影响；本机无样本，合成验证 |
+| opencode / mimo / kilo | 首字=首个 content[].type=reasoning 的 time.created − 消息 time.created；生成=消息 time.completed − 该首点；整次耗时=completed − created；均为 Unix 毫秒 | 首字/速度 content_event_proxy，吞吐 log_timestamps / request | completed 存在为 completed，否则 partial；任一推理片段缺起点时首字/生成未知，不借后续片段；文本时间不当首点；OpenCode 本机验证，MiMo/Kilo 无本机样本，只做合成验证，不声称现场通过 |
+| claude | type=api-request 的唯一 id，通过 requestRef 关联同 message.id 的最后有效 usage 块 timestamp；ISO 毫秒相减 | log_timestamps / request | 仅当最后有效 usage 块的 message.stop_reason 是非空字符串时 completed，否则 partial，不进入吞吐；不能沿用较早块的结束标志，也不依据后续消息推断；重复请求 id、缺消息 id、同请求对应多消息、消息引用缺失或冲突为 NULL；不改变用量最大值合并和首个 observed_at，也不把消息落盘时间当首 token |
+| grok | 首字=首次非空 agent_message_chunk − 首个 user_message_chunk 的 params._meta.agentTimestampMs；吞吐用 turn_completed.usage.apiDurationMs，均毫秒 | 首字 log_timestamps，吞吐 client_reported / turn | completed；按 session 隔离窗口，完成/取消/失败清空；元数据和空文本不触发首点，不使用顶层秒级 timestamp 补精度；不改原用量时间或回合身份 |
+
+DSH 仅有会话累计 ttftMs/decodeMs 等，无法拆出请求窗口；Cursor 本机 tokenCount 的输入输出全部为 0，没有可信分子。本轮均不接计时。其他没有已确认字段的客户端保持 NULL。OpenHands、AnythingLLM、MiMo、Kilo 的真实环境验收仍缺样本。
 
 每个适配器至少要有这 7 个用例，缺一不可：
 

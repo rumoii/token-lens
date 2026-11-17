@@ -110,7 +110,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsTimeOfDay dco_decode_box_autoadd_stats_time_of_day(dynamic raw);
 
   @protected
+  StatsTiming dco_decode_box_autoadd_stats_timing(dynamic raw);
+
+  @protected
   StatsTotals dco_decode_box_autoadd_stats_totals(dynamic raw);
+
+  @protected
+  StatsTurnTiming dco_decode_box_autoadd_stats_turn_timing(dynamic raw);
 
   @protected
   StatsUnallocated dco_decode_box_autoadd_stats_unallocated(dynamic raw);
@@ -177,6 +183,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<StatsSourceNote> dco_decode_list_stats_source_note(dynamic raw);
 
   @protected
+  List<StatsSpeed> dco_decode_list_stats_speed(dynamic raw);
+
+  @protected
+  List<StatsThroughput> dco_decode_list_stats_throughput(dynamic raw);
+
+  @protected
+  List<StatsTtft> dco_decode_list_stats_ttft(dynamic raw);
+
+  @protected
   NewsError dco_decode_news_error(dynamic raw);
 
   @protected
@@ -226,7 +241,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsTimeOfDay? dco_decode_opt_box_autoadd_stats_time_of_day(dynamic raw);
 
   @protected
+  StatsTiming? dco_decode_opt_box_autoadd_stats_timing(dynamic raw);
+
+  @protected
   StatsTotals? dco_decode_opt_box_autoadd_stats_totals(dynamic raw);
+
+  @protected
+  StatsTurnTiming? dco_decode_opt_box_autoadd_stats_turn_timing(dynamic raw);
 
   @protected
   StatsUnallocated? dco_decode_opt_box_autoadd_stats_unallocated(dynamic raw);
@@ -236,6 +257,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<StatsPriceTier>? dco_decode_opt_list_stats_price_tier(dynamic raw);
+
+  @protected
+  List<StatsSpeed>? dco_decode_opt_list_stats_speed(dynamic raw);
+
+  @protected
+  List<StatsThroughput>? dco_decode_opt_list_stats_throughput(dynamic raw);
+
+  @protected
+  List<StatsTtft>? dco_decode_opt_list_stats_ttft(dynamic raw);
 
   @protected
   (String, int) dco_decode_record_string_casted_primitive_i_64(dynamic raw);
@@ -343,10 +373,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsSources dco_decode_stats_sources(dynamic raw);
 
   @protected
+  StatsSpeed dco_decode_stats_speed(dynamic raw);
+
+  @protected
   StatsSummary dco_decode_stats_summary(dynamic raw);
 
   @protected
   StatsSync dco_decode_stats_sync(dynamic raw);
+
+  @protected
+  StatsThroughput dco_decode_stats_throughput(dynamic raw);
 
   @protected
   StatsTimeOfDay dco_decode_stats_time_of_day(dynamic raw);
@@ -355,7 +391,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsTimeseries dco_decode_stats_timeseries(dynamic raw);
 
   @protected
+  StatsTiming dco_decode_stats_timing(dynamic raw);
+
+  @protected
   StatsTotals dco_decode_stats_totals(dynamic raw);
+
+  @protected
+  StatsTtft dco_decode_stats_ttft(dynamic raw);
+
+  @protected
+  StatsTurnTiming dco_decode_stats_turn_timing(dynamic raw);
 
   @protected
   StatsUnallocated dco_decode_stats_unallocated(dynamic raw);
@@ -461,7 +506,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsTiming sse_decode_box_autoadd_stats_timing(SseDeserializer deserializer);
+
+  @protected
   StatsTotals sse_decode_box_autoadd_stats_totals(SseDeserializer deserializer);
+
+  @protected
+  StatsTurnTiming sse_decode_box_autoadd_stats_turn_timing(
+    SseDeserializer deserializer,
+  );
 
   @protected
   StatsUnallocated sse_decode_box_autoadd_stats_unallocated(
@@ -542,6 +595,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<StatsSpeed> sse_decode_list_stats_speed(SseDeserializer deserializer);
+
+  @protected
+  List<StatsThroughput> sse_decode_list_stats_throughput(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsTtft> sse_decode_list_stats_ttft(SseDeserializer deserializer);
+
+  @protected
   NewsError sse_decode_news_error(SseDeserializer deserializer);
 
   @protected
@@ -603,7 +667,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsTiming? sse_decode_opt_box_autoadd_stats_timing(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsTotals? sse_decode_opt_box_autoadd_stats_totals(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsTurnTiming? sse_decode_opt_box_autoadd_stats_turn_timing(
     SseDeserializer deserializer,
   );
 
@@ -619,6 +693,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<StatsPriceTier>? sse_decode_opt_list_stats_price_tier(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<StatsSpeed>? sse_decode_opt_list_stats_speed(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsThroughput>? sse_decode_opt_list_stats_throughput(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsTtft>? sse_decode_opt_list_stats_ttft(SseDeserializer deserializer);
 
   @protected
   (String, int) sse_decode_record_string_casted_primitive_i_64(
@@ -742,10 +829,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsSources sse_decode_stats_sources(SseDeserializer deserializer);
 
   @protected
+  StatsSpeed sse_decode_stats_speed(SseDeserializer deserializer);
+
+  @protected
   StatsSummary sse_decode_stats_summary(SseDeserializer deserializer);
 
   @protected
   StatsSync sse_decode_stats_sync(SseDeserializer deserializer);
+
+  @protected
+  StatsThroughput sse_decode_stats_throughput(SseDeserializer deserializer);
 
   @protected
   StatsTimeOfDay sse_decode_stats_time_of_day(SseDeserializer deserializer);
@@ -754,7 +847,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsTimeseries sse_decode_stats_timeseries(SseDeserializer deserializer);
 
   @protected
+  StatsTiming sse_decode_stats_timing(SseDeserializer deserializer);
+
+  @protected
   StatsTotals sse_decode_stats_totals(SseDeserializer deserializer);
+
+  @protected
+  StatsTtft sse_decode_stats_ttft(SseDeserializer deserializer);
+
+  @protected
+  StatsTurnTiming sse_decode_stats_turn_timing(SseDeserializer deserializer);
 
   @protected
   StatsUnallocated sse_decode_stats_unallocated(SseDeserializer deserializer);
@@ -886,8 +988,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_stats_timing(
+    StatsTiming self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_stats_totals(
     StatsTotals self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_turn_timing(
+    StatsTurnTiming self,
     SseSerializer serializer,
   );
 
@@ -997,6 +1111,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_stats_speed(
+    List<StatsSpeed> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_throughput(
+    List<StatsThroughput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_ttft(
+    List<StatsTtft> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_news_error(NewsError self, SseSerializer serializer);
 
   @protected
@@ -1069,8 +1201,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_stats_timing(
+    StatsTiming? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_stats_totals(
     StatsTotals? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_turn_timing(
+    StatsTurnTiming? self,
     SseSerializer serializer,
   );
 
@@ -1086,6 +1230,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_list_stats_price_tier(
     List<StatsPriceTier>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_list_stats_speed(
+    List<StatsSpeed>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_list_stats_throughput(
+    List<StatsThroughput>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_list_stats_ttft(
+    List<StatsTtft>? self,
     SseSerializer serializer,
   );
 
@@ -1252,10 +1414,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_stats_sources(StatsSources self, SseSerializer serializer);
 
   @protected
+  void sse_encode_stats_speed(StatsSpeed self, SseSerializer serializer);
+
+  @protected
   void sse_encode_stats_summary(StatsSummary self, SseSerializer serializer);
 
   @protected
   void sse_encode_stats_sync(StatsSync self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_throughput(
+    StatsThroughput self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stats_time_of_day(
@@ -1270,7 +1441,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_stats_timing(StatsTiming self, SseSerializer serializer);
+
+  @protected
   void sse_encode_stats_totals(StatsTotals self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_ttft(StatsTtft self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_turn_timing(
+    StatsTurnTiming self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stats_unallocated(

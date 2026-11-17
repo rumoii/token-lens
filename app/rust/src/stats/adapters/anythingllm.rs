@@ -81,7 +81,14 @@ pub(super) fn parse(file: &Path, zone: &LocalZone, notes: &mut Value) -> Result<
                     .unwrap_or_else(|| "main".into())
             )
         };
-        out.push(json!({"record_key":format!("anythingllm|{workspace}|{id}"),"source":"anythingllm","session_id":format!("{workspace}|{session}"),"project_key":null,"model":metrics["model"].as_str().map(trim).filter(|s|!s.is_empty()),"provider":metrics["provider"].as_str().map(trim).filter(|s|!s.is_empty()),"observed_at":time,"kind":"event","input_tokens":input,"output_tokens":output,"cache_read_tokens":null,"cache_write_tokens":null}));
+        let mut record = json!({"record_key":format!("anythingllm|{workspace}|{id}"),"source":"anythingllm","session_id":format!("{workspace}|{session}"),"project_key":null,"model":metrics["model"].as_str().map(trim).filter(|s|!s.is_empty()),"provider":metrics["provider"].as_str().map(trim).filter(|s|!s.is_empty()),"observed_at":time,"kind":"event","input_tokens":input,"output_tokens":output,"cache_read_tokens":null,"cache_write_tokens":null});
+        record["timing"] = super::timing::duration(
+            super::timing::seconds(&metrics["duration"]),
+            "client_reported",
+            "completed",
+            &record["output_tokens"],
+        );
+        out.push(record);
     }
     Ok(out)
 }

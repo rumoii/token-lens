@@ -1970,6 +1970,44 @@ impl SseDecode for Vec<crate::api::stats::StatsSourceNote> {
     }
 }
 
+impl SseDecode for Vec<crate::api::stats::StatsSpeed> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsSpeed>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::stats::StatsThroughput> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsThroughput>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::stats::StatsTtft> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsTtft>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for crate::api::news::NewsError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2182,11 +2220,35 @@ impl SseDecode for Option<crate::api::stats::StatsTimeOfDay> {
     }
 }
 
+impl SseDecode for Option<crate::api::stats::StatsTiming> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::stats::StatsTiming>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::stats::StatsTotals> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::stats::StatsTotals>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::stats::StatsTurnTiming> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::stats::StatsTurnTiming>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -2222,6 +2284,45 @@ impl SseDecode for Option<Vec<crate::api::stats::StatsPriceTier>> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<Vec<crate::api::stats::StatsPriceTier>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<crate::api::stats::StatsSpeed>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<crate::api::stats::StatsSpeed>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<crate::api::stats::StatsThroughput>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<crate::api::stats::StatsThroughput>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<crate::api::stats::StatsTtft>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<crate::api::stats::StatsTtft>>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -2459,6 +2560,9 @@ impl SseDecode for crate::api::stats::StatsFilter {
 impl SseDecode for crate::api::stats::StatsGroup {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_timing = <Option<crate::api::stats::StatsTiming>>::sse_decode(deserializer);
+        let mut var_modelTiming =
+            <Option<crate::api::stats::StatsTiming>>::sse_decode(deserializer);
         let mut var_key = <Option<String>>::sse_decode(deserializer);
         let mut var_source = <Option<String>>::sse_decode(deserializer);
         let mut var_model = <Option<String>>::sse_decode(deserializer);
@@ -2477,6 +2581,8 @@ impl SseDecode for crate::api::stats::StatsGroup {
         let mut var_requestCount = <Option<i64>>::sse_decode(deserializer);
         let mut var_eventGrossTokens = <Option<i64>>::sse_decode(deserializer);
         return crate::api::stats::StatsGroup {
+            timing: var_timing,
+            model_timing: var_modelTiming,
             key: var_key,
             source: var_source,
             model: var_model,
@@ -2708,6 +2814,7 @@ impl SseDecode for crate::api::stats::StatsRun {
 impl SseDecode for crate::api::stats::StatsSessionDetail {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_timing = <Option<crate::api::stats::StatsTiming>>::sse_decode(deserializer);
         let mut var_session = <crate::api::stats::StatsSessionSummary>::sse_decode(deserializer);
         let mut var_models = <Vec<crate::api::stats::StatsSessionModel>>::sse_decode(deserializer);
         let mut var_timeline = <Vec<crate::api::stats::StatsBucket>>::sse_decode(deserializer);
@@ -2716,6 +2823,7 @@ impl SseDecode for crate::api::stats::StatsSessionDetail {
         let mut var_snapshot = <crate::api::stats::StatsSnapshot>::sse_decode(deserializer);
         let mut var_period = <Option<crate::api::stats::StatsTotals>>::sse_decode(deserializer);
         return crate::api::stats::StatsSessionDetail {
+            timing: var_timing,
             session: var_session,
             models: var_models,
             timeline: var_timeline,
@@ -2994,6 +3102,24 @@ impl SseDecode for crate::api::stats::StatsSources {
     }
 }
 
+impl SseDecode for crate::api::stats::StatsSpeed {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_sampleCount = <i64>::sse_decode(deserializer);
+        let mut var_outputTokens = <i64>::sse_decode(deserializer);
+        let mut var_generationMs = <i64>::sse_decode(deserializer);
+        let mut var_tokensPerSecond = <f64>::sse_decode(deserializer);
+        return crate::api::stats::StatsSpeed {
+            method: var_method,
+            sample_count: var_sampleCount,
+            output_tokens: var_outputTokens,
+            generation_ms: var_generationMs,
+            tokens_per_second: var_tokensPerSecond,
+        };
+    }
+}
+
 impl SseDecode for crate::api::stats::StatsSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3038,6 +3164,24 @@ impl SseDecode for crate::api::stats::StatsSync {
     }
 }
 
+impl SseDecode for crate::api::stats::StatsThroughput {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_sampleCount = <i64>::sse_decode(deserializer);
+        let mut var_outputTokens = <i64>::sse_decode(deserializer);
+        let mut var_durationMs = <i64>::sse_decode(deserializer);
+        let mut var_tokensPerSecond = <f64>::sse_decode(deserializer);
+        return crate::api::stats::StatsThroughput {
+            method: var_method,
+            sample_count: var_sampleCount,
+            output_tokens: var_outputTokens,
+            duration_ms: var_durationMs,
+            tokens_per_second: var_tokensPerSecond,
+        };
+    }
+}
+
 impl SseDecode for crate::api::stats::StatsTimeOfDay {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3073,6 +3217,25 @@ impl SseDecode for crate::api::stats::StatsTimeseries {
     }
 }
 
+impl SseDecode for crate::api::stats::StatsTiming {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_requestCount = <i64>::sse_decode(deserializer);
+        let mut var_ttft = <Option<Vec<crate::api::stats::StatsTtft>>>::sse_decode(deserializer);
+        let mut var_speed = <Option<Vec<crate::api::stats::StatsSpeed>>>::sse_decode(deserializer);
+        let mut var_throughput =
+            <Option<Vec<crate::api::stats::StatsThroughput>>>::sse_decode(deserializer);
+        let mut var_turn = <Option<crate::api::stats::StatsTurnTiming>>::sse_decode(deserializer);
+        return crate::api::stats::StatsTiming {
+            request_count: var_requestCount,
+            ttft: var_ttft,
+            speed: var_speed,
+            throughput: var_throughput,
+            turn: var_turn,
+        };
+    }
+}
+
 impl SseDecode for crate::api::stats::StatsTotals {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3099,6 +3262,39 @@ impl SseDecode for crate::api::stats::StatsTotals {
             record_count: var_recordCount,
             request_count: var_requestCount,
             event_gross_tokens: var_eventGrossTokens,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsTtft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_sampleCount = <i64>::sse_decode(deserializer);
+        let mut var_medianMs = <i64>::sse_decode(deserializer);
+        let mut var_p90Ms = <i64>::sse_decode(deserializer);
+        return crate::api::stats::StatsTtft {
+            method: var_method,
+            sample_count: var_sampleCount,
+            median_ms: var_medianMs,
+            p90_ms: var_p90Ms,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsTurnTiming {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_turnCount = <i64>::sse_decode(deserializer);
+        let mut var_ttft = <Option<Vec<crate::api::stats::StatsTtft>>>::sse_decode(deserializer);
+        let mut var_speed = <Option<Vec<crate::api::stats::StatsSpeed>>>::sse_decode(deserializer);
+        let mut var_throughput =
+            <Option<Vec<crate::api::stats::StatsThroughput>>>::sse_decode(deserializer);
+        return crate::api::stats::StatsTurnTiming {
+            turn_count: var_turnCount,
+            ttft: var_ttft,
+            speed: var_speed,
+            throughput: var_throughput,
         };
     }
 }
@@ -3623,6 +3819,8 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsFilter>
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsGroup {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.timing.into_into_dart().into_dart(),
+            self.model_timing.into_into_dart().into_dart(),
             self.key.into_into_dart().into_dart(),
             self.source.into_into_dart().into_dart(),
             self.model.into_into_dart().into_dart(),
@@ -3919,6 +4117,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsRun>
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSessionDetail {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.timing.into_into_dart().into_dart(),
             self.session.into_into_dart().into_dart(),
             self.models.into_into_dart().into_dart(),
             self.timeline.into_into_dart().into_dart(),
@@ -4240,6 +4439,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsSources>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSpeed {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.method.into_into_dart().into_dart(),
+            self.sample_count.into_into_dart().into_dart(),
+            self.output_tokens.into_into_dart().into_dart(),
+            self.generation_ms.into_into_dart().into_dart(),
+            self.tokens_per_second.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::stats::StatsSpeed {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsSpeed>
+    for crate::api::stats::StatsSpeed
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsSpeed {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSummary {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -4285,6 +4505,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsSync>
     for crate::api::stats::StatsSync
 {
     fn into_into_dart(self) -> crate::api::stats::StatsSync {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsThroughput {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.method.into_into_dart().into_dart(),
+            self.sample_count.into_into_dart().into_dart(),
+            self.output_tokens.into_into_dart().into_dart(),
+            self.duration_ms.into_into_dart().into_dart(),
+            self.tokens_per_second.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsThroughput
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsThroughput>
+    for crate::api::stats::StatsThroughput
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsThroughput {
         self
     }
 }
@@ -4336,6 +4580,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsTimeseries>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsTiming {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.request_count.into_into_dart().into_dart(),
+            self.ttft.into_into_dart().into_dart(),
+            self.speed.into_into_dart().into_dart(),
+            self.throughput.into_into_dart().into_dart(),
+            self.turn.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsTiming
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsTiming>
+    for crate::api::stats::StatsTiming
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsTiming {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsTotals {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -4362,6 +4630,49 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsTotals>
     for crate::api::stats::StatsTotals
 {
     fn into_into_dart(self) -> crate::api::stats::StatsTotals {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsTtft {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.method.into_into_dart().into_dart(),
+            self.sample_count.into_into_dart().into_dart(),
+            self.median_ms.into_into_dart().into_dart(),
+            self.p90_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::stats::StatsTtft {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsTtft>
+    for crate::api::stats::StatsTtft
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsTtft {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsTurnTiming {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.turn_count.into_into_dart().into_dart(),
+            self.ttft.into_into_dart().into_dart(),
+            self.speed.into_into_dart().into_dart(),
+            self.throughput.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsTurnTiming
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsTurnTiming>
+    for crate::api::stats::StatsTurnTiming
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsTurnTiming {
         self
     }
 }
@@ -4650,6 +4961,36 @@ impl SseEncode for Vec<crate::api::stats::StatsSourceNote> {
     }
 }
 
+impl SseEncode for Vec<crate::api::stats::StatsSpeed> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsSpeed>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::stats::StatsThroughput> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsThroughput>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::stats::StatsTtft> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsTtft>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::news::NewsError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4811,12 +5152,32 @@ impl SseEncode for Option<crate::api::stats::StatsTimeOfDay> {
     }
 }
 
+impl SseEncode for Option<crate::api::stats::StatsTiming> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::stats::StatsTiming>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::stats::StatsTotals> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::stats::StatsTotals>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::stats::StatsTurnTiming> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::stats::StatsTurnTiming>::sse_encode(value, serializer);
         }
     }
 }
@@ -4847,6 +5208,36 @@ impl SseEncode for Option<Vec<crate::api::stats::StatsPriceTier>> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <Vec<crate::api::stats::StatsPriceTier>>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<Vec<crate::api::stats::StatsSpeed>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<crate::api::stats::StatsSpeed>>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<Vec<crate::api::stats::StatsThroughput>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<crate::api::stats::StatsThroughput>>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<Vec<crate::api::stats::StatsTtft>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<crate::api::stats::StatsTtft>>::sse_encode(value, serializer);
         }
     }
 }
@@ -4990,6 +5381,8 @@ impl SseEncode for crate::api::stats::StatsFilter {
 impl SseEncode for crate::api::stats::StatsGroup {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<crate::api::stats::StatsTiming>>::sse_encode(self.timing, serializer);
+        <Option<crate::api::stats::StatsTiming>>::sse_encode(self.model_timing, serializer);
         <Option<String>>::sse_encode(self.key, serializer);
         <Option<String>>::sse_encode(self.source, serializer);
         <Option<String>>::sse_encode(self.model, serializer);
@@ -5136,6 +5529,7 @@ impl SseEncode for crate::api::stats::StatsRun {
 impl SseEncode for crate::api::stats::StatsSessionDetail {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<crate::api::stats::StatsTiming>>::sse_encode(self.timing, serializer);
         <crate::api::stats::StatsSessionSummary>::sse_encode(self.session, serializer);
         <Vec<crate::api::stats::StatsSessionModel>>::sse_encode(self.models, serializer);
         <Vec<crate::api::stats::StatsBucket>>::sse_encode(self.timeline, serializer);
@@ -5301,6 +5695,17 @@ impl SseEncode for crate::api::stats::StatsSources {
     }
 }
 
+impl SseEncode for crate::api::stats::StatsSpeed {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <i64>::sse_encode(self.sample_count, serializer);
+        <i64>::sse_encode(self.output_tokens, serializer);
+        <i64>::sse_encode(self.generation_ms, serializer);
+        <f64>::sse_encode(self.tokens_per_second, serializer);
+    }
+}
+
 impl SseEncode for crate::api::stats::StatsSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5327,6 +5732,17 @@ impl SseEncode for crate::api::stats::StatsSync {
     }
 }
 
+impl SseEncode for crate::api::stats::StatsThroughput {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <i64>::sse_encode(self.sample_count, serializer);
+        <i64>::sse_encode(self.output_tokens, serializer);
+        <i64>::sse_encode(self.duration_ms, serializer);
+        <f64>::sse_encode(self.tokens_per_second, serializer);
+    }
+}
+
 impl SseEncode for crate::api::stats::StatsTimeOfDay {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5348,6 +5764,17 @@ impl SseEncode for crate::api::stats::StatsTimeseries {
     }
 }
 
+impl SseEncode for crate::api::stats::StatsTiming {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.request_count, serializer);
+        <Option<Vec<crate::api::stats::StatsTtft>>>::sse_encode(self.ttft, serializer);
+        <Option<Vec<crate::api::stats::StatsSpeed>>>::sse_encode(self.speed, serializer);
+        <Option<Vec<crate::api::stats::StatsThroughput>>>::sse_encode(self.throughput, serializer);
+        <Option<crate::api::stats::StatsTurnTiming>>::sse_encode(self.turn, serializer);
+    }
+}
+
 impl SseEncode for crate::api::stats::StatsTotals {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5362,6 +5789,26 @@ impl SseEncode for crate::api::stats::StatsTotals {
         <i64>::sse_encode(self.record_count, serializer);
         <Option<i64>>::sse_encode(self.request_count, serializer);
         <Option<i64>>::sse_encode(self.event_gross_tokens, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsTtft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <i64>::sse_encode(self.sample_count, serializer);
+        <i64>::sse_encode(self.median_ms, serializer);
+        <i64>::sse_encode(self.p90_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsTurnTiming {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.turn_count, serializer);
+        <Option<Vec<crate::api::stats::StatsTtft>>>::sse_encode(self.ttft, serializer);
+        <Option<Vec<crate::api::stats::StatsSpeed>>>::sse_encode(self.speed, serializer);
+        <Option<Vec<crate::api::stats::StatsThroughput>>>::sse_encode(self.throughput, serializer);
     }
 }
 

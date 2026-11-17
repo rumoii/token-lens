@@ -236,6 +236,8 @@ fn d33_queries_match_node_golden_and_conserve() {
                     "discovery" => discovery(&home, &environment).unwrap(),
                     _ => panic!("unknown golden query: {name}"),
                 };
+                let mut actual = actual;
+                crate::stats::timing_tests::strip_golden_timing(&mut actual);
                 check_invariant(ledger, &row, &actual);
                 assert_eq!(
                     ordered(name, actual),

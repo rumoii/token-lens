@@ -21,6 +21,184 @@ struct Parsed {
     records: Vec<Value>,
 }
 
+#[cfg(test)]
+mod e4b_real_tests {
+    use super::*;
+    fn collect(root: &Path, name: Option<&str>, files: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(root).unwrap() {
+            let entry = entry.unwrap();
+            let ty = entry.file_type().unwrap();
+            if ty.is_symlink() {
+                continue;
+            }
+            if ty.is_dir() {
+                collect(&entry.path(), name, files);
+            } else if name.map_or_else(
+                || entry.path().extension().is_some_and(|e| e == "jsonl"),
+                |n| entry.file_name() == n,
+            ) {
+                files.push(entry.path());
+            }
+        }
+    }
+    fn numeric_methods(value: &mut Value) {
+        if let Some(o) = value.as_object_mut() {
+            if let Some(method) = o.get_mut("method") {
+                *method = json!(match method.as_str().unwrap() {
+                    "client_reported" => 1,
+                    "log_timestamps" => 2,
+                    "content_event_proxy" => 3,
+                    _ => panic!("unknown method"),
+                });
+            }
+            for v in o.values_mut() {
+                numeric_methods(v);
+            }
+        } else if let Some(a) = value.as_array_mut() {
+            for v in a {
+                numeric_methods(v);
+            }
+        }
+    }
+    fn check_rates(actual: &Value, expected: &mut Value) {
+        if let Some(o) = expected.as_object_mut() {
+            for (k, v) in o {
+                if k == "tokens_per_second" {
+                    assert!((actual[k].as_f64().unwrap() - v.as_f64().unwrap()).abs() < 1e-10);
+                    *v = actual[k].clone();
+                } else {
+                    check_rates(&actual[k], v);
+                }
+            }
+        } else if let Some(a) = expected.as_array_mut() {
+            assert_eq!(actual.as_array().unwrap().len(), a.len());
+            for (i, v) in a.iter_mut().enumerate() {
+                check_rates(&actual[i], v);
+            }
+        }
+    }
+    #[tokio::test]
+    #[ignore = "Requires explicit read-only E4b source home and independent numeric audits"]
+    async fn e4b_real_sources_adapter_ledger_ffi_match_independent_audits() {
+        let home = std::path::PathBuf::from(std::env::var("TOKEN_LENS_E4B_LOG_HOME").unwrap());
+        let audits = std::path::PathBuf::from(std::env::var("TOKEN_LENS_E4B_AUDITS").unwrap());
+        for source in ["qwen", "pi", "opencode", "grok", "claude"] {
+            let mut files = Vec::new();
+            match source {
+                "qwen" => collect(&home.join(".qwen/usage"), None, &mut files),
+                "pi" => collect(&home.join(".pi/agent/sessions"), None, &mut files),
+                "claude" => collect(&home.join(".claude/projects"), None, &mut files),
+                "grok" => collect(
+                    &home.join(".grok/sessions"),
+                    Some("updates.jsonl"),
+                    &mut files,
+                ),
+                "opencode" => files.push(home.join(".local/share/opencode/opencode.db")),
+                _ => unreachable!(),
+            }
+            files.sort();
+            let temp = tempfile::tempdir().unwrap();
+            let snapshot_home = temp.path().join("snapshot");
+            for file in &mut files {
+                let copy = snapshot_home.join(file.strip_prefix(&home).unwrap());
+                std::fs::create_dir_all(copy.parent().unwrap()).unwrap();
+                if source == "opencode" {
+                    // A read-only connection captures committed WAL data consistently.
+                    let db = rusqlite::Connection::open_with_flags(
+                        &*file,
+                        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+                    )
+                    .unwrap();
+                    db.execute("VACUUM INTO ?", [copy.to_str().unwrap()])
+                        .unwrap();
+                } else {
+                    // Both implementations consume exactly these bytes while live logs keep growing.
+                    std::fs::write(&copy, std::fs::read(&*file).unwrap()).unwrap();
+                }
+                *file = copy;
+            }
+            let independent = std::process::Command::new("python")
+                .arg(audits.join(format!("e4b-audit-{source}.py")))
+                .env(
+                    "TOKEN_LENS_E4B_AUDIT_HOME",
+                    snapshot_home.canonicalize().unwrap(),
+                )
+                .output()
+                .unwrap();
+            if !independent.status.success() {
+                let error = String::from_utf8_lossy(&independent.stderr);
+                let category = [
+                    "FileNotFoundError",
+                    "OSError",
+                    "SyntaxError",
+                    "ValueError",
+                    "KeyError",
+                    "TypeError",
+                ]
+                .into_iter()
+                .find(|kind| error.contains(kind))
+                .unwrap_or("unknown");
+                panic!("independent audit failed: {category}");
+            }
+            let expected: Value = serde_json::from_slice(&independent.stdout).unwrap();
+            std::fs::write(
+                audits.join(format!("e4b-audit-{source}.json")),
+                &independent.stdout,
+            )
+            .unwrap();
+            assert_eq!(files.len() as u64, expected["files"].as_u64().unwrap());
+            let data = temp.path().join("data");
+            let ledger = Ledger::open(&data.join("ledger.db"), Clock::System).unwrap();
+            let mut parsed = Vec::new();
+            for file in files {
+                let identity = file.to_string_lossy().to_string();
+                let (mut records, _) =
+                    adapters::parse(source, &identity, &file, &LocalZone::Fixed(0)).unwrap();
+                records.retain(|r| jscompat::truthy(&r["observed_at"]));
+                parsed.push(Parsed {
+                    file: identity,
+                    records,
+                });
+            }
+            let mut totals = json!({"counts":{"cross_file_copies":0},"anomalies":[]});
+            let elsewhere = settle(&mut parsed, &mut totals);
+            for file in parsed {
+                let result = ledger
+                    .batch(
+                        &file.records,
+                        Some(&file.file),
+                        Some(adapters::parser_rev(source)),
+                        elsewhere.get(&file.file).map_or(&[], Vec::as_slice),
+                        pricing::cost_of,
+                    )
+                    .unwrap();
+                assert_eq!(result["rejected"], 0);
+            }
+            let client = crate::api::stats::StatsClient::new_with_fixed_clock(
+                data.to_string_lossy().into_owned(),
+                Some(temp.path().join("home").to_string_lossy().into_owned()),
+                1768478400000,
+            )
+            .unwrap();
+            let result = client
+                .breakdown("source".into(), Default::default(), 0)
+                .unwrap();
+            let mut timing =
+                serde_json::to_value(result.groups[0].timing.as_ref().unwrap()).unwrap();
+            if source == "grok" {
+                timing = timing["turn"].clone();
+            }
+            numeric_methods(&mut timing);
+            let mut expected_timing = expected["timing"].clone();
+            check_rates(&timing, &mut expected_timing);
+            assert_eq!(timing, expected_timing, "{source}");
+            // Numeric values only: never emit records, identifiers, content, or source paths.
+            println!("{}", serde_json::to_string(&timing).unwrap());
+            client.shutdown().await;
+        }
+    }
+}
+
 fn settle(parsed: &mut [Parsed], totals: &mut Value) -> HashMap<String, Vec<String>> {
     let mut starts = Vec::new();
     let mut holders: Vec<(String, Vec<(usize, usize)>)> = Vec::new();
@@ -194,7 +372,10 @@ pub fn sync(
                 let stats = ledger.batch_cancellable(
                     &file.records,
                     Some(&file.file),
-                    Some(adapters::parser_rev(&source)),
+                    super::ledger::Revisions {
+                        usage: Some(adapters::parser_rev(&source)),
+                        timing: adapters::timing_rev(&source),
+                    },
                     elsewhere.get(&file.file).map(Vec::as_slice).unwrap_or(&[]),
                     pricing::cost_of,
                     || cancel.load(Ordering::Acquire),

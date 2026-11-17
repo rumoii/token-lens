@@ -182,6 +182,28 @@ pub(super) fn parse(
             );
             r.as_object_mut().unwrap().remove("timestamp");
             r.as_object_mut().unwrap().remove("cache_creation_tokens");
+            let latencies: Vec<_> = metric["response_latencies"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|l| l["response_id"] == id)
+                .collect();
+            let unique_usage = usages
+                .iter()
+                .filter(|u| u.to_value()["response_id"] == id)
+                .count()
+                == 1;
+            let duration = if unique_usage && latencies.len() == 1 {
+                super::timing::seconds(&latencies[0]["latency"])
+            } else {
+                None
+            };
+            r["timing"] = super::timing::duration(
+                duration,
+                "client_reported",
+                "completed",
+                &r["output_tokens"],
+            );
             out.push(r);
         }
     }

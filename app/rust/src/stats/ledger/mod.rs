@@ -176,6 +176,11 @@ fn gross(record: &Value) -> i64 {
         .sum()
 }
 
+pub struct Revisions {
+    pub usage: Option<i64>,
+    pub timing: Option<i64>,
+}
+
 impl Ledger {
     pub fn open(path: &Path, clock: Clock) -> Result<Self> {
         if path != Path::new(":memory:") {
@@ -186,9 +191,9 @@ impl Ledger {
         let db = Connection::open(path)?;
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;")?;
         let current: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if current > 5 {
+        if current > 6 {
             return Err(Error(format!(
-                "账本结构版本 {current} 高于本程序支持的 5，拒绝以旧版本写入"
+                "账本结构版本 {current} 高于本程序支持的 6，拒绝以旧版本写入"
             )));
         }
         if current < 5 {
@@ -220,11 +225,114 @@ impl Ledger {
                     .write("INFO", "ledger", &format!("migration schema={current}->5"));
             }
         }
+        if current < 6 {
+            if current > 0 && path != Path::new(":memory:") {
+                // VACUUM INTO includes committed WAL content; never copy the live main file.
+                let date = clock.iso();
+                let mut suffix = 0;
+                let backup = loop {
+                    let backup = path.with_file_name(format!(
+                        "ledger-v5-{}-{}-{suffix}.db",
+                        &date[..10],
+                        clock.millis()
+                    ));
+                    if !backup.exists() {
+                        break backup;
+                    }
+                    suffix += 1;
+                };
+                db.execute("VACUUM INTO ?", [backup.to_string_lossy().as_ref()])?;
+            }
+            let transaction = db.unchecked_transaction()?;
+            transaction.execute_batch(include_str!("timings.sql"))?;
+            transaction.execute_batch("PRAGMA user_version=6;")?;
+            transaction.commit()?;
+        }
         Ok(Self {
             db,
             clock,
             prune_cache: Default::default(),
         })
+    }
+
+    fn write_timing(
+        &self,
+        record: &Value,
+        file: Option<&str>,
+        revision: Option<i64>,
+        usage_unchanged: bool,
+    ) -> Result<()> {
+        let old = rows(
+            &self.db,
+            "SELECT * FROM usage_timings WHERE record_key=?",
+            &[record["record_key"].clone()],
+        )?
+        .pop();
+        let source_file = file.map_or_else(
+            || {
+                old.as_ref()
+                    .map_or(Value::Null, |r| r["source_file"].clone())
+            },
+            |f| json!(f),
+        );
+        // The v6 column retains its original name but stores only TIMING_REV.
+        let timing_rev = revision.map_or_else(
+            || {
+                old.as_ref()
+                    .map_or(Value::Null, |r| r["parser_rev"].clone())
+            },
+            |r| json!(r),
+        );
+        // Both metrics belong to one usage payload and one first-output instant.
+        // Changed usage must replace its timing even in the same file and revision.
+        let retain_old = usage_unchanged
+            && old.as_ref().is_some_and(|row| {
+                let old_revision = row["parser_rev"].as_i64().unwrap_or(1);
+                revision.unwrap_or(old_revision) == old_revision
+                    && source_file == row["source_file"]
+                    && (row["status"] == "completed"
+                        || !record["timing"].is_object()
+                        || ["ttft_ms", "generation_ms", "duration_ms"]
+                            .iter()
+                            .any(|metric| {
+                                !row[*metric].is_null() && record["timing"][*metric].is_null()
+                            }))
+            });
+        if record["kind"].as_str().unwrap_or("event") != "event"
+            || (!record["timing"].is_object() && !retain_old)
+        {
+            self.db.execute(
+                "DELETE FROM usage_timings WHERE record_key=?",
+                [record["record_key"].as_str()],
+            )?;
+            return Ok(());
+        }
+        let mut timing = if retain_old {
+            old.as_ref().unwrap().clone()
+        } else {
+            record["timing"].clone()
+        };
+        if timing["status"].is_null() {
+            timing["status"] = json!("unknown");
+        }
+        let fields = [
+            "ttft_ms",
+            "ttft_method",
+            "generation_ms",
+            "generation_method",
+            "duration_ms",
+            "duration_method",
+            "timing_output_tokens",
+            "scope",
+            "status",
+        ];
+        let values: Vec<Value> = fields.iter().map(|key| timing[*key].clone()).collect();
+        let hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&values)?));
+        let mut args = vec![record["record_key"].clone(), record["source"].clone()];
+        args.extend(values);
+        args.extend([source_file, timing_rev, json!(hash)]);
+        self.db.execute("INSERT INTO usage_timings(record_key,source,ttft_ms,ttft_method,generation_ms,generation_method,duration_ms,duration_method,timing_output_tokens,scope,status,source_file,parser_rev,timing_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(record_key) DO UPDATE SET source=excluded.source,ttft_ms=excluded.ttft_ms,ttft_method=excluded.ttft_method,generation_ms=excluded.generation_ms,generation_method=excluded.generation_method,duration_ms=excluded.duration_ms,duration_method=excluded.duration_method,timing_output_tokens=excluded.timing_output_tokens,scope=excluded.scope,status=excluded.status,source_file=excluded.source_file,parser_rev=excluded.parser_rev,timing_hash=excluded.timing_hash WHERE usage_timings.timing_hash!=excluded.timing_hash OR usage_timings.source_file IS NOT excluded.source_file OR usage_timings.parser_rev IS NOT excluded.parser_rev",params_from_iter(args.iter().map(sql_value)))?;
+        Ok(())
     }
 
     fn supersede(&self, record: &Value, id: i64, stats: &mut Value) -> Result<()> {
@@ -233,6 +341,10 @@ impl Ledger {
                 if key.as_str().is_some_and(|k| !k.is_empty()) && *key != record["record_key"] {
                     let count = self.db.execute("UPDATE usage_records SET active=0,superseded_by=? WHERE record_key=? AND active=1", params![id, key.as_str()])?;
                     if count > 0 {
+                        self.db.execute(
+                            "DELETE FROM usage_timings WHERE record_key=?",
+                            [key.as_str()],
+                        )?;
                         increment(&mut stats["counts"], "replaced");
                     }
                 }
@@ -250,18 +362,46 @@ impl Ledger {
         elsewhere: &[String],
         price: impl Fn(&Value) -> Value,
     ) -> Result<Value> {
-        self.batch_cancellable(records, file, revision, elsewhere, price, || false)
+        let timing_revision = records
+            .first()
+            .and_then(|r| r["source"].as_str())
+            .and_then(super::adapters::timing_rev);
+        self.batch_with_timing_revision(records, file, revision, timing_revision, elsewhere, price)
+    }
+
+    #[cfg(test)]
+    pub fn batch_with_timing_revision(
+        &self,
+        records: &[Value],
+        file: Option<&str>,
+        usage_revision: Option<i64>,
+        timing_revision: Option<i64>,
+        elsewhere: &[String],
+        price: impl Fn(&Value) -> Value,
+    ) -> Result<Value> {
+        self.batch_cancellable(
+            records,
+            file,
+            Revisions {
+                usage: usage_revision,
+                timing: timing_revision,
+            },
+            elsewhere,
+            price,
+            || false,
+        )
     }
 
     pub fn batch_cancellable(
         &self,
         records: &[Value],
         file: Option<&str>,
-        revision: Option<i64>,
+        revisions: Revisions,
         elsewhere: &[String],
         price: impl Fn(&Value) -> Value,
         cancelled: impl Fn() -> bool,
     ) -> Result<Value> {
+        let revision = revisions.usage;
         let transaction = Transaction::new_unchecked(&self.db, TransactionBehavior::Immediate)?;
         let mut stats = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"counts":{"relabeled":0,"reactivated":0,"replaced":0,"deactivated":0,"vanished":0,"rev_corrections":0,"cumulative_decrease":0},"anomalies":[]});
         let mut produced = HashSet::new();
@@ -337,6 +477,7 @@ impl Ledger {
                         self.db.execute("UPDATE usage_records SET source_file=coalesce(?,source_file),parser_rev=coalesce(?,parser_rev) WHERE id=?", params![file,revision,id])?;
                     }
                     self.supersede(record, id, &mut stats)?;
+                    self.write_timing(record, file, revisions.timing, true)?;
                     continue;
                 }
                 if old["kind"] == "cumulative" && gross(record) < gross(old) {
@@ -373,6 +514,7 @@ impl Ledger {
                 self.db.execute(&format!("UPDATE usage_records SET content_hash=?,{assignments},revision=revision+1,price_version=?,cost_micros=?,price_source=? WHERE id=?"), params_from_iter(args.iter().map(sql_value)))?;
                 increment(&mut stats, "updated");
                 self.supersede(record, id, &mut stats)?;
+                self.write_timing(record, file, revisions.timing, false)?;
             } else {
                 let mut args = vec![
                     record["record_key"].clone(),
@@ -393,6 +535,7 @@ impl Ledger {
                 self.db.execute(&format!("INSERT INTO usage_records(record_key,content_hash,source,{},price_version,cost_micros,price_source) VALUES ({placeholders})", FIELDS.join(",")), params_from_iter(args.iter().map(sql_value)))?;
                 increment(&mut stats, "inserted");
                 self.supersede(record, self.db.last_insert_rowid(), &mut stats)?;
+                self.write_timing(record, file, revisions.timing, false)?;
             }
         }
         if let Some(file) = file.filter(|_| !produced.is_empty() || !elsewhere.is_empty()) {
@@ -402,6 +545,7 @@ impl Ledger {
                 if produced.contains(key) || elsewhere.iter().any(|s| s == key) { continue; }
                 if revision.is_some_and(|r| r != row["parser_rev"].as_i64().unwrap_or(1)) {
                     self.db.execute("UPDATE usage_records SET active=0 WHERE id=?", [row["id"].as_i64().unwrap()])?;
+                    self.db.execute("DELETE FROM usage_timings WHERE record_key=?",[key])?;
                     increment(&mut stats["counts"], "deactivated");
                 } else { vanished += 1; }
             }
@@ -415,6 +559,16 @@ impl Ledger {
         }
         if cancelled() {
             return Err(Error("cancelled".into()));
+        }
+        if let (Some(file), Some(revision)) = (file, revisions.timing) {
+            // A successful new timing revision may revoke timings even when the empty-output
+            // guard deliberately preserves the historical usage rows.
+            for row in rows(&self.db,"SELECT record_key FROM usage_timings WHERE source_file=? AND coalesce(parser_rev,1)!=?",&[json!(file),json!(revision)])? {
+                let key=row["record_key"].as_str().unwrap();
+                if !elsewhere.iter().any(|other|other==key) {
+                    self.db.execute("DELETE FROM usage_timings WHERE record_key=?",[key])?;
+                }
+            }
         }
         transaction.commit()?;
         Ok(stats)
@@ -659,7 +813,13 @@ mod tests {
             initial.execute_batch(sql).unwrap();
             drop(initial);
             let migrated = Ledger::open(&path, Clock::Fixed(1768478400000)).unwrap();
-            let schema = rows(&migrated.db,"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",&[]).unwrap();
+            let timing_columns =
+                rows(&migrated.db, "PRAGMA table_info(usage_timings)", &[]).unwrap();
+            for name in ["duration_ms", "duration_method"] {
+                assert!(timing_columns.iter().any(|r| r["name"] == name));
+            }
+            // E4 adds only usage_timings; the complete v5 schema still matches Node byte for byte.
+            let schema = rows(&migrated.db,"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND tbl_name!='usage_timings' ORDER BY type,name",&[]).unwrap();
             assert_eq!(
                 json!(schema),
                 golden["schema"],
@@ -697,7 +857,7 @@ mod tests {
         let path = directory.path().join("future.db");
         Connection::open(&path)
             .unwrap()
-            .execute_batch("PRAGMA user_version=6")
+            .execute_batch("PRAGMA user_version=7")
             .unwrap();
         assert!(Ledger::open(&path, Clock::System)
             .err()
@@ -715,7 +875,10 @@ mod tests {
         let result = ledger.batch_cancellable(
             std::slice::from_ref(&record),
             Some("synthetic.jsonl"),
-            Some(1),
+            Revisions {
+                usage: Some(1),
+                timing: None,
+            },
             &[],
             |_| {
                 cancelled.set(true);

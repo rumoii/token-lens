@@ -94,6 +94,7 @@ pub(super) fn parse(file: &Path, zone: &LocalZone, notes: &mut Value) -> Result<
             .as_object_mut()
             .unwrap()
             .remove("cache_creation_tokens");
+        record["timing"] = super::timing::content_event(&data, &record["output_tokens"]);
         out.push(record);
     }
     Ok(out)

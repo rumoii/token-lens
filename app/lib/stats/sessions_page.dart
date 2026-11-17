@@ -18,6 +18,7 @@ import 'widgets/session_usage.dart';
 import 'widgets/primitives.dart';
 import 'widgets/resource.dart';
 import 'widgets/side_panel.dart';
+import 'widgets/timing.dart';
 
 String hm(String iso) {
   final d = DateTime.tryParse(iso)?.toLocal();
@@ -904,6 +905,16 @@ class _SessionDetailState extends State<SessionDetail> {
         ),
       ),
     );
+    Widget timingCard(bool turn) => LensCard(
+      padding: const EdgeInsets.all(18),
+      child: TimingStrip(
+        timing: value.timing,
+        turn: turn,
+        scopeAsTitle: true,
+        requestCount: value.period?.requestCount ?? s.requestCount ?? 0,
+        metricKey: (kind) => Key('session-${turn ? 'turn-' : ''}${kind.name}'),
+      ),
+    );
     Widget bar(double fraction, Color color, {double height = 5}) => ClipRRect(
       borderRadius: BorderRadius.circular(99),
       child: SizedBox(
@@ -1128,6 +1139,12 @@ class _SessionDetailState extends State<SessionDetail> {
           ],
         ),
       ),
+      if (s.source != 'grok' &&
+          ((value.timing?.requestCount ?? 0) > 0 ||
+              (value.timing?.turn?.turnCount ?? 0) == 0))
+        timingCard(false),
+      if (s.source == 'grok' || (value.timing?.turn?.turnCount ?? 0) > 0)
+        timingCard(true),
       card(
         '用了哪些模型',
         null,

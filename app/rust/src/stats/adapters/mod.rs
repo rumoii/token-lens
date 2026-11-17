@@ -27,6 +27,7 @@ mod pi;
 mod project;
 mod qwen;
 mod sqlite;
+mod timing;
 mod trae;
 mod zcode;
 mod zed;
@@ -38,6 +39,33 @@ pub(super) use lines::file_tag;
 use num::plus;
 use serde_json::{json, Value};
 use std::path::Path;
+#[cfg(test)]
+fn strip_unknown_timings(records: &mut [Value]) {
+    // Node fixtures have no first-output evidence; E4b total durations are checked separately.
+    for r in records {
+        if let Some(timing) = r.as_object_mut().unwrap().remove("timing") {
+            assert!(matches!(
+                r["source"].as_str(),
+                Some(
+                    "kimi"
+                        | "zcode"
+                        | "codex"
+                        | "qwen"
+                        | "pi"
+                        | "grok"
+                        | "claude"
+                        | "opencode"
+                        | "mimo"
+                        | "kilo"
+                        | "anythingllm"
+                        | "openhands"
+                )
+            ));
+            assert!(timing["ttft_ms"].is_null() && timing["generation_ms"].is_null());
+            assert_eq!(timing["timing_output_tokens"], r["output_tokens"]);
+        }
+    }
+}
 pub fn parse(
     source: &str,
     identity: &str,
@@ -221,7 +249,7 @@ mod tests {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "adapter_record" {
                 let file = row["file"].as_str().unwrap();
-                let (records, notes) = parse(
+                let (mut records, notes) = parse(
                     row["source"].as_str().unwrap(),
                     file,
                     &root.join(file),
@@ -229,6 +257,31 @@ mod tests {
                 )
                 .unwrap();
                 let mut expected = row["records"].clone();
+                // E4 desktop-only timing contract; old fixtures have no first-output evidence.
+                // Keep Node goldens and every existing usage field unchanged (specs/stats.md).
+                for record in &mut records {
+                    if let Some(timing) = record.as_object_mut().unwrap().remove("timing") {
+                        assert!(matches!(
+                            row["source"].as_str(),
+                            Some(
+                                "kimi"
+                                    | "zcode"
+                                    | "codex"
+                                    | "qwen"
+                                    | "pi"
+                                    | "grok"
+                                    | "claude"
+                                    | "opencode"
+                                    | "mimo"
+                                    | "kilo"
+                                    | "anythingllm"
+                                    | "openhands"
+                            )
+                        ));
+                        assert!(timing["ttft_ms"].is_null() && timing["generation_ms"].is_null());
+                        assert_eq!(timing["timing_output_tokens"], record["output_tokens"]);
+                    }
+                }
                 if row["source"] == "codex" && file.starts_with("test/fixtures/parity/codex.jsonl")
                 {
                     // Intentional Rust-only short-ID identity rule; retain the Node golden verbatim.
@@ -324,6 +377,28 @@ pub fn parser_rev(source: &str) -> i64 {
         .find(|(s, _)| *s == source)
         .map_or(1, |(_, rev)| *rev)
 }
+
+pub const TIMING_REV: &[(&str, i64)] = &[
+    ("codex", 1),
+    ("kimi", 1),
+    ("zcode", 1),
+    ("qwen", 1),
+    ("pi", 1),
+    ("openhands", 1),
+    ("anythingllm", 1),
+    ("opencode", 1),
+    ("mimo", 1),
+    ("kilo", 1),
+    ("claude", 2),
+    ("grok", 1),
+];
+
+pub fn timing_rev(source: &str) -> Option<i64> {
+    TIMING_REV
+        .iter()
+        .find(|(s, _)| *s == source)
+        .map(|(_, rev)| *rev)
+}
 #[cfg(test)]
 mod revision_tests {
     #[test]
@@ -364,7 +439,8 @@ mod b2_tests {
                 if row["error"] == true {
                     assert!(result.is_err(), "{file}");
                 } else {
-                    let (records, notes) = result.unwrap_or_else(|e| panic!("{file}: {e}"));
+                    let (mut records, notes) = result.unwrap_or_else(|e| panic!("{file}: {e}"));
+                    strip_unknown_timings(&mut records);
                     assert_eq!(json!(records), row["records"], "records {file}");
                     assert_eq!(notes, row["notes"], "notes {file}");
                 }
@@ -443,8 +519,9 @@ mod b3_tests {
                         failures += 1;
                         assert!(result.is_err(), "expected file failure: {file}");
                     } else {
-                        let (records, notes) = result.unwrap_or_else(|e| panic!("{file}: {e}"));
+                        let (mut records, notes) = result.unwrap_or_else(|e| panic!("{file}: {e}"));
                         records_count += records.len();
+                        strip_unknown_timings(&mut records);
                         assert_eq!(json!(records), row["records"], "records: {file}");
                         assert_eq!(notes, row["notes"], "notes: {file}");
                     }
@@ -552,12 +629,13 @@ mod ledger_b3_tests {
         for line in include_str!("../../../tests/golden/ingest-b3.jsonl").lines() {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "query" {
-                let actual = if row["fn"] == "summary" {
+                let mut actual = if row["fn"] == "summary" {
                     service::summary(&ledger, &json!({}), 480, "Asia/Shanghai")
                 } else {
                     service::breakdown(&ledger, &json!({"by":"source"}), 480, "Asia/Shanghai")
                 }
                 .unwrap();
+                crate::stats::timing_tests::strip_golden_timing(&mut actual);
                 assert_eq!(actual, row["expected"], "{}", row["fn"]);
             }
         }
@@ -729,12 +807,13 @@ mod ledger_b2_tests {
         for line in include_str!("../../../tests/golden/ingest-b2.jsonl").lines() {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "query" {
-                let actual = if row["fn"] == "summary" {
+                let mut actual = if row["fn"] == "summary" {
                     service::summary(&ledger, &json!({}), 480, "Asia/Shanghai")
                 } else {
                     service::breakdown(&ledger, &json!({"by":"source"}), 480, "Asia/Shanghai")
                 }
                 .unwrap();
+                crate::stats::timing_tests::strip_golden_timing(&mut actual);
                 assert_eq!(actual, row["expected"], "{}", row["fn"]);
             }
         }

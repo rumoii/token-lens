@@ -4,7 +4,7 @@
 
 D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 Flutter 界面。旧版是 D3 的行为基线：仓库 `1ce3446` 的 `src/core`，运行时 Node v24.22.1，账本 schema v5。
 
-- 账本：Rust 原样沿用 schema v5（[CLAUDE.md](../CLAUDE.md)「Ledger contract」）。`record_key`、`content_hash`、价表版本与旧版逐字节一致，新版能直接打开旧版账本的副本。
+- 账本：D3 沿用 schema v5，E4a 桌面版在保留用量表的基础上升到 v6（见下文）（[CLAUDE.md](../CLAUDE.md)「Ledger contract」）。`record_key`、`content_hash`、价表版本与旧版逐字节一致，新版能直接打开旧版账本的副本。
 - 适配器：27 个全部迁移，分三批（见「子阶段」）。
 - 界面：照现有看板的结构搬（总览、明细、会话、来源、设置与价格），只有和现有界面不同或拿不准的地方先做原型。
 - 数据：D3 的账本放在预览目录，D3 期间从不打开、读取或写入 `~/.token-lens`，也不读 `TOKEN_LENS_DATA_DIR`、`DB_PATH`。真实账本的副本迁移和切换属于 D4，每一步单独确认。
@@ -52,7 +52,7 @@ D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 F
 4. **会话游标**。`jscompat` 自己实现 base64，只接受解出来是非负十进制整数的游标。`Number()` 才接受的写法（十六进制、科学计数、前后空白）按无效处理，从头开始。游标只来自 `next_cursor`，不影响正常翻页。
 5. **`health`**。没有 HTTP 服务，因此去掉 `port`，版本号取 Rust crate 的版本，字段是 `ok`、`version`、`data_dir`、`ledger_path`、`schema_version`。这一项不对拍。
 6. **会话详情的粒度**。FFI 上 `granularity` 必填，只接受 `hour` 或 `day`，不设默认值。
-7. **Codex 不可靠响应 ID**。Rust `PARSER_REV=5`，Node 回滚路径仍为 4，分别写独立账本。可靠 id 的 key 字节不变；只按 id 形状判定，去掉开头 `resp_` 后为空、全 ASCII 数字或少于 16 字符的 id 不可靠，判定不依赖文件内容，部分历史副本也保持相同身份。Rust 用 `codex|<session>|<用量行 thread_id>|<原始时间戳>`，同一新键按文件内有效用量行顺序加 `#2`、`#3`，不使用 token 数；缺 thread/time 时回退规范化路径 hash＋物理行号。每条新身份的 `replaces` 均含旧响应键，首条停用旧 active 行，其余独立新增；`superseded_by` 指向首条承接记录，不表示完整的一对多关系。无响应 id 保持原位置回退。正常 id 的只读样本后缀长 35、48 或 50，16 字符阈值低于样本下限。Node golden 不重写；Rust 对拍只为明确的合成短 id `r1`、`response-local` 调整期望身份和 Codex revision，其余字段仍严格比较。回归覆盖独立子线程、完整与部分 Copied 历史、同时间序号、重复采集、追加、一对多重采集和压缩替换。真实账本执行仍需备份、副本演练及用户确认；Node 旧解析器不能用来重新采集 Rust revision 5 的账本。
+7. **Codex 不可靠响应 ID**。Rust 身份规则自 `PARSER_REV=5` 起，E4a 计时独立使用 `TIMING_REV=1`，Node 回滚路径仍为 4，分别写独立账本。可靠 id 的 key 字节不变；只按 id 形状判定，去掉开头 `resp_` 后为空、全 ASCII 数字或少于 16 字符的 id 不可靠，判定不依赖文件内容，部分历史副本也保持相同身份。Rust 用 `codex|<session>|<用量行 thread_id>|<原始时间戳>`，同一新键按文件内有效用量行顺序加 `#2`、`#3`，不使用 token 数；缺 thread/time 时回退规范化路径 hash＋物理行号。每条新身份的 `replaces` 均含旧响应键，首条停用旧 active 行，其余独立新增；`superseded_by` 指向首条承接记录，不表示完整的一对多关系。无响应 id 保持原位置回退。正常 id 的只读样本后缀长 35、48 或 50，16 字符阈值低于样本下限。Node golden 不重写；Rust 对拍只为明确的合成短 id `r1`、`response-local` 调整期望身份和 Codex revision，其余字段仍严格比较。回归覆盖独立子线程、完整与部分 Copied 历史、同时间序号、重复采集、追加、一对多重采集和压缩替换。真实账本执行仍需备份、副本演练及用户确认；Node 旧解析器不能用来重新采集 Rust revision 5 及以后采集的账本。
 
    已知限制：上游复用正常形状的长 id 时仍按旧 key 合并、原地更新，与 E1 之前的行为相同；不能据此保全复用长 id 的独立请求总数。2026-11-16 只读核查同事证据和本机日志，同一 session 与正常形状 id 对应不同原始时间戳或 usage 的情况均为 0，跨文件核查也包括在内。
 
@@ -64,16 +64,41 @@ D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 F
 
 分组、时间桶和会话另带 `event_gross_tokens`：只加 event 的四类 token，各列先 coalesce 再相加。“平均每次”使用此值除以 `request_count`，合并模型/工具时同时合并这两个字段，快照不进入分子。会话详情的 `period` 沿用列表的时段、工具和项目筛选，`session` 的累计不受筛选影响。累计查询先分页会话身份，再用 `idx_usage_session(source, session_id)` 取对应 active 记录；无时段而带项目/模型筛选时，排序仍以整个会话的最后活动为准。开始日期 chip 使用查询快照的固定偏移，非今年的日期包含年份；首页累计与时段 gross 不同时显示累计行。
 
+9. **E4a 桌面请求计时**。桌面 schema v6 比 Node v5 仅多 usage_timings；迁移对拍继续严格比较全部 v5 表与列，另外测试 v6 表、备份与 WAL 行数。Node goldens 不重写，适配器对拍移除已断言无首字/生成证据的附加 timing 字段（既有 Pi 夹具的整次耗时另由 E4b 测试验证）；查询对拍仅移除已断言 NULL 指标和分母正确的 timing/model_timing，其他字段仍比较。计时独立使用按 source 区分的 TIMING_REV，claude 为 2，codex、kimi、zcode、qwen、pi、openhands、anythingllm、opencode、mimo、kilo、grok 为 1；用量 PARSER_REV 保持基线 codex=5、kimi=5、zcode=1；Node codex 仍为 4，身份差异继续遵循本节第 7 条。原有分组之和、用量和金额对拍测试保留。
+
 D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分别处理 DST；`pricing_snapshot` 只存 `{version}`、不能按旧版本重新估值（`write.js:481–485`）；会话详情默认粒度三处不一致（`read.js:587`、`api/v1/sessions.js:47`、`api/router.js:33`）；`ended_at` 不是 NULL 又解析不了时，这条 `cumulative` 记录既不进时间桶也不进 `unallocated`（`read.js:46–49`）。最后这一条 Rust 原样复现，并由独立的 golden 场景固定；适配器写入的 `ended_at` 只会是 ISO 时间或 NULL，现有数据碰不到。
 
 ## Rust 布局
+
+### E4：请求与回合计时（桌面 schema v6）
+
+D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，不改 `usage_records` 的列、身份、`content_hash` 或计价。它以 `record_key` 为主键和外键，与 event 一对一；保存 source、首字、生成时长与整次调用耗时 duration_ms（整数毫秒）、各自的 method（含 duration_method）、`timing_output_tokens`、scope、status、source_file、计时版本和独立的 timing_hash；v6 的 usage_timings.parser_rev 列保留原名，但只存 TIMING_REV，与 usage_records.parser_rev 无关。计时有自己的按 source 区分的 revision：claude 为 2，codex、kimi、zcode、qwen、pi、openhands、anythingllm、opencode、mimo、kilo、grok 为 1；值、身份或时间改变要升 PARSER_REV 的契约仅适用于用量记录，计时修正规则只升 TIMING_REV，不改用量版本、内容或价格。
+
+- **≈首字时间**（界面名“首字（开始回复前要等）”）：发出请求至首次实际输出的等待，思考、工具参数、正文都算；元数据和 role-only 分块不算。Kimi Code、ZCode、Codex 使用 `request`；OpenCode、MiMo、Kilo 另支持推理开始事件代理，Grok 使用独立的 `turn`。Codex 仅能观察思考与回复项，工具专用输出没有首字样本。
+- **≈速度**（界面名“速度（回复时每秒出多少）”）：该请求的输出 token（adapter 现有口径，含推理）除以首次输出至流结束的秒数。分子独立存成 `timing_output_tokens`；只有 `status=completed`、输出已知且生成时长大于 0 的请求进入速度统计。不设 token 门槛。
+- **≈请求平均吞吐**（界面名“平均速度（算上等待）”）：1000 × Σtiming_output_tokens ÷ Σduration_ms，包含首字前的等待，与“≈速度”分开。只计 status=completed、输出已知、duration_ms>0 的样本，按 duration_method 分组，不平均逐条吞吐。duration_ms 与其他时长一起存储、hash、保留或整组替换；新接入来源差值≤0、字段无效或无法唯一配对时为 NULL。scope 只允许 request/turn，method 增加 content_event_proxy；v6 未发布，直接扩展 timings.sql，不新增 schema 版本。
+- 首字按 method 分组，使用 nearest-rank：升序排列 n 个样本，分位数 p 取第 `ceil(p*n)` 个（从 1 起）；中位数 p=0.5，p90 p=0.9，偶数样本取两个中间值里较小的一个。
+- 速度按 generation_method 分组，取 `1000 * Σtiming_output_tokens / Σgeneration_ms`，不平均逐条速度。不同 method 不混合。
+- 三项各自返回有效样本数 n；请求级 N 是同一筛选范围内 active event 的去重请求数，包括没有计时、失败和未知状态的请求，不包括 cumulative 或 Grok 回合。Grok 的 active event 一条代表一回合，单独返回 turn.turn_count，包括无计时回合；turn 计时不进入请求的分位数、速度、吞吐或覆盖率。通用用量查询的 request_count 沿用原口径，仅计时汇总分母按 scope 拆分。每个 method 的覆盖率都是自己的 n/N。没有样本时对应 ttft、speed 或 throughput 返回 NULL，界面省略该指标并列出缺失项；N=0 不计算百分比。
+- `client_reported` 表示客户端记录的计时（Kimi、ZCode），`log_timestamps` 表示按日志时间戳估算（Codex）。content_event_proxy 表示“按推理开始事件估算”。首字、生成时长、整次调用耗时分别带 method；缺值的 method 也为 NULL。客户端计时仍受网络、代理、分块与缓冲影响。
+- status：`completed` 为请求窗口正常结束（含工具调用结束、达到输出上限）；`partial` 为有用量但仍在运行；`failed` 为已记录失败；`cancelled` 为已记录取消；`unknown` 为无法确定结束状态。后三类与 partial 不进入速度统计；已有合法首字仍可计入首字分布。Kimi 读取 finishReason，ZCode 读取 model_usage.status（error 映射 failed、running 映射 partial）；Codex 的 token_usage_record 是每次响应终结的用量记录，记 completed，中止边界清空尚未配对的计时。
+
+查询通过 usage_records join 计时，继承 active、时段、工具、项目、模型与会话筛选。会话详情的 timing 使用 period 筛选；明细 source/model/source_model 分组保持同一过滤口径。breakdown 和 session_detail 各在一个读取事务里计算用量与计时。`source_model` 另外返回每个模型在当前筛选下的 `model_timing`，供界面合并工具分组时使用，不能由各工具的中位数推导模型中位数。首页不展示计时。
+
+工具/模型明细把计时放在对应主行下方的可换行指标区，左侧标“每次请求”；至少一项有样本才显示请求计时行。turn_count > 0 时另加同样样式的“每轮对话”行。主行与计时行共用点击、悬停和卡片内的墨水边界，宽屏分隔线在整个行组下方。宽屏表格沿用 860 最小宽度，不增加计时列；工具/模型表格可用宽度不足 860 时使用窄屏行布局，不横向滚动。不显示计时的维度保持原布局。模型行的工具图标最多显示 3 个，多出的用“+N”标记，悬停列出全部工具名；模型名保留可见宽度，单行省略并提供全名悬停提示，窄屏同样处理。会话详情使用标题为“每次请求”“每轮对话”的独立卡片；Grok 即使当前时段没有样本也保留回合卡片，纯回合会话不展示请求卡片。
+
+计时区共用文案和缺失提示。首字显示“一般 x.xx 秒，慢时 y.yy 秒”，只有一个样本或两分位数相同时仅显示“x.xx 秒”；速度和平均速度显示“约 x.x token/s”。只有 0 < n < N 时显示“N 次里 n 次有记录”，n=N 时省略，N 与 n 沿用请求列的千位分隔格式。无样本的指标不显示，在计时区末尾列出“日志里没记：首字、速度、平均速度”中的缺失项。首字的小“?”说明为“从发出请求到看到第一段输出（含思考）的时间。‘一般’是一半请求不超过这个时间，‘慢时’是九成请求不超过这个时间。”其余指标的小“?”说明输出速度和包含等待的平均速度；行标签说明日志推算的约值及整轮对话与每次请求不能直接比较。多个 method 仍独立展示，并保留来源小字。
+
+跨文件副本先按现有 settle 规则选定 usage 的归属，计时随同被保留的记录写入；不能用副本的计时补齐原件。计时按整组保留或替换，不逐指标拼接：本次用量新增或 content_hash 改变并原地更新时，计时整组换成本次解析结果，缺少 timing 对象则删除旧计时，不能沿用与当前用量不匹配的窗口和输出分子；只有本次用量 content_hash 与原来相同，才适用以下保留规则：source_file 和 TIMING_REV 都相同时，旧组 status=completed 就整组保留，不论新组是否缺值或为超集，避免日志裁剪缩短已完成窗口；只有旧组不是 completed，且新组为旧计时已知指标的超集（旧的每个非 NULL 时长（ttft_ms、generation_ms、duration_ms）在新值中也非 NULL）时，才整组替换，支持 ZCode 从 partial 增长到 completed；否则整组保留。status、timing_output_tokens、三个 method 和 scope 随整组决定，不从另一组补齐；选择后再计算 timing_hash，重复采集不反复更新。source_file 或 TIMING_REV 变化时整组替换，包括撤销，不能继承旧归属文件的计时；文件成功重解析后，新 TIMING_REV 不再产出的旧计时会清除，即使空产出保护仍保留历史用量。文件没有被发现或读取失败不清除计时。每次 sync 都重新发现并读取全部日志，无 mtime/hash 跳过缓存，因此 TIMING_REV 改变无需额外重读触发；只清除旧计时，不停用用量，用量因自身版本升级或 replaces 停用时仍删除其计时。
+
+**v6 迁移与回退**：先沿用原流程把 v1–v4 升到 v5；已有磁盘账本在升 v6 前用 `VACUUM INTO` 生成一致的 v5 备份，包含已提交 WAL 内容，不能直接复制在线主文件。文件名为 `ledger-v5-YYYY-MM-DD-<毫秒时间>-<序号>.db`，位于账本所在数据目录，已有文件不覆盖；备份失败不创建 v6 表。新建空账本和内存测试库不需要旧库备份。随后在事务里建表并设置 user_version=6。旧版桌面应用拒绝打开 v6；恢复 v5 备份的步骤见 app/README.md。Node 回退目录 `~/.token-lens` 不受影响。
 
 统计代码放在 `app/rust/src/stats/`，和新闻代码互不依赖：
 
 | 模块 | 职责 | 对应旧版 |
 | --- | --- | --- |
 | `jscompat` | JS 数字转字符串、`Date` 宽容解析、JSON 键序、`localeCompare`、`encodeURIComponent` | 散在各处 |
-| `ledger/open` | 打开、PRAGMA、v1→v5 迁移、拒绝更高版本 | `db/open.js` |
+| `ledger/open` | 打开、PRAGMA、v1→v6 迁移、v5 一致备份、拒绝更高版本 | `db/open.js` |
 | `ledger/write` | 入库分支、文件停用、`ingest_runs`、重新计价、legacy 导入 | `db/write.js` |
 | `ledger/read` | 聚合、分组、时间桶、会话、来源、价格标记 | `db/read.js` |
 | `pricing` | 价表数据、规范化、分档、峰谷、计价、显示用舍入 | `pricing/*.js` |

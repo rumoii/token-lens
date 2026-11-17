@@ -60,6 +60,8 @@ discovery → adapters → ledger → queries → /api/v1 → dashboard
 | `source_file`, `parser_rev` | Log file and adapter revision (`PARSER_REV` in `src/core/adapters/index.js`) that last produced the row. Added in schema v4; `NULL` for rows not re-read since, which are never deactivated and count as revision 1. Bump an adapter's revision whenever its values, identities or times change. |
 | `price_version`, `cost_micros`, `price_source` | Money is integer micro-USD (USD × 1e6). |
 
+The rule to bump `PARSER_REV` for changed values, identities or times applies only to usage records; request timings use their own per-source `TIMING_REV` and never advance the usage revision.
+
 Invariants:
 
 - `gross_tokens = input + output + cache_read + cache_write`, with no overlap between the four. In SQL, sum each column and add the results, or wrap every column in `coalesce`; `sum(a + b + c + d)` returns NULL as soon as one row has a NULL field, which reads like "no data" instead of "one column is unknown". The cache-write split columns are a breakdown of `cache_write_tokens`, not a fifth kind: they must sum to it and never enter `gross_tokens` on their own.

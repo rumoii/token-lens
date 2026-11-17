@@ -17,6 +17,7 @@ import 'widgets/charts.dart';
 import 'widgets/date_range.dart';
 import 'widgets/filters.dart';
 import 'widgets/resource.dart';
+import 'widgets/timing.dart';
 
 String? projectName(String? key) {
   final parts = key
@@ -44,6 +45,7 @@ class DetailRow {
     this.costMicros,
     this.requestCount,
     this.eventGrossTokens,
+    this.timing,
     this.sub,
     this.drill,
     this.tools = const [],
@@ -52,6 +54,7 @@ class DetailRow {
   final int tokens;
   final List<int?> kinds;
   final int? costMicros, requestCount, eventGrossTokens;
+  final StatsTiming? timing;
   final String? sub;
   final (String, String)? drill;
   final List<String> tools;
@@ -128,6 +131,9 @@ List<DetailRow> detailRows(
             kinds: kinds,
             costMicros: cost,
             tools: tools.toList(),
+            // Percentiles cannot be merged from per-tool summaries. Rust returns
+            // the model's request distribution under the same filter/snapshot.
+            timing: e.value.first.modelTiming,
             sub: tools.map((id) => toolOf(id).name).join('、'),
             drill:
                 detail['model']!.isEmpty && e.key != null && e.key!.isNotEmpty
@@ -156,6 +162,7 @@ List<DetailRow> detailRows(
         ],
         costMicros: g.costMicros,
         tools: dim == 'tool' ? [g.key ?? ''] : [],
+        timing: g.timing,
         drill: detail[dim]!.isEmpty && g.key != null && g.key!.isNotEmpty
             ? (dim, g.key!)
             : null,
@@ -633,24 +640,48 @@ class _StatsDetailState extends State<StatsDetail> {
     );
   }
 
-  Widget rowName(DetailRow row) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      for (final id in row.tools) ...[
-        ToolTile(id, size: d['dim'] == 'tool' ? 24 : 16),
-        const SizedBox(width: 8),
-      ],
-      Flexible(
-        child: Text(
-          row.name,
-          overflow: TextOverflow.ellipsis,
-          style: p
-              .text(narrow ? 16 : 13, null, FontWeight.w500)
-              .copyWith(height: 1.5),
+  Widget rowName(DetailRow row) {
+    final name = Text(
+      row.name,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      style: p
+          .text(narrow ? 16 : 13, null, FontWeight.w500)
+          .copyWith(height: 1.5),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final id in row.tools.take(3)) ...[
+          ToolTile(id, size: d['dim'] == 'tool' ? 24 : 16),
+          const SizedBox(width: 8),
+        ],
+        if (row.tools.length > 3) ...[
+          Tooltip(
+            message: row.tools.map((id) => toolOf(id).name).join('、'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: p['fill-hover'],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '+${row.tools.length - 3}',
+                style: p.text(10, p.muted),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: d['dim'] == 'model'
+              ? Tooltip(message: row.name, child: name)
+              : name,
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
+
   Widget tableContent(({String kind, Object data})? snapshot) {
     final data = snapshot?.data;
     final detail = d, dim = snapshot?.kind ?? detail['dim']!;
@@ -659,9 +690,17 @@ class _StatsDetailState extends State<StatsDetail> {
         : dim == 'project'
         ? 22
         : dim == 'tool'
-        ? 20
+        ? 26
         : 16;
     final rows = detailRows(dim, data, detail);
+    final showTiming = dim == 'tool' || dim == 'model';
+    Widget timingStrip(DetailRow r, {bool turn = false}) => TimingStrip(
+      timing: r.timing,
+      turn: turn,
+      requestCount: r.requestCount ?? 0,
+      metricKey: (kind) =>
+          Key('detail-${turn ? 'turn-' : ''}${kind.name}-${r.id}'),
+    );
     num value(DetailRow r) => sortKey == 'cost'
         ? r.costMicros ?? -1
         : sortKey?.startsWith('k') == true
@@ -693,7 +732,7 @@ class _StatsDetailState extends State<StatsDetail> {
                 ? (r.eventGrossTokens! / r.requestCount!).round()
                 : null,
           );
-    Widget row(DetailRow r) {
+    Widget row(DetailRow r, {bool compact = false}) {
       final name = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -710,139 +749,173 @@ class _StatsDetailState extends State<StatsDetail> {
       return Semantics(
         button: r.drill != null,
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: narrow ? 8 : 0),
-          child: InkWell(
-            key: Key('detail-row-${r.id}'),
-            onTap: r.drill == null ? null : () => open(r),
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: narrow ? 12 : 10,
-              ),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: narrow
-                      ? BorderSide.none
-                      : BorderSide(
-                          width: LensPalette.hairline(context),
-                          color: p['line-soft'],
-                        ),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 0),
+          child: Material(
+            type: MaterialType.transparency,
+            clipBehavior: Clip.hardEdge,
+            child: InkWell(
+              key: Key('detail-row-${r.id}'),
+              onTap: r.drill == null ? null : () => open(r),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: compact ? 12 : 10,
                 ),
-              ),
-              child: narrow
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: name),
-                            token(
-                              r.tokens,
-                              style: p
-                                  .text(16, null, FontWeight.w600)
-                                  .copyWith(height: 1.5),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 12,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('约值 ', style: p.text(12.5, p.secondary)),
-                                money(r.costMicros),
-                              ],
-                            ),
-                            requests(r),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('平均每次 ', style: p.text(12.5, p.secondary)),
-                                average(r),
-                              ],
-                            ),
-                            Text(
-                              '占 ${percent(r)}',
-                              style: p.text(12.5, p.secondary),
-                            ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('读缓存 ', style: p.text(12.5, p.secondary)),
-                                token(r.kinds[2]),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(flex: nameFlex, child: name),
-                        Expanded(
-                          flex: 10,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: token(
-                              r.tokens,
-                              style: p.text(13, null, FontWeight.w600),
-                            ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: narrow
+                        ? BorderSide.none
+                        : BorderSide(
+                            width: LensPalette.hairline(context),
+                            color: p['line-soft'],
                           ),
-                        ),
-                        Expanded(
-                          flex: 10,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: money(r.costMicros),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 20,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    compact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SizedBox(
-                                width: 56,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(99),
-                                  child: LinearProgressIndicator(
-                                    value: share(r),
-                                    minHeight: 5,
-                                    color: p['clay'],
-                                    backgroundColor: p['fill-hover'],
+                              Row(
+                                children: [
+                                  Expanded(child: name),
+                                  token(
+                                    r.tokens,
+                                    style: p
+                                        .text(16, null, FontWeight.w600)
+                                        .copyWith(height: 1.5),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Wrap(
+                                spacing: 12,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '约值 ',
+                                        style: p.text(12.5, p.secondary),
+                                      ),
+                                      money(r.costMicros),
+                                    ],
+                                  ),
+                                  requests(r),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '平均每次 ',
+                                        style: p.text(12.5, p.secondary),
+                                      ),
+                                      average(r),
+                                    ],
+                                  ),
+                                  Text(
+                                    '占 ${percent(r)}',
+                                    style: p.text(12.5, p.secondary),
+                                  ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '读缓存 ',
+                                        style: p.text(12.5, p.secondary),
+                                      ),
+                                      token(r.kinds[2]),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(flex: nameFlex, child: name),
+                              Expanded(
+                                flex: 10,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: token(
+                                    r.tokens,
+                                    style: p.text(13, null, FontWeight.w600),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                percent(r),
-                                style: p
-                                    .text(12, p.secondary)
-                                    .copyWith(height: 1.4),
+                              Expanded(
+                                flex: 10,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: money(r.costMicros),
+                                ),
                               ),
+                              Expanded(
+                                flex: 20,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    SizedBox(
+                                      width: 56,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(99),
+                                        child: LinearProgressIndicator(
+                                          value: share(r),
+                                          minHeight: 5,
+                                          color: p['clay'],
+                                          backgroundColor: p['fill-hover'],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      percent(r),
+                                      style: p
+                                          .text(12, p.secondary)
+                                          .copyWith(height: 1.4),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              for (final k in r.kinds)
+                                Expanded(
+                                  flex: 11,
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: token(k),
+                                  ),
+                                ),
+                              for (final child in [requests(r), average(r)])
+                                Expanded(
+                                  flex: 12,
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: child,
+                                  ),
+                                ),
                             ],
                           ),
+                    if (showTiming && TimingStrip.hasSamples(r.timing))
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: 8,
+                          left: compact ? 0 : 36,
                         ),
-                        for (final k in r.kinds)
-                          Expanded(
-                            flex: 11,
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: token(k),
-                            ),
-                          ),
-                        for (final child in [requests(r), average(r)])
-                          Expanded(
-                            flex: 12,
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: child,
-                            ),
-                          ),
-                      ],
-                    ),
+                        child: timingStrip(r),
+                      ),
+                    if (showTiming && (r.timing?.turn?.turnCount ?? 0) > 0)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: 8,
+                          left: compact ? 0 : 36,
+                        ),
+                        child: timingStrip(r, turn: true),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -887,46 +960,57 @@ class _StatsDetailState extends State<StatsDetail> {
             ),
           )
         else if (narrow)
-          ...rows.map(row)
+          ...rows.map((r) => row(r, compact: true))
         else
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: LayoutBuilder(
-              builder: (context, box) => SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: math.max(860, box.maxWidth),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Row(
-                          children: [
-                            header(
-                              const {
-                                'date': '时间',
-                                'tool': '工具',
-                                'model': '模型',
-                                'project': '项目',
-                              }[dim]!,
-                              null,
-                              nameFlex,
-                            ),
-                            header('用量', 'v', 10),
-                            header('约值', 'cost', 10),
-                            header('占比', null, 20),
-                            for (var i = 0; i < 4; i++)
-                              header(['新输入', '输出', '读缓存', '写缓存'][i], 'k$i', 11),
-                            header('请求', null, 12),
-                            header('平均每次', null, 12),
-                          ],
+              builder: (context, box) {
+                if (showTiming && box.maxWidth < 860) {
+                  return Column(
+                    children: [for (final r in rows) row(r, compact: true)],
+                  );
+                }
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: math.max(860, box.maxWidth),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Row(
+                            children: [
+                              header(
+                                const {
+                                  'date': '时间',
+                                  'tool': '工具',
+                                  'model': '模型',
+                                  'project': '项目',
+                                }[dim]!,
+                                null,
+                                nameFlex,
+                              ),
+                              header('用量', 'v', 10),
+                              header('约值', 'cost', 10),
+                              header('占比', null, 20),
+                              for (var i = 0; i < 4; i++)
+                                header(
+                                  ['新输入', '输出', '读缓存', '写缓存'][i],
+                                  'k$i',
+                                  11,
+                                ),
+                              header('请求', null, 12),
+                              header('平均每次', null, 12),
+                            ],
+                          ),
                         ),
-                      ),
-                      ...rows.map(row),
-                    ],
+                        ...rows.map(row),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
         if (data is StatsTimeseries && (data.unallocated?.grossTokens ?? 0) > 0)
