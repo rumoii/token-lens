@@ -284,7 +284,8 @@ Future<void> main(List<String> args) async {
     throw const FormatException('Only --check is supported.');
   final root = File.fromUri(Platform.script).parent.parent;
   final notices = File.fromUri(root.uri.resolve('THIRD_PARTY_NOTICES.md'));
-  final original = notices.readAsStringSync();
+  // Checkouts with core.autocrlf turn LF into CRLF; compare and write with LF.
+  final original = notices.readAsStringSync().replaceAll('\r\n', '\n');
   final at = original.indexOf(marker);
   final prefix = at < 0
       ? '$original${original.endsWith('\n') ? '\n' : '\n\n'}'
