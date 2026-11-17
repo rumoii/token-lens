@@ -1,0 +1,172 @@
+name: Desktop release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check tag against pubspec
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+
+          tag = os.environ['RELEASE_TAG']
+          number = r'(?:0|[1-9][0-9]*)'
+          identifier = r'(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
+          pattern = rf'v({number}\.{number}\.{number}(?:-{identifier}(?:\.{identifier})*)?)'
+          match = re.fullmatch(pattern, tag)
+          if match is None:
+              raise SystemExit('Tag must be v<semantic version>, without build metadata.')
+          versions = re.findall(r'^version:\s*([^\s#]+)\s*(?:#.*)?$', Path('app/pubspec.yaml').read_text(encoding='utf-8'), re.MULTILINE)
+          if len(versions) != 1:
+              raise SystemExit('Expected exactly one version in app/pubspec.yaml.')
+          version = versions[0].split('+', 1)[0]
+          if match[1] != version:
+              raise SystemExit(f'Tag version {match[1]} does not match pubspec version {version}.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'version={version}\n')
+          PY
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows
+            archive: windows-x64
+            python: python
+          - os: macos-latest
+            target: macos
+            archive: macos
+            python: python3
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+      ARCHIVE_PLATFORM: ${{ matrix.archive }}
+      TOKEN_LENS_PREVIEW_DATA_DIR: ${{ runner.temp }}/token-lens-release-data
+      TOKEN_LENS_PREVIEW_HOME: ${{ runner.temp }}/token-lens-release-home
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: '1.98.0'
+
+      - name: Resolve locked Flutter dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build release
+        run: flutter build ${{ matrix.target }} --release --no-pub
+
+      - name: Check lockfiles
+        run: git diff --exit-code -- pubspec.lock rust/Cargo.lock
+
+      - name: Package Windows application
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $release = 'build/windows/x64/runner/Release'
+          if (-not (Test-Path "$release/token-lens.exe" -PathType Leaf)) {
+            throw 'Release executable is missing.'
+          }
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Compress-Archive -Path "$release/*" -DestinationPath "dist/token-lens-$env:RELEASE_VERSION-windows-x64.zip"
+
+      - name: Package macOS application
+        if: runner.os == 'macOS'
+        run: |
+          test -d 'build/macos/Build/Products/Release/Token Lens.app'
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent \
+            'build/macos/Build/Products/Release/Token Lens.app' \
+            "dist/token-lens-$RELEASE_VERSION-macos.zip"
+
+      - name: Write SHA-256 checksum
+        run: |
+          ${{ matrix.python }} - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+
+          archive = Path('dist') / f"token-lens-{os.environ['RELEASE_VERSION']}-{os.environ['ARCHIVE_PLATFORM']}.zip"
+          digest = hashlib.sha256()
+          with archive.open('rb') as source:
+              for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                  digest.update(chunk)
+          with archive.with_suffix('.zip.sha256').open('w', encoding='utf-8', newline='\n') as checksum:
+              checksum.write(f'{digest.hexdigest()}  {archive.name}\n')
+          PY
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.archive }}
+          path: app/dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  draft:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create draft release
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          sha256sum --check *.sha256
+          gh release create "$RELEASE_TAG" * --draft --verify-tag --title "$RELEASE_TAG"
