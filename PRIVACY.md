@@ -1,45 +1,57 @@
 # 隐私说明
 
-最后更新：2026-11-05
+最后更新：2026-11-17
 
-本工具 100% 在本地运行：不登录、不上传、零遥测。命令行版和桌面版（Windows、macOS）处理的数据相同。本文说明它处理哪些数据、数据放在哪里、如何删除。
-
-## Flutter 桌面应用
-
-`app/` 是 Flutter + Rust 桌面应用，Windows 程序名为 `token-lens.exe`，产品名与窗口标题为 `Token Lens`；macOS 应用名为 `Token Lens.app`，bundle id 为 `io.github.rumoii.token-lens`。统计模块只读客户端日志，将用量元数据写入独立应用目录的账本，不自动读取或迁移旧版 `~/.token-lens`。新闻启动先读取本地缓存，程序运行期间每 30 分钟刷新已启用来源，也可手动刷新；启动缓存过期与首次失败重试规则见 [specs/news.md](specs/news.md)「定时刷新」。来源服务器可以看到请求 IP 和 `TokenLens-News/0.1` User-Agent；请求不携带账户、凭据或用量数据。没有远程图片、模型摘要调用或遥测；AIHOT 来源的摘要由该来源生成。点击原文才交给系统浏览器访问该文章。
-
-应用账本、偏好、新闻缓存与 `news.lock` 位于系统应用支持目录下的 `data`（Windows 为 `%APPDATA%\Token Lens\Token Lens\data`）；不会自动读取或迁移旧新闻目录。开发测试使用 `TOKEN_LENS_PREVIEW_DATA_DIR` 指定隔离目录、`TOKEN_LENS_PREVIEW_HOME` 指定合成日志根；调试构建必须显式提供数据目录。新闻缓存只含来源条目和刷新时间，已读与收藏仅保存在本机；关闭应用后可以删除整个应用数据目录。应用通过进程内 Rust 库读取数据，不使用 WebView 或本地 HTTP 服务。下面各节描述旧版 Node/React/wry 的统计与数据目录契约。
+Token Lens 完全在本机运行：不登录、不上传、没有遥测。本文说明桌面应用（`app/`）处理哪些数据、什么时候联网、数据放在哪里、怎么删除。仓库里保留的旧版 Node/React 工具见文末[旧版](#旧版-nodereact-工具)一节。
 
 ## 处理的数据
 
-- 只读解析各客户端已经落盘的日志与数据库中的用量元数据：四类 token 计数（输入、输出、缓存读、缓存写）、模型名、时间、会话标识、项目路径（字段契约见 [specs/adapters.md](specs/adapters.md)）。
-- 不读取也不保存提示词、回复、代码、附件、凭据（见 [specs/features.md](specs/features.md)）。
-- 解析结果写入本地账本数据库（ledger.db）的 `usage_records` 等表：以 SHA-256 内容哈希幂等去重，金额以整数微美元存储。
+- 只读取各 AI 编程工具已经写在本机的日志和数据库里的用量元数据：四类 token 计数（新输入、输出、读缓存、写缓存）、模型名、时间、会话标识、项目路径，以及部分工具记录的请求耗时（字段契约见 [specs/adapters.md](specs/adapters.md)）。
+- 不读取也不保存提示词、回复、代码、附件和凭据。
+- 不修改、不删除这些工具的任何文件。
+- 读到的用量写进本机的账本数据库 `ledger.db`。同一条记录重复读取不会重复计数；记录只更新不删除，保留修订轨迹。
 
-## 数据传输
+## 什么时候联网
 
-- 无上传、无遥测、无账号、无第三方分析。
-- 本地服务只监听 127.0.0.1；`/api/*` 需要 bearer 令牌；拒绝非回环 Host 请求；不下发 CORS 头。桌面版的窗口同样通过 `http://127.0.0.1:3456` 访问这个本地服务。
-- 汇率只支持 USD/CNY；只有用户明确点击设置页的「更新汇率」按钮才请求外部汇率接口。页面加载、后台同步与定时器都不会触发该请求。
-- 桌面版窗口里点开的外部链接交给系统默认浏览器打开，窗口本身只显示本地页面。
-- 桌面版窗口使用系统自带的 Microsoft Edge WebView2 运行时。WebView2 自身的更新与诊断数据遵循 Windows 和 Microsoft Edge 的设置，不由本工具控制。macOS 桌面版使用系统自带的 WKWebView（WebKit），同样遵循 macOS 的设置。
+Token Lens 只在下面两种情况下联网，请求都不带账号、凭据或用量数据：
 
-## 数据保留与删除
+- **AI 热点**：程序开着时每 30 分钟刷新一次已启用的新闻来源，也可以手动刷新；启动时如果本地缓存已超过 30 分钟，会立即刷新一次。每个来源只请求一个固定地址，来源服务器能看到你的 IP 和固定的 User-Agent `TokenLens-News/0.1`。不加载远程图片，不调用任何模型。来源清单和请求规则见 [specs/news.md](specs/news.md)。在「管理来源」里可以停用任意来源。
+- **汇率**：只有在「价格与设置」里点「更新汇率」时，才向 `open.er-api.com` 请求一次美元兑人民币汇率。打开页面、同步和定时器都不会触发。
 
-- 全部数据都在数据目录内（默认 `~/.token-lens`）：账本数据库 `ledger.db` 与 API 令牌文件 `api-token`；采集与同步期间另有独立互斥数据库 `sync-lock.db`（基于 SQLite 写事务锁，释放时不删除）。
-- 桌面版还会在数据目录里写入：
-  - `logs/kernel.log`：本地服务的控制台输出，包括数据目录路径、端口、本机局域网 IP（只用于提示「不提供局域网访问」）、每次同步的新增条数，以及读取失败时客户端日志文件的路径和错误信息，不含提示词或回复；每个文件最多 5MiB，连同 `.1`、`.2` 最多保留三份。
-  - `webview/`（仅 Windows）：窗口的浏览器数据，包括看板设置（主题、周期、货币等）和页面缓存。macOS 上这部分由系统 WebKit 存在 `~/Library/WebKit/io.github.rumoii.token-lens` 和 `~/Library/Caches/io.github.rumoii.token-lens`。
-- 桌面版的程序文件解压在 `%LOCALAPPDATA%\token-lens-app\<版本>\`，只有程序，没有用量数据。新版本解压到新目录，旧目录不会自动删除。macOS 桌面版的程序就是拖进「应用程序」的 `Token Lens.app`，另外在 `~/Library/Application Support/token-lens-app/` 留一个单实例锁文件。
-- 记录只更新不删除：每次修订都保留版本轨迹（revision / active / superseded_by），用于追溯同一记录的演变。
-- 要彻底删除数据，删掉整个数据目录即可（演示环境的数据目录，例如 `/tmp/token-lens-demo`，同理）。不再使用 Windows 桌面版时，再删掉 `%LOCALAPPDATA%\token-lens-app\` 和 exe 本身；不再使用 macOS 桌面版时，删掉 `Token Lens.app`、`~/Library/Application Support/token-lens-app/` 和上面两个 WebKit 目录。
+点开新闻原文或价格来源链接时，交给系统默认浏览器打开。统计和同步本身从不联网。
 
-## 用户可控项
+## 本机保存的文件
 
-- 数据目录裁决顺序：`--data-dir` > `TOKEN_LENS_DATA_DIR` > `DB_PATH` > 默认 `~/.token-lens`；`DB_PATH` 与 `--data-dir`/`TOKEN_LENS_DATA_DIR` 指向不同目录时报错而不是猜测（`src/core/paths.js`）。桌面版同样按这个顺序取环境变量。
-- 命令行版的采集是手动的：`npm run collect`。
-- 定时同步每 5 分钟一次，但只在 serve 运行期间存在：命令行版不启动 serve、桌面版不开窗口，就没有任何后台行为。桌面版关窗即退出，没有托盘、后台进程或开机自启。
-- `api-token` 被删除后，下一次启动会重新生成。
+所有数据都在系统应用支持目录下的 `data` 文件夹里：
+
+- Windows：`%APPDATA%\Token Lens\Token Lens\data`
+- macOS：`~/Library/Application Support/io.github.rumoii.token-lens/data`
+
+| 文件 | 内容 |
+| --- | --- |
+| `ledger.db`（以及 `-wal`、`-shm`） | 用量账本和请求计时 |
+| `ledger-v5-<日期>-….db` | 账本结构升级前自动保存的一致备份，只在从旧结构升级时出现 |
+| `ui-preferences.json` | 界面偏好：外观、数字单位、货币、汇率、上次选的时段等 |
+| `news-cache.json` | 新闻条目、各来源的刷新时间、你停用的来源 |
+| `news-state.json` | 你标的已读和收藏（收藏保存一份条目副本）；标记过才会出现 |
+| `news.lock`、`sync-lock.db` | 防止两个进程同时写入的锁 |
+| `logs/token-lens-<日期>.log` | 运行日志：每次同步的开始、结束和计数，以及错误。读取某个日志文件失败时会记下那个文件的路径。不含提示词、回复或用量明细。每天一个文件，每个最多 5 MiB，保留 7 天。 |
+
+程序文件就在你解压的位置（Windows 的文件夹，或 macOS 的 `Token Lens.app`），里面没有用量数据。
+
+在「价格与设置」里点「导出诊断日志」时，会生成一个文本文件，由你决定发给谁。它包含应用和系统版本、最近 10 次同步的结果和异常、各工具找到的日志文件数和路径、最近 7 天的运行日志；不包含账本和任何对话内容，路径里的用户目录写成 `~`。
+
+## 删除
+
+关掉 Token Lens，删掉上面的 `data` 文件夹，数据就全部清除；再删掉程序文件夹或 `Token Lens.app`，就卸载干净了。
+
+## 后台行为
+
+窗口打开时同步一次，开着时每 5 分钟同步一次，也可以手动点「同步用量」。关掉窗口程序就退出：没有托盘、后台进程或开机自启。
+
+## 旧版 Node/React 工具
+
+仓库里保留的旧版（`src/core/`、`dashboard/`、`desktop/`）同样只读本机日志、不上传。它的数据目录默认是 `~/.token-lens`（可用 `--data-dir`、`TOKEN_LENS_DATA_DIR` 或 `DB_PATH` 指定），里面有账本 `ledger.db`、本地看板的访问令牌 `api-token` 和同步锁 `sync-lock.db`。看板由只监听 127.0.0.1 的本地服务提供，`/api/*` 需要令牌，不接受非本机的 Host，不发 CORS 头。汇率同样只在点击「更新汇率」时请求。旧版的定时同步只在 `serve` 运行期间存在。删除数据就删掉整个数据目录。桌面应用从不读取 `~/.token-lens`。
 
 ## 联系方式
 

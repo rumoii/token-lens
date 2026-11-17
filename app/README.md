@@ -68,3 +68,12 @@ Windows release 的程序名为 `token-lens.exe`，产品名和窗口标题为 `
 4. 在启动旧桌面程序的进程里把 `TOKEN_LENS_PREVIEW_DATA_DIR` 设置为恢复目录的绝对路径，再启动完整的旧版构建目录。恢复不需要改动 `~/.token-lens`；保留原 v6 目录，以便恢复新版时继续使用。
 
 Windows 单实例互斥量为 `Local\TokenLens.Desktop`，重复启动仅激活类名为 `FLUTTER_RUNNER_WIN32_WINDOW`、标题为 `Token Lens` 的窗口。
+
+## 发布
+
+对外版本是 `pubspec.yaml` 里 `version` 的 `+` 前部分，按语义化版本编号；`+` 后的构建号不进入标签和包名。1.0 之前，加了新功能升第二位（0.1.0 → 0.2.0），只修问题升第三位（0.2.0 → 0.2.1）。首个公开版本是 0.1.0。
+
+1. 修改 `pubspec.yaml` 的 `version`，提交到 main。
+2. 在这个提交上打标签 `v<版本>`（例如 `v0.1.0`）并推送。
+3. `.github/workflows/release.yml` 先核对标签与 `pubspec.yaml` 的版本一致，不一致就失败；一致时在 GitHub 托管的 Windows、macOS runner 上构建，打成 `token-lens-<版本>-windows-x64.zip`（Release 目录的全部内容）和 `token-lens-<版本>-macos.zip`（`Token Lens.app`），各附一个 `.sha256` 校验文件，然后建草稿 Release 并上传这四个文件。同一标签的 Release 已存在时失败，不覆盖。
+4. 检查草稿里的文件和说明，再在 GitHub 上手动发布。
