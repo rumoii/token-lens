@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1109765508;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1209786035;
 
 // Section: executor
 
@@ -950,6 +950,63 @@ fn wire__crate__api__stats__StatsClient_pricing_impl(
                     }
                     let api_that_guard = api_that_guard.unwrap();
                     let output_ok = crate::api::stats::StatsClient::pricing(&*api_that_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__stats__StatsClient_requests_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_requests",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_filter = <crate::api::stats::StatsFilter>::sse_decode(&mut deserializer);
+            let api_query = <crate::api::stats::StatsRequestQuery>::sse_decode(&mut deserializer);
+            let api_offset_minutes = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::requests(
+                        &*api_that_guard,
+                        api_filter,
+                        api_query,
+                        api_offset_minutes,
+                    )?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -1916,6 +1973,18 @@ impl SseDecode for Vec<crate::api::stats::StatsPriceTier> {
     }
 }
 
+impl SseDecode for Vec<crate::api::stats::StatsRequest> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsRequest>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::stats::StatsSessionItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2170,6 +2239,19 @@ impl SseDecode for Option<crate::api::stats::StatsPrices> {
     }
 }
 
+impl SseDecode for Option<crate::api::stats::StatsRequestSlow> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::stats::StatsRequestSlow>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::stats::StatsRun> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2394,6 +2476,7 @@ impl SseDecode for crate::api::stats::StatsAppliedFilter {
         let mut var_project = <Option<String>>::sse_decode(deserializer);
         let mut var_offsetMinutes = <i32>::sse_decode(deserializer);
         let mut var_sessionId = <Option<String>>::sse_decode(deserializer);
+        let mut var_bucket = <Option<String>>::sse_decode(deserializer);
         return crate::api::stats::StatsAppliedFilter {
             from: var_from,
             to: var_to,
@@ -2402,6 +2485,7 @@ impl SseDecode for crate::api::stats::StatsAppliedFilter {
             project: var_project,
             offset_minutes: var_offsetMinutes,
             session_id: var_sessionId,
+            bucket: var_bucket,
         };
     }
 }
@@ -2752,6 +2836,106 @@ impl SseDecode for crate::api::stats::StatsPricing {
             provisional: var_provisional,
             models: var_models,
             counts: var_counts,
+            snapshot: var_snapshot,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_observedAt = <String>::sse_decode(deserializer);
+        let mut var_source = <String>::sse_decode(deserializer);
+        let mut var_sessionId = <Option<String>>::sse_decode(deserializer);
+        let mut var_projectKey = <Option<String>>::sse_decode(deserializer);
+        let mut var_model = <Option<String>>::sse_decode(deserializer);
+        let mut var_inputTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_outputTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_cacheReadTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_cacheWriteTokens = <Option<i64>>::sse_decode(deserializer);
+        let mut var_costMicros = <Option<i64>>::sse_decode(deserializer);
+        let mut var_costUsd = <Option<String>>::sse_decode(deserializer);
+        let mut var_unpricedRecords = <i64>::sse_decode(deserializer);
+        let mut var_priceState = <String>::sse_decode(deserializer);
+        let mut var_scope = <Option<String>>::sse_decode(deserializer);
+        let mut var_status = <Option<String>>::sse_decode(deserializer);
+        let mut var_ttftMs = <Option<i64>>::sse_decode(deserializer);
+        let mut var_speedTps = <Option<f64>>::sse_decode(deserializer);
+        let mut var_throughputTps = <Option<f64>>::sse_decode(deserializer);
+        return crate::api::stats::StatsRequest {
+            id: var_id,
+            observed_at: var_observedAt,
+            source: var_source,
+            session_id: var_sessionId,
+            project_key: var_projectKey,
+            model: var_model,
+            input_tokens: var_inputTokens,
+            output_tokens: var_outputTokens,
+            cache_read_tokens: var_cacheReadTokens,
+            cache_write_tokens: var_cacheWriteTokens,
+            cost_micros: var_costMicros,
+            cost_usd: var_costUsd,
+            unpriced_records: var_unpricedRecords,
+            price_state: var_priceState,
+            scope: var_scope,
+            status: var_status,
+            ttft_ms: var_ttftMs,
+            speed_tps: var_speedTps,
+            throughput_tps: var_throughputTps,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsRequestQuery {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_source = <Option<String>>::sse_decode(deserializer);
+        let mut var_sessionId = <Option<String>>::sse_decode(deserializer);
+        let mut var_bucket = <Option<String>>::sse_decode(deserializer);
+        let mut var_timedOnly = <bool>::sse_decode(deserializer);
+        let mut var_sort = <String>::sse_decode(deserializer);
+        let mut var_descending = <bool>::sse_decode(deserializer);
+        let mut var_limit = <i64>::sse_decode(deserializer);
+        let mut var_offset = <i64>::sse_decode(deserializer);
+        let mut var_includeSummary = <bool>::sse_decode(deserializer);
+        return crate::api::stats::StatsRequestQuery {
+            source: var_source,
+            session_id: var_sessionId,
+            bucket: var_bucket,
+            timed_only: var_timedOnly,
+            sort: var_sort,
+            descending: var_descending,
+            limit: var_limit,
+            offset: var_offset,
+            include_summary: var_includeSummary,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsRequestSlow {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ttftMs = <Option<i64>>::sse_decode(deserializer);
+        let mut var_speedTps = <Option<f64>>::sse_decode(deserializer);
+        return crate::api::stats::StatsRequestSlow {
+            ttft_ms: var_ttftMs,
+            speed_tps: var_speedTps,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsRequests {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_items = <Vec<crate::api::stats::StatsRequest>>::sse_decode(deserializer);
+        let mut var_total = <Option<i64>>::sse_decode(deserializer);
+        let mut var_slow = <Option<crate::api::stats::StatsRequestSlow>>::sse_decode(deserializer);
+        let mut var_snapshot = <crate::api::stats::StatsSnapshot>::sse_decode(deserializer);
+        return crate::api::stats::StatsRequests {
+            items: var_items,
+            total: var_total,
+            slow: var_slow,
             snapshot: var_snapshot,
         };
     }
@@ -3403,38 +3587,39 @@ fn pde_ffi_dispatcher_primary_impl(
         16 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
         17 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
         18 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__stats__StatsClient_session_detail_impl(
+        19 => wire__crate__api__stats__StatsClient_requests_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__stats__StatsClient_session_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
+        21 => wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
+        22 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => {
+        28 => {
             wire__crate__api__stats__StatsClient_timeseries_impl(port, ptr, rust_vec_len, data_len)
         }
-        28 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__diagnostics__write_runtime_error_impl(
+        29 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__diagnostics__write_runtime_error_impl(
             port,
             ptr,
             rust_vec_len,
@@ -3620,6 +3805,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsAppliedFilter {
             self.project.into_into_dart().into_dart(),
             self.offset_minutes.into_into_dart().into_dart(),
             self.session_id.into_into_dart().into_dart(),
+            self.bucket.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4041,6 +4227,116 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsPricing>
     for crate::api::stats::StatsPricing
 {
     fn into_into_dart(self) -> crate::api::stats::StatsPricing {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsRequest {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.observed_at.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
+            self.session_id.into_into_dart().into_dart(),
+            self.project_key.into_into_dart().into_dart(),
+            self.model.into_into_dart().into_dart(),
+            self.input_tokens.into_into_dart().into_dart(),
+            self.output_tokens.into_into_dart().into_dart(),
+            self.cache_read_tokens.into_into_dart().into_dart(),
+            self.cache_write_tokens.into_into_dart().into_dart(),
+            self.cost_micros.into_into_dart().into_dart(),
+            self.cost_usd.into_into_dart().into_dart(),
+            self.unpriced_records.into_into_dart().into_dart(),
+            self.price_state.into_into_dart().into_dart(),
+            self.scope.into_into_dart().into_dart(),
+            self.status.into_into_dart().into_dart(),
+            self.ttft_ms.into_into_dart().into_dart(),
+            self.speed_tps.into_into_dart().into_dart(),
+            self.throughput_tps.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsRequest
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsRequest>
+    for crate::api::stats::StatsRequest
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsRequest {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsRequestQuery {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.source.into_into_dart().into_dart(),
+            self.session_id.into_into_dart().into_dart(),
+            self.bucket.into_into_dart().into_dart(),
+            self.timed_only.into_into_dart().into_dart(),
+            self.sort.into_into_dart().into_dart(),
+            self.descending.into_into_dart().into_dart(),
+            self.limit.into_into_dart().into_dart(),
+            self.offset.into_into_dart().into_dart(),
+            self.include_summary.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsRequestQuery
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsRequestQuery>
+    for crate::api::stats::StatsRequestQuery
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsRequestQuery {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsRequestSlow {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ttft_ms.into_into_dart().into_dart(),
+            self.speed_tps.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsRequestSlow
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsRequestSlow>
+    for crate::api::stats::StatsRequestSlow
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsRequestSlow {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsRequests {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.items.into_into_dart().into_dart(),
+            self.total.into_into_dart().into_dart(),
+            self.slow.into_into_dart().into_dart(),
+            self.snapshot.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsRequests
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsRequests>
+    for crate::api::stats::StatsRequests
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsRequests {
         self
     }
 }
@@ -4921,6 +5217,16 @@ impl SseEncode for Vec<crate::api::stats::StatsPriceTier> {
     }
 }
 
+impl SseEncode for Vec<crate::api::stats::StatsRequest> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsRequest>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::stats::StatsSessionItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5112,6 +5418,16 @@ impl SseEncode for Option<crate::api::stats::StatsPrices> {
     }
 }
 
+impl SseEncode for Option<crate::api::stats::StatsRequestSlow> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::stats::StatsRequestSlow>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::stats::StatsRun> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5286,6 +5602,7 @@ impl SseEncode for crate::api::stats::StatsAppliedFilter {
         <Option<String>>::sse_encode(self.project, serializer);
         <i32>::sse_encode(self.offset_minutes, serializer);
         <Option<String>>::sse_encode(self.session_id, serializer);
+        <Option<String>>::sse_encode(self.bucket, serializer);
     }
 }
 
@@ -5489,6 +5806,64 @@ impl SseEncode for crate::api::stats::StatsPricing {
         <bool>::sse_encode(self.provisional, serializer);
         <Vec<crate::api::stats::StatsModelPrice>>::sse_encode(self.models, serializer);
         <crate::api::stats::StatsPriceCounts>::sse_encode(self.counts, serializer);
+        <crate::api::stats::StatsSnapshot>::sse_encode(self.snapshot, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.observed_at, serializer);
+        <String>::sse_encode(self.source, serializer);
+        <Option<String>>::sse_encode(self.session_id, serializer);
+        <Option<String>>::sse_encode(self.project_key, serializer);
+        <Option<String>>::sse_encode(self.model, serializer);
+        <Option<i64>>::sse_encode(self.input_tokens, serializer);
+        <Option<i64>>::sse_encode(self.output_tokens, serializer);
+        <Option<i64>>::sse_encode(self.cache_read_tokens, serializer);
+        <Option<i64>>::sse_encode(self.cache_write_tokens, serializer);
+        <Option<i64>>::sse_encode(self.cost_micros, serializer);
+        <Option<String>>::sse_encode(self.cost_usd, serializer);
+        <i64>::sse_encode(self.unpriced_records, serializer);
+        <String>::sse_encode(self.price_state, serializer);
+        <Option<String>>::sse_encode(self.scope, serializer);
+        <Option<String>>::sse_encode(self.status, serializer);
+        <Option<i64>>::sse_encode(self.ttft_ms, serializer);
+        <Option<f64>>::sse_encode(self.speed_tps, serializer);
+        <Option<f64>>::sse_encode(self.throughput_tps, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsRequestQuery {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.source, serializer);
+        <Option<String>>::sse_encode(self.session_id, serializer);
+        <Option<String>>::sse_encode(self.bucket, serializer);
+        <bool>::sse_encode(self.timed_only, serializer);
+        <String>::sse_encode(self.sort, serializer);
+        <bool>::sse_encode(self.descending, serializer);
+        <i64>::sse_encode(self.limit, serializer);
+        <i64>::sse_encode(self.offset, serializer);
+        <bool>::sse_encode(self.include_summary, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsRequestSlow {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<i64>>::sse_encode(self.ttft_ms, serializer);
+        <Option<f64>>::sse_encode(self.speed_tps, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsRequests {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::stats::StatsRequest>>::sse_encode(self.items, serializer);
+        <Option<i64>>::sse_encode(self.total, serializer);
+        <Option<crate::api::stats::StatsRequestSlow>>::sse_encode(self.slow, serializer);
         <crate::api::stats::StatsSnapshot>::sse_encode(self.snapshot, serializer);
     }
 }

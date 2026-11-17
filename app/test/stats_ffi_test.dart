@@ -67,6 +67,53 @@ void main() {
     expect(codexSession.requestCount, 3);
     expect(codexSession.grossTokens, 600);
     expect(codexSession.eventGrossTokens, 600);
+    StatsRequestQuery requestQuery({
+      int offset = 0,
+      bool summary = true,
+      String? source,
+      String? session,
+    }) => StatsRequestQuery(
+      source: source,
+      sessionId: session,
+      timedOnly: false,
+      sort: 'time',
+      descending: true,
+      limit: 2,
+      offset: offset,
+      includeSummary: summary,
+    );
+    final firstRequests = await gateway.requestList(
+      const StatsFilter(source: 'codex'),
+      requestQuery(),
+    );
+    final moreRequests = await gateway.requestList(
+      const StatsFilter(source: 'codex'),
+      requestQuery(offset: 2, summary: false),
+    );
+    expect(firstRequests.total, 3);
+    expect(firstRequests.slow!.ttftMs, isNull);
+    expect(firstRequests.items.length, 2);
+    expect(moreRequests.total, isNull);
+    expect(moreRequests.slow, isNull);
+    final allRequests = [...firstRequests.items, ...moreRequests.items];
+    expect(allRequests.map((r) => r.id).toSet().length, 3);
+    expect(
+      allRequests.fold<int>(0, (sum, r) => sum + (r.inputTokens ?? 0)),
+      600,
+    );
+    expect(
+      allRequests.every(
+        (r) =>
+            r.ttftMs == null && r.speedTps == null && r.throughputTps == null,
+      ),
+      isTrue,
+    );
+    final lifetime = await gateway.requestList(
+      const StatsFilter(from: '2020-01-01', to: '2020-01-02'),
+      requestQuery(source: 'codex', session: 'integration-codex'),
+    );
+    expect(lifetime.total, 3);
+    expect(lifetime.snapshot.filters.sessionId, 'integration-codex');
     final detail = (await gateway.sessionDetail(
       'codex',
       'integration-codex',

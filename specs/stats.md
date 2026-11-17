@@ -127,6 +127,26 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 
 价表在 D3 期间有两份，JS 和 Rust 各一份。Rust 的单元测试固定 `PRICE_VERSION` 必须等于旧版的值；D4 之前改价必须两边一起改，测试会拦住只改了一边的情况。
 
+### 逐次请求列表
+
+`StatsClient::requests(filter, query, offset_minutes)` 从 `usage_records` 中读取 `kind='event'`、`active=1` 的行，LEFT JOIN `usage_timings`。`id` 是列表使用的 `record_key`；四项 token 与金额保留 NULL，不根据其他字段补零或重新计价。只记录 cumulative 总数的工具没有逐次请求，不进入列表。在相同筛选下，列表全部行的四项 token 分别等于事件部分的对应项，其和等于 `event_gross_tokens`，请求总数等于 `request_count`（没有事件时列表 total 为 0，汇总 request_count 可以是 NULL）。混合 cumulative 的筛选只对账事件部分。
+
+筛选复用账本的 `scope()` 和本地时区偏移。请求 FFI 支持时段、工具、模型、项目及月、日、小时桶；明细页请求列表与页面总计共用时间范围：月、日桶与当前时段取交集，小时桶沿用页面总计的时段范围，不单独限制到那一小时。`query.source` 与 `query.session_id` 必须同时提供；提供后按这对身份读取会话全部事件，忽略时段、桶、工具、模型、项目筛选。总数、门槛和当前页在一个读事务中取得，响应附带既有格式的 snapshot。
+
+- `ttft_ms` 有记录就返回，不受 status 限制。
+- `speed_tps = timing_output_tokens × 1000 / generation_ms`，只在 completed、generation_ms > 0 且 timing_output_tokens 非 NULL 时返回。
+- `throughput_tps` 同样要求 completed、duration_ms > 0 且有 timing_output_tokens，分母为 duration_ms，包含等待时间。
+- 排序字段为 time、cost、ttft、speed；speed 优先用生成速度，没有时用平均速度。NULL 在升降序中都排末；并列时按 observed_at 降序、record_key 升序，排序与分页在 SQL 中完成。
+- 慢门槛取整份筛选或整段会话中的 request 样本，使用 nearest rank：`sorted[ceil(p·n)−1]`。首字取 p90，值大于等于门槛标慢；生成速度升序取 p10，值小于等于门槛标慢。两项分别至少需要 10 个有效样本，否则门槛为 NULL。turn、平均速度不参与也不标慢；timed_only 不改变门槛样本。
+
+第一页传 `include_summary=true`，返回 total 和 slow。后续页传 false，两项返回 NULL，界面沿用第一页摘要。每页 30 条；换筛选、排序或计时勾选项均重取第一页。在“按请求”中选择工具、模型或项目保留请求维度、当前排序和计时勾选状态。`timed_only` 只保留首字、生成速度、平均速度中至少一项非 NULL 的请求。分页期间采集改变账本时，界面随账本版本重取第一页；不同调用之间不持有数据库快照。
+
+明细页“拆开看”提供“按请求”（地址 `dim=request`），宽布局显示时间、工具、模型、金额、四项 token、首字、速度；沿用明细页 860 的可用宽度判断，空间不足时使用两行排版和同款筛选式排序下拉，不横向滚动；工具名先占足宽度，长模型名单行省略并提供完整名称悬停。时间、金额、首字首次选择为降序，速度首次选择为升序，再选当前字段切换方向；宽窄布局共用状态。有会话编号的行支持鼠标点击和键盘回车，跳到 source/session 指定的会话，键盘焦点使用陶土色描边。没有会话编号的请求照常列出并计入合计，行不可点击或聚焦，不显示可点悬停效果，并提示“这次请求的日志里没有会话编号，打不开所在的会话。”。
+
+会话详情仅在 kinds.event > 0 时显示“概况 / 请求”，默认概况并保留原有内容。“请求”始终用两行排版，第一行显示时间、模型、金额；第二行和明细紧凑行一样，token 四项与“首字 / 速度”分成两组，计时组放不下时整组换行，组内按完整项目换行。排序使用紧凑胶囊。列表不受会话页时段筛选影响，行不可点击。两处列表的“—”统一使用浅色常规字重，分页剩余数与总数均使用千位分隔。
+
+两处共用数字格式、分页、缺失提示与慢门槛。token 沿用设置中的单位和精确值悬停提示，NULL 显示“—”；金额使用货币设置与汇率，三位小数，正数不足 0.001 时显示如 `<$0.001` 的金额，无价格显示“未定价”。首字为秒，速度保留一位小数；只有平均速度时显示小号“≈”及包含等待的说明。慢值使用警示褐色，并提供“比这里九成请求都慢”的悬停提示；turn 值提供整轮计时说明。缺失首字区分 Codex 从工具调用开始和日志未记录，缺失速度区分请求未正常结束和日志未记录生成时长。加载、出错及重试复用明细资源组件。
+
 ## 数据目录与采集
 
 - 统计账本：`<预览目录>/ledger.db`，锁文件是同目录的 `sync-lock.db`。预览目录沿用新闻用的规则（`TOKEN_LENS_PREVIEW_DATA_DIR` 或应用支持目录），D3 不读旧版的数据目录变量。
@@ -146,6 +166,7 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 | `breakdown` | `/usage/breakdown` | 总览、明细、来源、设置、会话 |
 | `sessions`、`session_detail` | `/sessions`、`/sessions/detail` | 总览、会话 |
 | `session_detail_in_period` | 桌面扩展 | 会话详情的时段汇总；`period` 使用同一 `StatsFilter`，`session` 与 day timeline 保留整个会话 |
+| `requests` | 桌面扩展 | 明细“按请求”、会话详情“请求”；第一页返回摘要，后续页只返回列表与 snapshot |
 | `sources` | `/sources` | 总览、来源、会话 |
 | `discovery` | `/discovery` | 引导 |
 | `pricing` | `/pricing` | 总览、设置 |

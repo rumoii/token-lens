@@ -94,6 +94,15 @@ Map<String, String> pageQuery(WidgetTester tester) => Uri.splitQueryString(
   (tester.state(find.byType(StatsPage)) as dynamic).query as String,
 );
 void main() {
+  testWidgets('请求维度显示计时勾选框和定稿副标题', (tester) async {
+    await mountDetail(
+      tester,
+      DetailGateway(),
+      query: 'period=month&view=detail&dim=request',
+    );
+    expect(find.text('只看有计时的'), findsOneWidget);
+    expect(find.text('每个请求一行，点一行打开它所在的会话。'), findsOneWidget);
+  });
   testWidgets('DetailView 地址筛选进入请求，可去掉标签', (tester) async {
     final fake = DetailGateway();
     await mountDetail(

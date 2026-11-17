@@ -19,6 +19,7 @@ import 'widgets/date_range.dart';
 import 'widgets/filters.dart';
 import 'widgets/resource.dart';
 import 'widgets/timing.dart';
+import 'widgets/request_log.dart';
 
 String bucketText(String bucket, [DateTime? now]) => usageBucket(bucket, now);
 
@@ -168,11 +169,13 @@ class StatsDetail extends StatefulWidget {
     required this.onQuery,
     required this.onHome,
     required this.onSettings,
+    this.onSessions,
   });
   final StatsController controller;
   final String query;
   final ValueChanged<String> onQuery;
   final VoidCallback onHome, onSettings;
+  final ValueChanged<Map<String, String>>? onSessions;
   @override
   State<StatsDetail> createState() => _StatsDetailState();
 }
@@ -266,6 +269,7 @@ class _StatsDetailState extends State<StatsDetail> {
         data: await c.gateway.matrix(a.granularity, 'source', filter),
       );
     });
+    if (detail['dim'] == 'request') return;
     table.read('$sk|${detail['dim']}', () async {
       if (detail['dim'] == 'date') {
         final a = await axis();
@@ -296,7 +300,11 @@ class _StatsDetailState extends State<StatsDetail> {
   void setFilter(String key, String value) => go({
     ...d,
     key: value,
-    'dim': value.isNotEmpty ? nextDim(key) : d['dim']!,
+    'dim': d['dim'] == 'request'
+        ? 'request'
+        : value.isNotEmpty
+        ? nextDim(key)
+        : d['dim']!,
   });
   Widget token(num? v, {TextStyle? style}) => TokenText(
     v,
@@ -1140,7 +1148,9 @@ class _StatsDetailState extends State<StatsDetail> {
     );
     final dim = d['dim']!,
         picked = bucketRange(d['bucket']!, period.range(c.clock()));
-    final filtered = dim == 'date'
+    final filtered = dim == 'request'
+        ? false
+        : dim == 'date'
         ? d['bucket']!.isNotEmpty
         : d[dim]!.isNotEmpty;
     return Column(
@@ -1197,7 +1207,11 @@ class _StatsDetailState extends State<StatsDetail> {
             children: [
               head(
                 '拆开看',
-                filtered ? '已经按这一项筛选了，换个拆法看看' : '点一行，把它加进筛选',
+                dim == 'request'
+                    ? '每个请求一行，点一行打开它所在的会话。'
+                    : filtered
+                    ? '已经按这一项筛选了，换个拆法看看'
+                    : '点一行，把它加进筛选',
                 action: LensSegmented(
                   options: {
                     'date':
@@ -1207,6 +1221,7 @@ class _StatsDetailState extends State<StatsDetail> {
                     'tool': '按工具',
                     'model': '按模型',
                     'project': '按项目',
+                    'request': '按请求',
                   },
                   value: dim,
                   onChanged: (v) {
@@ -1220,19 +1235,46 @@ class _StatsDetailState extends State<StatsDetail> {
                   small: true,
                 ),
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  table.ready ? 0 : 18,
-                  12,
-                  table.ready ? 0 : 18,
-                  18,
+              if (dim == 'request')
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, bottom: 18),
+                  child: RequestLog(
+                    controller: c,
+                    identity:
+                        '${period.query}|${d['tool']}|${d['model']}|${d['project']}|${d['bucket']}|${c.ledgerVersion}',
+                    filter: StatsFilter(
+                      from: picked?.from ?? period.range(c.clock()).from,
+                      to: picked?.to ?? period.range(c.clock()).to,
+                      source: d['tool']!.isEmpty ? null : d['tool'],
+                      model: d['model']!.isEmpty ? null : d['model'],
+                      project: d['project']!.isEmpty ? null : d['project'],
+                    ),
+                    onOpen: (r) {
+                      final sessionId = r.sessionId;
+                      if (sessionId != null) {
+                        widget.onSessions?.call({
+                          ...Uri.splitQueryString(period.query),
+                          'source': r.source,
+                          'session': sessionId,
+                        });
+                      }
+                    },
+                  ),
+                )
+              else
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    table.ready ? 0 : 18,
+                    12,
+                    table.ready ? 0 : 18,
+                    18,
+                  ),
+                  child: ResourceBlock(
+                    resource: table,
+                    rows: 5,
+                    builder: tableContent,
+                  ),
                 ),
-                child: ResourceBlock(
-                  resource: table,
-                  rows: 5,
-                  builder: tableContent,
-                ),
-              ),
             ],
           ),
         ),

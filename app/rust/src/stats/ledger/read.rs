@@ -4,6 +4,10 @@ use chrono::{Duration, NaiveDate};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+#[cfg(test)]
+#[path = "requests_tests.rs"]
+mod requests_tests;
+
 #[derive(Default)]
 pub(super) struct PruneCache {
     version: Option<i64>,
@@ -163,6 +167,80 @@ fn summarize_scope(records: &[Value]) -> Value {
 }
 
 impl Ledger {
+    pub fn requests(
+        &self,
+        filter: &Value,
+        timed_only: bool,
+        sort: &str,
+        descending: bool,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Value> {
+        let order = match sort {
+            "time" => "observed_at",
+            "cost" => "cost_micros",
+            "ttft" => "ttft_ms",
+            "speed" => "coalesce(speed_tps,throughput_tps)",
+            _ => return Err(Error("INVALID_PARAM: sort".into())),
+        };
+        if limit <= 0 || offset < 0 {
+            return Err(Error("INVALID_PARAM: pagination".into()));
+        }
+        // Count, thresholds and page must observe the same committed ledger.
+        let _snapshot = self.db.unchecked_transaction()?;
+        let (mut clause, mut args) = scope(self, filter)?;
+        if let Some(bucket) = filter["bucket"].as_str().filter(|s| !s.is_empty()) {
+            let granularity = match bucket.len() {
+                7 => "month",
+                10 => "day",
+                19 => "hour",
+                _ => return Err(Error("INVALID_PARAM: bucket".into())),
+            };
+            let expr = bucket_expr(
+                granularity,
+                filter["offsetMinutes"].as_i64().unwrap_or(0),
+                "observed_at",
+            )?;
+            clause.push_str(&format!(" AND {expr}=?"));
+            args.push(json!(bucket));
+        }
+        let speed = "CASE WHEN t.status='completed' AND t.generation_ms>0 AND t.timing_output_tokens IS NOT NULL THEN t.timing_output_tokens*1000.0/t.generation_ms END";
+        let throughput = "CASE WHEN t.status='completed' AND t.duration_ms>0 AND t.timing_output_tokens IS NOT NULL THEN t.timing_output_tokens*1000.0/t.duration_ms END";
+        let scoped = format!("SELECT * FROM usage_records WHERE {clause} AND kind='event'");
+        let projected = format!("SELECT u.record_key AS id,u.observed_at,u.source,u.session_id,u.project_key,u.model,u.input_tokens,u.output_tokens,u.cache_read_tokens,u.cache_write_tokens,u.cost_micros,u.price_version,u.price_source,(u.cost_micros IS NULL) AS unpriced_records,t.scope,t.status,t.ttft_ms,{speed} AS speed_tps,{throughput} AS throughput_tps FROM ({scoped}) u LEFT JOIN usage_timings t ON t.record_key=u.record_key");
+        let timed = if timed_only {
+            "WHERE ttft_ms IS NOT NULL OR speed_tps IS NOT NULL OR throughput_tps IS NOT NULL"
+        } else {
+            ""
+        };
+        let total_sql = if timed_only {
+            format!("SELECT count(*) AS total FROM ({projected}) {timed}")
+        } else {
+            format!("SELECT count(*) AS total FROM ({scoped})")
+        };
+        let include_summary = filter["include_summary"].as_bool().unwrap_or(true);
+        let total = if include_summary {
+            rows(&self.db, &total_sql, &args)?.remove(0)["total"].clone()
+        } else {
+            Value::Null
+        };
+        // Materialize only the two percentile samples, never the full request list.
+        // Counts exclude NULL independently; nearest rank uses ceil(p*n)-1.
+        let slow = if include_summary {
+            rows(&self.db, &format!("WITH samples AS MATERIALIZED (
+            SELECT t.ttft_ms,{speed} AS speed_tps FROM usage_timings t
+            JOIN ({scoped}) u ON u.record_key=t.record_key WHERE t.scope='request'
+        ), counts AS (SELECT count(ttft_ms) AS nt,count(speed_tps) AS ns FROM samples)
+        SELECT CASE WHEN nt>=10 THEN (SELECT ttft_ms FROM samples WHERE ttft_ms IS NOT NULL ORDER BY ttft_ms LIMIT 1 OFFSET (SELECT (nt*90+99)/100-1 FROM counts)) END AS ttft_ms,
+        CASE WHEN ns>=10 THEN (SELECT speed_tps FROM samples WHERE speed_tps IS NOT NULL ORDER BY speed_tps LIMIT 1 OFFSET (SELECT (ns+9)/10-1 FROM counts)) END AS speed_tps FROM counts"), &args)?.remove(0)
+        } else {
+            Value::Null
+        };
+        args.extend([json!(limit), json!(offset)]);
+        let direction = if descending { "DESC" } else { "ASC" };
+        let items = rows(&self.db, &format!("SELECT * FROM ({projected}) {timed} ORDER BY {order} {direction} NULLS LAST,observed_at DESC,id ASC LIMIT ? OFFSET ?"), &args)?;
+        Ok(json!({"items":items,"total":total,"slow":slow}))
+    }
     fn timing_rows(&self, filter: &Value) -> Result<Vec<Value>> {
         let (clause, args) = scope(self, filter)?;
         rows(&self.db,&format!("SELECT u.source,u.model,u.project_key,t.scope,t.ttft_ms,t.ttft_method,t.generation_ms,t.generation_method,t.duration_ms,t.duration_method,t.timing_output_tokens,t.status FROM (SELECT record_key,source,model,project_key FROM usage_records WHERE {clause} AND kind='event') u LEFT JOIN usage_timings t ON t.record_key=u.record_key"),&args)

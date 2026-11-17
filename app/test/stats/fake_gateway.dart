@@ -33,6 +33,20 @@ const zeroCounts = StatsCounts(
 
 class FakeStatsGateway implements StatsGateway {
   @override
+  Future<StatsRequests> requestList(
+    StatsFilter filter,
+    StatsRequestQuery query,
+  ) async {
+    await _read('requestList');
+    return StatsRequests(
+      items: const [],
+      total: query.includeSummary ? 0 : null,
+      slow: query.includeSummary ? const StatsRequestSlow() : null,
+      snapshot: demoSnapshot,
+    );
+  }
+
+  @override
   Future<String> exportDiagnostics(String directory) async =>
       '$directory/synthetic.txt';
   @override

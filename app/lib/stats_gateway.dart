@@ -7,6 +7,10 @@ abstract interface class StatsGateway {
   Future<StatsTimeseries> timeseries(String granularity, StatsFilter filter);
   Future<StatsMatrix> matrix(String granularity, String by, StatsFilter filter);
   Future<StatsBreakdown> breakdown(String by, StatsFilter filter);
+  Future<StatsRequests> requestList(
+    StatsFilter filter,
+    StatsRequestQuery query,
+  );
   Future<StatsSessions> sessions(
     StatsFilter filter, {
     int limit = 5,
@@ -32,6 +36,11 @@ class RustStatsGateway implements StatsGateway {
   RustStatsGateway(this.client);
   final StatsClient client;
   int get _offset => DateTime.now().timeZoneOffset.inMinutes;
+  @override
+  Future<StatsRequests> requestList(
+    StatsFilter filter,
+    StatsRequestQuery query,
+  ) => client.requests(filter: filter, query: query, offsetMinutes: _offset);
   @override
   Future<StatsSummary> summary(StatsFilter filter) =>
       client.summary(filter: filter, offsetMinutes: _offset);

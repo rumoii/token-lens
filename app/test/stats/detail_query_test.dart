@@ -3,6 +3,16 @@ import 'package:token_lens_app/stats/logic/detail_query.dart';
 import 'package:token_lens_app/stats/logic/period.dart';
 
 void main() {
+  test('请求维度读写往返，保留桶和筛选', () {
+    final query = detailSearch(const StatsPeriod('month'), {
+      'dim': 'request',
+      'tool': 'codex',
+      'bucket': '2026-11-09T08:00:00',
+    });
+    expect(readDetail(query)['dim'], 'request');
+    expect(readDetail(query)['bucket'], '2026-11-09T08:00:00');
+    expect(readDetail(query)['tool'], 'codex');
+  });
   group('detail-query.test.js', () {
     test('读写往返；空筛选和默认拆法不进地址', () {
       final text = detailSearch(const StatsPeriod('month'), {

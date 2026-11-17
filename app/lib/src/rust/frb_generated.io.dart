@@ -98,6 +98,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsPrices dco_decode_box_autoadd_stats_prices(dynamic raw);
 
   @protected
+  StatsRequestQuery dco_decode_box_autoadd_stats_request_query(dynamic raw);
+
+  @protected
+  StatsRequestSlow dco_decode_box_autoadd_stats_request_slow(dynamic raw);
+
+  @protected
   StatsRun dco_decode_box_autoadd_stats_run(dynamic raw);
 
   @protected
@@ -171,6 +177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<StatsPriceTier> dco_decode_list_stats_price_tier(dynamic raw);
 
   @protected
+  List<StatsRequest> dco_decode_list_stats_request(dynamic raw);
+
+  @protected
   List<StatsSessionItem> dco_decode_list_stats_session_item(dynamic raw);
 
   @protected
@@ -225,6 +234,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsPrices? dco_decode_opt_box_autoadd_stats_prices(dynamic raw);
+
+  @protected
+  StatsRequestSlow? dco_decode_opt_box_autoadd_stats_request_slow(dynamic raw);
 
   @protected
   StatsRun? dco_decode_opt_box_autoadd_stats_run(dynamic raw);
@@ -326,6 +338,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsPricing dco_decode_stats_pricing(dynamic raw);
+
+  @protected
+  StatsRequest dco_decode_stats_request(dynamic raw);
+
+  @protected
+  StatsRequestQuery dco_decode_stats_request_query(dynamic raw);
+
+  @protected
+  StatsRequestSlow dco_decode_stats_request_slow(dynamic raw);
+
+  @protected
+  StatsRequests dco_decode_stats_requests(dynamic raw);
 
   @protected
   StatsRetention dco_decode_stats_retention(dynamic raw);
@@ -488,6 +512,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsPrices sse_decode_box_autoadd_stats_prices(SseDeserializer deserializer);
 
   @protected
+  StatsRequestQuery sse_decode_box_autoadd_stats_request_query(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsRequestSlow sse_decode_box_autoadd_stats_request_slow(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsRun sse_decode_box_autoadd_stats_run(SseDeserializer deserializer);
 
   @protected
@@ -577,6 +611,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<StatsRequest> sse_decode_list_stats_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<StatsSessionItem> sse_decode_list_stats_session_item(
     SseDeserializer deserializer,
   );
@@ -645,6 +684,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsPrices? sse_decode_opt_box_autoadd_stats_prices(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsRequestSlow? sse_decode_opt_box_autoadd_stats_request_slow(
     SseDeserializer deserializer,
   );
 
@@ -772,6 +816,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsPricing sse_decode_stats_pricing(SseDeserializer deserializer);
+
+  @protected
+  StatsRequest sse_decode_stats_request(SseDeserializer deserializer);
+
+  @protected
+  StatsRequestQuery sse_decode_stats_request_query(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsRequestSlow sse_decode_stats_request_slow(SseDeserializer deserializer);
+
+  @protected
+  StatsRequests sse_decode_stats_requests(SseDeserializer deserializer);
 
   @protected
   StatsRetention sse_decode_stats_retention(SseDeserializer deserializer);
@@ -964,6 +1022,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_stats_request_query(
+    StatsRequestQuery self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_request_slow(
+    StatsRequestSlow self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_stats_run(
     StatsRun self,
     SseSerializer serializer,
@@ -1087,6 +1157,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_stats_request(
+    List<StatsRequest> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_stats_session_item(
     List<StatsSessionItem> self,
     SseSerializer serializer,
@@ -1173,6 +1249,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_stats_prices(
     StatsPrices? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_request_slow(
+    StatsRequestSlow? self,
     SseSerializer serializer,
   );
 
@@ -1340,6 +1422,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_stats_pricing(StatsPricing self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_request(StatsRequest self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_request_query(
+    StatsRequestQuery self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_request_slow(
+    StatsRequestSlow self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_requests(StatsRequests self, SseSerializer serializer);
 
   @protected
   void sse_encode_stats_retention(

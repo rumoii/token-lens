@@ -19,6 +19,7 @@ import 'widgets/primitives.dart';
 import 'widgets/resource.dart';
 import 'widgets/side_panel.dart';
 import 'widgets/timing.dart';
+import 'widgets/request_log.dart';
 
 String hm(String iso) => usageTime(iso);
 
@@ -783,6 +784,7 @@ class SessionDetail extends StatefulWidget {
 class _SessionDetailState extends State<SessionDetail> {
   late final detail = LensResource<StatsSessionDetail?>(changed);
   bool technical = false;
+  bool requestsTab = false;
   StatsController get c => widget.controller;
   LensPalette get p => LensPalette.of(context);
   void changed() {
@@ -822,6 +824,9 @@ class _SessionDetailState extends State<SessionDetail> {
   @override
   void didUpdateWidget(SessionDetail old) {
     super.didUpdateWidget(old);
+    if (old.source != widget.source || old.sessionId != widget.sessionId) {
+      requestsTab = false;
+    }
     if (old.controller != c) {
       old.controller.removeListener(refresh);
       c.addListener(refresh);
@@ -1421,10 +1426,41 @@ class _SessionDetailState extends State<SessionDetail> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) const SizedBox(height: 14),
-          children[i],
+        if (value.kinds.event > 0) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: LensSegmented(
+              key: const Key('session-tabs'),
+              small: true,
+              options: const {'overview': '概况', 'requests': '请求'},
+              value: requestsTab ? 'requests' : 'overview',
+              onChanged: (tab) =>
+                  setState(() => requestsTab = tab == 'requests'),
+              label: '',
+            ),
+          ),
+          const SizedBox(height: 14),
         ],
+        if (requestsTab && value.kinds.event > 0)
+          LensCard(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: RequestLog(
+                key: const Key('session-request-log'),
+                controller: c,
+                identity:
+                    '${widget.source}|${widget.sessionId}|${c.ledgerVersion}',
+                filter: const StatsFilter(),
+                source: widget.source,
+                sessionId: widget.sessionId,
+              ),
+            ),
+          )
+        else
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            children[i],
+          ],
       ],
     );
   }

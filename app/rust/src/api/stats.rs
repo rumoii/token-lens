@@ -23,6 +23,53 @@ pub struct StatsFilter {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsRequestQuery {
+    pub source: Option<String>,
+    pub session_id: Option<String>,
+    pub bucket: Option<String>,
+    pub timed_only: bool,
+    pub sort: String,
+    pub descending: bool,
+    pub limit: i64,
+    pub offset: i64,
+    pub include_summary: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsRequest {
+    pub id: String,
+    pub observed_at: String,
+    pub source: String,
+    pub session_id: Option<String>,
+    pub project_key: Option<String>,
+    pub model: Option<String>,
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub cache_read_tokens: Option<i64>,
+    pub cache_write_tokens: Option<i64>,
+    pub cost_micros: Option<i64>,
+    pub cost_usd: Option<String>,
+    pub unpriced_records: i64,
+    pub price_state: String,
+    pub scope: Option<String>,
+    pub status: Option<String>,
+    pub ttft_ms: Option<i64>,
+    pub speed_tps: Option<f64>,
+    pub throughput_tps: Option<f64>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsRequestSlow {
+    pub ttft_ms: Option<i64>,
+    pub speed_tps: Option<f64>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsRequests {
+    pub items: Vec<StatsRequest>,
+    pub total: Option<i64>,
+    pub slow: Option<StatsRequestSlow>,
+    pub snapshot: StatsSnapshot,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsTotals {
     pub gross_tokens: i64,
     pub input_tokens: Option<i64>,
@@ -78,6 +125,7 @@ pub struct StatsAppliedFilter {
     #[serde(rename = "offsetMinutes", default)]
     pub offset_minutes: i32,
     pub session_id: Option<String>,
+    pub bucket: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSummary {
@@ -695,6 +743,27 @@ impl StatsClient {
         })();
         self.state.log.ffi("breakdown", result)
     }
+    pub fn requests(
+        &self,
+        filter: StatsFilter,
+        query: StatsRequestQuery,
+        offset_minutes: i32,
+    ) -> Result<StatsRequests, String> {
+        let result = (|| {
+            let ledger = self.open()?;
+            let mut params = serde_json::to_value(filter).unwrap();
+            let mut options = serde_json::to_value(query).unwrap();
+            options["session_source"] = options.as_object_mut().unwrap().remove("source").unwrap();
+            params
+                .as_object_mut()
+                .unwrap()
+                .extend(options.as_object().unwrap().clone());
+            let value = service::requests(&ledger, &params, offset_minutes, &self.state.timezone)
+                .map_err(|e| e.to_string())?;
+            serde_json::from_value(value).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("requests", result)
+    }
     pub fn last_run(&self) -> Result<Option<StatsRun>, String> {
         let result = (|| {
             let value = self.open()?.last_run().map_err(|e| e.to_string())?;
@@ -897,6 +966,44 @@ impl StatsClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn requests_ffi_preserves_nulls_and_session_snapshot() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = StatsClient::new_with_fixed_clock(
+            temp.path().join("data").to_string_lossy().into(),
+            Some(temp.path().join("home").to_string_lossy().into()),
+            1768478400000,
+        )
+        .unwrap();
+        client.open().unwrap().batch(&[json!({"record_key":"r","source":"codex","session_id":"s","model":"unknown","observed_at":"2026-01-15T00:00:00.000Z","input_tokens":10})],None,None,&[],pricing::cost_of).unwrap();
+        let result = client
+            .requests(
+                StatsFilter {
+                    from: Some("2025-01-01".into()),
+                    ..Default::default()
+                },
+                StatsRequestQuery {
+                    source: Some("codex".into()),
+                    session_id: Some("s".into()),
+                    bucket: None,
+                    timed_only: false,
+                    sort: "time".into(),
+                    descending: true,
+                    limit: 30,
+                    offset: 0,
+                    include_summary: true,
+                },
+                480,
+            )
+            .unwrap();
+        assert_eq!(result.total, Some(1));
+        assert_eq!(result.items[0].output_tokens, None);
+        assert_eq!(result.items[0].cost_micros, None);
+        assert_eq!(result.items[0].unpriced_records, 1);
+        assert_eq!(result.snapshot.filters.session_id.as_deref(), Some("s"));
+        assert_eq!(result.snapshot.filters.offset_minutes, 480);
+        assert_eq!(result.snapshot.generated_at, "2026-01-15T12:00:00.000Z");
+    }
     #[test]
     fn d35_fixed_clock_covers_collection_and_queries() {
         let temp = tempfile::tempdir().unwrap();

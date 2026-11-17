@@ -285,6 +285,39 @@ pub fn sessions(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resul
     )
 }
 
+pub fn requests(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Result<Value> {
+    let session_scoped = !params["session_source"].is_null() || !params["session_id"].is_null();
+    let mut filter = if session_scoped {
+        let source = params["session_source"].as_str().unwrap_or("").trim();
+        let session = params["session_id"].as_str().unwrap_or("").trim();
+        if source.is_empty() || session.is_empty() {
+            return Err(super::Error(
+                "INVALID_PARAM: 需要同时给出 source 与 session_id".into(),
+            ));
+        }
+        json!({"source":source,"session":session,"session_id":session,"offsetMinutes":offset})
+    } else {
+        let mut filter = filter(params, offset)?;
+        filter["bucket"] = params["bucket"].clone();
+        filter
+    };
+    filter["include_summary"] = params["include_summary"].clone();
+    let mut result = ledger.requests(
+        &filter,
+        params["timed_only"].as_bool().unwrap_or(false),
+        params["sort"].as_str().unwrap_or("time"),
+        params["descending"].as_bool().unwrap_or(true),
+        params["limit"].as_i64().unwrap_or(30),
+        params["offset"].as_i64().unwrap_or(0),
+    )?;
+    for row in result["items"].as_array_mut().unwrap() {
+        row["cost_usd"] = money(&row["cost_micros"]);
+        row["price_state"] = pricing::classify_price(row["model"].as_str())["state"].clone();
+    }
+    result["snapshot"] = snapshot(ledger, &filter, tz);
+    Ok(result)
+}
+
 pub fn session_detail(
     ledger: &Ledger,
     params: &Value,

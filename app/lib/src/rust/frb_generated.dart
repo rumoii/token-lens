@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1109765508;
+  int get rustContentHash => 1209786035;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -166,6 +166,13 @@ abstract class RustLibApi extends BaseApi {
 
   Future<StatsPricing> crateApiStatsStatsClientPricing({
     required StatsClient that,
+  });
+
+  Future<StatsRequests> crateApiStatsStatsClientRequests({
+    required StatsClient that,
+    required StatsFilter filter,
+    required StatsRequestQuery query,
+    required int offsetMinutes,
   });
 
   Future<StatsSessionDetail?> crateApiStatsStatsClientSessionDetail({
@@ -932,6 +939,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "StatsClient_pricing", argNames: ["that"]);
 
   @override
+  Future<StatsRequests> crateApiStatsStatsClientRequests({
+    required StatsClient that,
+    required StatsFilter filter,
+    required StatsRequestQuery query,
+    required int offsetMinutes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_stats_filter(filter, serializer);
+          sse_encode_box_autoadd_stats_request_query(query, serializer);
+          sse_encode_i_32(offsetMinutes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_stats_requests,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiStatsStatsClientRequestsConstMeta,
+        argValues: [that, filter, query, offsetMinutes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStatsStatsClientRequestsConstMeta =>
+      const TaskConstMeta(
+        debugName: "StatsClient_requests",
+        argNames: ["that", "filter", "query", "offsetMinutes"],
+      );
+
+  @override
   Future<StatsSessionDetail?> crateApiStatsStatsClientSessionDetail({
     required StatsClient that,
     required String source,
@@ -954,7 +1003,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -1006,7 +1055,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1064,7 +1113,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1098,7 +1147,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1134,7 +1183,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1171,7 +1220,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1205,7 +1254,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1240,7 +1289,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1282,7 +1331,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1312,7 +1361,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1344,7 +1393,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1379,7 +1428,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1409,7 +1458,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1436,7 +1485,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1474,7 +1523,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1633,6 +1682,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsRequestQuery dco_decode_box_autoadd_stats_request_query(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_stats_request_query(raw);
+  }
+
+  @protected
+  StatsRequestSlow dco_decode_box_autoadd_stats_request_slow(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_stats_request_slow(raw);
+  }
+
+  @protected
   StatsRun dco_decode_box_autoadd_stats_run(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_stats_run(raw);
@@ -1776,6 +1837,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<StatsPriceTier> dco_decode_list_stats_price_tier(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_stats_price_tier).toList();
+  }
+
+  @protected
+  List<StatsRequest> dco_decode_list_stats_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_stats_request).toList();
   }
 
   @protected
@@ -1926,6 +1993,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsRequestSlow? dco_decode_opt_box_autoadd_stats_request_slow(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_stats_request_slow(raw);
+  }
+
+  @protected
   StatsRun? dco_decode_opt_box_autoadd_stats_run(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_stats_run(raw);
@@ -2055,8 +2128,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsAppliedFilter dco_decode_stats_applied_filter(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return StatsAppliedFilter(
       from: dco_decode_String(arr[0]),
       to: dco_decode_String(arr[1]),
@@ -2065,6 +2138,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       project: dco_decode_opt_String(arr[4]),
       offsetMinutes: dco_decode_i_32(arr[5]),
       sessionId: dco_decode_opt_String(arr[6]),
+      bucket: dco_decode_opt_String(arr[7]),
     );
   }
 
@@ -2333,6 +2407,80 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       models: dco_decode_list_stats_model_price(arr[4]),
       counts: dco_decode_stats_price_counts(arr[5]),
       snapshot: dco_decode_stats_snapshot(arr[6]),
+    );
+  }
+
+  @protected
+  StatsRequest dco_decode_stats_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 19)
+      throw Exception('unexpected arr length: expect 19 but see ${arr.length}');
+    return StatsRequest(
+      id: dco_decode_String(arr[0]),
+      observedAt: dco_decode_String(arr[1]),
+      source: dco_decode_String(arr[2]),
+      sessionId: dco_decode_opt_String(arr[3]),
+      projectKey: dco_decode_opt_String(arr[4]),
+      model: dco_decode_opt_String(arr[5]),
+      inputTokens: dco_decode_opt_CastedPrimitive_i_64(arr[6]),
+      outputTokens: dco_decode_opt_CastedPrimitive_i_64(arr[7]),
+      cacheReadTokens: dco_decode_opt_CastedPrimitive_i_64(arr[8]),
+      cacheWriteTokens: dco_decode_opt_CastedPrimitive_i_64(arr[9]),
+      costMicros: dco_decode_opt_CastedPrimitive_i_64(arr[10]),
+      costUsd: dco_decode_opt_String(arr[11]),
+      unpricedRecords: dco_decode_CastedPrimitive_i_64(arr[12]),
+      priceState: dco_decode_String(arr[13]),
+      scope: dco_decode_opt_String(arr[14]),
+      status: dco_decode_opt_String(arr[15]),
+      ttftMs: dco_decode_opt_CastedPrimitive_i_64(arr[16]),
+      speedTps: dco_decode_opt_box_autoadd_f_64(arr[17]),
+      throughputTps: dco_decode_opt_box_autoadd_f_64(arr[18]),
+    );
+  }
+
+  @protected
+  StatsRequestQuery dco_decode_stats_request_query(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return StatsRequestQuery(
+      source: dco_decode_opt_String(arr[0]),
+      sessionId: dco_decode_opt_String(arr[1]),
+      bucket: dco_decode_opt_String(arr[2]),
+      timedOnly: dco_decode_bool(arr[3]),
+      sort: dco_decode_String(arr[4]),
+      descending: dco_decode_bool(arr[5]),
+      limit: dco_decode_CastedPrimitive_i_64(arr[6]),
+      offset: dco_decode_CastedPrimitive_i_64(arr[7]),
+      includeSummary: dco_decode_bool(arr[8]),
+    );
+  }
+
+  @protected
+  StatsRequestSlow dco_decode_stats_request_slow(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return StatsRequestSlow(
+      ttftMs: dco_decode_opt_CastedPrimitive_i_64(arr[0]),
+      speedTps: dco_decode_opt_box_autoadd_f_64(arr[1]),
+    );
+  }
+
+  @protected
+  StatsRequests dco_decode_stats_requests(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return StatsRequests(
+      items: dco_decode_list_stats_request(arr[0]),
+      total: dco_decode_opt_CastedPrimitive_i_64(arr[1]),
+      slow: dco_decode_opt_box_autoadd_stats_request_slow(arr[2]),
+      snapshot: dco_decode_stats_snapshot(arr[3]),
     );
   }
 
@@ -2949,6 +3097,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsRequestQuery sse_decode_box_autoadd_stats_request_query(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_stats_request_query(deserializer));
+  }
+
+  @protected
+  StatsRequestSlow sse_decode_box_autoadd_stats_request_slow(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_stats_request_slow(deserializer));
+  }
+
+  @protected
   StatsRun sse_decode_box_autoadd_stats_run(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_stats_run(deserializer));
@@ -3168,6 +3332,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <StatsPriceTier>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_stats_price_tier(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<StatsRequest> sse_decode_list_stats_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StatsRequest>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_stats_request(deserializer));
     }
     return ans_;
   }
@@ -3427,6 +3605,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsRequestSlow? sse_decode_opt_box_autoadd_stats_request_slow(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_stats_request_slow(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   StatsRun? sse_decode_opt_box_autoadd_stats_run(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3655,6 +3846,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_project = sse_decode_opt_String(deserializer);
     var var_offsetMinutes = sse_decode_i_32(deserializer);
     var var_sessionId = sse_decode_opt_String(deserializer);
+    var var_bucket = sse_decode_opt_String(deserializer);
     return StatsAppliedFilter(
       from: var_from,
       to: var_to,
@@ -3663,6 +3855,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       project: var_project,
       offsetMinutes: var_offsetMinutes,
       sessionId: var_sessionId,
+      bucket: var_bucket,
     );
   }
 
@@ -3997,6 +4190,103 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       provisional: var_provisional,
       models: var_models,
       counts: var_counts,
+      snapshot: var_snapshot,
+    );
+  }
+
+  @protected
+  StatsRequest sse_decode_stats_request(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_observedAt = sse_decode_String(deserializer);
+    var var_source = sse_decode_String(deserializer);
+    var var_sessionId = sse_decode_opt_String(deserializer);
+    var var_projectKey = sse_decode_opt_String(deserializer);
+    var var_model = sse_decode_opt_String(deserializer);
+    var var_inputTokens = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_outputTokens = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_cacheReadTokens = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_cacheWriteTokens = sse_decode_opt_CastedPrimitive_i_64(
+      deserializer,
+    );
+    var var_costMicros = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_costUsd = sse_decode_opt_String(deserializer);
+    var var_unpricedRecords = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_priceState = sse_decode_String(deserializer);
+    var var_scope = sse_decode_opt_String(deserializer);
+    var var_status = sse_decode_opt_String(deserializer);
+    var var_ttftMs = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_speedTps = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_throughputTps = sse_decode_opt_box_autoadd_f_64(deserializer);
+    return StatsRequest(
+      id: var_id,
+      observedAt: var_observedAt,
+      source: var_source,
+      sessionId: var_sessionId,
+      projectKey: var_projectKey,
+      model: var_model,
+      inputTokens: var_inputTokens,
+      outputTokens: var_outputTokens,
+      cacheReadTokens: var_cacheReadTokens,
+      cacheWriteTokens: var_cacheWriteTokens,
+      costMicros: var_costMicros,
+      costUsd: var_costUsd,
+      unpricedRecords: var_unpricedRecords,
+      priceState: var_priceState,
+      scope: var_scope,
+      status: var_status,
+      ttftMs: var_ttftMs,
+      speedTps: var_speedTps,
+      throughputTps: var_throughputTps,
+    );
+  }
+
+  @protected
+  StatsRequestQuery sse_decode_stats_request_query(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_source = sse_decode_opt_String(deserializer);
+    var var_sessionId = sse_decode_opt_String(deserializer);
+    var var_bucket = sse_decode_opt_String(deserializer);
+    var var_timedOnly = sse_decode_bool(deserializer);
+    var var_sort = sse_decode_String(deserializer);
+    var var_descending = sse_decode_bool(deserializer);
+    var var_limit = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_offset = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_includeSummary = sse_decode_bool(deserializer);
+    return StatsRequestQuery(
+      source: var_source,
+      sessionId: var_sessionId,
+      bucket: var_bucket,
+      timedOnly: var_timedOnly,
+      sort: var_sort,
+      descending: var_descending,
+      limit: var_limit,
+      offset: var_offset,
+      includeSummary: var_includeSummary,
+    );
+  }
+
+  @protected
+  StatsRequestSlow sse_decode_stats_request_slow(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ttftMs = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_speedTps = sse_decode_opt_box_autoadd_f_64(deserializer);
+    return StatsRequestSlow(ttftMs: var_ttftMs, speedTps: var_speedTps);
+  }
+
+  @protected
+  StatsRequests sse_decode_stats_requests(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_items = sse_decode_list_stats_request(deserializer);
+    var var_total = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_slow = sse_decode_opt_box_autoadd_stats_request_slow(deserializer);
+    var var_snapshot = sse_decode_stats_snapshot(deserializer);
+    return StatsRequests(
+      items: var_items,
+      total: var_total,
+      slow: var_slow,
       snapshot: var_snapshot,
     );
   }
@@ -4739,6 +5029,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_stats_request_query(
+    StatsRequestQuery self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_stats_request_query(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_stats_request_slow(
+    StatsRequestSlow self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_stats_request_slow(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_stats_run(
     StatsRun self,
     SseSerializer serializer,
@@ -4966,6 +5274,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_stats_request(
+    List<StatsRequest> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_stats_request(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_stats_session_item(
     List<StatsSessionItem> self,
     SseSerializer serializer,
@@ -5186,6 +5506,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_stats_request_slow(
+    StatsRequestSlow? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_stats_request_slow(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_stats_run(
     StatsRun? self,
     SseSerializer serializer,
@@ -5401,6 +5734,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.project, serializer);
     sse_encode_i_32(self.offsetMinutes, serializer);
     sse_encode_opt_String(self.sessionId, serializer);
+    sse_encode_opt_String(self.bucket, serializer);
   }
 
   @protected
@@ -5618,6 +5952,66 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.provisional, serializer);
     sse_encode_list_stats_model_price(self.models, serializer);
     sse_encode_stats_price_counts(self.counts, serializer);
+    sse_encode_stats_snapshot(self.snapshot, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_request(StatsRequest self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.observedAt, serializer);
+    sse_encode_String(self.source, serializer);
+    sse_encode_opt_String(self.sessionId, serializer);
+    sse_encode_opt_String(self.projectKey, serializer);
+    sse_encode_opt_String(self.model, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.inputTokens, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.outputTokens, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.cacheReadTokens, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.cacheWriteTokens, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.costMicros, serializer);
+    sse_encode_opt_String(self.costUsd, serializer);
+    sse_encode_CastedPrimitive_i_64(self.unpricedRecords, serializer);
+    sse_encode_String(self.priceState, serializer);
+    sse_encode_opt_String(self.scope, serializer);
+    sse_encode_opt_String(self.status, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.ttftMs, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.speedTps, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.throughputTps, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_request_query(
+    StatsRequestQuery self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.source, serializer);
+    sse_encode_opt_String(self.sessionId, serializer);
+    sse_encode_opt_String(self.bucket, serializer);
+    sse_encode_bool(self.timedOnly, serializer);
+    sse_encode_String(self.sort, serializer);
+    sse_encode_bool(self.descending, serializer);
+    sse_encode_CastedPrimitive_i_64(self.limit, serializer);
+    sse_encode_CastedPrimitive_i_64(self.offset, serializer);
+    sse_encode_bool(self.includeSummary, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_request_slow(
+    StatsRequestSlow self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_CastedPrimitive_i_64(self.ttftMs, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.speedTps, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_requests(StatsRequests self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_stats_request(self.items, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.total, serializer);
+    sse_encode_opt_box_autoadd_stats_request_slow(self.slow, serializer);
     sse_encode_stats_snapshot(self.snapshot, serializer);
   }
 
@@ -6130,6 +6524,17 @@ class StatsClientImpl extends RustOpaque implements StatsClient {
 
   Future<StatsPricing> pricing() =>
       RustLib.instance.api.crateApiStatsStatsClientPricing(that: this);
+
+  Future<StatsRequests> requests({
+    required StatsFilter filter,
+    required StatsRequestQuery query,
+    required int offsetMinutes,
+  }) => RustLib.instance.api.crateApiStatsStatsClientRequests(
+    that: this,
+    filter: filter,
+    query: query,
+    offsetMinutes: offsetMinutes,
+  );
 
   Future<StatsSessionDetail?> sessionDetail({
     required String source,

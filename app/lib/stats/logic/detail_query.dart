@@ -52,7 +52,7 @@ Map<String, String> readDetail(String text) {
             RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:00:00$').hasMatch(bucket)
         ? bucket
         : '',
-    'dim': ['date', 'tool', 'model', 'project'].contains(q['dim'])
+    'dim': ['date', 'tool', 'model', 'project', 'request'].contains(q['dim'])
         ? q['dim']!
         : 'date',
   };

@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -51,6 +51,12 @@ abstract class StatsClient implements RustOpaqueInterface {
   );
 
   Future<StatsPricing> pricing();
+
+  Future<StatsRequests> requests({
+    required StatsFilter filter,
+    required StatsRequestQuery query,
+    required int offsetMinutes,
+  });
 
   Future<StatsSessionDetail?> sessionDetail({
     required String source,
@@ -141,6 +147,7 @@ class StatsAppliedFilter {
   final String? project;
   final int offsetMinutes;
   final String? sessionId;
+  final String? bucket;
 
   const StatsAppliedFilter({
     required this.from,
@@ -150,6 +157,7 @@ class StatsAppliedFilter {
     this.project,
     required this.offsetMinutes,
     this.sessionId,
+    this.bucket,
   });
 
   @override
@@ -160,7 +168,8 @@ class StatsAppliedFilter {
       model.hashCode ^
       project.hashCode ^
       offsetMinutes.hashCode ^
-      sessionId.hashCode;
+      sessionId.hashCode ^
+      bucket.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -173,7 +182,8 @@ class StatsAppliedFilter {
           model == other.model &&
           project == other.project &&
           offsetMinutes == other.offsetMinutes &&
-          sessionId == other.sessionId;
+          sessionId == other.sessionId &&
+          bucket == other.bucket;
 }
 
 class StatsBreakdown {
@@ -830,6 +840,194 @@ class StatsPricing {
           provisional == other.provisional &&
           models == other.models &&
           counts == other.counts &&
+          snapshot == other.snapshot;
+}
+
+class StatsRequest {
+  final String id;
+  final String observedAt;
+  final String source;
+  final String? sessionId;
+  final String? projectKey;
+  final String? model;
+  final int? inputTokens;
+  final int? outputTokens;
+  final int? cacheReadTokens;
+  final int? cacheWriteTokens;
+  final int? costMicros;
+  final String? costUsd;
+  final int unpricedRecords;
+  final String priceState;
+  final String? scope;
+  final String? status;
+  final int? ttftMs;
+  final double? speedTps;
+  final double? throughputTps;
+
+  const StatsRequest({
+    required this.id,
+    required this.observedAt,
+    required this.source,
+    this.sessionId,
+    this.projectKey,
+    this.model,
+    this.inputTokens,
+    this.outputTokens,
+    this.cacheReadTokens,
+    this.cacheWriteTokens,
+    this.costMicros,
+    this.costUsd,
+    required this.unpricedRecords,
+    required this.priceState,
+    this.scope,
+    this.status,
+    this.ttftMs,
+    this.speedTps,
+    this.throughputTps,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      observedAt.hashCode ^
+      source.hashCode ^
+      sessionId.hashCode ^
+      projectKey.hashCode ^
+      model.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cacheReadTokens.hashCode ^
+      cacheWriteTokens.hashCode ^
+      costMicros.hashCode ^
+      costUsd.hashCode ^
+      unpricedRecords.hashCode ^
+      priceState.hashCode ^
+      scope.hashCode ^
+      status.hashCode ^
+      ttftMs.hashCode ^
+      speedTps.hashCode ^
+      throughputTps.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsRequest &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          observedAt == other.observedAt &&
+          source == other.source &&
+          sessionId == other.sessionId &&
+          projectKey == other.projectKey &&
+          model == other.model &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cacheReadTokens == other.cacheReadTokens &&
+          cacheWriteTokens == other.cacheWriteTokens &&
+          costMicros == other.costMicros &&
+          costUsd == other.costUsd &&
+          unpricedRecords == other.unpricedRecords &&
+          priceState == other.priceState &&
+          scope == other.scope &&
+          status == other.status &&
+          ttftMs == other.ttftMs &&
+          speedTps == other.speedTps &&
+          throughputTps == other.throughputTps;
+}
+
+class StatsRequestQuery {
+  final String? source;
+  final String? sessionId;
+  final String? bucket;
+  final bool timedOnly;
+  final String sort;
+  final bool descending;
+  final int limit;
+  final int offset;
+  final bool includeSummary;
+
+  const StatsRequestQuery({
+    this.source,
+    this.sessionId,
+    this.bucket,
+    required this.timedOnly,
+    required this.sort,
+    required this.descending,
+    required this.limit,
+    required this.offset,
+    required this.includeSummary,
+  });
+
+  @override
+  int get hashCode =>
+      source.hashCode ^
+      sessionId.hashCode ^
+      bucket.hashCode ^
+      timedOnly.hashCode ^
+      sort.hashCode ^
+      descending.hashCode ^
+      limit.hashCode ^
+      offset.hashCode ^
+      includeSummary.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsRequestQuery &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          sessionId == other.sessionId &&
+          bucket == other.bucket &&
+          timedOnly == other.timedOnly &&
+          sort == other.sort &&
+          descending == other.descending &&
+          limit == other.limit &&
+          offset == other.offset &&
+          includeSummary == other.includeSummary;
+}
+
+class StatsRequestSlow {
+  final int? ttftMs;
+  final double? speedTps;
+
+  const StatsRequestSlow({this.ttftMs, this.speedTps});
+
+  @override
+  int get hashCode => ttftMs.hashCode ^ speedTps.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsRequestSlow &&
+          runtimeType == other.runtimeType &&
+          ttftMs == other.ttftMs &&
+          speedTps == other.speedTps;
+}
+
+class StatsRequests {
+  final List<StatsRequest> items;
+  final int? total;
+  final StatsRequestSlow? slow;
+  final StatsSnapshot snapshot;
+
+  const StatsRequests({
+    required this.items,
+    this.total,
+    this.slow,
+    required this.snapshot,
+  });
+
+  @override
+  int get hashCode =>
+      items.hashCode ^ total.hashCode ^ slow.hashCode ^ snapshot.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsRequests &&
+          runtimeType == other.runtimeType &&
+          items == other.items &&
+          total == other.total &&
+          slow == other.slow &&
           snapshot == other.snapshot;
 }
 
