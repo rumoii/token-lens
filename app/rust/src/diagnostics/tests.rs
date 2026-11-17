@@ -741,3 +741,40 @@ fn e2_export_truncates_latest_logs_and_marks_exact_bytes() {
     assert!(!text.contains("old-1"));
     assert!(text.ends_with("end-0\n"));
 }
+
+#[test]
+fn f1_cancelled_sync_is_one_info_and_other_errors_stay_errors() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let result = crate::stats::ingest::sync(
+        temp.path(),
+        &home,
+        &Environment::default(),
+        Clock::System,
+        &crate::stats::jscompat::LocalZone::System,
+        &std::sync::atomic::AtomicBool::new(true),
+    );
+    let log = RuntimeLog::new(temp.path(), Some(&home));
+    let result: Result<(), String> = result.map(|_| ()).map_err(|error| error.to_string());
+    assert_eq!(log.ffi("sync", result).unwrap_err(), "cancelled");
+    let file = temp.path().join(format!(
+        "logs/token-lens-{}.log",
+        Local::now().format("%Y-%m-%d")
+    ));
+    let text = fs::read_to_string(&file).unwrap();
+    let cancelled: Vec<_> = text
+        .lines()
+        .filter(|line| line.contains("cancelled"))
+        .collect();
+    assert_eq!(cancelled.len(), 1, "{text}");
+    assert!(cancelled[0].contains("INFO"), "{text}");
+    log.ffi::<()>("sync", Err("closed".into())).unwrap_err();
+    let text = fs::read_to_string(file).unwrap();
+    assert!(
+        text.lines().any(|line| line.contains("ERROR")
+            && line.contains("ffi")
+            && line.contains("sync: closed")),
+        "{text}"
+    );
+}

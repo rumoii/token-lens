@@ -158,55 +158,6 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
         const SizedBox(height: 4),
         Text('数字怎么显示，金额怎么算。', style: p.text(14, p.secondary)),
         gap(),
-        LensCard(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('诊断', style: p.text(15, null, FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text(
-                  '遇到统计不对、同步报错或者应用卡住时，导出一份诊断日志发给维护者。',
-                  style: p.text(12.5, p.muted),
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton(
-                  onPressed: exporting ? null : exportDiagnostics,
-                  child: Text(exporting ? '正在导出…' : '导出诊断日志'),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '包含：应用和系统版本、最近 10 次同步的结果和全部异常、各工具找到的日志文件数和路径、最近 7 天的运行日志。\n不包含：账本、任何对话内容。用户目录会显示成 ~。',
-                  style: p.text(12, p.muted),
-                ),
-                if (exportPath != null) ...[
-                  const SizedBox(height: 12),
-                  Semantics(
-                    liveRegion: true,
-                    child: SelectableText(
-                      '已保存到：$exportPath',
-                      style: p.text(13),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: openExportFolder,
-                    child: const Text('打开所在文件夹'),
-                  ),
-                ],
-                if (exportError != null) ...[
-                  const SizedBox(height: 12),
-                  Semantics(
-                    liveRegion: true,
-                    child: SelectableText(exportError!, style: p.text(13)),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        gap(),
         SettingsDisplay(controller: widget.controller),
         gap(),
         LensCard(
@@ -252,38 +203,90 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('诊断与关于', style: p.text(15, null, FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '遇到统计不对、同步报错或者应用卡住时，导出一份诊断日志发给维护者。',
+                      style: p.text(12.5, p.muted),
+                    ),
+                    const SizedBox(height: 14),
+                    LensFocusOutline(
+                      child: OutlinedButton(
+                        onPressed: exporting ? null : exportDiagnostics,
+                        child: Text(exporting ? '正在导出…' : '导出诊断日志'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '包含：应用和系统版本、最近 10 次同步的结果和全部异常、各工具找到的日志文件数和路径、最近 7 天的运行日志。\n不包含：账本、任何对话内容。用户目录会显示成 ~。',
+                      style: p.text(12, p.muted),
+                    ),
+                    if (exportPath != null) ...[
+                      const SizedBox(height: 12),
+                      Semantics(
+                        liveRegion: true,
+                        child: SelectableText(
+                          '已保存到：$exportPath',
+                          style: p.text(13),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      LensFocusOutline(
+                        child: OutlinedButton(
+                          onPressed: openExportFolder,
+                          child: const Text('打开所在文件夹'),
+                        ),
+                      ),
+                    ],
+                    if (exportError != null) ...[
+                      const SizedBox(height: 12),
+                      Semantics(
+                        liveRegion: true,
+                        child: SelectableText(exportError!, style: p.text(13)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               Semantics(
                 expanded: aboutOpen,
                 button: true,
-                child: InkWell(
-                  onTap: () => setState(() => aboutOpen = !aboutOpen),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 14,
-                    ),
-                    child: Row(
-                      children: [
-                        AnimatedRotation(
-                          turns: aboutOpen ? .25 : 0,
-                          duration: MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : const Duration(milliseconds: 140),
-                          child: Icon(
-                            Icons.chevron_right,
-                            size: 14,
-                            color: p.secondary,
+                child: LensFocusOutline(
+                  child: InkWell(
+                    onTap: () => setState(() => aboutOpen = !aboutOpen),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          AnimatedRotation(
+                            turns: aboutOpen ? .25 : 0,
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 140),
+                            child: Icon(
+                              Icons.chevron_right,
+                              size: 14,
+                              color: p.secondary,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            '关于这台电脑上的 Token Lens',
-                            style: p.text(13.5, p.secondary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '关于这台电脑上的 Token Lens',
+                              style: p.text(13.5, p.secondary),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

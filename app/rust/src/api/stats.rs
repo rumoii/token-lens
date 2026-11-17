@@ -597,15 +597,13 @@ impl StatsClient {
             .write("INFO", "sync", &format!("start trigger={trigger}"));
         let result = self.sync_inner();
         if let Err(error) = &result {
-            self.state.log.write(
-                if error == "cancelled" {
-                    "WARN"
-                } else {
-                    "ERROR"
-                },
-                "sync",
-                &format!("end {}", crate::diagnostics::error_kind(error)),
-            );
+            if error != "cancelled" {
+                self.state.log.write(
+                    "ERROR",
+                    "sync",
+                    &format!("end {}", crate::diagnostics::error_kind(error)),
+                );
+            }
         }
         self.state.log.ffi("sync", result)
     }

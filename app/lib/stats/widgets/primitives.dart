@@ -1,13 +1,119 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/palette.dart';
 import '../logic/tools.dart';
 import '../logic/format.dart';
 import 'motion.dart';
+
+final _inputModality = _LensInputModality();
+
+class _LensInputModality extends ChangeNotifier {
+  bool keyboard = false;
+
+  void subscribe(VoidCallback listener) {
+    if (!hasListeners) {
+      HardwareKeyboard.instance.addHandler(_key);
+      GestureBinding.instance.pointerRouter.addGlobalRoute(_pointer);
+    }
+    addListener(listener);
+  }
+
+  void unsubscribe(VoidCallback listener) {
+    removeListener(listener);
+    if (!hasListeners) {
+      HardwareKeyboard.instance.removeHandler(_key);
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_pointer);
+    }
+  }
+
+  void _set(bool value) {
+    if (keyboard == value) return;
+    keyboard = value;
+    notifyListeners();
+  }
+
+  bool _key(KeyEvent event) {
+    if (event is KeyDownEvent || event is KeyRepeatEvent) _set(true);
+    return false;
+  }
+
+  void _pointer(PointerEvent event) {
+    if (event is PointerDownEvent ||
+        event is PointerPanZoomStartEvent ||
+        event is PointerScrollEvent) {
+      _set(false);
+    }
+  }
+}
+
+class LensFocusOutline extends StatefulWidget {
+  const LensFocusOutline({super.key, required this.child, this.radius = 8});
+  final Widget child;
+  final double radius;
+  @override
+  State<LensFocusOutline> createState() => _LensFocusOutlineState();
+}
+
+class _LensFocusOutlineState extends State<LensFocusOutline> {
+  bool focused = false;
+  void inputChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _inputModality.subscribe(inputChanged);
+  }
+
+  @override
+  void dispose() {
+    _inputModality.unsubscribe(inputChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    canRequestFocus: false,
+    skipTraversal: true,
+    includeSemantics: false,
+    onFocusChange: (value) => setState(() => focused = value),
+    child: CustomPaint(
+      foregroundPainter: focused && _inputModality.keyboard
+          ? LensFocusRing(LensPalette.of(context)['clay'], widget.radius)
+          : null,
+      child: widget.child,
+    ),
+  );
+}
+
+class LensFocusRing extends CustomPainter {
+  const LensFocusRing(this.color, this.radius);
+  final Color color;
+  final double radius;
+  double get strokeWidth => 2;
+  double get offset => 2;
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      (Offset.zero & size).inflate(offset + strokeWidth / 2),
+      Radius.circular(radius + offset),
+    ),
+    Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth,
+  );
+  @override
+  bool shouldRepaint(LensFocusRing old) =>
+      old.color != color || old.radius != radius;
+}
 
 class LensCard extends StatefulWidget {
   const LensCard({
@@ -147,76 +253,78 @@ class LensButton extends StatelessWidget {
       label: label,
       enabled: onPressed != null,
       child: LensPressFeedback(
-        builder: (states) => TextButton(
-          statesController: states,
-          focusNode: focusNode,
-          onPressed: onPressed,
-          style: ButtonStyle(
-            minimumSize: WidgetStatePropertyAll(Size(0, h)),
-            padding: WidgetStatePropertyAll(
-              EdgeInsets.symmetric(
-                horizontal: size == 'link'
-                    ? 6
-                    : size == 'xs' || size == 'sidebar'
-                    ? 8
-                    : 12,
+        builder: (states) => LensFocusOutline(
+          child: TextButton(
+            statesController: states,
+            focusNode: focusNode,
+            onPressed: onPressed,
+            style: ButtonStyle(
+              minimumSize: WidgetStatePropertyAll(Size(0, h)),
+              padding: WidgetStatePropertyAll(
+                EdgeInsets.symmetric(
+                  horizontal: size == 'link'
+                      ? 6
+                      : size == 'xs' || size == 'sidebar'
+                      ? 8
+                      : 12,
+                ),
               ),
-            ),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            textStyle: WidgetStatePropertyAll(
-              p.text(
-                size == 'link'
-                    ? 12.5
-                    : size == 'sidebar'
-                    ? 12
-                    : size == 'xs'
-                    ? 11
-                    : size == 'sm'
-                    ? 12
-                    : 14,
-                null,
-                FontWeight.w500,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              textStyle: WidgetStatePropertyAll(
+                p.text(
+                  size == 'link'
+                      ? 12.5
+                      : size == 'sidebar'
+                      ? 12
+                      : size == 'xs'
+                      ? 11
+                      : size == 'sm'
+                      ? 12
+                      : 14,
+                  null,
+                  FontWeight.w500,
+                ),
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => variant == 'primary'
+                    ? p['clay']
+                    : states.contains(WidgetState.hovered)
+                    ? p['fill-active']
+                    : variant == 'ghost'
+                    ? LensPalette.transparent
+                    : p['fill-hover'],
+              ),
+              foregroundColor: WidgetStatePropertyAll(
+                variant == 'primary' ? p['text-inverse'] : p.secondary,
+              ),
+              overlayColor: WidgetStatePropertyAll(p['fill-hover']),
             ),
-            backgroundColor: WidgetStateProperty.resolveWith(
-              (states) => variant == 'primary'
-                  ? p['clay']
-                  : states.contains(WidgetState.hovered)
-                  ? p['fill-active']
-                  : variant == 'ghost'
-                  ? LensPalette.transparent
-                  : p['fill-hover'],
-            ),
-            foregroundColor: WidgetStatePropertyAll(
-              variant == 'primary' ? p['text-inverse'] : p.secondary,
-            ),
-            overlayColor: WidgetStatePropertyAll(p['fill-hover']),
-          ),
-          child: ExcludeSemantics(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null && !trailingIcon) ...[
-                  spinning
-                      ? LensLoop(
-                          duration: const Duration(seconds: 1),
-                          builder: (context, v) => Transform.rotate(
-                            angle: v * math.pi * 2,
-                            child: Icon(icon, size: 14),
-                          ),
-                        )
-                      : Icon(icon, size: 14),
-                  const SizedBox(width: 6),
+            child: ExcludeSemantics(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null && !trailingIcon) ...[
+                    spinning
+                        ? LensLoop(
+                            duration: const Duration(seconds: 1),
+                            builder: (context, v) => Transform.rotate(
+                              angle: v * math.pi * 2,
+                              child: Icon(icon, size: 14),
+                            ),
+                          )
+                        : Icon(icon, size: 14),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(label),
+                  if (icon != null && trailingIcon) ...[
+                    const SizedBox(width: 4),
+                    Icon(icon, size: 12),
+                  ],
                 ],
-                Text(label),
-                if (icon != null && trailingIcon) ...[
-                  const SizedBox(width: 4),
-                  Icon(icon, size: 12),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -342,6 +450,7 @@ class _LensSegmentedState extends State<LensSegmented>
           borderRadius: BorderRadius.circular(999),
         ),
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
             AnimatedBuilder(
               animation: step,
@@ -379,32 +488,34 @@ class _LensSegmentedState extends State<LensSegmented>
                     label: e.value,
                     selected: e.key == widget.value,
                     button: true,
-                    child: InkWell(
-                      onTap: () => widget.onChanged(e.key),
-                      borderRadius: BorderRadius.circular(999),
-                      child: SizedBox(
-                        width: width,
-                        height: height - 4,
-                        child: Center(
-                          child: e.key == 'custom'
-                              ? Tooltip(
-                                  message: '自定义',
-                                  child: Icon(
-                                    Icons.calendar_month_outlined,
-                                    size: 14,
-                                    color: p.muted,
+                    child: LensFocusOutline(
+                      child: InkWell(
+                        onTap: () => widget.onChanged(e.key),
+                        borderRadius: BorderRadius.circular(999),
+                        child: SizedBox(
+                          width: width,
+                          height: height - 4,
+                          child: Center(
+                            child: e.key == 'custom'
+                                ? Tooltip(
+                                    message: '自定义',
+                                    child: Icon(
+                                      Icons.calendar_month_outlined,
+                                      size: 14,
+                                      color: p.muted,
+                                    ),
+                                  )
+                                : Text(
+                                    e.value,
+                                    style: p.text(
+                                      12,
+                                      e.key == widget.value ? p.ink : p.muted,
+                                      e.key == widget.value
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                    ),
                                   ),
-                                )
-                              : Text(
-                                  e.value,
-                                  style: p.text(
-                                    12,
-                                    e.key == widget.value ? p.ink : p.muted,
-                                    e.key == widget.value
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  ),
-                                ),
+                          ),
                         ),
                       ),
                     ),
@@ -844,15 +955,17 @@ class _LensTextLinkState extends State<LensTextLink> {
     metrics.dispose();
     return Semantics(
       link: true,
-      child: InkWell(
-        onTap: widget.onTap,
-        onHover: (value) => setState(() => hovered = value),
-        child: CustomPaint(
-          foregroundPainter: LensLinkUnderline(
-            color: p['line-strong'],
-            baseline: baseline,
+      child: LensFocusOutline(
+        child: InkWell(
+          onTap: widget.onTap,
+          onHover: (value) => setState(() => hovered = value),
+          child: CustomPaint(
+            foregroundPainter: LensLinkUnderline(
+              color: p['line-strong'],
+              baseline: baseline,
+            ),
+            child: Text(widget.label, maxLines: 1, style: style),
           ),
-          child: Text(widget.label, maxLines: 1, style: style),
         ),
       ),
     );

@@ -80,40 +80,42 @@ class _OnboardingContentState extends State<OnboardingContent> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: p.smallShadow,
         ),
-        child: TextButton(
-          onPressed: onPressed,
-          style:
-              TextButton.styleFrom(
-                fixedSize: const Size.fromHeight(44),
-                minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 22),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: p['clay'],
-                foregroundColor: p['text-inverse'],
-                disabledBackgroundColor: p['clay'],
-                disabledForegroundColor: p['text-inverse'],
-                textStyle: p
-                    .text(16, null, FontWeight.w500)
-                    .copyWith(height: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        child: LensFocusOutline(
+          child: TextButton(
+            onPressed: onPressed,
+            style:
+                TextButton.styleFrom(
+                  fixedSize: const Size.fromHeight(44),
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: p['clay'],
+                  foregroundColor: p['text-inverse'],
+                  disabledBackgroundColor: p['clay'],
+                  disabledForegroundColor: p['text-inverse'],
+                  textStyle: p
+                      .text(16, null, FontWeight.w500)
+                      .copyWith(height: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ).copyWith(
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.hovered)
+                        ? p['clay-hover']
+                        : p['clay'],
+                  ),
                 ),
-              ).copyWith(
-                backgroundColor: WidgetStateProperty.resolveWith(
-                  (states) => states.contains(WidgetState.hovered)
-                      ? p['clay-hover']
-                      : p['clay'],
-                ),
-              ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label),
-              if (arrow) ...[
-                const SizedBox(width: 6),
-                const Icon(Icons.arrow_forward, size: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label),
+                if (arrow) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.arrow_forward, size: 14),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -181,11 +183,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                               ),
                             )
                           : ExcludeSemantics(
-                              child: SizedBox(
+                              child: BrandMark(
                                 key: const Key('onboarding-mark'),
-                                width: 48,
-                                height: 48,
-                                child: CustomPaint(painter: _OnboardingMark(p)),
+                                size: 48,
                               ),
                             ),
                     ),
@@ -507,32 +507,35 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                   child: Semantics(
                                     button: true,
                                     expanded: moreOpen,
-                                    child: InkWell(
-                                      onTap: () =>
-                                          setState(() => moreOpen = !moreOpen),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 18,
-                                          vertical: 12,
+                                    child: LensFocusOutline(
+                                      child: InkWell(
+                                        onTap: () => setState(
+                                          () => moreOpen = !moreOpen,
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              moreOpen
-                                                  ? Icons.expand_more
-                                                  : Icons.chevron_right,
-                                              size: 14,
-                                              color: p.secondary,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Flexible(
-                                              child: text(
-                                                '还有 $missingCount 个支持的工具没在这台电脑上找到',
-                                                13,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 12,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                moreOpen
+                                                    ? Icons.expand_more
+                                                    : Icons.chevron_right,
+                                                size: 14,
                                                 color: p.secondary,
                                               ),
-                                            ),
-                                          ],
+                                              const SizedBox(width: 6),
+                                              Flexible(
+                                                child: text(
+                                                  '还有 $missingCount 个支持的工具没在这台电脑上找到',
+                                                  13,
+                                                  color: p.secondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -697,41 +700,4 @@ class _OnboardingGlow extends CustomPainter {
 
   @override
   bool shouldRepaint(_OnboardingGlow oldDelegate) => clay != oldDelegate.clay;
-}
-
-class _OnboardingMark extends CustomPainter {
-  const _OnboardingMark(this.p);
-  final LensPalette p;
-  @override
-  void paint(Canvas canvas, Size size) {
-    // OnboardingPage Mark48 uses its own 24 x 24 SVG, not the sidebar mark.
-    canvas.scale(size.width / 24, size.height / 24);
-    final line = Paint()
-      ..color = p['line-strong']
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-    canvas.drawCircle(const Offset(12, 12), 8.5, line);
-    canvas.drawCircle(
-      const Offset(12, 12),
-      4.5,
-      Paint()
-        ..color = p['clay']
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-    canvas.drawCircle(const Offset(12, 12), 1.4, Paint()..color = p['clay']);
-    for (final points in [
-      (const Offset(12, 1.5), const Offset(12, 4.5)),
-      (const Offset(12, 19.5), const Offset(12, 22.5)),
-      (const Offset(1.5, 12), const Offset(4.5, 12)),
-      (const Offset(19.5, 12), const Offset(22.5, 12)),
-    ]) {
-      canvas.drawLine(points.$1, points.$2, line);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_OnboardingMark oldDelegate) =>
-      p.dark != oldDelegate.p.dark;
 }

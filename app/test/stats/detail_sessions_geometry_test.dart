@@ -36,7 +36,7 @@ void main() {
     await d.mountDetail(tester, d.DetailGateway(), width: 720, reduced: true);
     final row = find.byKey(const Key('detail-row-2026-11-09'));
     final card = find.ancestor(of: row, matching: find.byType(LensCard)).first;
-    final name = find.descendant(of: row, matching: find.text('11月9日 周一'));
+    final name = find.descendant(of: row, matching: find.text('今天'));
     final cardBox = tester.getRect(card), hit = tester.getRect(row);
     expect(tester.getTopLeft(name).dx, closeTo(cardBox.left + 18, .01));
     expect(hit.left, closeTo(cardBox.left + 8, .01));
@@ -45,17 +45,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(d.pageQuery(tester)['bucket'], '2026-11-09');
   });
-  testWidgets('FIX1 明细宽屏：负外边距扩展滚动区但保留文字锚点', (tester) async {
+  testWidgets('明细宽屏：列留在卡片内并保留文字锚点', (tester) async {
     await d.mountDetail(tester, d.DetailGateway(), reduced: true);
     final row = find.byKey(const Key('detail-row-2026-11-09'));
     final card = find.ancestor(of: row, matching: find.byType(LensCard)).first;
-    final scroll = find
-        .ancestor(of: row, matching: find.byType(SingleChildScrollView))
-        .first;
-    final name = find.descendant(of: row, matching: find.text('11月9日 周一'));
+    final name = find.descendant(of: row, matching: find.text('今天'));
     final cardBox = tester.getRect(card);
-    expect(tester.getRect(scroll).left, closeTo(cardBox.left + 8, .01));
-    expect(tester.getRect(scroll).right, closeTo(cardBox.right - 8, .01));
+    expect(tester.getRect(row).left, closeTo(cardBox.left + 8, .01));
+    expect(tester.getRect(row).right, closeTo(cardBox.right - 8, .01));
     expect(tester.getTopLeft(name).dx, closeTo(cardBox.left + 18, .01));
   });
   testWidgets('FIX1 价格链接：line-strong 下划线、baseline + 2、hover ink', (

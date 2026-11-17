@@ -76,7 +76,7 @@ class _StatsHomeState extends State<StatsHome> {
           color: p[value >= 0 ? 'clay-ink' : 'ok'],
         ),
         Text(
-          '${value.abs()}%',
+          percentage(value.abs() / 100),
           style: p.text(
             12.5,
             p[value >= 0 ? 'clay-ink' : 'ok'],
@@ -117,10 +117,12 @@ class _StatsHomeState extends State<StatsHome> {
       MouseRegion(
         onEnter: tool == null ? null : (_) => setState(() => highlight = tool),
         onExit: tool == null ? null : (_) => setState(() => highlight = null),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: child,
+        child: LensFocusOutline(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: child,
+          ),
         ),
       );
   Widget controls() => Wrap(
@@ -281,10 +283,17 @@ class _StatsHomeState extends State<StatsHome> {
         Text(toolOf(id).name, style: p.text(15, null, FontWeight.w700)),
       ],
     );
+    final emptyLedger =
+        c.sourcesReadSucceeded &&
+        data.sources.sources.every((source) => source.records == 0);
     final summary = <InlineSpan>[];
     if (totals.recordCount == 0) {
       summary.add(
-        TextSpan(text: '${period.label}还没有用量。换个时间范围看看，或者等工具产生新的日志后再同步。'),
+        TextSpan(
+          text: emptyLedger
+              ? '同步之后，这里会显示每个 AI 编程工具用了多少 token。'
+              : '${period.label}还没有用量。换个时间范围看看，或者等工具产生新的日志后再同步。',
+        ),
       );
     } else {
       if (period.period == 'all') {
@@ -388,23 +397,30 @@ class _StatsHomeState extends State<StatsHome> {
         if (totals.recordCount == 0)
           LensCard(
             child: EmptyState(
-              title: '${period.label}还没有用量',
-              hint: 'Token Lens 只统计已经写进日志的用量。可以换个时间范围，或者在工具里用一会儿再回来。',
+              title: emptyLedger ? '还没有任何用量' : '${period.label}还没有用量',
+              hint: emptyLedger
+                  ? 'Token Lens 读取 AI 编程工具的日志。去「工具来源」看看找到了哪些工具，或者立即同步。'
+                  : 'Token Lens 只统计已经写进日志的用量。可以换个时间范围，或者在工具里用一会儿再回来。',
               action: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   LensButton(
-                    label: '看本月',
+                    label: emptyLedger ? '立即同步' : '看本月',
                     size: 'sm',
-                    onPressed: () =>
-                        unawaited(c.setPeriod(const StatsPeriod('month'))),
+                    onPressed: emptyLedger
+                        ? () => unawaited(c.sync())
+                        : () => unawaited(
+                            c.setPeriod(const StatsPeriod('month')),
+                          ),
                   ),
                   const SizedBox(width: 8),
                   LensButton(
-                    label: '看全部',
+                    label: emptyLedger ? '看工具来源' : '看全部',
                     size: 'sm',
-                    onPressed: () =>
-                        unawaited(c.setPeriod(const StatsPeriod('all'))),
+                    onPressed: emptyLedger
+                        ? widget.onSources
+                        : () =>
+                              unawaited(c.setPeriod(const StatsPeriod('all'))),
                   ),
                 ],
               ),
@@ -528,7 +544,7 @@ class _StatsHomeState extends State<StatsHome> {
     );
     String percent(int n) {
       final ratio = n / math.max(1, total.grossTokens);
-      return '${(ratio * 100).toStringAsFixed(ratio < .1 ? 1 : 0)}%';
+      return percentage(ratio);
     }
 
     final distribution = Column(
@@ -579,9 +595,7 @@ class _StatsHomeState extends State<StatsHome> {
                     ToolTile(g.id, size: 28),
                     const SizedBox(width: 12),
                     SizedBox(
-                      width: narrow
-                          ? math.max(0, box.maxWidth - 168)
-                          : (box.maxWidth - 278).clamp(0.0, 150.0),
+                      width: narrow ? math.max(0, box.maxWidth - 168) : 108.0,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -666,7 +680,7 @@ class _StatsHomeState extends State<StatsHome> {
       padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 155),
-        child: large
+        child: large && MediaQuery.sizeOf(context).width >= 1200
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -807,9 +821,11 @@ class _StatsHomeState extends State<StatsHome> {
             ),
           ),
           Text(
-            busy == null
-                ? ''
-                : '${nt(busy.total)} token，占今天的 ${(busy.total / math.max(1, totals.grossTokens) * 100).round()}%',
+            keepTailTogether(
+              busy == null
+                  ? ''
+                  : '${nt(busy.total)} token，占今天的 ${percentage(busy.total / math.max(1, totals.grossTokens))}',
+            ),
             style: p.text(12, p.muted),
           ),
         ),
@@ -949,7 +965,10 @@ class _StatsHomeState extends State<StatsHome> {
                       ),
                   ],
                 )
-              : Text('最长连续 $streak 天', style: p.text(12, p.muted)),
+              : Text(
+                  keepTailTogether('最长连续 $streak 天'),
+                  style: p.text(12, p.muted),
+                ),
         ),
       );
     }
@@ -970,7 +989,7 @@ class _StatsHomeState extends State<StatsHome> {
             : Tooltip(
                 message: '工具重复发送的上下文命中缓存时，按缓存价而不是输入价计费。这里是两者的差额，按公开价估算。',
                 child: Text(
-                  ratio == null ? '—' : '${(ratio * 100).round()}% 的输入走了缓存',
+                  ratio == null ? '—' : '${percentage(ratio)} 的输入走了缓存',
                   style: p.text(12, p.muted),
                 ),
               ),
@@ -1002,7 +1021,8 @@ class _StatsHomeState extends State<StatsHome> {
     );
   }
 
-  Widget pair(Widget left, Widget right, {bool alignStart = false}) => large
+  Widget pair(Widget left, Widget right, {bool alignStart = false}) =>
+      MediaQuery.sizeOf(context).width >= 1200
       ? (alignStart
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1151,11 +1171,14 @@ class _StatsHomeState extends State<StatsHome> {
                               ToolTile(model.topTool, size: 16),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: Text(
-                                  model.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: p.text(13, null, FontWeight.w500),
+                                child: Tooltip(
+                                  message: model.name,
+                                  child: Text(
+                                    model.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: p.text(13, null, FontWeight.w500),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -1167,7 +1190,13 @@ class _StatsHomeState extends State<StatsHome> {
                               SizedBox(
                                 width: 38,
                                 child: Text(
-                                  '${(model.tokens / math.max(1, data.summary.totals.grossTokens) * 100).round()}%',
+                                  percentage(
+                                    model.tokens /
+                                        math.max(
+                                          1,
+                                          data.summary.totals.grossTokens,
+                                        ),
+                                  ),
                                   textAlign: TextAlign.right,
                                   style: p.text(13, p.muted),
                                 ),
@@ -1287,7 +1316,7 @@ class _StatsHomeState extends State<StatsHome> {
         Text(
           top == null
               ? ''
-              : '占 ${(top.grossTokens / math.max(1, data.yearTools.totals.grossTokens) * 100).round()}%',
+              : '占 ${percentage(top.grossTokens / math.max(1, data.yearTools.totals.grossTokens))}',
           style: p.text(12, p.muted),
         ),
       ),
@@ -1323,10 +1352,14 @@ class _StatsHomeState extends State<StatsHome> {
                                 : '过去一年活跃 ',
                           ),
                           TextSpan(
-                            text: '$active',
+                            text: '\u2060$active\u2060',
                             style: p.text(12, p.ink, FontWeight.w700),
                           ),
-                          TextSpan(text: newcomer ? ' 天' : ' 天，最长连续 $streak 天'),
+                          TextSpan(
+                            text: keepTailTogether(
+                              newcomer ? ' 天' : ' 天，最长连续 $streak 天',
+                            ),
+                          ),
                         ],
                       ),
                       style: p.text(12, p.muted),
@@ -1434,83 +1467,134 @@ class _StatsHomeState extends State<StatsHome> {
                   }),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 9),
-                    child: Row(
-                      children: [
-                        ToolTile(item.source, size: 28),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      item.projectKey
-                                              ?.split(RegExp(r'[/\\]'))
-                                              .where((s) => s.isNotEmpty)
-                                              .lastOrNull ??
-                                          '没有记录项目',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: p.text(
-                                        13.5,
-                                        null,
-                                        FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  if (sessionStartedBefore(
-                                    item.startedAt,
-                                    data.period,
-                                    c.clock(),
-                                    offsetMinutes: data
-                                        .recent
-                                        .snapshot
-                                        .filters
-                                        .offsetMinutes,
-                                  ))
-                                    SessionStartChip(
-                                      startedAt: item.startedAt,
-                                      now: c.clock(),
-                                      offsetMinutes: data
-                                          .recent
-                                          .snapshot
-                                          .filters
-                                          .offsetMinutes,
-                                    ),
-                                ],
-                              ),
-                              Text(
-                                item.requestCount == null &&
-                                        item.cumulative.requestCount != null
-                                    ? '${toolOf(item.source).name} · 本时段没有逐次请求'
-                                    : item.hasCumulative &&
-                                          item.cumulative.requestCount == null
-                                    ? '只记录总数，算在开始那天'
-                                    : '${toolOf(item.source).name} · ${requestText(item.requestCount)}',
-                                maxLines: 2,
-                                style: p.text(12, p.muted),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Column(
+                    child: LayoutBuilder(
+                      builder: (context, box) {
+                        final stacked = box.maxWidth < 330;
+                        final amounts = Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
                               '${data.period.period == 'all' ? '累计' : sessionPeriodLabel(data.period)} ${nt(item.grossTokens)}',
+                              maxLines: 1,
                               style: p.text(13, null, FontWeight.w600),
                             ),
                             if (item.cumulative.grossTokens != item.grossTokens)
                               Text(
                                 '累计 ${nt(item.cumulative.grossTokens)}',
+                                maxLines: 1,
                                 style: p.text(11.5, p.muted),
                               ),
                           ],
-                        ),
-                      ],
+                        );
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ToolTile(item.source, size: 28),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  LayoutBuilder(
+                                    builder: (context, nameBox) => Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth: nameBox.maxWidth,
+                                          ),
+                                          child: Tooltip(
+                                            message:
+                                                item.projectKey ??
+                                                toolOf(item.source).name,
+                                            child: Text(
+                                              item.projectKey
+                                                      ?.split(RegExp(r'[/\\]'))
+                                                      .where(
+                                                        (s) => s.isNotEmpty,
+                                                      )
+                                                      .lastOrNull ??
+                                                  '没有记录项目',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: p.text(
+                                                13.5,
+                                                null,
+                                                FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        if (sessionStartedBefore(
+                                          item.startedAt,
+                                          data.period,
+                                          c.clock(),
+                                          offsetMinutes: data
+                                              .recent
+                                              .snapshot
+                                              .filters
+                                              .offsetMinutes,
+                                        ))
+                                          SessionStartChip(
+                                            startedAt: item.startedAt,
+                                            now: c.clock(),
+                                            offsetMinutes: data
+                                                .recent
+                                                .snapshot
+                                                .filters
+                                                .offsetMinutes,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 2,
+                                    children: [
+                                      Text(
+                                        toolOf(item.source).name,
+                                        maxLines: 1,
+                                        style: p.text(12, p.muted),
+                                      ),
+                                      Text(
+                                        item.requestCount == null &&
+                                                item.cumulative.requestCount !=
+                                                    null
+                                            ? '本时段没有逐次请求'
+                                            : item.hasCumulative &&
+                                                  item
+                                                          .cumulative
+                                                          .requestCount ==
+                                                      null
+                                            ? '只记录总数，算在开始那天'
+                                            : requestText(item.requestCount),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        style: p.text(12, p.muted),
+                                      ),
+                                    ],
+                                  ),
+                                  if (stacked) ...[
+                                    const SizedBox(height: 4),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: amounts,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (!stacked) ...[
+                              const SizedBox(width: 8),
+                              amounts,
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),

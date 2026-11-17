@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../stats_controller.dart';
 import '../stats_gateway.dart';
-import 'detail_page.dart' show projectName;
+import 'logic/display.dart';
 import 'logic/format.dart';
 import 'logic/period.dart';
 import 'logic/home_data.dart';
@@ -20,10 +20,7 @@ import 'widgets/resource.dart';
 import 'widgets/side_panel.dart';
 import 'widgets/timing.dart';
 
-String hm(String iso) {
-  final d = DateTime.tryParse(iso)?.toLocal();
-  return d == null ? '—' : '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
-}
+String hm(String iso) => usageTime(iso);
 
 String spanText(String start, String end) {
   final a = DateTime.tryParse(start), b = DateTime.tryParse(end);
@@ -35,26 +32,9 @@ String spanText(String start, String end) {
   return minutes < 60 ? '$minutes 分钟' : '${minutes ~/ 60} 小时 ${minutes % 60} 分';
 }
 
-String dayName(String iso, DateTime now) {
-  final d = DateTime.tryParse(iso)?.toLocal();
-  if (d == null) return '时间未知';
-  final days =
-      (DateTime(
-                now.year,
-                now.month,
-                now.day,
-              ).difference(DateTime(d.year, d.month, d.day)).inMilliseconds /
-              86400000)
-          .round();
-  if (days == 0) return '今天';
-  if (days == 1) return '昨天';
-  return '${d.month}月${d.day}日 周${'日一二三四五六'[d.weekday % 7]}';
-}
-
+String dayName(String iso, DateTime now) => usageDate(iso, now);
 String startText(StatsSessionItem row, DateTime now) =>
-    dayName(row.startedAt, now) == dayName(row.lastSeenAt, now)
-    ? hm(row.startedAt)
-    : '${dayName(row.startedAt, now)} ${hm(row.startedAt)}';
+    '${dayName(row.startedAt, now)} ${hm(row.startedAt)}';
 
 class StatsSessionsPage extends StatefulWidget {
   const StatsSessionsPage({
@@ -193,27 +173,53 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     final found = items
         .where((r) => r.source == source && r.sessionId == sessionId)
         .firstOrNull;
-    final hint = found == null
-        ? toolOf(source).name
-        : '${toolOf(source).name} · ${dayName(found.startedAt, c.clock())} ${hm(found.startedAt)}–${hm(found.lastSeenAt)} · ${spanText(found.startedAt, found.lastSeenAt)}';
-    await showLensPanel(
-      context,
-      title: found == null ? '会话详情' : projectName(found.projectKey) ?? '没有记录项目',
-      hint: hint,
-      icon: ToolTile(source, size: 40),
-      body: SessionDetail(
-        controller: c,
-        source: source,
-        sessionId: sessionId,
-        period: period,
-        filter: usageFilter,
-        onDetail: (params) {
-          _navigating = true;
-          Navigator.pop(context);
-          widget.onDetail(params);
-        },
-      ),
+    PanelHeading headingFor(String? project, String started, String ended) => (
+      title:
+          projectName(project, peers: items.map((item) => item.projectKey)) ??
+          toolOf(source).name,
+      hint:
+          '${toolOf(source).name} · ${usageDate(started, c.clock())} ${usageTime(started)} 开始 · 持续 ${spanText(started, ended)}',
+      tooltip: project,
     );
+    final heading = ValueNotifier<PanelHeading>(
+      found == null
+          ? (title: toolOf(source).name, hint: '正在读取会话…', tooltip: null)
+          : headingFor(found.projectKey, found.startedAt, found.lastSeenAt),
+    );
+    var receiving = true;
+    try {
+      await showLensPanel(
+        context,
+        title: heading.value.title,
+        hint: heading.value.hint,
+        heading: heading,
+        icon: ToolTile(source, size: 40),
+        body: SessionDetail(
+          controller: c,
+          source: source,
+          sessionId: sessionId,
+          onLoaded: (session) {
+            if (receiving) {
+              heading.value = headingFor(
+                session.projectKey,
+                session.startedAt,
+                session.lastSeenAt,
+              );
+            }
+          },
+          period: period,
+          filter: usageFilter,
+          onDetail: (params) {
+            _navigating = true;
+            Navigator.pop(context);
+            widget.onDetail(params);
+          },
+        ),
+      );
+    } finally {
+      receiving = false;
+      heading.dispose();
+    }
     if (!mounted || _navigating) return;
     _panel = false;
     final next = {...q}
@@ -250,7 +256,16 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                   .where((g) => g.key?.isNotEmpty == true)
                   .toList()
                 ..sort((a, b) => b.grossTokens - a.grossTokens))
-            FilterOption(g.key!, projectName(g.key) ?? g.key!),
+            FilterOption(
+              g.key!,
+              projectName(
+                    g.key,
+                    peers:
+                        projects.data?.groups.map((group) => group.key) ?? [],
+                  ) ??
+                  g.key!,
+              tooltip: g.key,
+            ),
         ],
         onPick: (v) => filter('project', v),
       ),
@@ -320,7 +335,8 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ? requestText(null, lifetimeCount: lifetimeCount)
         : toDisplayNumber(n);
     List<String> values(StatsSessionItem r) => [
-      projectName(r.projectKey) ?? '没有记录项目',
+      projectName(r.projectKey, peers: items.map((item) => item.projectKey)) ??
+          '没有记录项目',
       startText(r, c.clock()),
       if (scoped) ...[
         nt(r.grossTokens),
@@ -371,7 +387,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     final total = preferred.reduce((a, b) => a + b);
     var tableWidth = 0.0;
     Widget cell(Widget child, int column, {bool right = true}) => SizedBox(
-      width: tableWidth * preferred[column] / total,
+      width: column == 0
+          ? math.min(208, tableWidth * preferred.first / total)
+          : (tableWidth - math.min(208, tableWidth * preferred.first / total)) *
+                preferred[column] /
+                (total - preferred.first),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Align(
@@ -381,7 +401,12 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       ),
     );
     Widget row(StatsSessionItem r) {
-      final title = projectName(r.projectKey) ?? '没有记录项目';
+      final title =
+          projectName(
+            r.projectKey,
+            peers: items.map((item) => item.projectKey),
+          ) ??
+          '没有记录项目';
       final label = '查看会话：$title，${toolOf(r.source).name}';
       final name = Row(
         children: [
@@ -394,12 +419,16 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      title,
-                      overflow: TextOverflow.ellipsis,
-                      style: p
-                          .text(narrow ? 14 : 13, null, FontWeight.w500)
-                          .copyWith(height: 1.5),
+                    Tooltip(
+                      message: r.projectKey ?? title,
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: p
+                            .text(narrow ? 14 : 13, null, FontWeight.w500)
+                            .copyWith(height: 1.5),
+                      ),
                     ),
                     if (sessionStartedBefore(
                       r.startedAt,
@@ -428,115 +457,117 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         button: true,
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: narrow ? 8 : 0),
-          child: InkWell(
-            key: Key('session-row-${r.source}:${r.sessionId}'),
-            onTap: () => unawaited(open(r.source, r.sessionId)),
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                narrow ? 10 : 0,
-                narrow ? 12 : 10,
-                narrow ? 10 : 0,
-                narrow ? 12 : 9,
-              ),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: narrow
-                      ? BorderSide.none
-                      : BorderSide(
-                          width: LensPalette.hairline(context),
-                          color: p['line-soft'],
-                        ),
+          child: LensFocusOutline(
+            child: InkWell(
+              key: Key('session-row-${r.source}:${r.sessionId}'),
+              onTap: () => unawaited(open(r.source, r.sessionId)),
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                  narrow ? 10 : 0,
+                  narrow ? 12 : 10,
+                  narrow ? 10 : 0,
+                  narrow ? 12 : 9,
                 ),
-              ),
-              child: narrow
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: name),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (scoped)
-                                  Text(
-                                    '$periodLabel ',
-                                    style: p.text(12.5, p.secondary),
-                                  ),
-                                TokenText(
-                                  r.grossTokens,
-                                  unitSystem: c.preferences.unitSystem,
-                                  style: p.text(14, null, FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 44, top: 4),
-                          child: Wrap(
-                            spacing: 12,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: narrow
+                        ? BorderSide.none
+                        : BorderSide(
+                            width: LensPalette.hairline(context),
+                            color: p['line-soft'],
+                          ),
+                  ),
+                ),
+                child: narrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Text(
-                                '${startText(r, c.clock())} 开始',
-                                style: p.text(12.5, p.secondary),
-                              ),
-                              Text(
-                                scoped
-                                    ? '累计 ${nt(r.cumulative.grossTokens)} · ${requestText(r.cumulative.requestCount)}'
-                                    : spanText(r.startedAt, r.lastSeenAt),
-                                style: p.text(12.5, p.secondary),
-                              ),
-                              Text(
-                                '${scoped ? '$periodLabel ' : ''}${requestText(r.requestCount, lifetimeCount: r.cumulative.requestCount)}',
-                                style: p.text(12.5, p.secondary),
-                              ),
+                              Expanded(child: name),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    '${scoped ? periodLabel : ''}约值 ',
-                                    style: p.text(12.5, p.secondary),
+                                  if (scoped)
+                                    Text(
+                                      '$periodLabel ',
+                                      style: p.text(12.5, p.secondary),
+                                    ),
+                                  TokenText(
+                                    r.grossTokens,
+                                    unitSystem: c.preferences.unitSystem,
+                                    style: p.text(14, null, FontWeight.w600),
                                   ),
-                                  money(r.costMicros),
                                 ],
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        cell(name, 0, right: false),
-                        cell(
-                          Text(
-                            startText(r, c.clock()),
-                            style: p.text(13, p.secondary),
-                          ),
-                          1,
-                          right: false,
-                        ),
-                        for (var i = 2; i < labels.length; i++)
-                          cell(
-                            i == (scoped ? 6 : 4)
-                                ? money(r.costMicros)
-                                : Text(
-                                    values(r)[i],
-                                    style: p.text(
-                                      13,
-                                      (scoped && i == 2 || !scoped && i == 3)
-                                          ? null
-                                          : p.secondary,
-                                      (scoped && i == 2 || !scoped && i == 3)
-                                          ? FontWeight.w600
-                                          : FontWeight.w400,
+                          Padding(
+                            padding: const EdgeInsets.only(left: 44, top: 4),
+                            child: Wrap(
+                              spacing: 12,
+                              children: [
+                                Text(
+                                  '${startText(r, c.clock())} 开始',
+                                  style: p.text(12.5, p.secondary),
+                                ),
+                                Text(
+                                  scoped
+                                      ? '累计 ${nt(r.cumulative.grossTokens)} · ${requestText(r.cumulative.requestCount)}'
+                                      : spanText(r.startedAt, r.lastSeenAt),
+                                  style: p.text(12.5, p.secondary),
+                                ),
+                                Text(
+                                  '${scoped ? '$periodLabel ' : ''}${requestText(r.requestCount, lifetimeCount: r.cumulative.requestCount)}',
+                                  style: p.text(12.5, p.secondary),
+                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${scoped ? periodLabel : ''}约值 ',
+                                      style: p.text(12.5, p.secondary),
                                     ),
-                                  ),
-                            i,
+                                    money(r.costMicros),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                      ],
-                    ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          cell(name, 0, right: false),
+                          cell(
+                            Text(
+                              startText(r, c.clock()),
+                              style: p.text(13, p.secondary),
+                            ),
+                            1,
+                            right: false,
+                          ),
+                          for (var i = 2; i < labels.length; i++)
+                            cell(
+                              i == (scoped ? 6 : 4)
+                                  ? money(r.costMicros)
+                                  : Text(
+                                      values(r)[i],
+                                      style: p.text(
+                                        13,
+                                        (scoped && i == 2 || !scoped && i == 3)
+                                            ? null
+                                            : p.secondary,
+                                        (scoped && i == 2 || !scoped && i == 3)
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                      ),
+                                    ),
+                              i,
+                            ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
@@ -631,18 +662,21 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
           style: p.text(14, p.secondary),
         ),
         SizedBox(height: narrow ? 12 : 16),
-        PeriodControl(
-          period: period,
-          now: c.clock(),
-          onChanged: (value) {
-            final next = {...q}
-              ..remove('period')
-              ..remove('from')
-              ..remove('to');
-            next.addAll(Uri.splitQueryString(value.query));
-            widget.onQuery(Uri(queryParameters: next).query);
-            unawaited(c.setPeriod(value));
-          },
+        Align(
+          alignment: Alignment.centerLeft,
+          child: PeriodControl(
+            period: period,
+            now: c.clock(),
+            onChanged: (value) {
+              final next = {...q}
+                ..remove('period')
+                ..remove('from')
+                ..remove('to');
+              next.addAll(Uri.splitQueryString(value.query));
+              widget.onQuery(Uri(queryParameters: next).query);
+              unawaited(c.setPeriod(value));
+            },
+          ),
         ),
         const SizedBox(height: 12),
         ResourceBlock(
@@ -733,12 +767,14 @@ class SessionDetail extends StatefulWidget {
     required this.sessionId,
     required this.onDetail,
     this.period,
+    this.onLoaded,
     this.filter,
   });
   final StatsPeriod? period;
   final StatsFilter? filter;
   final StatsController controller;
   final String source, sessionId;
+  final ValueChanged<StatsSessionSummary>? onLoaded;
   final ValueChanged<Map<String, String>> onDetail;
   @override
   State<SessionDetail> createState() => _SessionDetailState();
@@ -750,7 +786,12 @@ class _SessionDetailState extends State<SessionDetail> {
   StatsController get c => widget.controller;
   LensPalette get p => LensPalette.of(context);
   void changed() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      if (detail.fresh && detail.data != null) {
+        widget.onLoaded?.call(detail.data!.session);
+      }
+      setState(() {});
+    }
   }
 
   StatsPeriod get period => widget.period ?? c.preferences.period;
@@ -768,6 +809,7 @@ class _SessionDetailState extends State<SessionDetail> {
         filter: filter,
       ),
     );
+    if (mounted) setState(() {});
   }
 
   @override
@@ -985,17 +1027,16 @@ class _SessionDetailState extends State<SessionDetail> {
           '按天',
           '这个会话每天用了多少；今天高亮',
           LayoutBuilder(
-            builder: (context, box) => SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            builder: (context, box) => SizedBox(
               child: SizedBox(
-                width: math.max(480, box.maxWidth),
+                width: box.maxWidth,
                 child: Column(
                   children: [
                     Row(
                       children: [
                         for (final title in ['日期', '用量', '请求', '平均每次', '约值'])
                           Expanded(
-                            flex: title == '用量' ? 2 : 1,
+                            flex: title == '日期' ? 3 : 2,
                             child: Text(
                               title,
                               textAlign: title == '日期'
@@ -1027,11 +1068,29 @@ class _SessionDetailState extends State<SessionDetail> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                day.bucket == dayKey(c.clock())
-                                    ? '今天'
-                                    : day.bucket,
-                                style: p.text(12, p.secondary),
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    usageDate(
+                                      day.bucket,
+                                      c.clock(),
+                                      relativeLabel: false,
+                                    ),
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: p.text(12, p.secondary),
+                                  ),
+                                  if ([
+                                    '今天',
+                                    '昨天',
+                                  ].contains(usageDate(day.bucket, c.clock())))
+                                    Text(
+                                      usageDate(day.bucket, c.clock()),
+                                      style: p.text(11, p.muted),
+                                    ),
+                                ],
                               ),
                             ),
                             Expanded(
@@ -1039,19 +1098,22 @@ class _SessionDetailState extends State<SessionDetail> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  SizedBox(
-                                    width: 32,
-                                    child: bar(
-                                      day.grossTokens / peak,
-                                      p['clay'],
+                                  if (box.maxWidth >= 600)
+                                    SizedBox(
+                                      width: 32,
+                                      child: bar(
+                                        day.grossTokens / peak,
+                                        p['clay'],
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 6),
+                                  if (box.maxWidth >= 600)
+                                    const SizedBox(width: 6),
                                   token(day.grossTokens),
                                 ],
                               ),
                             ),
                             Expanded(
+                              flex: 2,
                               child: Text(
                                 day.requestCount == null
                                     ? requestText(
@@ -1060,10 +1122,11 @@ class _SessionDetailState extends State<SessionDetail> {
                                       )
                                     : toDisplayNumber(day.requestCount),
                                 textAlign: TextAlign.right,
-                                style: p.text(12, p.secondary),
+                                style: p.text(13, p.secondary),
                               ),
                             ),
                             Expanded(
+                              flex: 2,
                               child: Align(
                                 alignment: Alignment.centerRight,
                                 child: day.requestCount == null
@@ -1085,6 +1148,7 @@ class _SessionDetailState extends State<SessionDetail> {
                               ),
                             ),
                             Expanded(
+                              flex: 2,
                               child: Align(
                                 alignment: Alignment.centerRight,
                                 child: money(day.costMicros),
@@ -1129,7 +1193,7 @@ class _SessionDetailState extends State<SessionDetail> {
             mini(
               value.period != null ? '$periodLabel缓存命中' : '缓存命中',
               Text(
-                hit == null ? '—' : '${(hit * 100).round()}%',
+                percentage(hit),
                 style: p
                     .serif(19, weight: FontWeight.w600)
                     .copyWith(height: 1.5),
@@ -1290,23 +1354,25 @@ class _SessionDetailState extends State<SessionDetail> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            InkWell(
-              onTap: () => setState(() => technical = !technical),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      technical ? Icons.expand_more : Icons.chevron_right,
-                      size: 14,
-                      color: p.secondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text('技术细节', style: p.text(13, p.secondary)),
-                  ],
+            LensFocusOutline(
+              child: InkWell(
+                onTap: () => setState(() => technical = !technical),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        technical ? Icons.expand_more : Icons.chevron_right,
+                        size: 14,
+                        color: p.secondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text('技术细节', style: p.text(13, p.secondary)),
+                    ],
+                  ),
                 ),
               ),
             ),

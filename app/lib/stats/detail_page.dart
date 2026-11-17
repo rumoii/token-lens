@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -7,6 +6,8 @@ import '../stats_controller.dart';
 import '../stats_gateway.dart';
 import 'logic/detail_query.dart';
 import 'logic/period.dart';
+import 'logic/display.dart';
+export 'logic/display.dart' show projectName;
 import 'logic/format.dart';
 import 'logic/home_data.dart';
 import 'logic/tool_order.dart';
@@ -19,22 +20,7 @@ import 'widgets/filters.dart';
 import 'widgets/resource.dart';
 import 'widgets/timing.dart';
 
-String? projectName(String? key) {
-  final parts = key
-      ?.split(RegExp(r'[\\/]'))
-      .where((s) => s.isNotEmpty)
-      .toList();
-  return parts == null || parts.isEmpty ? null : parts.last;
-}
-
-String bucketText(String bucket) {
-  if (bucket.contains('T')) return '${int.parse(bucket.substring(11, 13))}:00';
-  if (bucket.length == 7) {
-    return '${int.parse(bucket.substring(0, 4))}年${int.parse(bucket.substring(5, 7))}月';
-  }
-  final date = DateTime.parse(bucket);
-  return '${date.month}月${date.day}日 周${'日一二三四五六'[date.weekday % 7]}';
-}
+String bucketText(String bucket, [DateTime? now]) => usageBucket(bucket, now);
 
 class DetailRow {
   DetailRow({
@@ -63,15 +49,16 @@ class DetailRow {
 List<DetailRow> detailRows(
   String dim,
   Object? data,
-  Map<String, String> detail,
-) {
+  Map<String, String> detail, {
+  DateTime? now,
+}) {
   if (data is StatsTimeseries) {
     return [
       for (final r in data.points)
         if (r.grossTokens > 0)
           DetailRow(
             id: r.bucket,
-            name: bucketText(r.bucket),
+            name: bucketText(r.bucket, now),
             tokens: r.grossTokens,
             requestCount: r.requestCount,
             eventGrossTokens: r.eventGrossTokens,
@@ -149,8 +136,11 @@ List<DetailRow> detailRows(
         id: g.key ?? '—',
         name: dim == 'tool'
             ? toolOf(g.key ?? '').name
-            : projectName(g.key) ?? '没有记录项目',
-        sub: dim == 'project' ? g.key ?? '工具没有写工作目录' : null,
+            : projectName(
+                    g.key,
+                    peers: data.groups.map((group) => group.key),
+                  ) ??
+                  '没有记录项目',
         tokens: g.grossTokens,
         requestCount: g.requestCount,
         eventGrossTokens: g.eventGrossTokens,
@@ -415,7 +405,9 @@ class _StatsDetailState extends State<StatsDetail> {
             for (final g in ps)
               FilterOption(
                 g.key!,
-                projectName(g.key) ?? g.key!,
+                projectName(g.key, peers: projects.map((group) => group.key)) ??
+                    g.key!,
+                tooltip: g.key,
                 tokens: g.grossTokens,
               ),
           ],
@@ -431,7 +423,7 @@ class _StatsDetailState extends State<StatsDetail> {
               'bucket': '时间',
             }[k]!,
             value: k == 'bucket'
-                ? bucketText(detail[k]!)
+                ? bucketText(detail[k]!, c.clock())
                 : k == 'tool'
                 ? toolOf(detail[k]!).name
                 : k == 'project'
@@ -446,9 +438,7 @@ class _StatsDetailState extends State<StatsDetail> {
             size: 'link',
             variant: 'ghost',
             onPressed: () => go({'dim': detail['dim']!}),
-          )
-        else
-          Text('从首页点工具、模型或柱子进来，会自动带上筛选', style: p.text(12.5, p.muted)),
+          ),
       ],
     );
   }
@@ -484,7 +474,7 @@ class _StatsDetailState extends State<StatsDetail> {
         Text(
           data?.activity.cacheHitRatio == null
               ? '—'
-              : '${(data!.activity.cacheHitRatio! * 100).round()}%',
+              : percentage(data!.activity.cacheHitRatio),
           style: p.serif(22, weight: FontWeight.w600).copyWith(height: 1.5),
         ),
         '输入里走缓存的比例',
@@ -674,8 +664,11 @@ class _StatsDetailState extends State<StatsDetail> {
           const SizedBox(width: 8),
         ],
         Flexible(
-          child: d['dim'] == 'model'
-              ? Tooltip(message: row.name, child: name)
+          child: d['dim'] == 'model' || d['dim'] == 'project'
+              ? Tooltip(
+                  message: d['dim'] == 'project' ? row.id : row.name,
+                  child: name,
+                )
               : name,
         ),
       ],
@@ -692,7 +685,7 @@ class _StatsDetailState extends State<StatsDetail> {
         : dim == 'tool'
         ? 26
         : 16;
-    final rows = detailRows(dim, data, detail);
+    final rows = detailRows(dim, data, detail, now: c.clock());
     final showTiming = dim == 'tool' || dim == 'model';
     Widget timingStrip(DetailRow r, {bool turn = false}) => TimingStrip(
       timing: r.timing,
@@ -701,28 +694,54 @@ class _StatsDetailState extends State<StatsDetail> {
       metricKey: (kind) =>
           Key('detail-${turn ? 'turn-' : ''}${kind.name}-${r.id}'),
     );
-    num value(DetailRow r) => sortKey == 'cost'
-        ? r.costMicros ?? -1
-        : sortKey?.startsWith('k') == true
-        ? r.kinds[int.parse(sortKey!.substring(1))] ?? -1
-        : r.tokens;
+    final sortOptions = {
+      'name': const {
+        'date': '时间',
+        'tool': '工具',
+        'model': '模型',
+        'project': '项目',
+      }[dim]!,
+      'v': '用量',
+      'cost': '约值',
+      'share': '占比',
+      for (var i = 0; i < 4; i++) 'k$i': ['新输入', '输出', '读缓存', '写缓存'][i],
+      'requests': '请求',
+      'average': '平均每次',
+    };
+    final selectedSort = sortKey ?? (dim == 'date' ? 'name' : 'v');
+    num value(DetailRow r) => switch (selectedSort) {
+      'cost' => r.costMicros ?? -1,
+      'requests' => r.requestCount ?? -1,
+      'average' =>
+        r.requestCount != null &&
+                r.requestCount! > 0 &&
+                r.eventGrossTokens != null
+            ? r.eventGrossTokens! / r.requestCount!
+            : -1,
+      _ when selectedSort.startsWith('k') =>
+        r.kinds[int.parse(selectedSort.substring(1))] ?? -1,
+      _ => r.tokens,
+    };
     rows.sort(
-      (a, b) => sortKey != null
-          ? value(a).compareTo(value(b)) * sortDir
-          : dim == 'date'
-          ? b.id.compareTo(a.id)
-          : b.tokens - a.tokens,
+      (a, b) =>
+          (selectedSort == 'name'
+              ? (dim == 'date'
+                    ? a.id.compareTo(b.id)
+                    : a.name.compareTo(b.name))
+              : value(a).compareTo(value(b))) *
+          sortDir,
     );
     final sum = rows.fold<int>(0, (s, r) => s + r.tokens);
     double share(DetailRow r) => sum == 0 ? 0 : r.tokens / sum;
-    String percent(DetailRow r) =>
-        '${(share(r) * 100).toStringAsFixed(share(r) < .1 ? 1 : 0)}%';
+    String percent(DetailRow r) => percentage(share(r));
     void open(DetailRow r) {
       if (r.drill != null) setFilter(r.drill!.$1, r.drill!.$2);
     }
 
-    Widget requests(DetailRow r) => Text(
-      r.requestCount == null ? '不记录' : toDisplayNumber(r.requestCount),
+    Widget requests(DetailRow r, {bool label = false}) => Text(
+      r.requestCount == null
+          ? '不记录'
+          : '${toDisplayNumber(r.requestCount)}${label ? ' 次请求' : ''}',
       style: p.text(13, p.secondary),
     );
     Widget average(DetailRow r) => r.requestCount == null
@@ -733,6 +752,16 @@ class _StatsDetailState extends State<StatsDetail> {
                 : null,
           );
     Widget row(DetailRow r, {bool compact = false}) {
+      Widget tokenKind(int i) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${['新输入', '输出', '读缓存', '写缓存'][i]} ',
+            style: p.text(12.5, p.secondary),
+          ),
+          token(r.kinds[i]),
+        ],
+      );
       final name = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -752,168 +781,173 @@ class _StatsDetailState extends State<StatsDetail> {
           padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 0),
           child: Material(
             type: MaterialType.transparency,
-            clipBehavior: Clip.hardEdge,
-            child: InkWell(
-              key: Key('detail-row-${r.id}'),
-              onTap: r.drill == null ? null : () => open(r),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: compact ? 12 : 10,
-                ),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: narrow
-                        ? BorderSide.none
-                        : BorderSide(
-                            width: LensPalette.hairline(context),
-                            color: p['line-soft'],
-                          ),
+            clipBehavior: Clip.none,
+            child: LensFocusOutline(
+              child: InkWell(
+                key: Key('detail-row-${r.id}'),
+                onTap: r.drill == null ? null : () => open(r),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: compact ? 12 : 10,
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    compact
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: name),
-                                  token(
-                                    r.tokens,
-                                    style: p
-                                        .text(16, null, FontWeight.w600)
-                                        .copyWith(height: 1.5),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Wrap(
-                                spacing: 12,
-                                children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '约值 ',
-                                        style: p.text(12.5, p.secondary),
-                                      ),
-                                      money(r.costMicros),
-                                    ],
-                                  ),
-                                  requests(r),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '平均每次 ',
-                                        style: p.text(12.5, p.secondary),
-                                      ),
-                                      average(r),
-                                    ],
-                                  ),
-                                  Text(
-                                    '占 ${percent(r)}',
-                                    style: p.text(12.5, p.secondary),
-                                  ),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '读缓存 ',
-                                        style: p.text(12.5, p.secondary),
-                                      ),
-                                      token(r.kinds[2]),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              Expanded(flex: nameFlex, child: name),
-                              Expanded(
-                                flex: 10,
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: token(
-                                    r.tokens,
-                                    style: p.text(13, null, FontWeight.w600),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 10,
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: money(r.costMicros),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 20,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: narrow
+                          ? BorderSide.none
+                          : BorderSide(
+                              width: LensPalette.hairline(context),
+                              color: p['line-soft'],
+                            ),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      compact
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    SizedBox(
-                                      width: 56,
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(99),
-                                        child: LinearProgressIndicator(
-                                          value: share(r),
-                                          minHeight: 5,
-                                          color: p['clay'],
-                                          backgroundColor: p['fill-hover'],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      percent(r),
+                                    Expanded(child: name),
+                                    token(
+                                      r.tokens,
                                       style: p
-                                          .text(12, p.secondary)
-                                          .copyWith(height: 1.4),
+                                          .text(16, null, FontWeight.w600)
+                                          .copyWith(height: 1.5),
                                     ),
                                   ],
                                 ),
-                              ),
-                              for (final k in r.kinds)
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 12,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '约值 ',
+                                          style: p.text(12.5, p.secondary),
+                                        ),
+                                        money(r.costMicros),
+                                      ],
+                                    ),
+                                    requests(r, label: true),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '平均每次 ',
+                                          style: p.text(12.5, p.secondary),
+                                        ),
+                                        average(r),
+                                      ],
+                                    ),
+                                    Text(
+                                      '占 ${percent(r)}',
+                                      style: p.text(12.5, p.secondary),
+                                    ),
+                                    for (var i = 0; i < r.kinds.length; i += 2)
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          tokenKind(i),
+                                          if (i + 1 < r.kinds.length) ...[
+                                            const SizedBox(width: 12),
+                                            tokenKind(i + 1),
+                                          ],
+                                        ],
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                Expanded(flex: nameFlex, child: name),
                                 Expanded(
-                                  flex: 11,
+                                  flex: 10,
                                   child: Align(
                                     alignment: Alignment.centerRight,
-                                    child: token(k),
+                                    child: token(
+                                      r.tokens,
+                                      style: p.text(13, null, FontWeight.w600),
+                                    ),
                                   ),
                                 ),
-                              for (final child in [requests(r), average(r)])
                                 Expanded(
-                                  flex: 12,
+                                  flex: 10,
                                   child: Align(
                                     alignment: Alignment.centerRight,
-                                    child: child,
+                                    child: money(r.costMicros),
                                   ),
                                 ),
-                            ],
+                                Expanded(
+                                  flex: 20,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      SizedBox(
+                                        width: 56,
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            99,
+                                          ),
+                                          child: LinearProgressIndicator(
+                                            value: share(r),
+                                            minHeight: 5,
+                                            color: p['clay'],
+                                            backgroundColor: p['fill-hover'],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        percent(r),
+                                        style: p
+                                            .text(12, p.secondary)
+                                            .copyWith(height: 1.4),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                for (final k in r.kinds)
+                                  Expanded(
+                                    flex: 11,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: token(k),
+                                    ),
+                                  ),
+                                for (final child in [requests(r), average(r)])
+                                  Expanded(
+                                    flex: 12,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: child,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                      if (showTiming && TimingStrip.hasSamples(r.timing))
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: 8,
+                            left: compact ? 0 : 36,
                           ),
-                    if (showTiming && TimingStrip.hasSamples(r.timing))
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: 8,
-                          left: compact ? 0 : 36,
+                          child: timingStrip(r),
                         ),
-                        child: timingStrip(r),
-                      ),
-                    if (showTiming && (r.timing?.turn?.turnCount ?? 0) > 0)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: 8,
-                          left: compact ? 0 : 36,
+                      if (showTiming && (r.timing?.turn?.turnCount ?? 0) > 0)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: 8,
+                            left: compact ? 0 : 36,
+                          ),
+                          child: timingStrip(r, turn: true),
                         ),
-                        child: timingStrip(r, turn: true),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -922,30 +956,81 @@ class _StatsDetailState extends State<StatsDetail> {
       );
     }
 
-    Widget header(String text, String? key, int flex) => Expanded(
+    Widget header(String text, String key, int flex) => Expanded(
       flex: flex,
-      child: InkWell(
-        onTap: key == null
-            ? null
-            : () => setState(() {
-                sortDir = sortKey == key ? -sortDir : -1;
-                sortKey = key;
-              }),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            '$text${sortKey == key && key != null
-                ? sortDir > 0
-                      ? ' ↑'
-                      : ' ↓'
-                : ''}',
-            textAlign: key == null && !['占比', '请求', '平均每次'].contains(text)
-                ? TextAlign.left
-                : TextAlign.right,
-            style: p.text(12, p.muted).copyWith(height: 1.4),
+      child: LensFocusOutline(
+        child: InkWell(
+          onTap: () => setState(() {
+            sortDir = sortKey == key ? -sortDir : -1;
+            sortKey = key;
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '$text${sortKey == key
+                  ? sortDir > 0
+                        ? ' ↑'
+                        : ' ↓'
+                  : ''}',
+              textAlign: key == 'name' ? TextAlign.left : TextAlign.right,
+              style: p.text(12, p.muted).copyWith(height: 1.4),
+            ),
           ),
         ),
       ),
+    );
+    Widget compactTable() => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+          child: Row(
+            children: [
+              FilterPick(
+                key: const Key('detail-sort'),
+                label: '排序：${sortOptions[selectedSort]}',
+                options: [
+                  for (final option in sortOptions.entries)
+                    FilterOption(option.key, option.value),
+                ],
+                onPick: (key) => setState(() {
+                  sortKey = key;
+                  sortDir = -1;
+                }),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                height: 30,
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: p.smallShadow,
+                ),
+                child: LensFocusOutline(
+                  child: IconButton(
+                    tooltip: sortDir < 0 ? '从大到小' : '从小到大',
+                    onPressed: () => setState(() {
+                      sortKey = selectedSort;
+                      sortDir = -sortDir;
+                    }),
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(
+                      minWidth: 30,
+                      minHeight: 30,
+                    ),
+                    icon: Icon(
+                      sortDir < 0 ? Icons.south : Icons.north,
+                      size: 16,
+                      color: p.secondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final r in rows) row(r, compact: true),
+      ],
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -960,21 +1045,18 @@ class _StatsDetailState extends State<StatsDetail> {
             ),
           )
         else if (narrow)
-          ...rows.map((r) => row(r, compact: true))
+          compactTable()
         else
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: LayoutBuilder(
               builder: (context, box) {
-                if (showTiming && box.maxWidth < 860) {
-                  return Column(
-                    children: [for (final r in rows) row(r, compact: true)],
-                  );
+                if (box.maxWidth < 860) {
+                  return compactTable();
                 }
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                return SizedBox(
                   child: SizedBox(
-                    width: math.max(860, box.maxWidth),
+                    width: box.maxWidth,
                     child: Column(
                       children: [
                         Padding(
@@ -988,20 +1070,20 @@ class _StatsDetailState extends State<StatsDetail> {
                                   'model': '模型',
                                   'project': '项目',
                                 }[dim]!,
-                                null,
+                                'name',
                                 nameFlex,
                               ),
                               header('用量', 'v', 10),
                               header('约值', 'cost', 10),
-                              header('占比', null, 20),
+                              header('占比', 'share', 20),
                               for (var i = 0; i < 4; i++)
                                 header(
                                   ['新输入', '输出', '读缓存', '写缓存'][i],
                                   'k$i',
                                   11,
                                 ),
-                              header('请求', null, 12),
-                              header('平均每次', null, 12),
+                              header('请求', 'requests', 12),
+                              header('平均每次', 'average', 12),
                             ],
                           ),
                         ),

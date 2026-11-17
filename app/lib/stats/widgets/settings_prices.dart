@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -76,101 +77,119 @@ class _SettingsPricesState extends State<SettingsPrices> {
         ),
     ],
   );
-  Widget _summary(StatsModelPrice m) => Padding(
-    padding: const EdgeInsets.only(top: 4),
-    child: Text(
-      conditionalSummary(m),
-      style: p.text(12, p.secondary).copyWith(height: 1.625),
-    ),
-  );
+  Widget _summary(StatsModelPrice m) {
+    final summary = conditionalSummary(m);
+    if (summary.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        summary,
+        style: p.text(12, p.secondary).copyWith(height: 1.625),
+      ),
+    );
+  }
+
   Widget _row(StatsModelPrice m, int tokens, bool open) {
     final name = m.model ?? '没写模型';
     return Semantics(
       button: true,
       expanded: open,
-      child: InkWell(
-        onTap: () => setState(() => expanded = open ? null : name),
-        borderRadius: BorderRadius.circular(narrow ? 12 : 0),
-        child: Container(
-          key: ValueKey('settings-model-$name'),
-          padding: EdgeInsets.symmetric(
-            horizontal: 0,
-            vertical: narrow ? 12 : 10,
-          ),
-          decoration: BoxDecoration(
-            border: narrow
-                ? null
-                : Border(
-                    bottom: BorderSide(
-                      width: LensPalette.hairline(context),
-                      color: p['line-soft'],
+      child: LensFocusOutline(
+        child: InkWell(
+          onTap: () => setState(() => expanded = open ? null : name),
+          borderRadius: BorderRadius.circular(narrow ? 12 : 0),
+          child: Container(
+            key: ValueKey('settings-model-$name'),
+            padding: EdgeInsets.symmetric(
+              horizontal: 0,
+              vertical: narrow ? 12 : 10,
+            ),
+            decoration: BoxDecoration(
+              border: narrow
+                  ? null
+                  : Border(
+                      bottom: BorderSide(
+                        width: LensPalette.hairline(context),
+                        color: p['line-soft'],
+                      ),
                     ),
-                  ),
-          ),
-          child: narrow
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+            ),
+            child: narrow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Tooltip(
+                              message: name,
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: p.text(14, null, FontWeight.w500),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SettingsStateBadge(m.state),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 4,
+                        children: [
+                          _line(m),
+                          Text(
+                            '累计 ${tokenCount(tokens, unitSystem: widget.preferences.unitSystem)}',
+                            style: p.text(12.5, p.secondary),
+                          ),
+                          if (m.billing == 'plan')
+                            Text('套餐', style: p.text(12.5, p.secondary)),
+                        ],
+                      ),
+                      if (hasConditionalPrices(m)) _summary(m),
+                    ],
+                  )
+                : _desktopCells([
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
+                        Tooltip(
+                          message: name,
                           child: Text(
                             name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: p.text(14, null, FontWeight.w500),
+                            style: p.text(13, null, FontWeight.w500),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        SettingsStateBadge(m.state),
+                        if (m.billing == 'plan')
+                          Text('套餐', style: p.text(12, p.muted)),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _line(m),
-                        Text(
-                          '累计 ${tokenCount(tokens, unitSystem: widget.preferences.unitSystem)}',
-                          style: p.text(12.5, p.secondary),
-                        ),
-                        if (m.billing == 'plan')
-                          Text('套餐', style: p.text(12.5, p.secondary)),
+                        if (hasConditionalPrices(m)) _summary(m),
                       ],
                     ),
-                    if (hasConditionalPrices(m)) _summary(m),
-                  ],
-                )
-              : _desktopCells([
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: p.text(13, null, FontWeight.w500)),
-                      if (m.billing == 'plan')
-                        Text('套餐', style: p.text(12, p.muted)),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _line(m),
-                      if (hasConditionalPrices(m)) _summary(m),
-                    ],
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SettingsStateBadge(m.state),
-                  ),
-                  Text(
-                    tokenCount(
-                      tokens,
-                      unitSystem: widget.preferences.unitSystem,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SettingsStateBadge(m.state),
                     ),
-                    textAlign: TextAlign.right,
-                    style: p.text(13, p.secondary),
-                  ),
-                ]),
+                    Text(
+                      tokenCount(
+                        tokens,
+                        unitSystem: widget.preferences.unitSystem,
+                      ),
+                      textAlign: TextAlign.right,
+                      style: p.text(13, p.secondary),
+                    ),
+                  ]),
+          ),
         ),
       ),
     );
@@ -178,15 +197,31 @@ class _SettingsPricesState extends State<SettingsPrices> {
 
   Widget _desktopCells(List<Widget> cells) => LayoutBuilder(
     builder: (context, constraints) {
-      final modelWidth = (constraints.maxWidth * .16).clamp(
-        118.0,
-        double.infinity,
-      );
+      final modelWidth =
+          [
+            'claude-sonnet-5-5',
+            'gemini-3.8-flash-k',
+            'kimi-code/k3.1-pro',
+          ].fold(0.0, (width, name) {
+            final painter = TextPainter(
+              text: TextSpan(
+                text: name,
+                style: DefaultTextStyle.of(context).style
+                    .merge(p.text(13, null, FontWeight.w500)),
+              ),
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+            )..layout();
+            final measured = painter.width;
+            painter.dispose();
+            return math.max(width, measured);
+          }) +
+          20;
       final widths = [
         modelWidth,
-        constraints.maxWidth - modelWidth - 169,
+        constraints.maxWidth - modelWidth - 193,
         105.0,
-        64.0,
+        88.0,
       ];
       return Row(
         children: [
@@ -443,7 +478,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
           const SizedBox(height: 4),
           Text('${counts[i]} 个模型', style: p.text(20, null, FontWeight.w600)),
           Text(
-            pricingStates.values.elementAt(i).$2,
+            keepTailTogether(pricingStates.values.elementAt(i).$2),
             style: p.text(12, p.muted),
           ),
         ],
@@ -490,6 +525,8 @@ class _SettingsPricesState extends State<SettingsPrices> {
               for (final label in ['模型', '每百万 token', '价格', '累计用量'])
                 Text(
                   label,
+                  maxLines: 1,
+                  softWrap: false,
                   textAlign: label == '累计用量' ? TextAlign.right : TextAlign.left,
                   style: p.text(12, p.muted),
                 ),
@@ -504,10 +541,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
           if (expanded == (model.model ?? '没写模型')) _expanded(model),
         ],
         const SizedBox(height: 10),
-        Text(
-          '点一行看缓存价格和说明。价格表随软件内置，不联网也能用；联网更新价格还没有做。',
-          style: p.text(12.5, p.muted),
-        ),
+        Text('点一行看缓存价格和说明。价格表随软件内置，不联网也能用。', style: p.text(12.5, p.muted)),
       ],
     );
   }

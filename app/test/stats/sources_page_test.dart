@@ -134,16 +134,20 @@ Future<StatsController> mount(
 
 Finder syncButton(String label) => find.widgetWithText(TextButton, label);
 
+Finder sourceText(String text) => find.byWidgetPredicate(
+  (widget) => widget is Text && widget.data?.replaceAll('\u2060', '') == text,
+);
+
 void main() {
   testWidgets('旧例：同步成功后显示计数和友好工具名', (tester) async {
     final fake = SourcesGateway();
     await mount(tester, fake);
-    expect(find.text('Codex'), findsOneWidget);
-    expect(find.text('用真实日志核对过'), findsOneWidget);
+    expect(sourceText('Codex'), findsOneWidget);
+    expect(sourceText('用真实日志核对过'), findsOneWidget);
     await tester.tap(syncButton('立即同步'));
     await tester.pumpAndSettle();
     expect(
-      find.text('同步完成：扫描 5 个文件，新增 2 条，有变化的 1 条，用时 1.2 秒。'),
+      sourceText('同步完成：扫描 5 个文件，新增 2 条，有变化的 1 条，用时 1.2 秒。'),
       findsOneWidget,
     );
     expect(fake.syncs, 1);
@@ -162,17 +166,17 @@ void main() {
         ),
       ];
     await mount(tester, fake);
-    expect(find.text('只记录每个会话的总数。'), findsOneWidget);
-    expect(find.text('只记录每个会话的总数'), findsOneWidget);
-    expect(find.text('有影响'), findsOneWidget);
-    expect(find.text('已处理'), findsOneWidget);
-    expect(find.text('Claude Code'), findsNothing);
-    await tester.tap(find.text('还有 24 个支持的工具没在这台电脑上找到'));
+    expect(sourceText('只记录每个会话的总数。'), findsOneWidget);
+    expect(sourceText('只记录每个会话的总数'), findsOneWidget);
+    expect(sourceText('有影响'), findsOneWidget);
+    expect(sourceText('已处理'), findsOneWidget);
+    expect(sourceText('Claude Code'), findsNothing);
+    await tester.tap(sourceText('还有 26 个支持的工具没在这台电脑上找到'));
     await tester.pumpAndSettle();
-    expect(find.text('Claude Code'), findsOneWidget);
-    await tester.tap(find.text('还有 24 个支持的工具没在这台电脑上找到'));
+    expect(sourceText('Claude Code'), findsOneWidget);
+    await tester.tap(sourceText('还有 26 个支持的工具没在这台电脑上找到'));
     await tester.pumpAndSettle();
-    expect(find.text('Claude Code'), findsNothing);
+    expect(sourceText('Claude Code'), findsNothing);
   });
   testWidgets('旧例：日志留存与自检只列非零异常', (tester) async {
     final fake = SourcesGateway()
@@ -191,19 +195,23 @@ void main() {
         source('codex'),
       ];
     await mount(tester, fake);
-    expect(find.text('4 条还能对照原始日志复核'), findsOneWidget);
-    expect(find.text('另有 6 条的日志已经不在了，照常计入总数，但没法再复核。'), findsOneWidget);
-    expect(find.text('没有模型名、不计价：3 条'), findsOneWidget);
+    expect(sourceText('4 条还能对照原始日志复核'), findsOneWidget);
+    expect(sourceText('另有 6 条的日志已经不在了，照常计入总数，但没法再复核。'), findsOneWidget);
+    expect(sourceText('没有模型名、不计价：3 条'), findsOneWidget);
     expect(find.textContaining('时间不在合理范围'), findsNothing);
-    expect(find.text('全部记录都还能对照原始日志复核'), findsOneWidget);
-    expect(find.text('没发现异常'), findsOneWidget);
+    expect(sourceText('每次请求都有记录 · '), findsOneWidget);
+    expect(sourceText('每次请求都有记录'), findsOneWidget);
+    expect(sourceText('记录完整 · '), findsOneWidget);
+    expect(sourceText('自检正常'), findsOneWidget);
+    expect(sourceText('没发现异常'), findsNothing);
+    expect(sourceText('自检'), findsOneWidget);
   });
   testWidgets('旧例：冲突等待且按钮禁用，复用控制器轮询', (tester) async {
     final fake = SourcesGateway()..syncFailure = 'SYNC_BUSY';
     final c = await mount(tester, fake);
     await tester.tap(syncButton('立即同步'));
     await tester.pump();
-    expect(find.text('已有同步在执行，正在等待完成'), findsOneWidget);
+    expect(sourceText('已有同步在执行，正在等待完成'), findsOneWidget);
     expect(tester.widget<TextButton>(syncButton('同步中…')).onPressed, isNull);
     expect(c.phase, StatsSyncPhase.conflict);
     await tester.pumpWidget(const SizedBox());
@@ -234,10 +242,10 @@ void main() {
     expect(c.phase, StatsSyncPhase.success);
     expect(c.lastSync, same(receipt));
     expect(find.textContaining('同步完成：扫描'), findsNothing);
-    await tester.tap(find.text('上次同步的技术细节'));
+    await tester.tap(sourceText('上次同步的技术细节'));
     await tester.pumpAndSettle();
     expect(
-      find.text('读了 8 条记录：新增 4 条，有变化的 0 条，没变的 4 条，跳过 0 条。'),
+      sourceText('读了 8 条记录：新增 4 条，有变化的 0 条，没变的 4 条，跳过 0 条。'),
       findsOneWidget,
     );
     await c.shutdown();
@@ -251,14 +259,14 @@ void main() {
         fake.monthError = 'month failed';
       }
       await mount(tester, fake);
-      expect(find.text('加载失败（request_failed）'), findsOneWidget);
+      expect(sourceText('加载失败（request_failed）'), findsOneWidget);
       final beforeSources = fake.sourceReads, beforeMonth = fake.monthReads;
       fake.sourcesError = null;
       fake.monthError = null;
-      await tester.tap(find.text('重试'));
+      await tester.tap(sourceText('重试'));
       await tester.pumpAndSettle();
-      expect(find.text('加载失败（request_failed）'), findsNothing);
-      expect(find.text('Codex'), findsOneWidget);
+      expect(sourceText('加载失败（request_failed）'), findsNothing);
+      expect(sourceText('Codex'), findsOneWidget);
       expect(fake.sourceReads, beforeSources + (failing == 'sources' ? 1 : 0));
       expect(fake.monthReads, beforeMonth + (failing == 'month' ? 1 : 0));
     });
@@ -288,7 +296,7 @@ void main() {
     await mount(tester, fake);
     await tester.tap(syncButton('立即同步'));
     await tester.pumpAndSettle();
-    expect(find.text('同步完成，有异常警告：synthetic warning'), findsOneWidget);
+    expect(sourceText('同步完成，有异常警告：synthetic warning'), findsOneWidget);
     fake.syncFailure = 'synthetic failure';
     await tester.tap(syncButton('立即同步'));
     await tester.pumpAndSettle();
@@ -298,24 +306,24 @@ void main() {
   testWidgets('明细回调带 tool 和 dim=model；技术细节可展开', (tester) async {
     Map<String, String>? params;
     await mount(tester, SourcesGateway(), onDetail: (v) => params = v);
-    await tester.tap(find.text('看用量'));
+    await tester.tap(sourceText('看用量'));
     expect(params, {'tool': 'codex', 'dim': 'model'});
-    expect(find.text('来源 ID'), findsNothing);
-    await tester.tap(find.text('技术细节'));
+    expect(sourceText('来源 ID'), findsNothing);
+    await tester.tap(sourceText('技术细节'));
     await tester.pumpAndSettle();
-    expect(find.text('来源 ID'), findsOneWidget);
-    expect(find.text('A（真实样本）'), findsOneWidget);
-    expect(find.text('累计型：一个会话只有一条快照'), findsOneWidget);
+    expect(sourceText('来源 ID'), findsOneWidget);
+    expect(sourceText('A（真实样本）'), findsOneWidget);
+    expect(sourceText('累计型：一个会话只有一条快照'), findsOneWidget);
   });
   testWidgets('空来源和零记录不作为找到工具', (tester) async {
     await mount(
       tester,
       SourcesGateway()..items = [source('codex', records: 0)],
     );
-    expect(find.text('还没找到工具的日志'), findsOneWidget);
-    expect(find.text('用过支持的 AI 编程工具以后，点「立即同步」。'), findsOneWidget);
-    expect(find.text('还有 25 个支持的工具没在这台电脑上找到'), findsOneWidget);
-    expect(find.text('Codex'), findsNothing);
+    expect(sourceText('还没找到工具的日志'), findsOneWidget);
+    expect(sourceText('用过支持的 AI 编程工具以后，点「立即同步」。'), findsOneWidget);
+    expect(sourceText('还有 27 个支持的工具没在这台电脑上找到'), findsOneWidget);
+    expect(sourceText('Codex'), findsNothing);
   });
   for (final dark in [false, true]) {
     for (final reduced in [false, true]) {
@@ -324,7 +332,7 @@ void main() {
           ..items = [source('claude'), source('codex')];
         await mount(tester, fake, width: 720, dark: dark, reduced: reduced);
         expect(find.byType(ToolTile), findsNWidgets(2));
-        expect(find.text('看用量'), findsNWidgets(2));
+        expect(sourceText('看用量'), findsNWidgets(2));
         final a = tester.getTopLeft(find.byKey(const ValueKey('tool-claude')));
         final b = tester.getTopLeft(find.byKey(const ValueKey('tool-codex')));
         expect(a.dx, b.dx);

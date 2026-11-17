@@ -6,9 +6,15 @@ import '../theme/palette.dart';
 import 'primitives.dart';
 
 class FilterOption {
-  const FilterOption(this.value, this.label, {this.tool, this.tokens});
+  const FilterOption(
+    this.value,
+    this.label, {
+    this.tool,
+    this.tokens,
+    this.tooltip,
+  });
   final String value, label;
-  final String? tool;
+  final String? tool, tooltip;
   final int? tokens;
 }
 
@@ -65,22 +71,26 @@ class _FilterPickState extends State<FilterPick> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: p.smallShadow,
       ),
-      child: TextButton(
-        onPressed: widget.options.isEmpty ? null : open,
-        style: TextButton.styleFrom(
-          minimumSize: const Size(0, 30),
-          padding: const EdgeInsets.only(left: 12, right: 10),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          foregroundColor: p.secondary,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(widget.label, style: p.text(13, p.secondary)),
-            const SizedBox(width: 6),
-            Icon(Icons.expand_more, size: 12, color: p.muted),
-          ],
+      child: LensFocusOutline(
+        child: TextButton(
+          onPressed: widget.options.isEmpty ? null : open,
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 30),
+            padding: const EdgeInsets.only(left: 12, right: 10),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            foregroundColor: p.secondary,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(widget.label, style: p.text(13, p.secondary)),
+              const SizedBox(width: 6),
+              Icon(Icons.expand_more, size: 12, color: p.muted),
+            ],
+          ),
         ),
       ),
     );
@@ -146,39 +156,44 @@ class _FilterPopupState extends State<_FilterPopup> {
             itemCount: widget.options.length,
             itemBuilder: (context, i) {
               final o = widget.options[i];
-              return TextButton(
-                focusNode: nodes[i],
-                autofocus: i == 0,
-                onPressed: () => Navigator.pop(context, o.value),
-                style: TextButton.styleFrom(
-                  foregroundColor: p.ink,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: const Size(0, 34),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    if (o.tool != null) ...[
-                      ToolTile(o.tool!, size: 16),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: Text(
-                        o.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: p.text(13),
-                      ),
+              return LensFocusOutline(
+                child: TextButton(
+                  focusNode: nodes[i],
+                  autofocus: i == 0,
+                  onPressed: () => Navigator.pop(context, o.value),
+                  style: TextButton.styleFrom(
+                    foregroundColor: p.ink,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 34),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    if (o.tokens != null)
-                      TokenText(
-                        o.tokens,
-                        unitSystem: widget.unitSystem,
-                        style: p.text(12, p.muted).copyWith(height: 1.4),
+                  ),
+                  child: Row(
+                    children: [
+                      if (o.tool != null) ...[
+                        ToolTile(o.tool!, size: 16),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: Tooltip(
+                          message: o.tooltip ?? o.label,
+                          child: Text(
+                            o.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: p.text(13),
+                          ),
+                        ),
                       ),
-                  ],
+                      if (o.tokens != null)
+                        TokenText(
+                          o.tokens,
+                          unitSystem: widget.unitSystem,
+                          style: p.text(12, p.muted).copyWith(height: 1.4),
+                        ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -231,12 +246,14 @@ class FilterTag extends StatelessWidget {
           SizedBox(
             width: 20,
             height: 20,
-            child: IconButton(
-              tooltip: '去掉$label筛选',
-              padding: EdgeInsets.zero,
-              iconSize: 14,
-              onPressed: onRemove,
-              icon: Icon(Icons.close, color: p['clay-ink']),
+            child: LensFocusOutline(
+              child: IconButton(
+                tooltip: '去掉$label筛选',
+                padding: EdgeInsets.zero,
+                iconSize: 14,
+                onPressed: onRemove,
+                icon: Icon(Icons.close, color: p['clay-ink']),
+              ),
             ),
           ),
         ],

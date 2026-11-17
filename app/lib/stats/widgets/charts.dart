@@ -14,6 +14,26 @@ import '../theme/palette.dart';
 import 'primitives.dart';
 import 'motion.dart';
 
+List<({double fraction, String label})> trendAxisTicks(
+  List<TrendBucket> buckets,
+  String unitSystem,
+) {
+  final peak = buckets.fold<int>(
+    0,
+    (value, bucket) => math.max(value, bucket.total),
+  );
+  if (peak == 0) return [(fraction: 0, label: '0')];
+  final ceiling = trendCeiling(peak);
+  final unique = <String, ({double fraction, String label})>{};
+  for (final fraction in [0.0, .5, 1.0]) {
+    final label = fraction == 0
+        ? '0'
+        : tokenCount(ceiling * fraction, unitSystem: unitSystem);
+    unique[label] = (fraction: fraction, label: label);
+  }
+  return unique.values.toList();
+}
+
 class TrendChart extends StatefulWidget {
   const TrendChart({
     super.key,
@@ -152,13 +172,18 @@ class _TrendChartState extends State<TrendChart> {
                                   .join('|'),
                             ),
                             duration: const Duration(milliseconds: 1500),
-                            builder: (context, ms) => CustomPaint(
-                              painter: _TrendPainter(
-                                widget,
-                                p,
-                                hot,
-                                ms,
-                                LensPalette.hairline(context),
+                            builder: (context, ms) => Semantics(
+                              container: true,
+                              label:
+                                  '趋势纵轴：${trendAxisTicks(widget.buckets, widget.unitSystem).map((tick) => tick.label).join('、')}',
+                              child: CustomPaint(
+                                painter: _TrendPainter(
+                                  widget,
+                                  p,
+                                  hot,
+                                  ms,
+                                  LensPalette.hairline(context),
+                                ),
                               ),
                             ),
                           ),
@@ -324,12 +349,11 @@ class _TrendPainter extends CustomPainter {
           ..color = p['line-soft']
           ..strokeWidth = lineWidth,
       );
-      label(
-        canvas,
-        f == 0 ? '0' : tokenCount(max * f, unitSystem: w.unitSystem),
-        Offset(40, y - 8),
-        right: true,
-      );
+      for (final tick in trendAxisTicks(w.buckets, w.unitSystem)) {
+        if (tick.fraction == f) {
+          label(canvas, tick.label, Offset(40, y - 8), right: true);
+        }
+      }
     }
     if (w.buckets.isEmpty) return;
     final count = w.buckets.length, gap = count > 20 ? 3.0 : 8.0;
@@ -506,8 +530,13 @@ class _HeatmapState extends State<Heatmap> {
             : lines
                       .map(
                         (line) => (TextPainter(
-                          text: TextSpan(text: line, style: p.text(12)),
+                          text: TextSpan(
+                            text: line,
+                            style: DefaultTextStyle.of(context).style
+                                .merge(p.text(12)),
+                          ),
                           textDirection: TextDirection.ltr,
+                          textScaler: MediaQuery.textScalerOf(context),
                         )..layout()).width,
                       )
                       .reduce(math.max) +
@@ -572,7 +601,12 @@ class _HeatmapState extends State<Heatmap> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(lines!.first, style: p.text(12)),
+                            Text(
+                              lines!.first,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: p.text(12),
+                            ),
                             Text(lines.last, style: p.text(12, p.secondary)),
                           ],
                         ),

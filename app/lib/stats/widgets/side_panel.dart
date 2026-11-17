@@ -1,8 +1,12 @@
+import 'primitives.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../smooth_wheel.dart';
 import '../theme/palette.dart';
+
+typedef PanelHeading = ({String title, String hint, String? tooltip});
 
 Future<void> showLensPanel(
   BuildContext context, {
@@ -11,6 +15,7 @@ Future<void> showLensPanel(
   required Widget icon,
   required Widget body,
   String label = '会话详情',
+  ValueNotifier<PanelHeading>? heading,
 }) {
   final narrow = MediaQuery.sizeOf(context).width < 768;
   final reduced = MediaQuery.disableAnimationsOf(context);
@@ -18,14 +23,27 @@ Future<void> showLensPanel(
     _LensPanelRoute(
       reduced: reduced,
       barrierLabel: '关闭$label',
-      pageBuilder: (context, _, _) => _LensPanel(
-        label: label,
-        title: title,
-        hint: hint,
-        icon: icon,
-        body: body,
-        narrow: narrow,
-      ),
+      pageBuilder: (context, _, _) => heading == null
+          ? _LensPanel(
+              label: label,
+              title: title,
+              hint: hint,
+              icon: icon,
+              body: body,
+              narrow: narrow,
+            )
+          : ValueListenableBuilder<PanelHeading>(
+              valueListenable: heading,
+              builder: (context, value, _) => _LensPanel(
+                label: label,
+                title: value.title,
+                hint: value.hint,
+                titleTooltip: value.tooltip,
+                icon: icon,
+                body: body,
+                narrow: narrow,
+              ),
+            ),
       transitionBuilder: (context, animation, _, child) => AnimatedBuilder(
         animation: animation,
         builder: (context, _) {
@@ -75,17 +93,18 @@ class _LensPanel extends StatefulWidget {
     required this.icon,
     required this.body,
     required this.narrow,
+    this.titleTooltip,
   });
   final String label, title, hint;
   final Widget icon, body;
   final bool narrow;
+  final String? titleTooltip;
   @override
   State<_LensPanel> createState() => _LensPanelState();
 }
 
 class _LensPanelState extends State<_LensPanel> {
   final scroll = SmoothWheelController();
-  bool closeFocused = false;
   @override
   void dispose() {
     scroll.dispose();
@@ -144,11 +163,14 @@ class _LensPanelState extends State<_LensPanel> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  widget.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: p.text(18, null, FontWeight.w600),
+                                Tooltip(
+                                  message: widget.titleTooltip ?? widget.title,
+                                  child: Text(
+                                    widget.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: p.text(18, null, FontWeight.w600),
+                                  ),
                                 ),
                                 Text(widget.hint, style: p.text(12.5, p.muted)),
                               ],
@@ -157,26 +179,23 @@ class _LensPanelState extends State<_LensPanel> {
                           const SizedBox(width: 12),
                           Focus(
                             canRequestFocus: false,
-                            onFocusChange: (value) =>
-                                setState(() => closeFocused = value),
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(8),
-                                border: closeFocused
-                                    ? Border.all(color: p['clay'])
-                                    : null,
                               ),
                               height: 30,
                               width: 30,
-                              child: IconButton(
-                                autofocus: true,
-                                tooltip: '关闭',
-                                padding: EdgeInsets.zero,
-                                onPressed: () => Navigator.pop(context),
-                                icon: Icon(
-                                  Icons.close,
-                                  size: 16,
-                                  color: p.muted,
+                              child: LensFocusOutline(
+                                child: IconButton(
+                                  autofocus: true,
+                                  tooltip: '关闭',
+                                  padding: EdgeInsets.zero,
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: p.muted,
+                                  ),
                                 ),
                               ),
                             ),

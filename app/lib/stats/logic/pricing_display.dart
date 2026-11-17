@@ -25,15 +25,10 @@ String conditionalSummary(StatsModelPrice model) {
   final marks = model.priceMarks;
   final items = [
     for (final tier in model.tiers ?? <StatsPriceTier>[])
-      '单次提示 > ${recordText(tier.above)} token · ${recordText(marks['tier:${tier.above}'])} 条按长上下文计',
-    if (model.tiers?.isNotEmpty == true && (marks['tier:unknown'] ?? 0) != 0)
-      '${recordText(marks['tier:unknown'])} 条提示长度不完整 · 基础档',
-    if (model.timeOfDay != null) ...[
-      '峰谷分时 · ${recordText(marks['tod:offpeak'])} 条低谷',
-      '${recordText(marks['tod:blend'])} 条区间加权',
-      '${recordText(marks['tod:weekly'])} 条周占比估算',
-      holidayText(model.timeOfDay!),
-    ],
+      if ((marks['tier:${tier.above}'] ?? 0) > 0)
+        '超过 ${tokenCount(tier.above, unitSystem: 'chinese')} token 的长提示按更高价算：${recordText(marks['tier:${tier.above}'])} 次',
+    if (model.timeOfDay != null && (marks['tod:offpeak'] ?? 0) > 0)
+      '按时段计价：${recordText(marks['tod:offpeak'])} 次在低谷时段',
   ];
   return items.join(' · ');
 }

@@ -39,7 +39,7 @@ void main() {
         return true;
       },
     );
-    expect(find.text('诊断'), findsOneWidget);
+    expect(find.text('诊断与关于'), findsOneWidget);
     expect(find.textContaining('不包含：账本、任何对话内容。用户目录会显示成 ~。'), findsOneWidget);
     expect(g.directories, isEmpty);
     await t.ensureVisible(find.text('导出诊断日志'));

@@ -223,7 +223,10 @@ void main() {
         expect(text.textSpan, isNotNull);
         final numbers = <TextSpan>[];
         text.textSpan!.visitChildren((span) {
-          if (span is TextSpan && span.text == '$active') numbers.add(span);
+          if (span is TextSpan &&
+              span.text?.replaceAll('\u2060', '') == '$active') {
+            numbers.add(span);
+          }
           return true;
         });
         expect(numbers, hasLength(1));
@@ -236,7 +239,10 @@ void main() {
         );
         expect(text.style?.color, palette.muted);
         expect(text.style?.fontWeight, FontWeight.w400);
-        expect(text.textSpan!.toPlainText(), contains('活跃 $active 天'));
+        expect(
+          text.textSpan!.toPlainText().replaceAll('\u2060', ''),
+          contains('活跃 $active 天'),
+        );
       }
     }
   });

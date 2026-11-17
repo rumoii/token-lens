@@ -325,7 +325,7 @@ void main() {
       IntegrationSessionsGateway()..mixed = true,
       const StatsPeriod('today'),
     );
-    expect(find.text('Codex · 本时段没有逐次请求'), findsOneWidget);
+    expect(find.text('本时段没有逐次请求'), findsOneWidget);
     expect(find.textContaining('只记录总数，算在开始那天'), findsNothing);
     expect(find.textContaining('不记录'), findsNothing);
   });

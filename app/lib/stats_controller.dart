@@ -59,6 +59,7 @@ class StatsController extends ChangeNotifier {
   StatsSyncPhase phase = StatsSyncPhase.idle;
   StatsSyncErrorKind? syncErrorKind;
   bool loading = false;
+  bool sourcesReadSucceeded = false;
   int ledgerVersion = 0;
   bool get busy =>
       phase == StatsSyncPhase.running ||
@@ -118,9 +119,9 @@ class StatsController extends ChangeNotifier {
 
   Future<void> _read(int ticket, StatsPeriod period) async {
     loading = true;
-    error = null;
-    resourceErrors.clear();
+    sourcesReadSucceeded = false;
     _notify();
+    final readErrors = <String, String>{};
     final now = clock();
     final range = period.range(now), compare = period.compare(now);
     final filter = StatsFilter(from: range.from, to: range.to);
@@ -144,9 +145,7 @@ class StatsController extends ChangeNotifier {
       try {
         return await request;
       } catch (failure) {
-        if (!_closed && ticket == _generation) {
-          resourceErrors[key] = failure.toString();
-        }
+        readErrors[key] = failure.toString();
         return fallback;
       }
     }
@@ -246,6 +245,11 @@ class StatsController extends ChangeNotifier {
         matrix: matrix,
         axis: axis,
       );
+      error = null;
+      resourceErrors
+        ..clear()
+        ..addAll(readErrors);
+      sourcesReadSucceeded = !readErrors.containsKey('sources');
     } catch (failure) {
       if (!_closed && ticket == _generation) error = '请求失败：$failure';
     } finally {

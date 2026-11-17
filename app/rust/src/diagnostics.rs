@@ -588,6 +588,9 @@ impl RuntimeLog {
     }
     pub(crate) fn ffi<T>(&self, operation: &str, result: Result<T, String>) -> Result<T, String> {
         if let Err(error) = &result {
+            if error == "cancelled" {
+                return result;
+            }
             self.write(
                 "ERROR",
                 "ffi",

@@ -47,10 +47,10 @@ void main() {
     expect(find.byKey(const Key('home-hero')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('空账本给切换范围入口', (tester) async {
+  testWidgets('空账本给同步和工具来源入口', (tester) async {
     await show(tester, FakeStatsGateway()..empty = true);
-    expect(find.text('这周还没有用量'), findsOneWidget);
-    expect(find.text('看本月'), findsOneWidget);
+    expect(find.text('还没有任何用量'), findsOneWidget);
+    expect(find.text('看工具来源'), findsOneWidget);
     expect(find.text('趋势'), findsNothing);
   });
   testWidgets('NULL token 和未定价不当零', (tester) async {

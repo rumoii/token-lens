@@ -10,6 +10,18 @@ const tools = <String, ToolInfo>{
   'qwen': (name: 'Qwen Code', logo: null, letter: 'Q', darkGlyph: false),
   'dsh': (name: 'DSH', logo: 'deepseek.png', letter: 'D', darkGlyph: false),
   'grok': (name: 'Grok CLI', logo: 'grok.png', letter: 'G', darkGlyph: false),
+  'anythingllm': (
+    name: 'AnythingLLM',
+    logo: null,
+    letter: 'A',
+    darkGlyph: false,
+  ),
+  'commandcode': (
+    name: 'Command Code',
+    logo: null,
+    letter: 'C',
+    darkGlyph: false,
+  ),
   'aider': (name: 'Aider', logo: null, letter: 'A', darkGlyph: false),
   'pi': (name: 'Pi', logo: 'pi.png', letter: 'P', darkGlyph: true),
   'hermes': (name: 'Hermes', logo: 'hermes.png', letter: 'H', darkGlyph: false),

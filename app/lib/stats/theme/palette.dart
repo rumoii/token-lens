@@ -179,6 +179,7 @@ class LensPalette {
       onSurface: ink,
     ),
     textTheme: TextTheme(bodyMedium: text(), bodySmall: text(12)),
+    focusColor: Colors.transparent,
     dividerColor: this['line'],
     tooltipTheme: TooltipThemeData(
       textStyle: text(12),

@@ -155,3 +155,23 @@ String tokenTooltip(
   final short = tokenCount(value, mode: mode, unitSystem: unitSystem);
   return full == short || full == '-' || short == '-' ? full : '$short · $full';
 }
+
+String percentage(num? ratio) {
+  if (ratio == null || !ratio.isFinite) return '—';
+  final value = ratio * 100;
+  if (value == 0 || value == 100) return '${value.toInt()}%';
+  final rounded = value.round();
+  if (value > 0 && value < 100 && (rounded == 0 || rounded == 100)) {
+    return '${value.clamp(.1, 99.9).toStringAsFixed(1)}%';
+  }
+  return '$rounded%';
+}
+
+/// Keep a short ending together so a final word or character does not stand alone.
+String keepTailTogether(String text) {
+  final runes = text.runes.toList();
+  if (runes.length <= 1) return text;
+  final tail = math.max(0, runes.length - 4);
+  return String.fromCharCodes(runes.take(tail)) +
+      runes.skip(tail).map(String.fromCharCode).join('\u2060');
+}

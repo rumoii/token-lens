@@ -204,7 +204,7 @@ void main() {
     expect(find.text('今天 7089万'), findsOneWidget);
     expect(find.text('累计 3.8亿'), findsOneWidget);
     expect(find.text('开始于 10月16日'), findsOneWidget);
-    expect(find.text('Codex · 96 次请求'), findsOneWidget);
+    expect(find.text('96 次请求'), findsOneWidget);
     await tester.ensureVisible(find.text('查看全部会话'));
     await tester.tap(find.text('查看全部会话'));
     await tester.pumpAndSettle();

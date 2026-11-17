@@ -53,32 +53,34 @@ class _SourcesTechState extends State<SourcesTech> {
         children: [
           Semantics(
             expanded: open,
-            child: TextButton(
-              onPressed: () => setState(() => open = !open),
-              style: TextButton.styleFrom(
-                foregroundColor: p.secondary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Row(
-                children: [
-                  AnimatedRotation(
-                    turns: open ? .25 : 0,
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : LensTokens.fast,
-                    child: const Icon(Icons.chevron_right, size: 14),
+            child: LensFocusOutline(
+              child: TextButton(
+                onPressed: () => setState(() => open = !open),
+                style: TextButton.styleFrom(
+                  foregroundColor: p.secondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
                   ),
-                  const SizedBox(width: 6),
-                  Text(widget.title, style: _sourceText(p, 13, p.secondary)),
-                ],
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    AnimatedRotation(
+                      turns: open ? .25 : 0,
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : LensTokens.fast,
+                      child: const Icon(Icons.chevron_right, size: 14),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(widget.title, style: _sourceText(p, 13, p.secondary)),
+                  ],
+                ),
               ),
             ),
           ),
@@ -332,10 +334,16 @@ class SourcesToolCard extends StatelessWidget {
       ('没有模型名、不计价', item.checks.nullModel, '条'),
       ('同一会话混用两种记录方式', item.checks.mixedKindSessions, '个会话'),
     ].where((check) => check.$2 > 0).toList();
-    Widget text(String value, {bool muted = false}) => Text(
-      value,
-      style: _sourceText(p, muted ? 12.5 : 13, muted ? p.muted : p.ink),
-    );
+    final status = [
+      if (item.recordMode == 'event') '每次请求都有记录',
+      if (item.retention.logsGone == 0) '记录完整',
+      if (checks.isEmpty) '自检正常',
+    ];
+    Widget text(String value, {bool muted = false, bool balance = false}) =>
+        Text(
+          balance ? keepTailTogether(value) : value,
+          style: _sourceText(p, muted ? 12.5 : 13, muted ? p.muted : p.ink),
+        );
     Widget field(String label, Widget value) => Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -367,7 +375,7 @@ class SourcesToolCard extends StatelessWidget {
           child: _Pill(label, tone: tone),
         ),
         const SizedBox(width: 8),
-        Expanded(child: text(value)),
+        Expanded(child: text(value, balance: true)),
       ],
     );
     return LensCard(
@@ -390,12 +398,31 @@ class SourcesToolCard extends StatelessWidget {
                         toolOf(item.source).name,
                         style: _sourceText(p, 15, null, FontWeight.w600),
                       ),
-                      const _Pill('正在统计', tone: 'ok', check: true),
+                      const _Pill('已接入', tone: 'ok', check: true),
                     ],
                   ),
-                  text(
-                    '最近一次使用 ${_relative(item.lastObservedAt, controller.clock())} · 本月 ${tokenCount(monthTokens, mode: controller.preferences.tokenMode, unitSystem: controller.preferences.unitSystem)} token · ${toDisplayNumber(item.records)} 条记录',
-                    muted: true,
+                  Wrap(
+                    runSpacing: 2,
+                    children: [
+                      Text(
+                        '最近一次使用 ${_relative(item.lastObservedAt, controller.clock())} · ',
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _sourceText(p, 12.5, p.muted),
+                      ),
+                      Text(
+                        '本月 ${tokenCount(monthTokens, mode: controller.preferences.tokenMode, unitSystem: controller.preferences.unitSystem)} token · ',
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _sourceText(p, 12.5, p.muted),
+                      ),
+                      Text(
+                        '${toDisplayNumber(item.records)} 条记录',
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _sourceText(p, 12.5, p.muted),
+                      ),
+                    ],
                   ),
                 ]),
               ),
@@ -415,54 +442,71 @@ class SourcesToolCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           stack([
-            field('记录方式', stack([text(mode.$1), text(mode.$2, muted: true)])),
             field(
-              '核对情况',
-              stack([
-                _Pill(
-                  real ? '用真实日志核对过' : '只用样例日志核对过',
-                  tone: real ? 'ok' : null,
-                  check: real,
-                ),
-                text(
-                  real
-                      ? '拿真实使用的日志逐条对过，数字可靠。'
-                      : '格式按公开资料和样例确认，大概率没问题；对不上的话可以反馈。',
-                  muted: true,
-                ),
-              ], gap: 2),
+              '状态',
+              Wrap(
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Tooltip(
+                        message: real
+                            ? '拿真实使用的日志逐条对过，数字可靠。'
+                            : '格式按公开资料和样例确认，大概率没问题；对不上的话可以反馈。',
+                        child: _Pill(
+                          real ? '用真实日志核对过' : '只用样例日志核对过',
+                          tone: real ? 'ok' : null,
+                          check: real,
+                        ),
+                      ),
+                      if (status.isNotEmpty) text(' · ', muted: true),
+                    ],
+                  ),
+                  for (var i = 0; i < status.length; i++)
+                    Text(
+                      '${status[i]}${i < status.length - 1 ? ' · ' : ''}',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: _sourceText(p, 12.5, p.muted),
+                    ),
+                ],
+              ),
             ),
-            field(
-              '日志留存',
-              stack([
-                text(
-                  item.retention.logsGone == 0
-                      ? '全部记录都还能对照原始日志复核'
-                      : '${toDisplayNumber(item.retention.reviewable)} 条还能对照原始日志复核',
-                ),
-                if (item.retention.logsGone > 0)
+            if (item.recordMode != 'event')
+              field(
+                '记录方式',
+                stack([
+                  text(mode.$1),
+                  text(mode.$2, muted: true, balance: true),
+                ]),
+              ),
+            if (item.retention.logsGone > 0)
+              field(
+                '日志留存',
+                stack([
+                  text(
+                    '${toDisplayNumber(item.retention.reviewable)} 条还能对照原始日志复核',
+                  ),
                   text(
                     '另有 ${toDisplayNumber(item.retention.logsGone)} 条的日志已经不在了，照常计入总数，但没法再复核。',
                     muted: true,
                   ),
-              ]),
-            ),
-            field(
-              '自检',
-              checks.isEmpty
-                  ? const Align(
-                      alignment: Alignment.centerLeft,
-                      child: _Pill('没发现异常'),
-                    )
-                  : stack([
-                      for (final check in checks)
-                        note(
-                          '待查',
-                          '${check.$1}：${toDisplayNumber(check.$2)} ${check.$3}',
-                          tone: 'warn',
-                        ),
-                    ], gap: 6),
-            ),
+                ]),
+              ),
+            if (checks.isNotEmpty)
+              field(
+                '自检',
+                stack([
+                  for (final check in checks)
+                    note(
+                      '待查',
+                      '${check.$1}：${toDisplayNumber(check.$2)} ${check.$3}',
+                      tone: 'warn',
+                    ),
+                ], gap: 6),
+              ),
             if (item.notes.isNotEmpty)
               field(
                 '要知道的',
@@ -525,34 +569,36 @@ class _SourcesMissingToolsState extends State<SourcesMissingTools> {
         children: [
           Semantics(
             expanded: open,
-            child: TextButton(
-              onPressed: () => setState(() => open = !open),
-              style: TextButton.styleFrom(
-                foregroundColor: p.secondary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
+            child: LensFocusOutline(
+              child: TextButton(
+                onPressed: () => setState(() => open = !open),
+                style: TextButton.styleFrom(
+                  foregroundColor: p.secondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Row(
-                children: [
-                  AnimatedRotation(
-                    turns: open ? .25 : 0,
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : LensTokens.fast,
-                    child: const Icon(Icons.chevron_right, size: 14),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '还有 ${widget.ids.length} 个支持的工具没在这台电脑上找到',
-                      style: _sourceText(p, 13.5, p.secondary),
+                child: Row(
+                  children: [
+                    AnimatedRotation(
+                      turns: open ? .25 : 0,
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : LensTokens.fast,
+                      child: const Icon(Icons.chevron_right, size: 14),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '还有 ${widget.ids.length} 个支持的工具没在这台电脑上找到',
+                        style: _sourceText(p, 13.5, p.secondary),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

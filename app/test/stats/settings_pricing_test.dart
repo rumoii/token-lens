@@ -273,14 +273,14 @@ void main() {
           ]),
           width: width,
         );
-        final summary = find.textContaining('单次提示 > 272,000 token');
+        final summary = find.textContaining('超过 27.2万 token');
         expect(summary, findsOneWidget);
-        expect((t.widget<Text>(summary)).data, contains('1,037 条按长上下文计'));
+        expect((t.widget<Text>(summary)).data, contains('更高价算：1,037 次'));
         expect(
           (t.widget<Text>(summary)).data,
-          contains('单次提示 > 512,000 token · 3 条'),
+          contains('超过 51.2万 token 的长提示按更高价算：3 次'),
         );
-        expect((t.widget<Text>(summary)).data, contains('13,293 条提示长度不完整'));
+        expect((t.widget<Text>(summary)).data, isNot(contains('提示长度不完整')));
         expect(find.bySemanticsLabel('gpt-6.1-sol 条件价格'), findsNothing);
         await t.tap(find.text('gpt-6.1-sol'));
         await t.pumpAndSettle();
@@ -294,6 +294,7 @@ void main() {
         expect(find.text(r'$0.2'), findsOneWidget);
         expect(find.text(r'$5'), findsOneWidget);
         expect(find.text('提示长度不完整 · 基础档'), findsOneWidget);
+        expect(find.text('13,293 条'), findsOneWidget);
         expect(find.text('累计快照 · 基础档'), findsOneWidget);
         expect(find.text('未标记'), findsOneWidget);
         expect(find.text('写缓存（短时）'), findsOneWidget);
@@ -344,9 +345,11 @@ void main() {
           ]),
           width: width,
         );
-        final summary = t.widget<Text>(find.textContaining('36 条低谷')).data!;
+        final summary = t
+            .widget<Text>(find.textContaining('按时段计价：36 次在低谷时段'))
+            .data!;
         for (final text in ['100 条区间加权', '37 条周占比估算', '节假日仅登记到 2027 年']) {
-          expect(summary, contains(text));
+          expect(summary, isNot(contains(text)));
         }
         await t.tap(find.text('deepseek-flash'));
         await t.pumpAndSettle();
@@ -419,9 +422,10 @@ void main() {
           ]),
           width: width,
         );
-        expect(find.textContaining('尚未登记节假日'), findsOneWidget);
+        expect(find.textContaining('尚未登记节假日'), findsNothing);
         await t.tap(find.text('timed'));
         await t.pumpAndSettle();
+        expect(find.textContaining('尚未登记节假日'), findsOneWidget);
         expect(find.textContaining('UTC-5:30'), findsOneWidget);
         expect(find.text('周日、周六 01:00–02:00'), findsOneWidget);
         expect(find.textContaining('节假日仅登记到'), findsNothing);

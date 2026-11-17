@@ -432,7 +432,7 @@ pub fn sync(
         let _ = ledger.fail_run(run, &error.to_string());
         log.write(
             if error.0 == "cancelled" {
-                "WARN"
+                "INFO"
             } else {
                 "ERROR"
             },

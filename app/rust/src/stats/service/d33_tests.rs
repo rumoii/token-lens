@@ -25,6 +25,10 @@ fn sorted_list(value: &mut Value) {
 fn ordered(name: &str, mut value: Value) -> Value {
     match name {
         "read.breakdown" => sorted_list(&mut value),
+        // Price rows retain the Node values; their desktop order is token-based.
+        // f1_prices_sort_by_displayed_tokens_then_model pins the new order.
+        "read.model_price_marks" => sorted_list(&mut value),
+        "pricing" => sorted_list(&mut value["models"]),
         "breakdown" => sorted_list(&mut value["groups"]),
         "read.matrix" | "matrix" => sorted_list(&mut value["rows"]),
         "read.session_detail" | "session_detail" if !value.is_null() => {

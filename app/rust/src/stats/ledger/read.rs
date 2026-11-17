@@ -469,7 +469,7 @@ impl Ledger {
     }
 
     pub fn model_price_marks(&self) -> Result<Vec<Value>> {
-        rows(&self.db,"SELECT model,provider,CASE WHEN instr(price_source,';')>0 THEN substr(price_source,instr(price_source,';')+1) ELSE '' END AS mark,count(*) AS records,sum(count(*)) OVER (PARTITION BY model) AS model_records FROM usage_records WHERE active=1 GROUP BY model,mark,provider ORDER BY model_records DESC,model,mark,provider", &[])
+        rows(&self.db,"SELECT model,provider,CASE WHEN instr(price_source,';')>0 THEN substr(price_source,instr(price_source,';')+1) ELSE '' END AS mark,count(*) AS records,sum(count(*)) OVER (PARTITION BY model) AS model_records FROM usage_records WHERE active=1 GROUP BY model,mark,provider ORDER BY sum(sum(coalesce(input_tokens,0)+coalesce(output_tokens,0)+coalesce(cache_read_tokens,0)+coalesce(cache_write_tokens,0))) OVER (PARTITION BY model) DESC,model,mark,provider", &[])
     }
 
     #[allow(
@@ -563,6 +563,30 @@ mod d33_tests {
     use super::*;
     use crate::stats::{clock::Clock, pricing};
     use std::path::Path;
+
+    #[test]
+    fn f1_prices_sort_by_displayed_tokens_then_model() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        let mut records = vec![
+            json!({"record_key":"large","source":"claude","model":"z-large","observed_at":"2026-01-15T00:00:00Z","input_tokens":1000}),
+            json!({"record_key":"tie-b","source":"claude","model":"b-tie","observed_at":"2026-01-15T00:00:00Z","output_tokens":100}),
+            json!({"record_key":"tie-a","source":"claude","model":"a-tie","observed_at":"2026-01-15T00:00:00Z","cache_read_tokens":60,"cache_write_tokens":40}),
+        ];
+        for i in 0..5 {
+            records.push(json!({"record_key":format!("small-{i}"),"source":"claude","model":"frequent-small","observed_at":"2026-01-15T00:00:00Z","input_tokens":1}));
+        }
+        ledger
+            .batch(&records, None, None, &[], pricing::cost_of)
+            .unwrap();
+        let response = crate::stats::service::pricing(&ledger, "UTC").unwrap();
+        let names: Vec<_> = response["models"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["model"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["z-large", "a-tie", "b-tie", "frequent-small"]);
+    }
 
     #[test]
     fn fix1_lifetime_lookup_is_indexed_and_follows_pagination() {
