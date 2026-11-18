@@ -48,7 +48,9 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 
 ## 下载与安装
 
-从 [Releases](https://github.com/rumoii/token-lens/releases) 下载对应系统的 zip，每个文件旁边有 SHA-256 校验文件。不需要安装 Node、Python 或其他运行环境。
+从 [Releases](https://github.com/rumoii/token-lens/releases) 下载对应系统的 zip，每个文件旁边有同名的 `.sha256` 校验文件。不需要安装 Node、Python 或其他运行环境。
+
+想确认下载完整：Windows 在 PowerShell 里运行 `Get-FileHash .\token-lens-<版本>-windows-x64.zip`，把输出的哈希和 `.sha256` 文件里的对一下（大小写不同不要紧）；macOS 把两个文件放在同一个文件夹，在终端里运行 `shasum -a 256 -c token-lens-<版本>-macos.zip.sha256`，看到 `OK` 即可。
 
 ### Windows
 
@@ -62,11 +64,12 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 
 - 系统要求：Apple 芯片（M 系列）的 Mac，macOS 12 或更新。
 - 解压 `token-lens-<版本>-macos.zip`，把 `Token Lens.app` 拖进「应用程序」再打开。
-- 程序没有签名和公证，第一次打开时系统会提示无法验证开发者。点「完成」（不要点「移到废纸篓」），到「系统设置 → 隐私与安全性」，在下方点「仍要打开」。放行只对当时那一份程序有效，所以先拖进「应用程序」再打开；升级替换后要再放行一次。
+- 升级：关掉 Token Lens，用新的 `Token Lens.app` 替换「应用程序」里的旧版。卸载：删掉 `Token Lens.app`；不再需要数据时，再删掉数据目录（见[数据与隐私](#数据与隐私)）。
+- 程序没有签名和公证，第一次打开时系统会提示无法验证开发者。点「完成」（不要点「移到废纸篓」），到「系统设置 → 隐私与安全性」（macOS 12 是「系统偏好设置 → 安全性与隐私 → 通用」），在下方点「仍要打开」。放行只对当时那一份程序有效，所以先拖进「应用程序」再打开；升级替换后要再放行一次。
 
 ## 使用
 
-第一次打开时，Token Lens 会列出在这台电脑上找到的工具，确认后读取一遍全部日志。之后每次打开都会同步一次，窗口开着时每 5 分钟同步一次，也可以随时点「同步用量」。关掉窗口程序就退出，不留后台进程，也不开机自启。
+第一次打开时，Token Lens 会列出在这台电脑上找到的工具，点「开始统计」后才读取日志内容，第一遍会读完全部日志。之后每次打开都会同步一次，窗口开着时每 5 分钟同步一次，也可以随时点「同步用量」。关掉窗口程序就退出，不留后台进程，也不开机自启。
 
 重复打开时只会激活已经开着的那个窗口。
 
@@ -78,7 +81,7 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 | Codex CLI | codex | 实测·对账零差异 | cached ⊂ input；rollout JSONL（含 .zst） |
 | Qwen Code | qwen | 实测·逐字段对照 | 输入含缓存需扣减；输出并入 thoughtsTokens |
 | Pi | pi | 实测·逐字段对照 | 会话头与用量不在同一行 |
-| DeepSeek Harness (DSH) | dsh | 有样本·待对照 | 会话级累计快照，全量覆写 |
+| DeepSeek Harness (DSH) | dsh | 实测·与客户端自报对照 | 会话级累计快照，全量覆写 |
 | Grok Build CLI | grok | 有样本·待对照 | 仅 turn_completed 带用量 |
 | Hermes Agent | hermes | 有样本·待对照 | 累计；两张表结构不同 |
 | Aider | aider | 实验性·合成验证 | commit_hash 不作会话标识；只读取 ~/.aider.llm.history |
@@ -89,7 +92,7 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 | Cursor | cursor | 实验性·合成验证 | 内部 SQLite 结构随版本变化 |
 | Gemini CLI | gemini | 实验性·合成验证 | 目录混有非用量 JSON |
 | Block Goose | goose | 实验性·合成验证 | 两套 token 字段 |
-| Kimi / Kimi Code | kimi | 实验性·合成验证 | 目录层级不统一 |
+| Kimi / Kimi Code | kimi | 实测·与客户端自报对照 | 目录层级不统一 |
 | MiMo Code | mimo | 实验性·合成验证 | 按上游源码实现，待真实样本；删会话后已采集用量保留；Desktop 路径未核实 |
 | MiniMax Code | minimax | 实验性·合成验证 | 按上游源码实现，待真实样本；rewind 或删会话后已采集用量保留 |
 | ZCode | zcode | 实验性·合成验证 | 按上游源码实现，待真实样本；客户端保留 30 天，已采集用量保留 |
@@ -102,11 +105,11 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 | Trae / Trae CN | trae | 实验性·合成验证 | JSONL id 语义未确认 |
 | Zed | zed | 实验性·合成验证 | payload 可能是 zstd BLOB |
 
-实验性 = 合成样本验证通过、还缺真实日志验收，欢迎反馈真实样本。各工具的字段含义和已知限制见 [适配器契约](specs/adapters.md) 与 [日志字段事实](specs/log-schemas.yaml)。
+实测 = 用真实日志核对过（逐字段手核、与客户端自报的总量对照，或与账本对账）；这些核对最初在旧版上做，桌面版又在同一份真实日志上与旧版逐字段一致。有样本·待对照 = 有真实日志，但用量太少或没有可对照的数字。实验性 = 合成样本验证通过、还缺真实日志验收，欢迎反馈真实样本。各工具的字段含义和已知限制见 [适配器契约](specs/adapters.md) 与 [日志字段事实](specs/log-schemas.yaml)。
 
 ## 数据与隐私
 
-- **只读本机日志**：只读取各工具已经写在本机的用量元数据（四类 token、模型、时间、会话、项目路径），不读也不保存提示词、回复、代码和凭据，不修改这些工具的任何文件。
+- **只读本机日志**：在本机读取并解析各工具的日志，只提取用量元数据（四类 token、模型、时间、会话、项目路径）；日志里的提示词、回复、代码和凭据不会写进账本，也不会发出去。不修改这些工具的任何文件。
 - **数据只在本机**：用量、偏好和新闻缓存都在系统的应用支持目录下的 `data` 文件夹里：Windows 上是 `%APPDATA%\Token Lens\Token Lens\data`，macOS 上是 `~/Library/Application Support/io.github.rumoii.token-lens/data`。不再需要时整个删掉即可。
 - **会联网的只有三件事**：AI 热点按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）。请求不带账号、凭据或用量数据。来源清单和请求方式见 [specs/news.md](specs/news.md)，检查更新见 [specs/update.md](specs/update.md)。
 - 没有账号、上传、遥测或第三方分析。完整说明见 [隐私说明](PRIVACY.md)。
@@ -132,7 +135,7 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 
 ## 从源码构建
 
-需要 Flutter 3.47.9、Rust 1.98.0；Windows 还要 Visual Studio 的 C++ 桌面开发组件，macOS 要 Xcode。
+需要 Flutter 3.47.9、Rust 1.98.0；Windows 还要 Visual Studio 的 C++ 桌面开发组件和创建符号链接的权限（打开 Windows 的开发者模式即可），macOS 要 Xcode。
 
 ```sh
 cd app
@@ -140,7 +143,7 @@ flutter pub get --enforce-lockfile
 flutter build windows --release   # 或 flutter build macos --release
 ```
 
-开发运行必须指定独立的测试数据目录，检查命令、代码生成和发布流程见 [app/README.md](app/README.md)。
+产物在 `app/build/windows/x64/runner/Release/`（macOS 是 `app/build/macos/Build/Products/Release/Token Lens.app`）。开发运行必须同时隔离测试数据目录和日志根目录，检查命令、代码生成和发布流程见 [app/README.md](app/README.md#开发与检查)。
 
 ## 旧版 Node/React
 
@@ -152,10 +155,10 @@ flutter build windows --release   # 或 flutter build macos --release
 npm ci
 npm ci --prefix dashboard
 npm run dashboard:build
-npm start          # 打开 http://127.0.0.1:3456
+npm start          # 启动本地看板，终端会打印地址（默认 http://127.0.0.1:3456，端口被占用时顺延），在浏览器里打开它
 ```
 
-CLI 用法：`lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`。指向测试目录以外的地方时，一律显式传 `--data-dir`。功能规格见 [specs/features.md](specs/features.md)，数据目录规则和测试约定见 [CLAUDE.md](CLAUDE.md)。
+CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`。指向测试目录以外的地方时，一律显式传 `--data-dir`。功能规格见 [specs/features.md](specs/features.md)，数据目录规则和测试约定见 [CLAUDE.md](CLAUDE.md)。
 
 ## 文档索引
 
@@ -177,7 +180,7 @@ CLI 用法：`lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <p
 
 ## 贡献
 
-欢迎 Issue 与 PR。提交前请读 [贡献指南](CONTRIBUTING.md)。工具日志格式对不上、或者你有某个实验性工具的真实日志样本，特别欢迎反馈。
+欢迎 Issue 与 PR。提交前请读 [贡献指南](CONTRIBUTING.md)。工具日志格式对不上、或者你有某个实验性工具的真实日志样本，特别欢迎反馈；样本只需要和用量有关的几个字段，提交前请删掉提示词、回复、路径和账号信息。
 
 ## Star 趋势
 

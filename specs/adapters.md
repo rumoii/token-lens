@@ -119,19 +119,19 @@ Cline 与 Roo Code（2026-10-26 读源码核实，未接入）：现有适配器
 
 ## 四、证据现状
 
-本机存在真实数据目录的客户端：
+开发时有真实日志可核对的客户端：
 
-| source | 路径 | 条目数 | 已做真实样本对照 |
-|---|---|---|---|
-| `claude` | `~/.claude/projects` | 17 | **是**，1 条逐字段手核：`input 2 / output 637 / cache_read 458464 / cache_write 1282`，与原始 `message.usage` 逐项相等 |
-| `codex` | `~/.codex/sessions` | 1 | **是**，25 条记录，缓存合计与客户端 `total_tokens` 对平 |
-| `qwen` | `~/.qwen/usage` | 3 | **是**，20 条记录，归一后等于客户端 `totalTokens` 合计 1,483,257 |
-| `dsh` | `~/.dsh/storages/session_projcache/sessions` | 96 | **是**（2026-10-26，L3 oracle）：有用量的会话文件四类 token 与客户端自报的会话 `totals` 逐项相等；全零的文件不入账 |
-| `grok` | `~/.grok/sessions` | 3 | 否：只有 1 条用量事件，不足以对照 |
-| `pi` | `~/.pi/agent/sessions` | 10 | **是**，30 条事件，四项 token 合计与原始字段一致 |
-| `hermes` | `%LOCALAPPDATA%/hermes/state.db` | 1 | 否 |
-| `kimi` | `~/.kimi-code/sessions/*/*/agents/*/wire.jsonl` | 48 | **是**（2026-10-26，`scripts/audit/oracle/kimi.mjs`）：按会话四类 token 与 oracle 相同；能配对上的 `usage.record` 四项之和全部等于客户端自测的 `token_counting.measured.tokens`，说明四项互不重叠。对照中查出 `subagent.completed` 的子 agent 汇总被重复计入、缺模型时写成 `moonshot-v1-8k`，已修（`parser_rev` 5） |
-| `copilot` | `%APPDATA%/Code/User/globalStorage/github.copilot-chat/session-store.db` | 1 | 否：这是 VS Code Copilot Chat 的库，表为空，也没有用量列；适配器读的是 Copilot CLI 的 `~/.copilot` |
+| source | 路径 | 已做真实样本对照 |
+|---|---|---|
+| `claude` | `~/.claude/projects` | **是**，逐字段手核一条记录，四类 token 与原始 `message.usage` 逐项相等 |
+| `codex` | `~/.codex/sessions` | **是**，逐条核对含 usage 的记录，缓存合计与客户端 `total_tokens` 对平 |
+| `qwen` | `~/.qwen/usage` | **是**，归一后等于客户端 `totalTokens` 合计 |
+| `dsh` | `~/.dsh/storages/session_projcache/sessions` | **是**（2026-10-26，L3 oracle）：有用量的会话文件四类 token 与客户端自报的会话 `totals` 逐项相等；全零的文件不入账 |
+| `grok` | `~/.grok/sessions` | 否：样本里只有 1 条用量事件，不足以对照 |
+| `pi` | `~/.pi/agent/sessions` | **是**，四项 token 合计与原始字段一致 |
+| `hermes` | `%LOCALAPPDATA%/hermes/state.db` | 否 |
+| `kimi` | `~/.kimi-code/sessions/*/*/agents/*/wire.jsonl` | **是**（2026-10-26，`scripts/audit/oracle/kimi.mjs`）：按会话四类 token 与 oracle 相同；能配对上的 `usage.record` 四项之和全部等于客户端自测的 `token_counting.measured.tokens`，说明四项互不重叠。对照中查出 `subagent.completed` 的子 agent 汇总被重复计入、缺模型时写成 `moonshot-v1-8k`，已修（`parser_rev` 5） |
+| `copilot` | `%APPDATA%/Code/User/globalStorage/github.copilot-chat/session-store.db` | 否：这是 VS Code Copilot Chat 的库，表为空，也没有用量列；适配器读的是 Copilot CLI 的 `~/.copilot` |
 
 codex 桌面版（`originator` 为 `codex_work_desktop`）与 CLI 写同一个 `~/.codex/sessions`，现有适配器已经覆盖。
 
@@ -152,7 +152,7 @@ CodeBuddy 的路径、格式及包含关系仅来自第三方 NextAgentX/qoder-t
 Kimi Code、ZCode、Codex 的请求计时与下表的扩展计时共用独立存储，不改变用量、身份、时间、content_hash 或计价。计时单独挂到 event.record_key，未知保留 NULL，查询定义见 stats.md「E4」。
 
 - **Kimi Code（PARSER_REV=5，TIMING_REV=1）**：wire 的 `context.append_loop_event.event.type=step.end` 中读取 `llmFirstTokenLatencyMs` 和 `llmStreamDurationMs`，两者都是客户端时钟，method 为 client_reported。该事件的 usage 与当前 step 中的独立 usage.record 必须完全相等且唯一匹配；step.begin/end 隔开配对范围。缺一个或为负值只使对应指标为 NULL，关联歧义使两项均未知。只用这条 usage.record 的 output，不把 step.end 再记一次用量。无计时的压缩调用、旧 JSON/普通 JSONL 保留未知。finishReason 为 end_turn/tool_use/stop/length/max_tokens 记 completed，cancelled/aborted 记 cancelled，error/failed 记 failed，其他为 unknown。
-- **ZCode（PARSER_REV=1，TIMING_REV=1，合成验证，现场待验收）**：只读 model_usage，首字优先 time_to_first_token_ms，缺失时取 first_token_at−started_at；生成时长为 completed_at−first_token_at。时间均为毫秒，method 为 client_reported。显式负首字不回退，负时间差为 NULL，0 ms 保留为已知值（生成时长为 0 不进入速度统计）；老表没有这些列时按 NULL 读取，保留原有用量。status completed/error/cancelled/running 分别映射 completed/failed/cancelled/partial，其他或缺列为 unknown。字段来源沿用 timestamp-report.md 所引用的 ZCode commit 3c5b227649371507ddc4eb46ac5133afe6db1cab 表结构；没有本机真实样本。
+- **ZCode（PARSER_REV=1，TIMING_REV=1，合成验证，现场待验收）**：只读 model_usage，首字优先 time_to_first_token_ms，缺失时取 first_token_at−started_at；生成时长为 completed_at−first_token_at。时间均为毫秒，method 为 client_reported。显式负首字不回退，负时间差为 NULL，0 ms 保留为已知值（生成时长为 0 不进入速度统计）；老表没有这些列时按 NULL 读取，保留原有用量。status completed/error/cancelled/running 分别映射 completed/failed/cancelled/partial，其他或缺列为 unknown。字段来源是 ZCode commit 3c5b227649371507ddc4eb46ac5133afe6db1cab 的表结构；没有真实样本。
 - **Codex（PARSER_REV=5，TIMING_REV=1）**：method 为 log_timestamps。起点是最近一条已落盘用户消息（response_item.message role=user 或 item_completed.UserMessage）、工具结果消息（response_item.function_call_output/custom_tool_call_output）、回合开始（event_msg.task_started/turn_started）的外层 timestamp。developer 消息不改边界。首次输出只取 event_msg.item_completed 的 Reasoning/AgentMessage 项的最小 payload.started_at_ms，且必须有 payload.completed_at_ms > started_at_ms。零时长项可能只暴露隐藏推理的完成时刻，不能当作输出开始；缺完成时间或结束早于开始也跳过，没有合格项则两个指标均为 NULL，不回退其他时间。维护单调推进的输出下限：遇到 token_usage_record、turn_aborted、task_started/turn_started，或任一用户消息/工具结果边界时，用该行落盘时间推进下限（不因旧时间戳后退，边界与中断时间早于下限或无法解析时整行忽略，不重置当前起点或首输出；普通边界仅在时间严格晚于下限、或等于下限且尚无首输出时重置窗口；等于下限且已有首输出时整行忽略；turn_aborted 只要不早于下限仍清空窗口）。只有 started_at_ms ≥ 下限的输出项可参与首输出，早于下限的晚到项直接忽略；因此中断且没有 usage 的旧请求也不能污染下一回合。结束取 token_usage_record.timestamp。两个差值分别要求大于 0，否则对应值 NULL。每条用量消费并清除当前窗口；turn_aborted、回合重新开始清掉未配对窗口。没有 started_at_ms 的旧日志不从相邻行补时间。工具调用、CommandExecution、FileChange 及其他生命周期项既不作为首输出，也不替代工具结果消息。日志落盘、隐藏推理、并发输出和缓冲会影响覆盖率与近似程度；没有可见思考/回复的工具专用请求仍计入分母。
 
 
@@ -164,7 +164,7 @@ Kimi Code、ZCode、Codex 的请求计时与下表的扩展计时共用独立存
 | --- | --- | --- | --- |
 | qwen | apiDurationMs，毫秒，仅吞吐 | client_reported / request | 独立 API response 用量视为 completed；保留现有 thoughts 输出口径 |
 | pi | 优先 message.durationMs（毫秒）；仅缺失/NULL 时用外层 ISO timestamp − message.timestamp（Unix 毫秒） | 前者 client_reported，后者 log_timestamps / request | stop/length/toolUse 为 completed，error 为 failed，aborted 为 cancelled，其他 unknown；显式无效 duration 不回退 |
-| openhands | 同一 usage_to_metrics 中唯一 response_id 的 response_latencies[].latency，秒 × 1000 | client_reported / request | 终结响应 completed；同 response 重复 usage 或 latency 时 NULL；本机无样本，依据 timestamp-report 的上游结构做合成验证 |
+| openhands | 同一 usage_to_metrics 中唯一 response_id 的 response_latencies[].latency，秒 × 1000 | client_reported / request | 终结响应 completed；同 response 重复 usage 或 latency 时 NULL；没有真实样本，依据上游 OpenHands-CLI 与 SDK 的结构（版本见 log-schemas.yaml 的 openhands 条目）做合成验证 |
 | anythingllm | response.metrics.duration，秒 × 1000 | client_reported / request | 终结记录 completed；起点受取得 stream 对象时刻及 provider 覆盖影响；本机无样本，合成验证 |
 | opencode / mimo / kilo | 首字=首个 content[].type=reasoning 的 time.created − 消息 time.created；生成=消息 time.completed − 该首点；整次耗时=completed − created；均为 Unix 毫秒 | 首字/速度 content_event_proxy，吞吐 log_timestamps / request | completed 存在为 completed，否则 partial；任一推理片段缺起点时首字/生成未知，不借后续片段；文本时间不当首点；OpenCode 本机验证，MiMo/Kilo 无本机样本，只做合成验证，不声称现场通过 |
 | claude | type=api-request 的唯一 id，通过 requestRef 关联同 message.id 的最后有效 usage 块 timestamp；ISO 毫秒相减 | log_timestamps / request | 仅当最后有效 usage 块的 message.stop_reason 是非空字符串时 completed，否则 partial，不进入吞吐；不能沿用较早块的结束标志，也不依据后续消息推断；重复请求 id、缺消息 id、同请求对应多消息、消息引用缺失或冲突为 NULL；不改变用量最大值合并和首个 observed_at，也不把消息落盘时间当首 token |
@@ -194,17 +194,9 @@ MiMo Code 的第 4 条不适用：message 表的 assistant 消息都是事件（
 
 可比条数按「重放与账本有共同身份」算，不是按重放条数算——重放里有一部分是账本还没采集的新记录，那些没有可比对象。
 
-| source | 重放身份 | 未采集 | 可比条数 |
-|---|---:|---:|---:|
-| claude | 711 | 553 | 158 |
-| codex | 1,546 | 295 | 1,251 |
-| qwen | 89 | 90 | 0 |
-| dsh | 11 | 11 | 0 |
-| pi | 35 | 35 | 0 |
-
 账本里其余记录的原始日志已不在磁盘上，无法重放，属于不可验证。
 
-结论只能落在有可比条数的两个来源上：claude 158 条、codex 1,251 条，四类 token、model、项目归属零差异。qwen、dsh、pi 的现存文件与账本没有一条共同身份，**这三个来源本次一条都没验证过**，不能写成「一致」。
+结论只能落在有可比条数的两个来源上：claude、codex 能与账本对上身份的记录，四类 token、model、项目归属零差异。qwen、dsh、pi 的现存文件与账本没有一条共同身份，**这三个来源本次一条都没验证过**，不能写成「一致」。
 
 账本里大部分记录对应的原始日志已不在磁盘上，成了孤证。
 
@@ -216,11 +208,11 @@ MiMo Code 的第 4 条不适用：message 表的 assistant 消息都是事件（
 
 `SCHEMA_VERSION` 2 起：`usage_records` 增加 `cache_write_5m_tokens`、`cache_write_1h_tokens`，两者是 `cache_write_tokens` 的拆分，不进入 `gross_tokens`。`claude` 适配器在两档齐全且之和等于合计时写入分档；不一致或缺失时只报合计，计价回落到 5 分钟档。价目的 `cacheWrite1h` 按厂商 1 小时档填写。
 
-去重口径：按唯一 `message.id` 统计，现存 726 条消息的缓存写全部是 1 小时档。直接对原始行求和会得到两倍多的数——同一条 message 的流式快照被写过多次，按行累加会翻倍。
+去重口径：按唯一 `message.id` 统计，当时现存消息的缓存写全部是 1 小时档。直接对原始行求和会得到两倍多的数——同一条 message 的流式快照被写过多次，按行累加会翻倍。
 
 升级兼容：v1 库升 v2 只加列，不重算历史行。用真实账本副本验证过——迁移后行数不变、新列为空、`reprice` 后总额一分未变。
 
-影响面：若账本全历史的 claude 缓存写全部按 1 小时档，该分项的金额会增加六成。这是**上限**估计——历史记录的分档已不可知，现有 726 条样本全是 1 小时档，不能据此断定全部历史也是。
+影响面：若账本全历史的 claude 缓存写全部按 1 小时档，该分项的金额会增加六成。这是**上限**估计——历史记录的分档已不可知，现有样本全是 1 小时档，不能据此断定全部历史也是。
 
 2026-10-19 真实账本已迁移到 schema v2：历史行数与总额一分未变、分档留空。同日补采的新 claude 记录全部带分档，两档都有，按档计价比一律回落 5 分钟档略高。新记录的分档并非全为 1 小时档，按实际上报档位计价才是对的。
 

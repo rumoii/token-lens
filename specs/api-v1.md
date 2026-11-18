@@ -73,7 +73,7 @@
     "cache_hit_ratio": 0.6452,
     "first_seen": "2026-09-25T01:00:00.000Z",
     "last_seen": "2026-10-18T03:00:00.000Z",
-    "active_span_ms": 1952301231
+    "active_span_ms": 1994400000
   },
   "snapshot": { "generated_at": "...", "price_version": "…", "tz": "Asia/Singapore", "filters": {} }
 }
@@ -108,7 +108,7 @@
   "granularity": "day",
   "by": "model",
   "rows": [{ "bucket": "2026-10-18", "key": "claude-opus-5-5", "gross_tokens": 2400000, "cost_usd": "8.30" }],
-  "unallocated": { "gross_tokens": 1180221312, "record_count": 46, "reason": "cumulative_without_time_distribution" },
+  "unallocated": { "gross_tokens": 120000000, "record_count": 12, "reason": "cumulative_without_time_distribution" },
   "snapshot": { "…": "…" }
 }
 ```
@@ -122,7 +122,7 @@
 `cost_by_kind` 把该组金额按 token 类型拆开：
 
 ```json
-"cost_by_kind": { "input": "0.081584", "output": "173.827780", "cache_read": "482.940975", "cache_write": "149.931960" }
+"cost_by_kind": { "input": "0.080000", "output": "170.000000", "cache_read": "480.000000", "cache_write": "150.000000" }
 ```
 
 分项由定价引擎按每条已定价记录计算，再用整数 micro-USD 累加；缓存写的五分钟与一小时档分别取整后合并到 `cache_write`。API 不从聚合 token 重算，不把差额分配给其他分项。分项非 `null` 时，四类之和严格等于该组 `cost_usd`。
@@ -141,7 +141,7 @@
 
 ```json
 { "items": [ { "session_id": "...", "source": "codex", "project_key": null,
-  "started_at": "...", "last_seen_at": "...", "gross_tokens": 3003665,
+  "started_at": "...", "last_seen_at": "...", "gross_tokens": 3000000,
   "cost_usd": "12.345000" } ],
   "next_cursor": null }
 ```
@@ -285,7 +285,7 @@
     "cache_write_5m": 5, "cache_write_1h": null
   } }],
   "time_of_day": null,
-  "price_marks": { "tier:272000": 1037, "tier:unknown": 13293, "": 40 }
+  "price_marks": { "tier:272000": 1000, "tier:unknown": 13000, "": 40 }
 }
 ```
 

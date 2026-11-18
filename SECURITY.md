@@ -4,8 +4,9 @@
 
 | 版本 | 支持状态 |
 | --- | --- |
-| 1.0.x（main 最新版） | 接收安全修复 |
-| 更早版本 | 不回补安全修复，请升级到最新版 |
+| 最新发布的桌面版（0.x 期间是最新的 0.y.z） | 接收安全修复 |
+| 更早的桌面版 | 不回补安全修复，请升级到最新版 |
+| 仓库里的旧版 Node/React 工具 | 只在 main 上修复，不单独发布 |
 
 ## 报告漏洞
 
@@ -15,7 +16,7 @@ https://github.com/rumoii/token-lens/security/advisories/new
 
 报告请包含：
 
-- 受影响的版本（发布版本或 commit）；
+- 受影响的版本（发布版本或 commit）和系统；
 - 复现步骤；
 - 影响面评估，附最小 PoC 更好。
 
@@ -23,28 +24,37 @@ https://github.com/rumoii/token-lens/security/advisories/new
 
 响应预期：确认收悉后尽快评估；修复合入 main 后与报告者协调公开披露时间。
 
-## 重点范围
+## 重点范围（桌面应用 `app/`）
 
-1. HTTP 准入闸门 `src/core/http/gate.js`：仅接受回环 Host（其余一律返回 421）；`/api/*` 需要 bearer 令牌（缺失或错误返回 401）；写请求的 Origin 须同源或缺省（否则 403）；永不下发 CORS 头。
-2. API 令牌 `src/core/http/token.js`：令牌存于 `<data-dir>/api-token`，POSIX 上文件权限 0600（Windows 上依赖用户目录 ACL）；`index.html` 以 meta 注入令牌，比较用定长比较。
-3. 数据目录裁决 `src/core/paths.js`：`--data-dir` > `TOKEN_LENS_DATA_DIR` > `DB_PATH` > 默认 `~/.token-lens`；`DB_PATH` 与 `--data-dir`/`TOKEN_LENS_DATA_DIR` 指向不同目录时直接报错，防止误写真实 HOME。
-4. 日志解析只读不执行代码 `src/core/adapters/`：只做 JSON / JSONL / SQLite 的只读解析与 zstd 多帧解码（`src/core/adapters/_zstd.js`），不 eval、不加载客户端配置、不写客户端目录。
-5. 网络面：服务仅绑定回环地址 127.0.0.1（`src/core/http/port.js` 的 `server.listen(port, '127.0.0.1')`），从不绑定 0.0.0.0，也不接受非回环 Host 请求；联网只发生在用户明确点击设置页「更新汇率」时。
-6. 桌面壳 `desktop/src/`：
-   - 窗口只导航到 `http://127.0.0.1:3456` 和内联的加载、失败页；其他 http(s) 链接和新窗口请求交给系统浏览器，其余协议与本地文件一律拒绝（`main.rs`，`runtime/windows.rs` 与 `runtime/macos.rs` 的 `open_external`）。
-   - Windows：内核 `node.exe` 挂在带 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 的 Job 里，关窗或壳崩溃时一并结束；命名互斥量保证单实例（`runtime/windows.rs`）。
-   - macOS：壳一直持有内核 stdin 的写端，内核带 `--exit-on-stdin-end`，壳退出或崩溃时管道关闭，内核随之退出；单实例靠 `~/Library/Application Support/token-lens-app/instance.lock` 的文件锁；错误对话框的消息经 argv 传给 `osascript`，不拼进脚本（`runtime/macos.rs`）。
-   - 自解压（`payload.rs`，仅 Windows）：先校验压缩载荷的 SHA-256，拒绝越界路径、重复路径、截断与超限数据；解压到临时目录，用 `create_new` 写文件，全部校验通过后写完成标记并原子改名，不覆盖已有文件。
+1. **进程结构**：界面是 Flutter，统计、计价、新闻刷新都在随程序分发的 Rust 库里，通过 flutter_rust_bridge 在同一进程内调用。没有本地网页服务，不监听端口，不用 WebView。
+2. **日志解析只读、不执行代码**（`app/rust/src/stats/adapters/`）：只做 JSON / JSONL / SQLite 的解析和 zstd 多帧解码；SQLite 以只读方式打开；不 eval，不加载客户端配置，不写、不删客户端目录里的任何文件。
+3. **数据目录**：账本、偏好、新闻缓存和运行日志都在当前用户的应用支持目录（Windows `%APPDATA%\Token Lens\Token Lens\data`，macOS `~/Library/Application Support/io.github.rumoii.token-lens/data`）。`TOKEN_LENS_PREVIEW_DATA_DIR`、`TOKEN_LENS_PREVIEW_HOME` 只给开发和冒烟测试隔离用。桌面版从不打开旧版的 `~/.token-lens`。
+4. **联网面**（详见 [隐私说明](PRIVACY.md#什么时候联网)）：
+   - AI 热点：每个来源只请求固定地址，不加载远程图片；条目链接在 Rust 端只保留 http/https 地址（`safe_url`），其他协议的链接被丢弃。
+   - 汇率：只在用户点「更新汇率」时请求一次。
+   - 检查更新：只向 `api.github.com` 请求本项目最新正式版本，不跟随重定向，响应超过 512 KiB 中止；下载页地址由校验过的版本号拼出，不使用响应里的链接（[specs/update.md](specs/update.md)）。
+   - 所有外部链接交给系统默认浏览器打开。
+5. **诊断导出**（`app/rust/src/diagnostics.rs`）：只在用户点击时生成；不含账本和对话内容；先把用户主目录替换成 `~`，再过滤敏感字段，最后截断。
 
 ## 不算漏洞的情况
 
-- 以已获得本机用户账户或文件系统权限为前提的攻击；
+- 以已获得本机用户账户或文件系统权限为前提的攻击，包括改写数据目录里的文件、替换程序文件夹或 `Token Lens.app` 里的文件；
 - 本机恶意软件造成的任何后果；
-- 本地端口占用或本地拒绝服务（命令行版端口被占时顺延、桌面版被占时报错，都是既定设计）；
-- 桌面版未签名或未公证导致的 SmartScreen、Gatekeeper 提示，或替换 `%LOCALAPPDATA%\token-lens-app\`、`Token Lens.app` 里的程序文件（需要本机用户权限，归入第一条）；
+- 本地拒绝服务，例如塞入超大或畸形的客户端日志让同步变慢（请走普通 issue）；
+- 桌面版未签名或未公证导致的 SmartScreen、Gatekeeper 提示；
+- 新闻来源本身发布的内容不准确或不当（请走普通 issue，可在「管理来源」里停用该来源）；
 - 价格数值错误（属于功能缺陷，请走 issue 反馈）；
 - 未结合本项目实际调用面的纯依赖审计告警；
 - 社会工程学攻击。
+
+## 旧版 Node/React 工具
+
+仓库里保留的旧版（`src/core/`、`dashboard/`、`desktop/`）有另一套边界，报告时请注明是旧版：
+
+- HTTP 准入闸门 `src/core/http/gate.js`：只接受回环 Host（其余返回 421）；`/api/*` 需要 bearer 令牌（缺失或错误返回 401）；写请求的 Origin 须同源或缺省（否则 403）；从不下发 CORS 头。服务只绑定 127.0.0.1（`src/core/http/port.js`）。
+- API 令牌 `src/core/http/token.js`：存于 `<data-dir>/api-token`，POSIX 上权限 0600（Windows 上依赖用户目录 ACL）；比较用定长比较。
+- 数据目录裁决 `src/core/paths.js`：`--data-dir` > `TOKEN_LENS_DATA_DIR` > `DB_PATH` > 默认 `~/.token-lens`；互相冲突时直接报错。
+- 旧版桌面壳 `desktop/src/`（wry WebView）：窗口只导航到 `http://127.0.0.1:3456` 和内联页面，其他链接交给系统浏览器；Windows 版的自解压先校验载荷的 SHA-256，拒绝越界路径、重复路径、截断与超限数据。
 
 ## 处理流程
 
@@ -52,4 +62,4 @@ https://github.com/rumoii/token-lens/security/advisories/new
 
 ## English Summary
 
-Token Lens runs entirely on the local machine. The local server binds only to the loopback address 127.0.0.1 (never 0.0.0.0) and rejects requests with a non-loopback Host; every `/api/*` endpoint requires a bearer token. The desktop app (Windows and macOS) runs the same server and its window only loads `http://127.0.0.1:3456`, handing other web links to the system browser. No usage data or telemetry is ever uploaded and no account is involved. Please report security vulnerabilities privately through GitHub's private vulnerability reporting channel.
+Token Lens runs entirely on the local machine. The desktop app is a Flutter UI calling a Rust library in-process: it runs no local server, listens on no port and uses no WebView. It reads AI tools' local logs read-only (SQLite databases are opened read-only) and never modifies them. It uses the network for three things only: refreshing AI news from fixed source URLs (item links are limited to http/https), fetching an exchange rate when the user clicks "Update rate", and checking GitHub for a newer release at most once a day (no redirects, response size capped, the download link is built from the validated version). No usage data or telemetry is ever uploaded and no account is involved. The legacy Node/React tool kept in the repository serves its dashboard on 127.0.0.1 only, rejects non-loopback Host headers and requires a bearer token for `/api/*`. Please report vulnerabilities privately through GitHub's private vulnerability reporting channel.

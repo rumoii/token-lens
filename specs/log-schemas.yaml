@@ -36,7 +36,7 @@ codex_cli:
     linux: "~/.codex/sessions"
   file_pattern: "**/rollout-*.jsonl (或 .jsonl.zst 压缩文件)"
   format: "JSONL"
-  evidence: "真实样本 rollout-2026-10-17T19-38-56-01a149a8-*.jsonl：281 行，25 条含 usage，cached 合计 2,790,144"
+  evidence: "真实 rollout 会话样本：含 usage 的行逐条核对，cached 合计与客户端 total_tokens 对平"
   provider_evidence: "https://github.com/openai/codex/blob/b7f7e7f7e85a1c63e520f27cac42b836f242d9f7/codex-rs/protocol/src/protocol.rs#L3378-L3392"
   key_fields:
     provider: "$.payload.model_provider（type=session_meta）；只在该会话内继承，下一 session_meta 缺失则清空，不从模型名推断"
@@ -55,7 +55,7 @@ codex_cli:
       - "$.payload.thread_token_usage（整段会话累计）"
       - "$.type == 'event_msg' 且 $.payload.type == 'token_count' 时的 $.payload.info.last_token_usage / total_token_usage"
       - 结论: "四种表示只能取一种，取 $.payload.usage，其余一律不读，否则同一笔用量被计多次"
-    cross_check: "usage.input_tokens + usage.output_tokens == usage.total_tokens（实测 190798 + 382 = 191180）"
+    cross_check: "usage.input_tokens + usage.output_tokens == usage.total_tokens（真实样本里逐条成立）"
   token_semantics: "cached ⊂ input。落库前须算 input_exclusive = input_tokens - cached_input_tokens；旧实现直接落 input_tokens 且漏读 cached_input_tokens，两个方向都错"
   request_timing:
     timing_rev: 1
@@ -173,7 +173,7 @@ pi_agent:
     darwin: "~/.pi/agent/sessions"
     linux: "~/.pi/agent/sessions"
   file_pattern: "**/*.jsonl"
-  evidence: "2026-10-26 只读统计本机 sessions：一层子目录 45 个 JSONL，三层子目录 54 个；保留递归发现"
+  evidence: "2026-10-26 只读核对真实 sessions 目录：会话文件既有在一层子目录下的，也有在三层子目录下的，因此保留递归发现"
   format: "JSONL"
   provider_evidence:
     - "https://github.com/badlogic/pi-mono/blob/6c384aa30f619d7b28963f2bab24d8dacbe73cb6/packages/ai/src/types.ts#L585-L590"

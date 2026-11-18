@@ -50,7 +50,9 @@ The usage in the screenshots is synthetic demo data; project paths are fictional
 
 ## Download and install
 
-Download the zip for your system from [Releases](https://github.com/rumoii/token-lens/releases). Each file has a SHA-256 checksum next to it. No Node, Python or other runtime is needed.
+Download the zip for your system from [Releases](https://github.com/rumoii/token-lens/releases). Each file has a matching `.sha256` checksum file next to it. No Node, Python or other runtime is needed.
+
+To check a download: on Windows run `Get-FileHash .\token-lens-<version>-windows-x64.zip` in PowerShell and compare the hash with the one in the `.sha256` file (case does not matter); on macOS put both files in one folder and run `shasum -a 256 -c token-lens-<version>-macos.zip.sha256` in Terminal, which prints `OK` when they match.
 
 ### Windows
 
@@ -64,11 +66,12 @@ Download the zip for your system from [Releases](https://github.com/rumoii/token
 
 - Requires a Mac with Apple silicon (M series), macOS 12 or later.
 - Extract `token-lens-<version>-macos.zip`, drag `Token Lens.app` into Applications, then open it.
-- The app is not signed or notarized, so macOS reports that it cannot verify the developer on first launch. Click "Done" (not "Move to Trash"), open "System Settings → Privacy & Security" and click "Open Anyway" near the bottom. The approval applies to that copy only, so move the app into Applications before opening it, and approve it again after each upgrade.
+- To upgrade, close Token Lens and replace `Token Lens.app` in Applications with the new one. To uninstall, delete `Token Lens.app`, and the data folder if you no longer need it (see [Data and privacy](#data-and-privacy)).
+- The app is not signed or notarized, so macOS reports that it cannot verify the developer on first launch. Click "Done" (not "Move to Trash"), open "System Settings → Privacy & Security" ("System Preferences → Security & Privacy → General" on macOS 12) and click "Open Anyway" near the bottom. The approval applies to that copy only, so move the app into Applications before opening it, and approve it again after each upgrade.
 
 ## Usage
 
-On first launch Token Lens lists the tools it found on this computer and, once you confirm, reads all of their logs. After that it syncs every time it opens and every 5 minutes while the window is open; "同步用量" (Sync) in the sidebar syncs on demand. Closing the window quits the app: there is no tray icon, background process or launch at login.
+On first launch Token Lens lists the tools it found on this computer; it reads log contents only after you click "开始统计" (Start), and the first pass reads all of them. After that it syncs every time it opens and every 5 minutes while the window is open; "同步用量" (Sync) in the sidebar syncs on demand. Closing the window quits the app: there is no tray icon, background process or launch at login.
 
 Opening it again brings the existing window to the front.
 
@@ -80,7 +83,7 @@ Opening it again brings the existing window to the front.
 | Codex CLI | codex | Verified, reconciled (zero diff) | cached ⊂ input; rollout JSONL (including .zst) |
 | Qwen Code | qwen | Verified field-by-field against real samples | Input includes cache and needs subtraction; output merges thoughtsTokens |
 | Pi | pi | Verified field-by-field against real samples | Session header and usage are not on the same line |
-| DeepSeek Harness (DSH) | dsh | Real samples, pending verification | Session-level cumulative snapshots, full overwrite |
+| DeepSeek Harness (DSH) | dsh | Verified against client-reported totals | Session-level cumulative snapshots, full overwrite |
 | Grok Build CLI | grok | Real samples, pending verification | Only turn_completed carries usage |
 | Hermes Agent | hermes | Real samples, pending verification | Cumulative; two tables with different structures |
 | Aider | aider | Experimental, synthetic-only | commit_hash is not used as a session identifier; reads only ~/.aider.llm.history |
@@ -91,7 +94,7 @@ Opening it again brings the existing window to the front.
 | Cursor | cursor | Experimental, synthetic-only | Internal SQLite structure varies by version |
 | Gemini CLI | gemini | Experimental, synthetic-only | Directory mixes in non-usage JSON |
 | Block Goose | goose | Experimental, synthetic-only | Two sets of token fields |
-| Kimi / Kimi Code | kimi | Experimental, synthetic-only | Directory hierarchy not uniform |
+| Kimi / Kimi Code | kimi | Verified against client-reported totals | Directory hierarchy not uniform |
 | MiMo Code | mimo | Experimental, synthetic-only | Implemented from upstream source, awaiting real samples; collected usage survives session deletion; Desktop path unconfirmed |
 | MiniMax Code | minimax | Experimental, synthetic-only | Implemented from upstream source, awaiting real samples; collected usage survives rewind and session deletion |
 | ZCode | zcode | Experimental, synthetic-only | Implemented from upstream source, awaiting real samples; client retains 30 days, collected usage is kept |
@@ -104,11 +107,11 @@ Opening it again brings the existing window to the front.
 | Trae / Trae CN | trae | Experimental, synthetic-only | JSONL id semantics unconfirmed |
 | Zed | zed | Experimental, synthetic-only | payload may be a zstd BLOB |
 
-Experimental = verified against synthetic samples, still waiting for real-log acceptance; real samples are welcome. Field meanings and known limitations are in the [adapter contract](specs/adapters.md) and [log field facts](specs/log-schemas.yaml).
+Verified = checked against real logs (field by field by hand, against the client's own reported totals, or by reconciling with the ledger); these checks were first run on the legacy tool, and the desktop app then matched the legacy tool field for field on the same real logs. Real samples, pending verification = real logs exist but have too little usage or nothing to compare against. Experimental = verified against synthetic samples, still waiting for real-log acceptance; real samples are welcome. Field meanings and known limitations are in the [adapter contract](specs/adapters.md) and [log field facts](specs/log-schemas.yaml).
 
 ## Data and privacy
 
-- **Reads local logs only**: Token Lens reads only the usage metadata that the tools already wrote on this computer (the four token kinds, model, time, session, project path). It never reads or stores prompts, replies, code or credentials, and never modifies those tools' files.
+- **Reads local logs only**: Token Lens reads and parses the tools' logs on this computer and extracts only usage metadata (the four token kinds, model, time, session, project path). Prompts, replies, code and credentials in those logs are never written to the ledger or sent anywhere, and the tools' files are never modified.
 - **Data stays on this computer**: usage, preferences and the news cache live in a `data` folder under the system's application support directory: `%APPDATA%\Token Lens\Token Lens\data` on Windows, `~/Library/Application Support/io.github.rumoii.token-lens/data` on macOS. Delete that folder to remove everything.
 - **Only three things use the network**: AI news refreshes its sources on the schedule above; clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [specs/news.md](specs/news.md); the update check is described in [specs/update.md](specs/update.md).
 - No accounts, uploads, telemetry or third-party analytics. See the [privacy policy](PRIVACY.md) for details.
@@ -134,7 +137,7 @@ Experimental = verified against synthetic samples, still waiting for real-log ac
 
 ## Build from source
 
-Requires Flutter 3.47.9 and Rust 1.98.0, plus the Visual Studio "Desktop development with C++" workload on Windows or Xcode on macOS.
+Requires Flutter 3.47.9 and Rust 1.98.0, plus the Visual Studio "Desktop development with C++" workload and permission to create symbolic links (turn on Windows Developer Mode) on Windows, or Xcode on macOS.
 
 ```sh
 cd app
@@ -142,7 +145,7 @@ flutter pub get --enforce-lockfile
 flutter build windows --release   # or: flutter build macos --release
 ```
 
-Development runs must point at a separate test data directory. Checks, code generation and the release process are described in [app/README.md](app/README.md) (Chinese).
+The build ends up in `app/build/windows/x64/runner/Release/` (on macOS, `app/build/macos/Build/Products/Release/Token Lens.app`). Development runs must isolate both the test data directory and the log root. Checks, code generation and the release process are described in [app/README.md](app/README.md#开发与检查) (Chinese).
 
 ## Legacy Node/React tool
 
@@ -154,10 +157,10 @@ The legacy tool requires Node.js ≥ 24.21.0:
 npm ci
 npm ci --prefix dashboard
 npm run dashboard:build
-npm start          # opens http://127.0.0.1:3456
+npm start          # starts the local dashboard and prints its address (http://127.0.0.1:3456 unless that port is taken); open it in a browser
 ```
 
-CLI usage: `lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`. Always pass `--data-dir` when pointing anywhere other than a test directory. See [specs/features.md](specs/features.md) for the feature spec and [CLAUDE.md](CLAUDE.md) for data-directory rules and test conventions.
+CLI usage: `node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`. Always pass `--data-dir` when pointing anywhere other than a test directory. See [specs/features.md](specs/features.md) for the feature spec and [CLAUDE.md](CLAUDE.md) for data-directory rules and test conventions.
 
 ## Documentation
 
@@ -179,7 +182,7 @@ The specifications are written in Simplified Chinese.
 
 ## Contributing
 
-Issues and pull requests are welcome; please read the [contributing guide](CONTRIBUTING.md) first. Reports of log formats that don't match, and real log samples for the experimental tools, are especially helpful.
+Issues and pull requests are welcome; please read the [contributing guide](CONTRIBUTING.md) first. Reports of log formats that don't match, and real log samples for the experimental tools, are especially helpful; a sample only needs the usage-related fields, so remove prompts, replies, paths and account details before sharing it.
 
 ## Star history
 

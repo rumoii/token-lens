@@ -15,11 +15,19 @@
 
 ## 截图（界面改动时）/ Screenshots
 
-<!-- 改了看板界面请附前后截图；无界面变化可删掉本节 -->
+<!-- 改了界面请附前后截图；无界面变化可删掉本节 -->
 
 ## 验证 / Testing
 
-<!-- 写明实际运行了哪些命令、手动测了什么 -->
+<!-- 写明实际运行了哪些命令、手动测了什么；只勾和改动范围对应的那一组 -->
+
+桌面应用（`app/`）：
+
+- [ ] cargo fmt --check、cargo clippy、cargo test
+- [ ] dart format、flutter analyze、flutter test
+- [ ] 改了界面时：在隔离的测试数据目录下运行过，并附了截图
+
+旧版（`src/core/`、`dashboard/`、`desktop/`、`bin/`）：
 
 - [ ] npm run ci:local
 - [ ] 改了 dashboard/ 时：在看板里手动验证过对应页面

@@ -1,10 +1,10 @@
 # Token Lens 桌面应用
 
-Flutter + Rust 重写已完成 D2.6、D3.5 与 D4：20 个新闻与工具更新来源（按天分组、本机已读与收藏、当前热点、条目类型筛选、来源内热度排序、启停、本地缓存、每 30 分钟自动刷新与手动刷新、取消和错误反馈），以及完整的统计界面（用量总览、明细、会话、工具来源、价格与设置、首次引导；27 个来源的采集和查询都已迁移）。D4 已在开发机上把日常使用切换到新版；仓库原有的 Node/React 版本仍可运行，用于回退，还没有安装包。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)。
+Token Lens 的桌面应用：Flutter 界面加 Rust 核心。它包括完整的统计界面（用量总览、明细、会话、工具来源、价格与设置、首次引导；27 个来源的采集和查询）、AI 热点（20 个新闻与工具更新来源，按天分组、本机已读与收藏、当前热点、条目类型筛选、来源内热度排序、启停、本地缓存、每 30 分钟自动刷新与手动刷新）和检查更新。仓库里的旧版 Node/React 工具仍可运行，可以作为回退。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)、[update.md](../specs/update.md)。
 
-启动打开用量总览，侧栏按「用量 / 资讯 / 设置」分组，「AI 热点」位于资讯组。统计在窗口打开时采集一次，每 5 分钟采集一次，也可点击「同步」；新闻的联网时机见下方「运行与回退」。账本是应用数据目录下的 `ledger.db`，不读取旧版数据目录变量。
+启动打开用量总览，侧栏按「用量 / 资讯 / 设置」分组，「AI 热点」位于资讯组。第一次打开时首次引导只列出找到的工具，点「开始统计」后才读取日志；之后统计在窗口打开时采集一次，每 5 分钟采集一次，也可点「同步用量」。新闻的联网时机见下方「运行与回退」。账本是应用数据目录下的 `ledger.db`，不读取旧版数据目录变量。
 
-开发和冒烟须同时隔离账本与日志根目录：`TOKEN_LENS_PREVIEW_DATA_DIR` 指定独立的测试数据目录，`TOKEN_LENS_PREVIEW_HOME` 指定合成日志根目录（其下为 `.claude/projects/**/*.jsonl`、`.codex/sessions/**/rollout-*.jsonl[.zst]`）。未覆盖日志根目录时，发行运行读取系统用户目录的客户端日志；开发检查始终设置合成根。
+开发和冒烟须同时隔离账本与日志根目录：`TOKEN_LENS_PREVIEW_DATA_DIR` 指定独立的测试数据目录，`TOKEN_LENS_PREVIEW_HOME` 指定合成日志根目录（其下为 `.claude/projects/**/*.jsonl`、`.codex/sessions/**/rollout-*.jsonl[.zst]`）。未覆盖日志根目录时，发行运行读取系统用户目录的客户端日志。部分客户端的位置还来自 `APPDATA`、`LOCALAPPDATA`、`XDG_DATA_HOME` 和客户端自己的覆盖变量（如 `OPENCODE_DB`、`GEMINI_HOME`），想完全不碰真实日志，就像 `scripts/smoke-desktop.py` 那样把它们也指向临时目录或清掉，完整列表以该脚本为准。
 
 在仓库根目录、隔离环境下运行 `node scripts/parity/generate.mjs` 重建 `app/rust/tests/golden/*.jsonl`。生成器只 import 旧版生产入口；固定 Date 为 `2026-01-15T12:00:00.000Z`，主时区为 `Asia/Shanghai`，另含 UTC 向量。只有 SQLite 默认时间和采集耗时使用明确的 volatile 占位。`cargo test --manifest-path app/rust/Cargo.toml --locked` 读取相同静态夹具，验证适配器、身份字节、写入、迁移、计价与查询。
 
@@ -15,7 +15,7 @@ Flutter + Rust 重写已完成 D2.6、D3.5 与 D4：20 个新闻与工具更新�
 - flutter_rust_bridge 与 codegen 2.13.0；代码生成另需 cargo-expand。
 - Flutter/Rust 依赖分别由 `pubspec.lock`、`rust/Cargo.lock` 锁定。生产包不要求用户安装 Flutter、Rust 或 Node。
 
-已批准的 Windows 开发环境：SDK `<flutter-sdk>`（Flutter SDK 的绝对目录），Pub 缓存 `<pub-cache>`（Pub 依赖缓存的绝对目录），代码生成工具 `<frb-tools>`（FRB 代码生成工具所在的 bin 目录，使用绝对路径）。PATH 只在开发进程内设置，不修改系统 PATH。工具和依赖缓存按正常安装保留。
+Windows 开发环境示例：把下面的占位换成你自己的绝对路径，SDK `<flutter-sdk>`（Flutter SDK 目录），Pub 缓存 `<pub-cache>`（Pub 依赖缓存目录），代码生成工具 `<frb-tools>`（FRB 代码生成工具所在的 bin 目录）。PATH 只在开发进程内设置，不修改系统 PATH。
 
 ```powershell
 $env:PATH = "<flutter-sdk>\bin;<frb-tools>;$env:PATH"
@@ -27,12 +27,15 @@ flutter pub get --enforce-lockfile
 
 ## 开发与检查
 
-调试运行必须提供独立的绝对目录；未设置时显示说明并停止初始化。不要把目录指向真实 home、旧账本或已安装应用的数据目录。`<独立的测试数据目录>` 表示满足这些条件的测试数据绝对目录。
+调试运行必须提供独立的绝对目录；未设置时显示说明并停止初始化。不要把目录指向真实 home、旧账本或已安装应用的数据目录。下面两个占位都是新建的空目录（绝对路径），合成日志根目录里可以放测试用的日志：
 
 ```powershell
 $env:TOKEN_LENS_PREVIEW_DATA_DIR = '<独立的测试数据目录>'
+$env:TOKEN_LENS_PREVIEW_HOME = '<合成日志根目录>'
 flutter run -d windows
 ```
+
+只设数据目录而不设 `TOKEN_LENS_PREVIEW_HOME` 时，开发版会读你真实的客户端日志；其他会影响日志发现的变量见本文开头。
 
 修改 Rust 公共接口后，在 `app/` 重新生成桥接，再检查：
 
