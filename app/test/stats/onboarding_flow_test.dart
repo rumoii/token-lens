@@ -235,22 +235,33 @@ void main() {
     expect(g.summaries.length, count + 2); // controller current/previous only
     expect(find.text('统计好了'), findsOneWidget);
   });
-  testWidgets('后台 start 同步进行中开始统计等待同一次同步', (tester) async {
+  testWidgets('首次引导只判定一次，点击开始后同步并启用定时器', (tester) async {
     final g = OnboardingGateway()..syncBarrier = Completer<void>();
     final c = own(g);
-    await mount(tester, c);
-    final started = c.start();
-    await tester.pump();
-    expect(g.syncs, 1);
-    await click(tester, '开始统计');
-    expect(find.text('正在读取日志…'), findsOneWidget);
-    expect(g.syncs, 1);
-    g.syncBarrier!.complete();
-    await started;
-    await tester.pumpAndSettle();
-    expect(find.text('统计好了'), findsOneWidget);
-    expect(g.syncs, 1);
-    await c.shutdown();
+    unawaited(c.start());
+    try {
+      await mount(tester, c);
+      expect(g.scans, [false]);
+      expect(g.syncs, 0);
+      expect(
+        g.summaries.where((filter) => filter.from == null && filter.to == null),
+        hasLength(1),
+      );
+      await tester.pump(const Duration(minutes: 6));
+      expect(g.syncs, 0);
+      await click(tester, '开始统计');
+      expect(find.text('正在读取日志…'), findsOneWidget);
+      expect(g.syncs, 1);
+      g.syncBarrier!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('统计好了'), findsOneWidget);
+      expect(c.preferences.onboarded, isFalse);
+      await tester.pump(const Duration(minutes: 5));
+      expect(g.syncs, 2);
+      expect(find.text('application shell'), findsNothing);
+    } finally {
+      await c.shutdown();
+    }
   });
   testWidgets('后台同步完成也不自动离开发现', (tester) async {
     final g = OnboardingGateway();
@@ -330,10 +341,15 @@ void main() {
       () => Directory.systemTemp.createTemp('onboarding-preferences-'),
     ))!;
     final store = PreferencesStore(directory);
-    final c = own(OnboardingGateway(), store: store);
+    final first = OnboardingGateway();
+    final c = own(first, store: store);
+    await c.start();
     await mount(tester, c);
+    expect(first.scans, [false]);
+    expect(first.syncs, 0);
     await click(tester, '开始统计');
-    await tester.pumpAndSettle();
+    expect(first.syncs, 1);
+    expect(find.text('统计好了'), findsOneWidget);
     await tester.runAsync(() async {
       await tester.tap(find.widgetWithText(TextButton, '去看看'));
       await store.flush();

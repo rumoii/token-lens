@@ -14,17 +14,24 @@ import time
 SESSION = "token-lens-desktop-smoke"
 
 
-def synthetic_rows(database):
+def ingestion_result(database, empty_home):
     if not database.is_file():
-        return 0
+        return None
     # Keep WAL visible; immutable=1 would hide records not yet checkpointed.
     with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=0.2)) as connection:
         connection.execute("PRAGMA query_only=ON")
-        return connection.execute(
+        if empty_home:
+            synced = connection.execute(
+                "SELECT EXISTS (SELECT 1 FROM ingest_runs WHERE status='ok' AND attempted=0) "
+                "AND NOT EXISTS (SELECT 1 FROM usage_records)"
+            ).fetchone()[0]
+            return "empty-home sync completed with 0 usage records" if synced else None
+        rows = connection.execute(
             "SELECT count(*) FROM usage_records WHERE source='claude' AND session_id=? "
             "AND active=1 AND input_tokens=7 AND output_tokens=3",
             (SESSION,),
         ).fetchone()[0]
+        return f"{rows} synthetic Claude usage record(s)" if rows else None
 
 
 def smoke(executable, timeout, empty_home):
@@ -54,6 +61,11 @@ def smoke(executable, timeout, empty_home):
             directory.mkdir(exist_ok=True)
             environment[variable] = str(directory)
         data = root / "data"
+        # Smoke doesn't click through onboarding, so opt into startup sync and disable update requests.
+        (data / "ui-preferences.json").write_text(json.dumps({
+            "onboarded": True,
+            "autoCheckUpdates": False,
+        }), encoding="utf-8")
         if not empty_home:
             log = root / "home/.claude/projects/smoke/usage.jsonl"
             log.parent.mkdir(parents=True)
@@ -77,27 +89,27 @@ def smoke(executable, timeout, empty_home):
         }), encoding="utf-8")
         process = subprocess.Popen([str(executable)], cwd=executable.parent, env=environment)
         started = time.monotonic()
-        last_error = "ledger not created"
-        rows = 0
+        missing = "successful empty-home sync absent" if empty_home else "synthetic usage record absent"
         try:
             while True:
                 status = process.poll()
                 if status is not None:
                     raise RuntimeError(f"Application exited early with status {status}.")
                 try:
-                    rows = synthetic_rows(data / "ledger.db")
-                    last_error = "synthetic usage record absent"
+                    result = ingestion_result(data / "ledger.db", empty_home)
+                    last_error = missing
                 except sqlite3.OperationalError as error:
+                    result = None
                     last_error = str(error)
                 elapsed = time.monotonic() - started
-                if rows > 0 and elapsed >= 20:
+                if result is not None and elapsed >= 20:
                     # Check again after the read; an early process exit must never pass.
                     if process.poll() is not None:
                         raise RuntimeError("Application exited during the ingestion check.")
-                    print(f"PASS: {rows} synthetic Claude usage record(s); application stayed running for {elapsed:.1f}s.")
+                    print(f"PASS: {result}; application stayed running for {elapsed:.1f}s.")
                     return
                 if elapsed >= timeout:
-                    raise RuntimeError(f"No synthetic usage record after {timeout}s ({last_error}).")
+                    raise RuntimeError(f"Ingestion check timed out after {timeout}s ({last_error}).")
                 time.sleep(min(0.25, timeout - elapsed))
         finally:
             if process.poll() is None:
@@ -112,7 +124,7 @@ def smoke(executable, timeout, empty_home):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("executable", type=Path, help="Release executable, or the binary inside the macOS .app")
-    parser.add_argument("--empty-home", action="store_true", help="Negative check: omit the synthetic log; failure is expected")
+    parser.add_argument("--empty-home", action="store_true", help="Omit the synthetic log and verify a successful sync with zero records")
     parser.add_argument("--timeout", type=int, default=60, help="Ingestion deadline in seconds (20–60; default 60)")
     args = parser.parse_args()
     if not 20 <= args.timeout <= 60:

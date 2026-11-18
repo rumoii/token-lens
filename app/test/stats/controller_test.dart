@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 import 'package:token_lens_app/stats/logic/period.dart';
+import 'package:token_lens_app/stats/preferences.dart';
 
 import 'fake_gateway.dart';
 
@@ -144,9 +145,13 @@ void main() {
     expect(controller.error, isNull);
     controller.dispose();
   });
-  testWidgets('打开一次、每五分钟、关闭幂等', (tester) async {
-    final fake = FakeStatsGateway();
-    final controller = StatsController(fake, clock: () => demoNow);
+  testWidgets('已引导的空账本打开同步一次、每五分钟、关闭幂等', (tester) async {
+    final fake = FakeStatsGateway()..empty = true;
+    final controller = StatsController(
+      fake,
+      preferences: const UiPreferences(onboarded: true),
+      clock: () => demoNow,
+    );
     unawaited(controller.start());
     await tester.pump();
     await tester.pump();
@@ -161,6 +166,32 @@ void main() {
     expect(fake.syncs, 2);
     expect(fake.closes, 1);
     controller.dispose();
+  });
+  testWidgets('未引导但账本已有记录时启动和定时同步', (tester) async {
+    final fake = FakeStatsGateway();
+    final controller = StatsController(fake, clock: () => demoNow);
+    addTearDown(controller.dispose);
+    try {
+      await controller.start();
+      expect(fake.syncs, 1);
+      await tester.pump(const Duration(minutes: 5));
+      expect(fake.syncs, 2);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+  testWidgets('未引导的空账本启动后不自动同步', (tester) async {
+    final fake = FakeStatsGateway()..empty = true;
+    final controller = StatsController(fake, clock: () => demoNow);
+    addTearDown(controller.dispose);
+    try {
+      await controller.start();
+      expect(fake.syncs, 0);
+      await tester.pump(const Duration(minutes: 6));
+      expect(fake.syncs, 0);
+    } finally {
+      await controller.shutdown();
+    }
   });
   test('同步去重和错误保留', () async {
     final fake = FakeStatsGateway()..syncBarrier = Completer<void>();

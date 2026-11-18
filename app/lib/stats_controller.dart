@@ -104,9 +104,25 @@ class StatsController extends ChangeNotifier {
   int _generation = 0, _statusGeneration = 0;
   Timer? _timer, _conflictTimer;
   Future<void>? _sync, _shutdown, _statusRead;
+  Future<bool>? _onboardingRequired;
   final _reads = <Future<void>>{};
   void _notify() {
     if (!_closed && !_disposed) notifyListeners();
+  }
+
+  // Keep the initial verdict for both startup sync and the onboarding gate.
+  Future<bool> onboardingRequired() =>
+      _onboardingRequired ??= _readOnboardingRequired();
+
+  Future<bool> _readOnboardingRequired() async {
+    if (_closed || preferences.onboarded) return false;
+    try {
+      final summary = await gateway.summary(const StatsFilter());
+      return summary.totals.recordCount == 0;
+    } catch (_) {
+      // Preserve the existing fallback to the main application on read failure.
+      return false;
+    }
   }
 
   Future<void> start() async {
@@ -116,13 +132,24 @@ class StatsController extends ChangeNotifier {
     unawaited(
       health().then<void>((_) {}, onError: (Object _, StackTrace _) {}),
     );
+    final onboarding = onboardingRequired();
     await load();
-    if (_closed) return;
-    _timer = Timer.periodic(
+    if (await onboarding || _closed) return;
+    _startSyncTimer();
+    await sync(trigger: 'startup');
+  }
+
+  Future<void> startOnboardingSync() {
+    _startSyncTimer();
+    return syncErrorKind == StatsSyncErrorKind.status ? retryStatus() : sync();
+  }
+
+  void _startSyncTimer() {
+    if (!_started || _closed) return;
+    _timer ??= Timer.periodic(
       const Duration(minutes: 5),
       (_) => unawaited(sync(trigger: 'timer')),
     );
-    await sync(trigger: 'startup');
   }
 
   Future<void> setPreferences(UiPreferences value) async {
@@ -430,6 +457,7 @@ class StatsController extends ChangeNotifier {
     await _sync;
     await _statusRead;
     await Future.wait(_reads.toList());
+    await _onboardingRequired;
     await store?.flush();
   }
 
