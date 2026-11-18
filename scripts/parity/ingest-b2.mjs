@@ -11,7 +11,7 @@ export async function generateIngestB2(output,now){
  const rows=[{type:'context',now,tz:process.env.TZ},{type:'setup',files:setup}];
  for(const row of setup.filter(r=>r.ledger)){const target=join(home,row.target);mkdirSync(join(target,'..'),{recursive:true});copyFileSync(row.input,target);}
  const dataDir=join(root,'data');
- for(let index=0;index<2;index++){const result=await runIngestion({dataDir});result.durationMs='<volatile>';rows.push({type:'run',index,expected:result});}
+ for(let index=0;index<2;index++){const result=await runIngestion({dataDir});Object.assign(result, { durationMs: '<volatile>', parsedFiles: result.fileCount, cachedFiles: 0, skippedFiles: 0 });rows.push({type:'run',index,expected:result});}
  const ledger=new Ledger(join(dataDir,'ledger.db'));
  rows.push({type:'query',fn:'summary',expected:buildSummary(ledger.read,{tz:'Asia/Shanghai'})});
  rows.push({type:'query',fn:'breakdown',expected:buildBreakdown(ledger.read,{tz:'Asia/Shanghai',by:'source'})});

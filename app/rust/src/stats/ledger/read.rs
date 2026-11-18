@@ -603,7 +603,10 @@ impl Ledger {
         rows(&self.db,&format!("SELECT source,model,provider,project_key,price_version,cost_micros,kind,observed_at,ended_at,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cache_write_5m_tokens,cache_write_1h_tokens FROM usage_records WHERE {clause} AND cost_micros IS NOT NULL"),&args)
     }
     pub fn last_run(&self) -> Result<Value> {
-        let Some(mut row)=rows(&self.db,"SELECT id,status,started_at,finished_at,attempted,inserted,updated,unchanged,rejected,notes,counts FROM ingest_runs ORDER BY id DESC LIMIT 1",&[])?.pop() else{return Ok(Value::Null)};
+        let Some(mut row)=rows(&self.db,"SELECT id,status,started_at,finished_at,attempted,inserted,updated,unchanged,rejected,notes,counts,skipped_files FROM ingest_runs LEFT JOIN ingest_run_files ON run_id=id ORDER BY id DESC LIMIT 1",&[])?.pop() else{return Ok(Value::Null)};
+        if row["skipped_files"].as_i64().unwrap_or(0) == 0 {
+            row.as_object_mut().unwrap().remove("skipped_files");
+        }
         let notes = row["notes"]
             .as_str()
             .filter(|s| !s.is_empty())

@@ -162,75 +162,107 @@ class SourcesSyncStatus extends StatelessWidget {
         ? '上次同步有 ${run!.anomalyCount} 处没读成功，其余已经更新'
         : '上次同步没有完成';
     final syncing =
-        c.phase == StatsSyncPhase.running || c.phase == StatsSyncPhase.conflict;
+        c.busy || c.phase == StatsSyncPhase.idle && run?.status == 'running';
+    final rereading = c.rereading;
+    final reused = result == null
+        ? 0
+        : result.cachedFiles + result.skippedFiles;
     return LensCard(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          OverflowBar(
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowAlignment: OverflowBarAlignment.end,
+            spacing: 12,
+            overflowSpacing: 10,
             children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: problem == null
-                      ? [
-                          BoxShadow(
-                            color: p['ok'].withValues(alpha: .18),
-                            spreadRadius: 3,
-                          ),
-                        ]
-                      : null,
-                ),
-                child: SizedBox(
-                  width: 7,
-                  height: 7,
-                  child: FittedBox(
-                    child: SyncDot(
-                      color: problem == null
-                          ? p['ok']
-                          : run != null && run!.status != 'running'
-                          ? p['warn']
-                          : p.faint,
-                      revision: c.ledgerVersion,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: problem == null
+                          ? [
+                              BoxShadow(
+                                color: p['ok'].withValues(alpha: .18),
+                                spreadRadius: 3,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: SizedBox(
+                      width: 7,
+                      height: 7,
+                      child: FittedBox(
+                        child: SyncDot(
+                          color: problem == null
+                              ? p['ok']
+                              : run != null && run!.status != 'running'
+                              ? p['warn']
+                              : p.faint,
+                          revision: c.ledgerVersion,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      problem ??
-                          '${_relative(run!.finishedAt, c.clock())}同步过，一切正常',
-                      style: _sourceText(p, 14, null, FontWeight.w500),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          problem ??
+                              '${_relative(run!.finishedAt, c.clock())}同步过，一切正常',
+                          style: _sourceText(p, 14, null, FontWeight.w500),
+                        ),
+                        Text(
+                          '每次打开 Token Lens 会自动同步一次，也可以手动同步。',
+                          style: _sourceText(p, 12.5, p.muted),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '每次打开 Token Lens 会自动同步一次，也可以手动同步。',
-                      style: _sourceText(p, 12.5, p.muted),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
               Opacity(
                 opacity: syncing ? .6 : 1,
-                child: SizedBox(
-                  height: 34,
-                  child: Theme(
-                    // The old sync action uses text-white in both schemes.
-                    data: Theme.of(context)
-                        .copyWith(brightness: Brightness.light),
-                    child: LensButton(
-                      label: syncing ? '同步中…' : '立即同步',
-                      variant: 'primary',
-                      icon: Icons.refresh,
-                      spinning: syncing,
-                      onPressed: syncing ? null : () => unawaited(c.sync()),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Tooltip(
+                      message:
+                          '忽略上次的读取结果，把全部日志重新读一遍。怀疑统计漏了或不对时使用；账本里已有的用量不会被删除。',
+                      child: SizedBox(
+                        height: 34,
+                        child: LensButton(
+                          label: rereading ? '重新读取中…' : '重新读取全部日志',
+                          onPressed: syncing
+                              ? null
+                              : () => unawaited(c.rereadLogs()),
+                        ),
+                      ),
                     ),
-                  ),
+                    SizedBox(
+                      height: 34,
+                      child: Theme(
+                        // The old sync action uses text-white in both schemes.
+                        data: Theme.of(context)
+                            .copyWith(brightness: Brightness.light),
+                        child: LensButton(
+                          label: syncing && !rereading ? '同步中…' : '立即同步',
+                          variant: 'primary',
+                          icon: Icons.refresh,
+                          spinning: syncing && !rereading,
+                          onPressed: syncing ? null : () => unawaited(c.sync()),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -240,7 +272,9 @@ class SourcesSyncStatus extends StatelessWidget {
             Semantics(
               liveRegion: true,
               child: Text(
-                '同步完成：扫描 ${result.fileCount} 个文件，新增 ${result.inserted} 条，有变化的 ${result.updated} 条，用时 ${(result.durationMs / 1000).toStringAsFixed(1)} 秒。',
+                '同步完成：扫描 ${result.fileCount} 个文件，'
+                '${reused > 0 ? '其中 $reused 个没变（沿用上次结果），' : ''}'
+                '新增 ${result.inserted} 条，有变化的 ${result.updated} 条，用时 ${(result.durationMs / 1000).toStringAsFixed(1)} 秒。',
                 style: _sourceText(p, 12.5, p.secondary),
               ),
             ),
@@ -280,8 +314,10 @@ class SourcesSyncStatus extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '读了 ${toDisplayNumber(run!.attempted)} 条记录：新增 ${run!.inserted} 条，有变化的 ${run!.updated} 条，没变的 ${toDisplayNumber(run!.unchanged)} 条，跳过 ${run!.rejected} 条。',
+                    '处理了 ${toDisplayNumber(run!.attempted)} 条记录：新增 ${run!.inserted} 条，有变化的 ${run!.updated} 条，没变的 ${toDisplayNumber(run!.unchanged)} 条，跳过 ${run!.rejected} 条。',
                   ),
+                  if (run!.skippedFiles > 0)
+                    Text('另有 ${run!.skippedFiles} 个文件所在的工具没有任何变化，这次没有重新处理。'),
                   if (run!.anomalies.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     for (final anomaly in run!.anomalies)

@@ -1,13 +1,19 @@
 pub use super::discovery::Environment;
+#[cfg(test)]
+#[path = "ingest_cache_tests.rs"]
+mod cache_tests;
 use super::{
     adapters,
     clock::Clock,
     discovery,
     jscompat::{self, LocalZone},
-    ledger::Ledger,
+    ledger::{CachedFile, FileOutput, Ledger, Revisions},
     lock::SyncLock,
     pricing, Error, Result,
 };
+#[path = "ingest_fingerprint.rs"]
+mod fingerprint;
+
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
@@ -24,6 +30,11 @@ struct SyncPhases {
     #[serde(flatten)]
     adapter: adapters::ReadParsePhases,
     settle_ns: u64,
+    cache_read_ns: u64,
+    cache_write_ns: u64,
+    parsed_files: usize,
+    cached_files: usize,
+    skipped_files: usize,
     write_ns: u64,
     write_transactions: usize,
     reprice_ns: u64,
@@ -330,7 +341,36 @@ pub fn sync(
     zone: &LocalZone,
     cancel: &AtomicBool,
 ) -> Result<Value> {
-    sync_profiled(data, home, environment, clock, zone, cancel).map(|(result, _)| result)
+    sync_profiled(
+        data,
+        home,
+        environment,
+        clock,
+        zone,
+        cancel,
+        SyncOptions::default(),
+    )
+    .map(|(result, _)| result)
+}
+
+pub fn reread(
+    data: &Path,
+    home: &Path,
+    environment: &discovery::Environment,
+    clock: Clock,
+    zone: &LocalZone,
+    cancel: &AtomicBool,
+) -> Result<Value> {
+    sync_profiled(
+        data,
+        home,
+        environment,
+        clock,
+        zone,
+        cancel,
+        SyncOptions::new(true),
+    )
+    .map(|(result, _)| result)
 }
 
 // Rust-only entry point for the synthetic benchmark. Discovery uses no process overrides.
@@ -338,6 +378,7 @@ pub fn sync_benchmark(
     data: &Path,
     home: &Path,
     now_millis: i64,
+    no_cache: bool,
 ) -> std::result::Result<(Value, Value), String> {
     let environment = Environment {
         platform: Environment::process().platform,
@@ -350,8 +391,67 @@ pub fn sync_benchmark(
         Clock::Fixed(now_millis),
         &LocalZone::System,
         &AtomicBool::new(false),
+        SyncOptions::new(no_cache),
     )
     .map_err(|error| error.to_string())
+}
+
+enum CacheUpdate {
+    Keep,
+    Invalidate,
+    Store(CachedFile),
+}
+
+#[derive(Default)]
+struct SyncOptions {
+    no_cache: bool,
+    #[cfg(test)]
+    revisions: Option<Revisions>,
+    #[cfg(test)]
+    after_parse: Option<fn(&Path)>,
+}
+
+impl SyncOptions {
+    fn new(no_cache: bool) -> Self {
+        Self {
+            no_cache,
+            #[cfg(test)]
+            revisions: None,
+            #[cfg(test)]
+            after_parse: None,
+        }
+    }
+}
+
+struct Input<'a> {
+    path: &'a Path,
+    file: String,
+    fingerprint: Option<String>,
+    hit: bool,
+    had_cache: bool,
+}
+
+fn merge_counts(totals: &mut Value, counts: impl IntoIterator<Item = (impl AsRef<str>, i64)>) {
+    for (key, value) in counts {
+        let key = key.as_ref();
+        totals["counts"][key] = json!(totals["counts"][key].as_i64().unwrap_or(0) + value);
+    }
+}
+
+fn replacement_keys(records: &[Value]) -> Vec<String> {
+    records
+        .iter()
+        .flat_map(|record| {
+            let key = record["record_key"].as_str();
+            record["replaces"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .filter(move |target| !target.is_empty() && Some(*target) != key)
+                .map(str::to_owned)
+        })
+        .collect()
 }
 
 fn sync_profiled(
@@ -361,6 +461,7 @@ fn sync_profiled(
     clock: Clock,
     zone: &LocalZone,
     cancel: &AtomicBool,
+    options: SyncOptions,
 ) -> Result<(Value, Value)> {
     let started = Instant::now();
     let log = crate::diagnostics::RuntimeLog::new(data, Some(home));
@@ -377,105 +478,251 @@ fn sync_profiled(
         phases.discovery_ns = start.elapsed().as_nanos() as u64;
         for (source, files) in discovered {
             let source_started = Instant::now();
-            let discovered_files = files.clone();
             let source_files = files.len();
             phases.files += source_files;
-            let mut parsed = Vec::new();
-            for path in files {
+            let mut process = || -> Result<()> {
+                // SQLite adapters are always run. Cursor can have both SQLite and CSV inputs.
+                let cache_source = !adapters::sqlite_only(&source);
+                let revisions = Revisions {
+                    usage: Some(adapters::parser_rev(&source)),
+                    timing: adapters::timing_rev(&source),
+                };
+                #[cfg(test)]
+                let revisions = options.revisions.unwrap_or(revisions);
+                let start = Instant::now();
+                let zone_before = cache_source
+                    .then(|| fingerprint::zone_identity(zone))
+                    .flatten();
+                let mut previous = if cache_source {
+                    ledger.cache_fingerprints(&source)?
+                } else {
+                    HashMap::new()
+                };
+                let mut candidates = Vec::with_capacity(source_files);
+                for path in &files {
+                    if cancel.load(Ordering::Acquire) {
+                        return Err(Error("cancelled".into()));
+                    }
+                    let file = path.to_string_lossy().into_owned();
+                    let cacheable = !adapters::uses_sqlite(&source, path);
+                    let fingerprint = cacheable
+                        .then(|| {
+                            fingerprint::fingerprint(
+                                &source,
+                                path,
+                                zone_before.as_deref(),
+                                revisions,
+                            )
+                        })
+                        .flatten();
+                    let old = previous.remove(&file);
+                    let hit = !options.no_cache && fingerprint.is_some() && fingerprint == old;
+                    candidates.push(Input {
+                        path,
+                        file,
+                        fingerprint,
+                        hit,
+                        had_cache: old.is_some(),
+                    });
+                }
+                let skip = cache_source
+                    && !options.no_cache
+                    && previous.is_empty()
+                    && candidates.iter().all(|input| input.hit)
+                    && !ledger.cache_needs_replay(&source)?;
+                phases.cache_read_ns += start.elapsed().as_nanos() as u64;
+                if skip {
+                    phases.skipped_files += source_files;
+                    return Ok(());
+                }
+
+                let mut remove: Vec<String> = previous.into_keys().collect();
+                let mut parsed = Vec::with_capacity(source_files);
+                let mut updates = Vec::with_capacity(source_files);
+                for Input {
+                    path,
+                    file,
+                    fingerprint: before,
+                    hit,
+                    had_cache,
+                } in candidates
+                {
+                    if cancel.load(Ordering::Acquire) {
+                        return Err(Error("cancelled".into()));
+                    }
+                    if hit {
+                        let start = Instant::now();
+                        let output = ledger.cached_file(&source, &file)?;
+                        phases.cache_read_ns += start.elapsed().as_nanos() as u64;
+                        if let Some(output) = output {
+                            merge_counts(&mut totals, output.notes);
+                            phases.cached_files += 1;
+                            parsed.push(Parsed {
+                                file,
+                                records: output.records,
+                            });
+                            updates.push(CacheUpdate::Keep);
+                            continue;
+                        }
+                    }
+                    phases.parsed_files += 1;
+                    match adapters::parse_profiled(&source, &file, path, zone, &mut phases.adapter)
+                    {
+                        Ok((mut records, mut notes)) => {
+                            #[cfg(test)]
+                            if let Some(after_parse) = options.after_parse {
+                                after_parse(path);
+                            }
+                            records.retain(|r| {
+                                if r.is_object() && !jscompat::truthy(&r["observed_at"]) {
+                                    notes["bad_times"] =
+                                        json!(notes["bad_times"].as_i64().unwrap() + 1);
+                                    false
+                                } else {
+                                    true
+                                }
+                            });
+                            let notes: HashMap<String, i64> = serde_json::from_value(notes)?;
+                            merge_counts(&mut totals, notes.iter().map(|(k, v)| (k, *v)));
+                            let mut update = if had_cache {
+                                CacheUpdate::Invalidate
+                            } else {
+                                CacheUpdate::Keep
+                            };
+                            if let Some(before) = before {
+                                let start = Instant::now();
+                                let zone_after = fingerprint::zone_identity(zone);
+                                let after = fingerprint::fingerprint(
+                                    &source,
+                                    path,
+                                    zone_after.as_deref(),
+                                    revisions,
+                                );
+                                phases.cache_read_ns += start.elapsed().as_nanos() as u64;
+                                if after.as_ref() == Some(&before) {
+                                    let start = Instant::now();
+                                    let replaces = replacement_keys(&records);
+                                    let output = FileOutput { records, notes };
+                                    let payload = serde_json::to_vec(&output)?;
+                                    records = output.records;
+                                    update = CacheUpdate::Store(CachedFile {
+                                        fingerprint: before,
+                                        payload,
+                                        replaces,
+                                    });
+                                    phases.cache_write_ns += start.elapsed().as_nanos() as u64;
+                                }
+                            }
+                            parsed.push(Parsed { file, records });
+                            updates.push(update);
+                        }
+                        Err(error) => {
+                            totals["counts"]["read_failed"] =
+                                json!(totals["counts"]["read_failed"].as_i64().unwrap() + 1);
+                            let note = format!("read_failed: {source} {file} — {error}");
+                            log.write(
+                                "WARN",
+                                "sync",
+                                &crate::diagnostics::safe_anomaly(&note, &files),
+                            );
+                            totals["anomalies"]
+                                .as_array_mut()
+                                .unwrap()
+                                .push(json!(note));
+                            if had_cache {
+                                remove.push(file);
+                            }
+                        }
+                    }
+                }
                 if cancel.load(Ordering::Acquire) {
                     return Err(Error("cancelled".into()));
                 }
-                let file = path.to_string_lossy().to_string();
-                match adapters::parse_profiled(&source, &file, &path, zone, &mut phases.adapter) {
-                    Ok((mut records, mut notes)) => {
-                        records.retain(|r| {
-                            if r.is_object() && !jscompat::truthy(&r["observed_at"]) {
-                                notes["bad_times"] =
-                                    json!(notes["bad_times"].as_i64().unwrap() + 1);
-                                false
-                            } else {
-                                true
-                            }
-                        });
-                        for (key, value) in notes.as_object().unwrap() {
-                            totals["counts"][key] = json!(
-                                totals["counts"][key].as_i64().unwrap_or(0)
-                                    + value.as_i64().unwrap()
-                            );
-                        }
-                        parsed.push(Parsed { file, records });
-                    }
-                    Err(error) => {
-                        totals["counts"]["read_failed"] =
-                            json!(totals["counts"]["read_failed"].as_i64().unwrap() + 1);
-                        let note = format!("read_failed: {source} {file} — {error}");
-                        log.write(
-                            "WARN",
-                            "sync",
-                            &crate::diagnostics::safe_anomaly(&note, &discovered_files),
-                        );
-                        totals["anomalies"]
-                            .as_array_mut()
-                            .unwrap()
-                            .push(json!(note));
-                    }
+                let track_source = cache_source
+                    && (source_files > 0
+                        || !remove.is_empty()
+                        || ledger.cache_needs_replay(&source)?);
+                if track_source {
+                    let start = Instant::now();
+                    let remove: Vec<_> = remove.iter().map(String::as_str).collect();
+                    ledger.cache_begin_source(&source, &remove)?;
+                    phases.cache_write_ns += start.elapsed().as_nanos() as u64;
                 }
-            }
-            let previous_anomalies = totals["anomalies"].as_array().unwrap().len();
-            let start = Instant::now();
-            let elsewhere = settle(&mut parsed, &mut totals);
-            phases.settle_ns += start.elapsed().as_nanos() as u64;
-            for note in totals["anomalies"].as_array().unwrap()[previous_anomalies..]
-                .iter()
-                .filter_map(Value::as_str)
-            {
-                log.write(
-                    "WARN",
-                    "sync",
-                    &crate::diagnostics::safe_anomaly(note, &discovered_files),
-                );
-            }
-            for file in parsed {
+                let previous_anomalies = totals["anomalies"].as_array().unwrap().len();
                 let start = Instant::now();
-                let stats = ledger.batch_cancellable(
-                    &file.records,
-                    Some(&file.file),
-                    super::ledger::Revisions {
-                        usage: Some(adapters::parser_rev(&source)),
-                        timing: adapters::timing_rev(&source),
-                    },
-                    elsewhere.get(&file.file).map(Vec::as_slice).unwrap_or(&[]),
-                    pricing::cost_of,
-                    || cancel.load(Ordering::Acquire),
-                )?;
-                phases.write_ns += start.elapsed().as_nanos() as u64;
-                phases.write_transactions += 1;
-                for note in stats["anomalies"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
+                let elsewhere = settle(&mut parsed, &mut totals);
+                phases.settle_ns += start.elapsed().as_nanos() as u64;
+                for note in totals["anomalies"].as_array().unwrap()[previous_anomalies..]
+                    .iter()
                     .filter_map(Value::as_str)
                 {
                     log.write(
                         "WARN",
                         "sync",
-                        &crate::diagnostics::safe_anomaly(note, &discovered_files),
+                        &crate::diagnostics::safe_anomaly(note, &files),
                     );
                 }
-                for field in ["attempted", "inserted", "updated", "unchanged", "rejected"] {
-                    totals[field] =
-                        json!(totals[field].as_i64().unwrap() + stats[field].as_i64().unwrap());
+                for (file, update) in parsed.into_iter().zip(updates) {
+                    let start = Instant::now();
+                    let cache_before = phases.cache_write_ns;
+                    let stats = ledger.batch_with_commit(
+                        &file.records,
+                        (
+                            Some(&file.file),
+                            revisions,
+                            elsewhere.get(&file.file).map(Vec::as_slice).unwrap_or(&[]),
+                        ),
+                        pricing::cost_of,
+                        || cancel.load(Ordering::Acquire),
+                        |transaction| {
+                            let cached = match &update {
+                                CacheUpdate::Keep => return Ok(()),
+                                CacheUpdate::Invalidate => None,
+                                CacheUpdate::Store(cached) => Some(cached),
+                            };
+                            let start = Instant::now();
+                            Ledger::write_ingest_file(transaction, &source, &file.file, cached)?;
+                            phases.cache_write_ns += start.elapsed().as_nanos() as u64;
+                            Ok(())
+                        },
+                    )?;
+                    phases.write_ns += (start.elapsed().as_nanos() as u64)
+                        .saturating_sub(phases.cache_write_ns - cache_before);
+                    phases.write_transactions += 1;
+                    for note in stats["anomalies"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                    {
+                        log.write(
+                            "WARN",
+                            "sync",
+                            &crate::diagnostics::safe_anomaly(note, &files),
+                        );
+                    }
+                    for field in ["attempted", "inserted", "updated", "unchanged", "rejected"] {
+                        totals[field] =
+                            json!(totals[field].as_i64().unwrap() + stats[field].as_i64().unwrap());
+                    }
+                    for (key, value) in stats["counts"].as_object().unwrap() {
+                        totals["counts"][key] = json!(
+                            totals["counts"][key].as_i64().unwrap_or(0) + value.as_i64().unwrap()
+                        );
+                    }
+                    totals["anomalies"]
+                        .as_array_mut()
+                        .unwrap()
+                        .extend(stats["anomalies"].as_array().unwrap().clone());
                 }
-                for (key, value) in stats["counts"].as_object().unwrap() {
-                    totals["counts"][key] = json!(
-                        totals["counts"][key].as_i64().unwrap_or(0) + value.as_i64().unwrap()
-                    );
+                if track_source {
+                    let start = Instant::now();
+                    ledger.cache_finish_source(&source)?;
+                    phases.cache_write_ns += start.elapsed().as_nanos() as u64;
                 }
-                totals["anomalies"]
-                    .as_array_mut()
-                    .unwrap()
-                    .extend(stats["anomalies"].as_array().unwrap().clone());
-            }
+                Ok(())
+            };
+            process()?;
             let discovery_ns = source_discovery.remove(&source).unwrap_or_default();
             phases.sources.insert(
                 source,
@@ -496,6 +743,9 @@ fn sync_profiled(
             })?;
         phases.reprice_ns = start.elapsed().as_nanos() as u64;
         totals["repriced"] = json!(repriced);
+        totals["parsedFiles"] = json!(phases.parsed_files);
+        totals["cachedFiles"] = json!(phases.cached_files);
+        totals["skippedFiles"] = json!(phases.skipped_files);
         let start = Instant::now();
         ledger.finish_run(
             run,
@@ -619,7 +869,7 @@ mod tests {
         for line in include_str!("../../tests/golden/ingest.jsonl").lines() {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "run" {
-                let mut result = sync(
+                let mut result = reread(
                     &directory.path().join("data"),
                     &home,
                     &discovery::Environment::default(),

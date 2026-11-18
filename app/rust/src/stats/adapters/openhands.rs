@@ -8,7 +8,7 @@ use std::path::Path;
 
 use super::super::jscompat::{encode_uri_component, JsJson};
 use std::collections::HashMap;
-fn event_name(name: &str) -> bool {
+pub(in crate::stats) fn event_name(name: &str) -> bool {
     let Some(s) = name
         .strip_prefix("event-")
         .and_then(|s| s.strip_suffix(".json"))
@@ -44,7 +44,7 @@ pub(super) fn parse(
         return Ok(vec![]);
     };
     let mut times: HashMap<String, String> = HashMap::new();
-    let events = file.parent().unwrap().join("events");
+    let events = super::openhands_events(file);
     match std::fs::read_dir(events) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e.into()),

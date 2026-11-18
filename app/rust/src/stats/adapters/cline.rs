@@ -38,7 +38,7 @@ pub(super) fn parse(
     let Some(messages) = messages.as_array().filter(|a| !a.is_empty()) else {
         return Ok(vec![]);
     };
-    let side = file.parent().unwrap().join("ui_messages.json");
+    let side = super::sidecar("cline", file).unwrap();
     let mut timeline = Vec::new();
     if side.exists() {
         let ui = match std::fs::read(side)

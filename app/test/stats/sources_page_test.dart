@@ -43,6 +43,8 @@ class SourcesGateway extends FakeStatsGateway {
   StatsSourceRun? run;
   String? sourcesError, monthError;
   int sourceReads = 0, monthReads = 0;
+  int cachedFiles = 0, skippedFiles = 0;
+  String? lastTrigger;
   final monthFilters = <StatsFilter>[];
   List<String> anomalies = [];
   Completer<StatsSources>? pendingSources;
@@ -67,6 +69,7 @@ class SourcesGateway extends FakeStatsGateway {
   @override
   Future<StatsSync> sync({String trigger = 'manual'}) async {
     syncs++;
+    lastTrigger = trigger;
     if (syncFailure != null) throw StateError(syncFailure!);
     await syncBarrier?.future;
     return StatsSync(
@@ -79,6 +82,9 @@ class SourcesGateway extends FakeStatsGateway {
       counts: zeroCounts,
       anomalies: anomalies,
       fileCount: 5,
+      parsedFiles: 5 - cachedFiles - skippedFiles,
+      cachedFiles: cachedFiles,
+      skippedFiles: skippedFiles,
       durationMs: 1200,
     );
   }
@@ -139,6 +145,62 @@ Finder sourceText(String text) => find.byWidgetPredicate(
 );
 
 void main() {
+  testWidgets('重新读取使用 reread，且同步期间两个按钮都禁用', (tester) async {
+    final fake = SourcesGateway()..syncBarrier = Completer<void>();
+    await mount(tester, fake);
+    expect(
+      find.byTooltip('忽略上次的读取结果，把全部日志重新读一遍。怀疑统计漏了或不对时使用；账本里已有的用量不会被删除。'),
+      findsOneWidget,
+    );
+    await tester.tap(syncButton('重新读取全部日志'));
+    await tester.pump();
+    expect(fake.lastTrigger, 'reread');
+    expect(tester.widget<TextButton>(syncButton('重新读取中…')).onPressed, isNull);
+    expect(tester.widget<TextButton>(syncButton('立即同步')).onPressed, isNull);
+    fake.syncBarrier!.complete();
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextButton>(syncButton('重新读取全部日志')).onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('窄宽度另起一行，并显示缓存同步结果和持久化技术细节', (tester) async {
+    final fake = SourcesGateway()
+      ..cachedFiles = 1
+      ..skippedFiles = 3
+      ..run = const StatsSourceRun(
+        status: 'ok',
+        attempted: 3,
+        inserted: 2,
+        updated: 1,
+        unchanged: 0,
+        rejected: 0,
+        skippedFiles: 3,
+        anomalyCount: 0,
+        anomalies: [],
+      );
+    await mount(tester, fake, width: 530);
+    expect(
+      tester.getTopLeft(syncButton('重新读取全部日志')).dy,
+      greaterThan(tester.getTopLeft(find.textContaining('每次打开 Token Lens')).dy),
+    );
+    await tester.tap(syncButton('立即同步'));
+    await tester.pumpAndSettle();
+    expect(
+      sourceText('同步完成：扫描 5 个文件，其中 4 个没变（沿用上次结果），新增 2 条，有变化的 1 条，用时 1.2 秒。'),
+      findsOneWidget,
+    );
+    await tester.tap(sourceText('上次同步的技术细节'));
+    await tester.pumpAndSettle();
+    expect(
+      sourceText('处理了 3 条记录：新增 2 条，有变化的 1 条，没变的 0 条，跳过 0 条。'),
+      findsOneWidget,
+    );
+    expect(sourceText('另有 3 个文件所在的工具没有任何变化，这次没有重新处理。'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('旧例：同步成功后显示计数和友好工具名', (tester) async {
     final fake = SourcesGateway();
     await mount(tester, fake);
@@ -245,7 +307,7 @@ void main() {
     await tester.tap(sourceText('上次同步的技术细节'));
     await tester.pumpAndSettle();
     expect(
-      sourceText('读了 8 条记录：新增 4 条，有变化的 0 条，没变的 4 条，跳过 0 条。'),
+      sourceText('处理了 8 条记录：新增 4 条，有变化的 0 条，没变的 4 条，跳过 0 条。'),
       findsOneWidget,
     );
     await c.shutdown();

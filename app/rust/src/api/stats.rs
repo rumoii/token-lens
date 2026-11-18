@@ -254,6 +254,7 @@ pub struct StatsRun {
     pub counts: Option<StatsCounts>,
     pub anomalies: Vec<String>,
 }
+#[flutter_rust_bridge::frb]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSync {
     pub attempted: i64,
@@ -266,6 +267,15 @@ pub struct StatsSync {
     pub anomalies: Vec<String>,
     #[serde(rename = "fileCount")]
     pub file_count: i64,
+    #[serde(rename = "parsedFiles")]
+    #[frb(default = 0)]
+    pub parsed_files: i64,
+    #[serde(rename = "cachedFiles")]
+    #[frb(default = 0)]
+    pub cached_files: i64,
+    #[serde(rename = "skippedFiles")]
+    #[frb(default = 0)]
+    pub skipped_files: i64,
     #[serde(rename = "durationMs")]
     pub duration_ms: i64,
 }
@@ -417,6 +427,7 @@ pub struct StatsSource {
     pub limits: Vec<String>,
     pub notes: Vec<StatsSourceNote>,
 }
+#[flutter_rust_bridge::frb]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSourceRun {
     pub status: String,
@@ -427,6 +438,9 @@ pub struct StatsSourceRun {
     pub updated: i64,
     pub unchanged: i64,
     pub rejected: i64,
+    #[serde(default)]
+    #[frb(default = 0)]
+    pub skipped_files: i64,
     pub anomaly_count: i64,
     pub counts: Option<HashMap<String, i64>>,
     pub anomalies: Vec<String>,
@@ -658,12 +672,13 @@ impl StatsClient {
         let trigger = match trigger.as_str() {
             "startup" => "startup",
             "timer" => "timer",
+            "reread" => "reread",
             _ => "manual",
         };
         self.state
             .log
             .write("INFO", "sync", &format!("start trigger={trigger}"));
-        let result = self.sync_inner(environment);
+        let result = self.sync_inner(environment, trigger == "reread");
         if let Err(error) = &result {
             if error != "cancelled" {
                 self.state.log.write(
@@ -676,7 +691,11 @@ impl StatsClient {
         self.state.log.ffi("sync", result)
     }
     #[flutter_rust_bridge::frb(ignore)]
-    fn sync_inner(&self, environment: &ingest::Environment) -> Result<StatsSync, String> {
+    fn sync_inner(
+        &self,
+        environment: &ingest::Environment,
+        no_cache: bool,
+    ) -> Result<StatsSync, String> {
         if self.state.closed.load(Ordering::Acquire) {
             return Err("closed".into());
         }
@@ -698,7 +717,12 @@ impl StatsClient {
         if self.state.closed.load(Ordering::Acquire) {
             return Err("closed".into());
         }
-        let result = ingest::sync(
+        let sync = if no_cache {
+            ingest::reread
+        } else {
+            ingest::sync
+        };
+        let result = sync(
             &self.state.data,
             &self.state.home,
             environment,
@@ -1127,7 +1151,7 @@ mod tests {
         assert_eq!(health.version, env!("CARGO_PKG_VERSION"));
         assert_eq!(health.data_dir, data.to_string_lossy());
         assert_eq!(health.ledger_path, data.join("ledger.db").to_string_lossy());
-        assert_eq!(health.schema_version, 6);
+        assert_eq!(health.schema_version, 7);
         assert!(serde_json::to_value(health).unwrap().get("port").is_none());
     }
     #[test]
@@ -1177,7 +1201,7 @@ mod tests {
         assert_eq!(run.anomalies.len(), 5);
         assert_eq!(run.finished_at, None);
         assert_eq!(run.counts.unwrap().get("bad_times"), Some(&2));
-        assert_eq!(client.health().unwrap().schema_version, 6);
+        assert_eq!(client.health().unwrap().schema_version, 7);
         let prices = client.pricing().unwrap();
         assert_eq!(
             prices

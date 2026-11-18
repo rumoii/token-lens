@@ -2716,8 +2716,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSourceRun dco_decode_stats_source_run(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return StatsSourceRun(
       status: dco_decode_String(arr[0]),
       startedAt: dco_decode_opt_String(arr[1]),
@@ -2727,9 +2727,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       updated: dco_decode_CastedPrimitive_i_64(arr[5]),
       unchanged: dco_decode_CastedPrimitive_i_64(arr[6]),
       rejected: dco_decode_CastedPrimitive_i_64(arr[7]),
-      anomalyCount: dco_decode_CastedPrimitive_i_64(arr[8]),
-      counts: dco_decode_opt_Map_String_CastedPrimitive_i_64_None(arr[9]),
-      anomalies: dco_decode_list_String(arr[10]),
+      skippedFiles: dco_decode_CastedPrimitive_i_64(arr[8]),
+      anomalyCount: dco_decode_CastedPrimitive_i_64(arr[9]),
+      counts: dco_decode_opt_Map_String_CastedPrimitive_i_64_None(arr[10]),
+      anomalies: dco_decode_list_String(arr[11]),
     );
   }
 
@@ -2779,8 +2780,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSync dco_decode_stats_sync(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return StatsSync(
       attempted: dco_decode_CastedPrimitive_i_64(arr[0]),
       inserted: dco_decode_CastedPrimitive_i_64(arr[1]),
@@ -2791,7 +2792,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       counts: dco_decode_stats_counts(arr[6]),
       anomalies: dco_decode_list_String(arr[7]),
       fileCount: dco_decode_CastedPrimitive_i_64(arr[8]),
-      durationMs: dco_decode_CastedPrimitive_i_64(arr[9]),
+      parsedFiles: dco_decode_CastedPrimitive_i_64(arr[9]),
+      cachedFiles: dco_decode_CastedPrimitive_i_64(arr[10]),
+      skippedFiles: dco_decode_CastedPrimitive_i_64(arr[11]),
+      durationMs: dco_decode_CastedPrimitive_i_64(arr[12]),
     );
   }
 
@@ -4599,6 +4603,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_updated = sse_decode_CastedPrimitive_i_64(deserializer);
     var var_unchanged = sse_decode_CastedPrimitive_i_64(deserializer);
     var var_rejected = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_skippedFiles = sse_decode_CastedPrimitive_i_64(deserializer);
     var var_anomalyCount = sse_decode_CastedPrimitive_i_64(deserializer);
     var var_counts = sse_decode_opt_Map_String_CastedPrimitive_i_64_None(
       deserializer,
@@ -4613,6 +4618,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       updated: var_updated,
       unchanged: var_unchanged,
       rejected: var_rejected,
+      skippedFiles: var_skippedFiles,
       anomalyCount: var_anomalyCount,
       counts: var_counts,
       anomalies: var_anomalies,
@@ -4676,6 +4682,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_counts = sse_decode_stats_counts(deserializer);
     var var_anomalies = sse_decode_list_String(deserializer);
     var var_fileCount = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_parsedFiles = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_cachedFiles = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_skippedFiles = sse_decode_CastedPrimitive_i_64(deserializer);
     var var_durationMs = sse_decode_CastedPrimitive_i_64(deserializer);
     return StatsSync(
       attempted: var_attempted,
@@ -4687,6 +4696,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       counts: var_counts,
       anomalies: var_anomalies,
       fileCount: var_fileCount,
+      parsedFiles: var_parsedFiles,
+      cachedFiles: var_cachedFiles,
+      skippedFiles: var_skippedFiles,
       durationMs: var_durationMs,
     );
   }
@@ -6216,6 +6228,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_CastedPrimitive_i_64(self.updated, serializer);
     sse_encode_CastedPrimitive_i_64(self.unchanged, serializer);
     sse_encode_CastedPrimitive_i_64(self.rejected, serializer);
+    sse_encode_CastedPrimitive_i_64(self.skippedFiles, serializer);
     sse_encode_CastedPrimitive_i_64(self.anomalyCount, serializer);
     sse_encode_opt_Map_String_CastedPrimitive_i_64_None(
       self.counts,
@@ -6263,6 +6276,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_stats_counts(self.counts, serializer);
     sse_encode_list_String(self.anomalies, serializer);
     sse_encode_CastedPrimitive_i_64(self.fileCount, serializer);
+    sse_encode_CastedPrimitive_i_64(self.parsedFiles, serializer);
+    sse_encode_CastedPrimitive_i_64(self.cachedFiles, serializer);
+    sse_encode_CastedPrimitive_i_64(self.skippedFiles, serializer);
     sse_encode_CastedPrimitive_i_64(self.durationMs, serializer);
   }
 

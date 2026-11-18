@@ -153,11 +153,7 @@ pub(super) fn parse(
         };
         let session = parent_name(identity);
         let mut model = Value::Null;
-        let metadata = file
-            .parent()
-            .and_then(Path::parent)
-            .unwrap()
-            .join("index.json");
+        let metadata = super::sidecar("codebuddy", file).unwrap();
         if metadata.exists() {
             match std::fs::read(metadata)
                 .map_err(super::Error::from)

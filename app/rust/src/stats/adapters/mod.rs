@@ -77,7 +77,7 @@ pub(super) struct ReadParsePhases {
     pub(super) sqlite_ns: u64,
     pub(super) read_files: usize,
     pub(super) decompressed_files: usize,
-    pub(super) parsed_files: usize,
+    pub(super) text_parsed_files: usize,
     pub(super) read_bytes: usize,
     pub(super) compressed_bytes: usize,
     pub(super) decompressed_bytes: usize,
@@ -108,26 +108,7 @@ pub(super) fn parse_profiled(
     phases: &mut ReadParsePhases,
 ) -> Result<(Vec<Value>, Value)> {
     let mut notes = json!({"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0});
-    let cursor_csv = source == "cursor"
-        && Path::new(identity)
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("csv"));
-    if !cursor_csv
-        && matches!(
-            source,
-            "hermes"
-                | "cursor"
-                | "opencode"
-                | "kilo"
-                | "goose"
-                | "zed"
-                | "copilot"
-                | "mimo"
-                | "minimax"
-                | "zcode"
-                | "anythingllm"
-        )
-    {
+    if uses_sqlite(source, Path::new(identity)) {
         if source == "cursor"
             && !Path::new(identity).extension().is_some_and(|e| {
                 ["vscdb", "sqlite", "db"]
@@ -216,9 +197,50 @@ pub(super) fn parse_profiled(
         _ => Err(Error(format!("unknown source: {source}"))),
     };
     phases.parse_ns += started.elapsed().as_nanos() as u64;
-    phases.parsed_files += 1;
+    phases.text_parsed_files += 1;
     Ok((records?, notes))
 }
+
+pub(super) fn uses_sqlite(source: &str, file: &Path) -> bool {
+    sqlite_only(source)
+        || source == "cursor"
+            && !file
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("csv"))
+}
+
+pub(super) fn sqlite_only(source: &str) -> bool {
+    matches!(
+        source,
+        "hermes"
+            | "opencode"
+            | "kilo"
+            | "goose"
+            | "zed"
+            | "copilot"
+            | "mimo"
+            | "minimax"
+            | "zcode"
+            | "anythingllm"
+    )
+}
+
+pub(super) fn sidecar(source: &str, file: &Path) -> Option<std::path::PathBuf> {
+    match source {
+        "grok" => Some(file.with_file_name("summary.json")),
+        "cline" => Some(file.with_file_name("ui_messages.json")),
+        "codebuddy" if file.as_os_str().to_string_lossy().ends_with(".json") => {
+            Some(file.parent()?.parent()?.join("index.json"))
+        }
+        _ => None,
+    }
+}
+
+pub(super) fn openhands_events(file: &Path) -> std::path::PathBuf {
+    file.with_file_name("events")
+}
+
+pub(super) use openhands::event_name as openhands_event_name;
 
 #[cfg(test)]
 mod tests {
@@ -646,7 +668,7 @@ mod ledger_b3_tests {
         for line in include_str!("../../../tests/golden/ingest-b3.jsonl").lines() {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "run" {
-                let mut actual = ingest::sync(
+                let mut actual = ingest::reread(
                     &data,
                     &home,
                     &env,
@@ -757,7 +779,8 @@ mod ledger_b3_tests {
         let second = sync();
         assert_eq!(second["inserted"], 0);
         assert_eq!(second["updated"], 0);
-        assert_eq!(second["unchanged"], count);
+        assert_eq!(second["attempted"], second["unchanged"]);
+        assert!(second["skippedFiles"].as_i64().unwrap() > 0);
         assert_eq!(
             service::summary(&ledger, &json!({}), 480, "Asia/Shanghai").unwrap(),
             summary
@@ -824,7 +847,7 @@ mod ledger_b2_tests {
         for line in include_str!("../../../tests/golden/ingest-b2.jsonl").lines() {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "run" {
-                let mut result = ingest::sync(
+                let mut result = ingest::reread(
                     &data,
                     &home,
                     &env,
@@ -943,7 +966,8 @@ mod ledger_b2_tests {
         .unwrap();
         assert_eq!(second["inserted"], 0);
         assert_eq!(second["updated"], 0);
-        assert_eq!(second["unchanged"], count);
+        assert_eq!(second["attempted"], second["unchanged"]);
+        assert!(second["skippedFiles"].as_i64().unwrap() > 0);
         assert_eq!(
             service::summary(&ledger, &json!({}), 480, "Asia/Shanghai").unwrap(),
             summary

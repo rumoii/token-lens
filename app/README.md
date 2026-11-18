@@ -59,16 +59,18 @@ Windows release 的程序名为 `token-lens.exe`，产品名和窗口标题为 `
 
 应用默认使用系统应用支持目录下的 `data`（Windows 为 `%APPDATA%\Token Lens\Token Lens\data`），可以用 `TOKEN_LENS_PREVIEW_DATA_DIR` 覆盖为绝对路径。`TOKEN_LENS_PREVIEW_HOME` 仍用于覆盖日志根目录。它忽略旧版 `TOKEN_LENS_DATA_DIR` 与 `DB_PATH`，不自动读取或迁移旧新闻目录及 `~/.token-lens`。
 
-接手旧版账本：先关闭新旧两版，备份 `~/.token-lens`，再把其中的 `ledger.db` 以及存在的 `ledger.db-wal`、`ledger.db-shm` 一起复制到新版数据目录，然后启动新版。三个文件要同时复制，WAL 里可能有尚未合并进 `ledger.db` 的记录。桌面版会在自己的数据目录用 `VACUUM INTO` 保存一致的 v5 备份，再升级到 v6（增加独立 usage_timings，不改用量表和价格）。不要在程序运行时直接复制主文件充当一致备份。
+接手旧版账本：先关闭新旧两版，备份 `~/.token-lens`，再把其中的 `ledger.db` 以及存在的 `ledger.db-wal`、`ledger.db-shm` 一起复制到新版数据目录，然后启动新版。三个文件要同时复制，WAL 里可能有尚未合并进 `ledger.db` 的记录。桌面版每次升级账本结构前，都会在自己的数据目录用 `VACUUM INTO` 保存一份升级前版本的一致备份：升 v6（增加独立 usage_timings，不改用量表和价格）前存 v5 备份 `ledger-v5-…db`，升 v7（增加文件缓存表，不改用量、计时和价格）前存 v6 备份 `ledger-v6-…db`。不要在程序运行时直接复制主文件充当一致备份。
 
-回退到 Node/React 版：关闭桌面版，继续使用旧版。桌面版从不打开 `~/.token-lens`，那里的 v5 账本只由旧版自己写入，不受桌面 v6 迁移影响。
+回退到 Node/React 版：关闭桌面版，继续使用旧版。桌面版从不打开 `~/.token-lens`，那里的 v5 账本只由旧版自己写入，不受桌面迁移影响。
 
-回退到 schema v5 的旧桌面程序：旧程序拒绝打开 v6，不能只换 exe 后继续用 v6 数据目录。
+回退到更早 schema 的旧桌面程序：旧程序拒绝打开更高版本的账本，不能只换 exe 后继续用新的数据目录。以回到 v6 程序为例（回到 v5 程序时把 v6 换成 v5、v7 换成 v6）：
 
-1. 关闭所有桌面实例，保留 v6 数据目录及其 WAL/SHM，不覆盖它们。
-2. 在该目录找到升级前生成的 `ledger-v5-YYYY-MM-DD-<毫秒时间>-<序号>.db`，核实它能以 SQLite 打开、user_version 为 5；恢复点是备份时刻，之后采集的记录不在该备份里。
-3. 新建一个独立的空恢复目录，把备份复制到其中并命名为 `ledger.db`。不要带入 v6 的 WAL/SHM；备份是 VACUUM INTO 生成的完整独立数据库。
-4. 在启动旧桌面程序的进程里把 `TOKEN_LENS_PREVIEW_DATA_DIR` 设置为恢复目录的绝对路径，再启动完整的旧版构建目录。恢复不需要改动 `~/.token-lens`；保留原 v6 目录，以便恢复新版时继续使用。
+1. 关闭所有桌面实例，保留 v7 数据目录及其 WAL/SHM，不覆盖它们。
+2. 在该目录找到升级前生成的 `ledger-v6-YYYY-MM-DD-<毫秒时间>-<序号>.db`，核实它能以 SQLite 打开、user_version 为 6；恢复点是备份时刻，之后采集的记录不在该备份里。
+3. 新建一个独立的空恢复目录，把备份复制到其中并命名为 `ledger.db`。不要带入 v7 的 WAL/SHM；备份是 VACUUM INTO 生成的完整独立数据库。
+4. 在启动旧桌面程序的进程里把 `TOKEN_LENS_PREVIEW_DATA_DIR` 设置为恢复目录的绝对路径，再启动完整的旧版构建目录。恢复不需要改动 `~/.token-lens`；保留原 v7 目录，以便恢复新版时继续使用。
+
+“重新读取全部日志”（来源页）只是不看文件缓存把日志重读一遍，不清空账本，也不是回退手段。
 
 Windows 单实例互斥量为 `Local\TokenLens.Desktop`，重复启动仅激活类名为 `FLUTTER_RUNNER_WIN32_WINDOW`、标题为 `Token Lens` 的窗口。
 

@@ -153,7 +153,7 @@ INSERT INTO ingest_runs(started_at,finished_at,status,attempted,inserted,notes,c
       else { const target = join(home, entry.target); mkdirSync(dirname(target), { recursive: true }); copyFileSync(entry.input, target); }
     }
     for (let index = 0; index < 2; index++) {
-      const result = await runIngestion({ dataDir }); result.durationMs = '<volatile>';
+      const result = await runIngestion({ dataDir }); Object.assign(result, { durationMs: '<volatile>', parsedFiles: result.fileCount, cachedFiles: 0, skippedFiles: 0 });
       emit({ type: 'run', scenario, index, expected: result });
     }
     const ledger = new Ledger(join(dataDir, 'ledger.db'));

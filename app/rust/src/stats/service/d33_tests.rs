@@ -152,7 +152,7 @@ fn d33_queries_match_node_golden_and_conserve() {
                 }
             }
             "run" => {
-                let mut actual = ingest::sync(
+                let mut actual = ingest::reread(
                     &data,
                     &home,
                     &environment,

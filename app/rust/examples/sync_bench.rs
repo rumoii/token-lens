@@ -409,7 +409,13 @@ fn snapshot(
     }))
 }
 
-fn run(home: &Path, out: &Path, runs: usize, existing_data: Option<&Path>) -> Result<()> {
+fn run(
+    home: &Path,
+    out: &Path,
+    runs: usize,
+    existing_data: Option<&Path>,
+    no_cache: bool,
+) -> Result<()> {
     checked_temp_path(home)?;
     checked_temp_path(out)?;
     let home = home.canonicalize()?;
@@ -440,7 +446,7 @@ fn run(home: &Path, out: &Path, runs: usize, existing_data: Option<&Path>) -> Re
     let mut records_by_source = BTreeMap::new();
     let mut hashes_match = true;
     for index in 1..=runs {
-        let (sync, phases) = sync_benchmark(&data, &home, CLOCK_MS)?;
+        let (sync, phases) = sync_benchmark(&data, &home, CLOCK_MS, no_cache)?;
         let client = StatsClient::new_with_fixed_clock(
             data.to_str().ok_or("invalid data path")?.into(),
             Some(home.to_str().ok_or("invalid home path")?.into()),
@@ -465,6 +471,7 @@ fn run(home: &Path, out: &Path, runs: usize, existing_data: Option<&Path>) -> Re
         results.push(json!({
             "run":index,"sync":sync,"phases":phases,"queryNs":queries.timings,
             "snapshot":file,"snapshotSha256":hash,
+            "ledgerBytes":fs::metadata(data.join("ledger.db"))?.len(),
         }));
     }
     let report = json!({
@@ -498,7 +505,12 @@ fn execute(mut args: impl Iterator<Item = String>) -> Result<()> {
         _ => return Err("expected generate, run or once".into()),
     };
     let mut flags = BTreeMap::new();
+    let mut no_cache = false;
     while let Some(flag) = args.next() {
+        if command == "once" && flag == "--no-cache" && !no_cache {
+            no_cache = true;
+            continue;
+        }
         if !allowed.contains(&flag.as_str()) || flags.contains_key(&flag) {
             return Err(format!("unexpected or duplicate option: {flag}").into());
         }
@@ -516,13 +528,13 @@ fn execute(mut args: impl Iterator<Item = String>) -> Result<()> {
         let out = Path::new(flags.get("--out").ok_or("--out is required")?);
         if command == "once" {
             let data = Path::new(flags.get("--data").ok_or("--data is required")?);
-            return run(home, out, 1, Some(data));
+            return run(home, out, 1, Some(data), no_cache);
         }
         let runs = flags.get("--runs").map_or(Ok(3), |value| value.parse())?;
         if runs == 0 {
             return Err("--runs must be positive".into());
         }
-        run(home, out, runs, None)
+        run(home, out, runs, None, false)
     }
 }
 
@@ -583,7 +595,8 @@ mod tests {
             let file = relative.join(name);
             fs::copy(generated.join(&file), sample.join(&file)).unwrap();
         }
-        let (totals, _) = sync_benchmark(&root.path().join("data"), &sample, CLOCK_MS).unwrap();
+        let (totals, _) =
+            sync_benchmark(&root.path().join("data"), &sample, CLOCK_MS, false).unwrap();
         assert_eq!(totals["counts"]["cross_file_copies"], 0);
         assert_eq!(totals["inserted"], 242);
     }

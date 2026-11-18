@@ -284,7 +284,7 @@ fn e4_v5_migration_backup_is_consistent_with_live_wal_and_repeat_open() {
         new.db
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        6
+        7
     );
     let backups = std::fs::read_dir(temp.path())
         .unwrap()
@@ -629,7 +629,11 @@ fn e4_codex_cross_file_timing_follows_usage_owner_and_repeat_is_idempotent() {
             &std::sync::atomic::AtomicBool::new(false),
         )
         .unwrap();
-        assert_eq!(result["counts"]["cross_file_copies"], 1);
+        assert_eq!(
+            result["counts"]["cross_file_copies"],
+            if pass == 0 { 1 } else { 0 }
+        );
+        assert_eq!(result["skippedFiles"], if pass == 0 { 0 } else { 2 });
         assert_eq!(result["inserted"], if pass == 0 { 1 } else { 0 });
         assert_eq!(result["updated"], 0);
     }

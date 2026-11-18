@@ -15,7 +15,7 @@ export async function generateIngest(output, now) {
   const dataDir=join(root,'data');
   const rows=[{type:'context',now,tz:process.env.TZ}];
   for(let index=0;index<2;index+=1) {
-    const result=await runIngestion({dataDir});result.durationMs='<volatile>';
+    const result=await runIngestion({dataDir});Object.assign(result, { durationMs: '<volatile>', parsedFiles: result.fileCount, cachedFiles: 0, skippedFiles: 0 });
     rows.push({type:'run',index,expected:result});
   }
   const ledger=new Ledger(join(dataDir,'ledger.db'));

@@ -56,7 +56,15 @@ void main() {
     });
     final first = await gateway.sync(trigger: 'startup');
     expect(first.inserted, 4);
-    expect((await gateway.sync(trigger: 'manual')).unchanged, 4);
+    expect(first.parsedFiles, 3);
+    final cached = await gateway.sync(trigger: 'manual');
+    expect(cached.skippedFiles, 3);
+    expect(cached.attempted, 0);
+    expect((await gateway.sources()).lastRun!.skippedFiles, 3);
+    final reread = await gateway.sync(trigger: 'reread');
+    expect(reread.parsedFiles, 3);
+    expect(reread.skippedFiles, 0);
+    expect(reread.unchanged, 4);
     expect(
       (await gateway.summary(const StatsFilter())).totals.grossTokens,
       610,
@@ -159,13 +167,14 @@ void main() {
       'start version=',
       'exit',
       'trigger=startup',
+      'trigger=reread',
       'files=3',
       'inserted=4',
       'unchanged=4',
       'session_detail_in_period',
       'FormatException',
       'ERROR ffi',
-      'schema=6',
+      'schema=7',
     ]) {
       expect(text, contains(event));
     }
@@ -288,7 +297,10 @@ void main() {
       expect(outside.period!.requestCount, 0);
       expect(outside.session.grossTokens, 160);
       expect((await gateway.pricing()).models.single.model, 'claude-opus-5-5');
-      expect((await client.sync_()).unchanged, 1);
+      final cached = await client.sync_();
+      expect(cached.skippedFiles, 1);
+      expect(cached.unchanged, 0);
+      expect((await client.syncTriggered(trigger: 'reread')).unchanged, 1);
       expect(
         (await gateway.summary(const StatsFilter())).totals.costMicros,
         1054,

@@ -1604,6 +1604,7 @@ class StatsSourceRun {
   final int updated;
   final int unchanged;
   final int rejected;
+  final int skippedFiles;
   final int anomalyCount;
   final Map<String, int>? counts;
   final List<String> anomalies;
@@ -1617,6 +1618,7 @@ class StatsSourceRun {
     required this.updated,
     required this.unchanged,
     required this.rejected,
+    this.skippedFiles = 0,
     required this.anomalyCount,
     this.counts,
     required this.anomalies,
@@ -1632,6 +1634,7 @@ class StatsSourceRun {
       updated.hashCode ^
       unchanged.hashCode ^
       rejected.hashCode ^
+      skippedFiles.hashCode ^
       anomalyCount.hashCode ^
       counts.hashCode ^
       anomalies.hashCode;
@@ -1649,6 +1652,7 @@ class StatsSourceRun {
           updated == other.updated &&
           unchanged == other.unchanged &&
           rejected == other.rejected &&
+          skippedFiles == other.skippedFiles &&
           anomalyCount == other.anomalyCount &&
           counts == other.counts &&
           anomalies == other.anomalies;
@@ -1754,6 +1758,9 @@ class StatsSync {
   final StatsCounts counts;
   final List<String> anomalies;
   final int fileCount;
+  final int parsedFiles;
+  final int cachedFiles;
+  final int skippedFiles;
   final int durationMs;
 
   const StatsSync({
@@ -1766,6 +1773,9 @@ class StatsSync {
     required this.counts,
     required this.anomalies,
     required this.fileCount,
+    this.parsedFiles = 0,
+    this.cachedFiles = 0,
+    this.skippedFiles = 0,
     required this.durationMs,
   });
 
@@ -1780,6 +1790,9 @@ class StatsSync {
       counts.hashCode ^
       anomalies.hashCode ^
       fileCount.hashCode ^
+      parsedFiles.hashCode ^
+      cachedFiles.hashCode ^
+      skippedFiles.hashCode ^
       durationMs.hashCode;
 
   @override
@@ -1796,6 +1809,9 @@ class StatsSync {
           counts == other.counts &&
           anomalies == other.anomalies &&
           fileCount == other.fileCount &&
+          parsedFiles == other.parsedFiles &&
+          cachedFiles == other.cachedFiles &&
+          skippedFiles == other.skippedFiles &&
           durationMs == other.durationMs;
 }
 

@@ -32,7 +32,7 @@ export async function generateIngestB3(output,now) {
     const dataDir=join(root,'data');
     for (let index=0;index<2;index++) {
       const result=await runIngestion({dataDir});
-      result.durationMs='<volatile>';rows.push({type:'run',index,expected:result});
+      Object.assign(result, { durationMs: '<volatile>', parsedFiles: result.fileCount, cachedFiles: 0, skippedFiles: 0 });rows.push({type:'run',index,expected:result});
     }
     const ledger=new Ledger(join(dataDir,'ledger.db'));
     try {

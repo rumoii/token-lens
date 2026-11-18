@@ -90,6 +90,7 @@ class StatsController extends ChangeNotifier {
       phase == StatsSyncPhase.conflict ||
       phase == StatsSyncPhase.idle &&
           overview?.sources.lastRun?.status == 'running';
+  bool get rereading => busy && _syncTrigger == 'reread';
   bool get syncFailed =>
       syncError != null ||
       phase == StatsSyncPhase.error ||
@@ -103,6 +104,7 @@ class StatsController extends ChangeNotifier {
   bool _closed = false, _disposed = false, _started = false;
   int _generation = 0, _statusGeneration = 0;
   Timer? _timer, _conflictTimer;
+  String? _syncTrigger;
   Future<void>? _sync, _shutdown, _statusRead;
   Future<bool>? _onboardingRequired;
   final _reads = <Future<void>>{};
@@ -320,9 +322,12 @@ class StatsController extends ChangeNotifier {
     return _sync ??= _synchronize(trigger).whenComplete(() => _sync = null);
   }
 
+  Future<void> rereadLogs() => sync(trigger: 'reread');
+
   Future<void> _synchronize(String trigger) async {
     _statusGeneration++;
     _conflictTimer?.cancel();
+    _syncTrigger = trigger;
     phase = StatsSyncPhase.running;
     syncError = null;
     syncErrorKind = null;

@@ -24,7 +24,7 @@ pub(super) fn parse(
     zone: &LocalZone,
     notes: &mut Value,
 ) -> Result<Vec<Value>> {
-    let summary = file.parent().unwrap().join("summary.json");
+    let summary = super::sidecar("grok", file).unwrap();
     let mut model = None;
     if summary.exists() {
         match std::fs::read(summary)

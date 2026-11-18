@@ -703,7 +703,7 @@ mod tests {
             std::fs::copy(fixtures.join(input), file).unwrap();
         }
         for _ in 0..2 {
-            ingest::sync(
+            ingest::reread(
                 &data,
                 &home,
                 &super::super::discovery::Environment::default(),

@@ -620,7 +620,7 @@ fn e2_unwritable_logs_do_not_fail_business() {
     )
     .unwrap();
     assert!(client.sync_isolated().is_ok());
-    assert_eq!(client.health().unwrap().schema_version, 6);
+    assert_eq!(client.health().unwrap().schema_version, 7);
 }
 
 #[test]

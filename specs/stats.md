@@ -106,23 +106,57 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 
 计时区共用文案和缺失提示。首字显示“一般 x.xx 秒，慢时 y.yy 秒”，只有一个样本或两分位数相同时仅显示“x.xx 秒”；速度和平均速度显示“约 x.x token/s”。只有 0 < n < N 时显示“N 次里 n 次有记录”，n=N 时省略，N 与 n 沿用请求列的千位分隔格式。无样本的指标不显示，在计时区末尾列出“日志里没记：首字、速度、平均速度”中的缺失项。首字的小“?”说明为“从发出请求到看到第一段输出（含思考）的时间。‘一般’是一半请求不超过这个时间，‘慢时’是九成请求不超过这个时间。”其余指标的小“?”说明输出速度和包含等待的平均速度；行标签说明日志推算的约值及整轮对话与每次请求不能直接比较。多个 method 仍独立展示，并保留来源小字。
 
-跨文件副本先按现有 settle 规则选定 usage 的归属，计时随同被保留的记录写入；不能用副本的计时补齐原件。计时按整组保留或替换，不逐指标拼接：本次用量新增或 content_hash 改变并原地更新时，计时整组换成本次解析结果，缺少 timing 对象则删除旧计时，不能沿用与当前用量不匹配的窗口和输出分子；只有本次用量 content_hash 与原来相同，才适用以下保留规则：source_file 和 TIMING_REV 都相同时，旧组 status=completed 就整组保留，不论新组是否缺值或为超集，避免日志裁剪缩短已完成窗口；只有旧组不是 completed，且新组为旧计时已知指标的超集（旧的每个非 NULL 时长（ttft_ms、generation_ms、duration_ms）在新值中也非 NULL）时，才整组替换，支持 ZCode 从 partial 增长到 completed；否则整组保留。status、timing_output_tokens、三个 method 和 scope 随整组决定，不从另一组补齐；选择后再计算 timing_hash，重复采集不反复更新。source_file 或 TIMING_REV 变化时整组替换，包括撤销，不能继承旧归属文件的计时；文件成功重解析后，新 TIMING_REV 不再产出的旧计时会清除，即使空产出保护仍保留历史用量。文件没有被发现或读取失败不清除计时。每次 sync 都重新发现并读取全部日志，无 mtime/hash 跳过缓存，因此 TIMING_REV 改变无需额外重读触发；只清除旧计时，不停用用量，用量因自身版本升级或 replaces 停用时仍删除其计时。
+跨文件副本先按现有 settle 规则选定 usage 的归属，计时随同被保留的记录写入；不能用副本的计时补齐原件。计时按整组保留或替换，不逐指标拼接：本次用量新增或 content_hash 改变并原地更新时，计时整组换成本次解析结果，缺少 timing 对象则删除旧计时，不能沿用与当前用量不匹配的窗口和输出分子；只有本次用量 content_hash 与原来相同，才适用以下保留规则：source_file 和 TIMING_REV 都相同时，旧组 status=completed 就整组保留，不论新组是否缺值或为超集，避免日志裁剪缩短已完成窗口；只有旧组不是 completed，且新组为旧计时已知指标的超集（旧的每个非 NULL 时长（ttft_ms、generation_ms、duration_ms）在新值中也非 NULL）时，才整组替换，支持 ZCode 从 partial 增长到 completed；否则整组保留。status、timing_output_tokens、三个 method 和 scope 随整组决定，不从另一组补齐；选择后再计算 timing_hash，重复采集不反复更新。source_file 或 TIMING_REV 变化时整组替换，包括撤销，不能继承旧归属文件的计时；文件成功重解析后，新 TIMING_REV 不再产出的旧计时会清除，即使空产出保护仍保留历史用量。文件没有被发现或读取失败不清除计时。TIMING_REV 是文件缓存指纹的一部分（见下文 E5），版本改变的来源会重新解析全部文件，无需额外触发；只清除旧计时，不停用用量，用量因自身版本升级或 replaces 停用时仍删除其计时。
 
 **v6 迁移与回退**：先沿用原流程把 v1–v4 升到 v5；已有磁盘账本在升 v6 前用 `VACUUM INTO` 生成一致的 v5 备份，包含已提交 WAL 内容，不能直接复制在线主文件。文件名为 `ledger-v5-YYYY-MM-DD-<毫秒时间>-<序号>.db`，位于账本所在数据目录，已有文件不覆盖；备份失败不创建 v6 表。新建空账本和内存测试库不需要旧库备份。随后在事务里建表并设置 user_version=6。旧版桌面应用拒绝打开 v6；恢复 v5 备份的步骤见 app/README.md。Node 回退目录 `~/.token-lens` 不受影响。
+
+### E5：同步分段计时与文件缓存（桌面 schema v7）
+
+**分段计时**：每次成功的同步在运行日志的 `end` 行后写一行 `phases {…}`，记录发现、读取、解压、文本解析、SQLite 来源读取加解析、settle、写入、缓存读写、重新计价和收尾各段的纳秒耗时，以及文件数、字节数、写入事务数、`parsedFiles`/`cachedFiles`/`skippedFiles` 和各来源耗时。这一行只含数字和来源名，不含路径或日志内容。`app/rust/examples/sync_bench.rs` 用固定种子生成合成日志，测冷同步和文件不变的重同步，并导出规范化快照的 SHA-256（去掉自增 id 和导入时间，`superseded_by` 换成记录键）；后续改动以快照哈希不变证明结果不变。
+
+**写入路径**：批处理里的常用语句使用连接的预编译语句缓存；当前记录没有计时且确认没有旧计时行时不发 DELETE。每个文件结束时的计时版本撤销查询（按 source_file 和 TIMING_REV 筛 `usage_timings`）只在该文件可能有旧版本计时时执行：账本连接在内存里记下每个文件已有的计时版本，在写事务里读取，用 `PRAGMA data_version` 和 `total_changes` 识别两次文件事务之间其他连接或本连接的修改，一旦不一致就重新读取；只在事务提交成功后保存，出错或取消时丢弃。每个文件仍是一个事务。
+
+**文件缓存**：v7 在 `ledger.db` 里增加四张表，不改 `usage_records`、`usage_timings` 和 `ingest_runs` 的列：
+
+| 表 | 内容 |
+| --- | --- |
+| `ingest_files` | 主键 `(source, path)`。`fingerprint` 是命中条件的编码；`payload` 是该文件上一次完整解析的输出：无效时间过滤之后、settle 之前的有序记录（保留 NULL、文件内重复身份、`replaces` 和完整 timing 对象）以及适配器 notes。不存日志原文。 |
+| `ingest_file_replaces` | 主键 `(source, path, target)`，缓存记录里非空且不指向自身的 `replaces` 目标，随对应文件的缓存级联删除。 |
+| `ingest_pending_sources` | 一个来源开始逐文件提交前写入，整个来源处理完后清除；进程中断后，即使剩余文件全部命中，下一轮也按原顺序重新处理这个来源。 |
+| `ingest_run_files` | 主键 `run_id`（关联 `ingest_runs.id`），记录该次运行的 `parsed_files`、`cached_files`、`skipped_files`，与运行结果一起提交。 |
+
+命中要求以下各项都与缓存一致：文件身份路径、大小、系统给出的最高精度修改时间、全部旁文件的路径和状态（含“不存在”）、该来源的 `PARSER_REV` 和 `TIMING_REV`、解析时区身份、缓存格式版本（当前为 1）。有任何一项缺失或不同就重新解析。旁文件：Grok 与 `updates.jsonl` 同级的 `summary.json`；Cline（含 Roo）与 `api_conversation_history.json` 同级的 `ui_messages.json`；CodeBuddy 桌面 JSON 主文件上两级目录的 `index.json`；OpenHands `base_state.json` 同级 `events/` 下按适配器规则匹配的事件文件（按文件名排序）。时区身份在 Windows 上取系统动态时区 ID、偏差和夏令时规则，其他平台取系统时区身份和本机时区规则文件的状态；时区变化让全部普通文件的缓存失效。
+
+SQLite 来源（hermes、cursor 数据库、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm）不缓存，每轮照常读取、settle 和写入，因为已提交数据可能只在 WAL 里。Copilot 读取 `data.db` 时邻接的 `session-store.db` 同样每轮实时读取。Cursor 的 CSV 是普通文件，参与缓存。
+
+按来源处理：
+
+- 来源的发现文件集合与上次相同、每个文件都命中、没有待处理标记，且缓存里没有 `replaces` 指向账本中仍然有效的行时，跳过该来源的 settle 和全部账本写入。最后一条防止“同一文件里替换记录排在被替换记录前面”这种要两轮才收敛的情况在第二轮被跳过；这种情况下第二轮用缓存结果重新处理一次，结果与不用缓存逐轮一致。
+- 来源有任何变化时，命中的文件加载缓存结果，未命中的重新解析，然后对整个来源照原样 settle，并对每个文件照原样写入。文件缓存行与该文件的用量、计时在同一事务提交；取消或出错时一起回滚，下一轮补上。
+- 解析前后各取一次指纹，不一致时本轮照常使用解析结果但不写缓存，下轮重新解析。无法反序列化的缓存在需要时回源重读。
+- 读取失败计入 `read_failed`，排除出 settle，不发 batch，并让该文件的缓存失效。退出发现集合的文件删除缓存；账本里的历史用量照原规则保留（vanished）。
+- 价格变化不让缓存失效；全部来源都跳过时仍照常重新计价。
+
+**快速模式的已知限制**：大小和修改时间都不变、内容却变了的文件，缓存发现不了。此时用“重新读取全部日志”（`reread`）：它不看缓存，重新解析每个候选文件，对全部来源照原样写入并重建缓存。它不清空账本，vanished 保留等规则照旧。
+
+**同步结果**：`sync` 返回和 `StatsSync` 保留原字段，并新增 `parsedFiles`（本轮交给适配器解析的文件数，含 SQLite 和读取失败项）、`cachedFiles`（本轮处理的来源里沿用缓存的文件数）、`skippedFiles`（整个来源被跳过的文件数）。`fileCount` 仍是发现的文件总数。`attempted`、`inserted`、`updated`、`unchanged`、`rejected` 和 `counts` 只统计本轮实际处理的部分，被跳过的来源计 0。与 Node 对拍的 golden 用 `reread` 路径运行；缓存路径由缓存、重读、基线三方逐步对拍和单元测试覆盖。
+
+**v7 迁移与回退**：已有磁盘账本升 v7 前，用单独的只读连接 `VACUUM INTO` 生成一致的 v6 备份 `ledger-v6-YYYY-MM-DD-<毫秒时间>-<序号>.db`（同目录，不覆盖已有文件），再在一个事务里建上述四张表并设 user_version=7，提交后写一行 `migration schema=6->7`。v6 的桌面程序拒绝打开 v7；恢复方法与 v5 备份相同，见 app/README.md。升级后第一轮同步全部未命中，等同一次完整读取。
 
 统计代码放在 `app/rust/src/stats/`，和新闻代码互不依赖：
 
 | 模块 | 职责 | 对应旧版 |
 | --- | --- | --- |
 | `jscompat` | JS 数字转字符串、`Date` 宽容解析、JSON 键序、`localeCompare`、`encodeURIComponent` | 散在各处 |
-| `ledger/open` | 打开、PRAGMA、v1→v6 迁移、v5 一致备份、拒绝更高版本 | `db/open.js` |
+| `ledger/open` | 打开、PRAGMA、v1→v7 迁移、v5 与 v6 一致备份、拒绝更高版本 | `db/open.js` |
 | `ledger/write` | 入库分支、文件停用、`ingest_runs`、重新计价、legacy 导入 | `db/write.js` |
 | `ledger/read` | 聚合、分组、时间桶、会话、来源、价格标记 | `db/read.js` |
 | `pricing` | 价表数据、规范化、分档、峰谷、计价、显示用舍入 | `pricing/*.js` |
 | `lock` | `sync-lock.db` 协议 | `sync-lock.js` |
 | `discovery` | 27 个来源的扫描根和模式 | `discovery.js` |
 | `adapters/<source>` | 每个客户端一个文件，加共用的 `lines`、`num`、`project`、`zstd` | `adapters/*.js` |
-| `ingest` | 发现 → 解析 → 跨文件副本 → 入库 → 重新计价 | `ingest.js` |
+| `ingest` | 发现 → 指纹比对（命中的文件读缓存）→ 解析 → 跨文件副本 → 入库与缓存同事务 → 重新计价；分段计时 | `ingest.js` |
+| `ingest_fingerprint`、`ledger/ingest_cache` | 文件缓存的指纹（大小、修改时间、旁文件、版本、时区）、v7 缓存表与迁移 | 无（桌面新增） |
 | `service` | 各接口的参数、默认值、格式化 | `api/v1/*.js` |
 
 价表在 D3 期间有两份，JS 和 Rust 各一份。Rust 的单元测试固定 `PRICE_VERSION` 必须等于旧版的值；D4 之前改价必须两边一起改，测试会拦住只改了一边的情况。
@@ -151,7 +185,7 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 
 - 统计账本：`<预览目录>/ledger.db`，锁文件是同目录的 `sync-lock.db`。预览目录沿用新闻用的规则（`TOKEN_LENS_PREVIEW_DATA_DIR` 或应用支持目录），D3 不读旧版的数据目录变量。
 - 日志根目录：默认取系统用户目录。为了测试和对拍，可以用 `TOKEN_LENS_PREVIEW_HOME` 指向别的根目录，`APPDATA`、`LOCALAPPDATA`、`XDG_DATA_HOME` 和各客户端自己的覆盖变量按旧版规则读取。测试一律使用合成的根目录。
-- 采集时机照旧：窗口打开后采集一次，开着时每 5 分钟一次，另有手动同步；撞上锁就跳过这一次。关窗就停止采集，进行中的事务回滚，已经提交的文件保留。
+- 采集时机照旧：窗口打开后采集一次，开着时每 5 分钟一次，另有手动同步；撞上锁就跳过这一次。来源页另有“重新读取全部日志”（trigger 记为 `reread`），走同一套冲突、重试和刷新路径，只是不看文件缓存。关窗就停止采集，进行中的事务回滚，已经提交的文件保留。
 - 读取客户端日志只读；外部 SQLite 不做 checkpoint，也不加 `immutable`。
 
 ## FFI
@@ -172,6 +206,7 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 | `pricing` | `/pricing` | 总览、设置 |
 | `health` | `/health` | 设置 |
 | `sync` | `POST /sync` | 引导、来源、定时采集 |
+| `sync_triggered("reread")` | 桌面扩展 | 来源页“重新读取全部日志”；不看文件缓存，返回与 `sync` 相同的结构 |
 
 - 金额在 FFI 上用整数 micro-USD 传递，界面显示用的六位小数字符串和低精度最大余数分配由 Rust `pricing` 统一给出。账本金额只用 Rust 的值，Dart 不重新计价；旧前端自己做的展示推导（按工具合计、比例、环比、币种换算、“缓存帮你省了”的估算）照旧版在 Dart 里做。
 - 时区：Dart 传当前的 UTC 偏移分钟数，Rust 用它切所有历史，和旧版一致。快照里的时区名先读 `TZ`，没有再调用系统自带的 ICU（Windows `icu.dll`、macOS `libicucore`），不打包 ICU；macOS 上的链接和运行还没验证。

@@ -14,7 +14,9 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::LazyLock;
+mod ingest_cache;
 mod read;
+pub(in crate::stats) use ingest_cache::{CachedFile, FileOutput};
 
 const TOKENS: [&str; 4] = [
     "input_tokens",
@@ -200,6 +202,7 @@ fn gross(record: &Value) -> i64 {
         .sum()
 }
 
+#[derive(Clone, Copy)]
 pub struct Revisions {
     pub usage: Option<i64>,
     pub timing: Option<i64>,
@@ -256,9 +259,9 @@ impl Ledger {
         let db = Connection::open(path)?;
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;")?;
         let current: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if current > 6 {
+        if current > 7 {
             return Err(Error(format!(
-                "账本结构版本 {current} 高于本程序支持的 6，拒绝以旧版本写入"
+                "账本结构版本 {current} 高于本程序支持的 7，拒绝以旧版本写入"
             )));
         }
         if current < 5 {
@@ -312,6 +315,9 @@ impl Ledger {
             transaction.execute_batch(include_str!("timings.sql"))?;
             transaction.execute_batch("PRAGMA user_version=6;")?;
             transaction.commit()?;
+        }
+        if current < 7 {
+            ingest_cache::migrate(&db, path, &clock, current > 0)?;
         }
         Ok(Self {
             db,
@@ -460,6 +466,7 @@ impl Ledger {
         )
     }
 
+    #[cfg(test)]
     pub fn batch_cancellable(
         &self,
         records: &[Value],
@@ -469,6 +476,24 @@ impl Ledger {
         price: impl Fn(&Value) -> Value,
         cancelled: impl Fn() -> bool,
     ) -> Result<Value> {
+        self.batch_with_commit(
+            records,
+            (file, revisions, elsewhere),
+            price,
+            cancelled,
+            |_| Ok(()),
+        )
+    }
+
+    pub(in crate::stats) fn batch_with_commit(
+        &self,
+        records: &[Value],
+        file_rules: (Option<&str>, Revisions, &[String]),
+        price: impl Fn(&Value) -> Value,
+        cancelled: impl Fn() -> bool,
+        before_commit: impl FnOnce(&Transaction<'_>) -> Result<()>,
+    ) -> Result<Value> {
+        let (file, revisions, elsewhere) = file_rules;
         let revision = revisions.usage;
         let transaction = Transaction::new_unchecked(&self.db, TransactionBehavior::Immediate)?;
         let before = self.db.total_changes();
@@ -671,6 +696,10 @@ impl Ledger {
             }
             timing_revisions = Some(current);
         }
+        before_commit(&transaction)?;
+        if cancelled() {
+            return Err(Error("cancelled".into()));
+        }
         transaction.commit()?;
         if let Some(mut current) = timing_revisions {
             current.total_changes = self.db.total_changes();
@@ -721,7 +750,19 @@ impl Ledger {
                     .join(",")
             )
         });
-        self.db.execute("UPDATE ingest_runs SET finished_at=?,status=?,attempted=?,inserted=?,updated=?,unchanged=?,rejected=?,notes=?,counts=? WHERE id=?", params![self.clock.millis()/1000,status,sql_value(&stats["attempted"]),sql_value(&stats["inserted"]),sql_value(&stats["updated"]),sql_value(&stats["unchanged"]),sql_value(&stats["rejected"]),notes,counts,id])?;
+        let transaction = self.db.unchecked_transaction()?;
+        transaction.execute("UPDATE ingest_runs SET finished_at=?,status=?,attempted=?,inserted=?,updated=?,unchanged=?,rejected=?,notes=?,counts=? WHERE id=?", params![self.clock.millis()/1000,status,sql_value(&stats["attempted"]),sql_value(&stats["inserted"]),sql_value(&stats["updated"]),sql_value(&stats["unchanged"]),sql_value(&stats["rejected"]),notes,counts,id])?;
+        if let (Some(parsed), Some(cached), Some(skipped)) = (
+            stats["parsedFiles"].as_i64(),
+            stats["cachedFiles"].as_i64(),
+            stats["skippedFiles"].as_i64(),
+        ) {
+            transaction.execute(
+                "INSERT INTO ingest_run_files (run_id,parsed_files,cached_files,skipped_files) VALUES (?,?,?,?)",
+                params![id, parsed, cached, skipped],
+            )?;
+        }
+        transaction.commit()?;
         Ok(())
     }
 
@@ -1134,8 +1175,8 @@ mod tests {
             for name in ["duration_ms", "duration_method"] {
                 assert!(timing_columns.iter().any(|r| r["name"] == name));
             }
-            // E4 adds only usage_timings; the complete v5 schema still matches Node byte for byte.
-            let schema = rows(&migrated.db,"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND tbl_name!='usage_timings' ORDER BY type,name",&[]).unwrap();
+            // Exclude the Rust-only timing and ingest cache tables from the v5 schema comparison.
+            let schema = rows(&migrated.db,"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND tbl_name NOT IN ('usage_timings','ingest_files','ingest_file_replaces','ingest_pending_sources','ingest_run_files') ORDER BY type,name",&[]).unwrap();
             assert_eq!(
                 json!(schema),
                 golden["schema"],
@@ -1173,7 +1214,7 @@ mod tests {
         let path = directory.path().join("future.db");
         Connection::open(&path)
             .unwrap()
-            .execute_batch("PRAGMA user_version=7")
+            .execute_batch("PRAGMA user_version=8")
             .unwrap();
         assert!(Ledger::open(&path, Clock::System)
             .err()

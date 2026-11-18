@@ -3252,6 +3252,7 @@ impl SseDecode for crate::api::stats::StatsSourceRun {
         let mut var_updated = <i64>::sse_decode(deserializer);
         let mut var_unchanged = <i64>::sse_decode(deserializer);
         let mut var_rejected = <i64>::sse_decode(deserializer);
+        let mut var_skippedFiles = <i64>::sse_decode(deserializer);
         let mut var_anomalyCount = <i64>::sse_decode(deserializer);
         let mut var_counts =
             <Option<std::collections::HashMap<String, i64>>>::sse_decode(deserializer);
@@ -3265,6 +3266,7 @@ impl SseDecode for crate::api::stats::StatsSourceRun {
             updated: var_updated,
             unchanged: var_unchanged,
             rejected: var_rejected,
+            skipped_files: var_skippedFiles,
             anomaly_count: var_anomalyCount,
             counts: var_counts,
             anomalies: var_anomalies,
@@ -3332,6 +3334,9 @@ impl SseDecode for crate::api::stats::StatsSync {
         let mut var_counts = <crate::api::stats::StatsCounts>::sse_decode(deserializer);
         let mut var_anomalies = <Vec<String>>::sse_decode(deserializer);
         let mut var_fileCount = <i64>::sse_decode(deserializer);
+        let mut var_parsedFiles = <i64>::sse_decode(deserializer);
+        let mut var_cachedFiles = <i64>::sse_decode(deserializer);
+        let mut var_skippedFiles = <i64>::sse_decode(deserializer);
         let mut var_durationMs = <i64>::sse_decode(deserializer);
         return crate::api::stats::StatsSync {
             attempted: var_attempted,
@@ -3343,6 +3348,9 @@ impl SseDecode for crate::api::stats::StatsSync {
             counts: var_counts,
             anomalies: var_anomalies,
             file_count: var_fileCount,
+            parsed_files: var_parsedFiles,
+            cached_files: var_cachedFiles,
+            skipped_files: var_skippedFiles,
             duration_ms: var_durationMs,
         };
     }
@@ -4694,6 +4702,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSourceRun {
             self.updated.into_into_dart().into_dart(),
             self.unchanged.into_into_dart().into_dart(),
             self.rejected.into_into_dart().into_dart(),
+            self.skipped_files.into_into_dart().into_dart(),
             self.anomaly_count.into_into_dart().into_dart(),
             self.counts.into_into_dart().into_dart(),
             self.anomalies.into_into_dart().into_dart(),
@@ -4791,6 +4800,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSync {
             self.counts.into_into_dart().into_dart(),
             self.anomalies.into_into_dart().into_dart(),
             self.file_count.into_into_dart().into_dart(),
+            self.parsed_files.into_into_dart().into_dart(),
+            self.cached_files.into_into_dart().into_dart(),
+            self.skipped_files.into_into_dart().into_dart(),
             self.duration_ms.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -6055,6 +6067,7 @@ impl SseEncode for crate::api::stats::StatsSourceRun {
         <i64>::sse_encode(self.updated, serializer);
         <i64>::sse_encode(self.unchanged, serializer);
         <i64>::sse_encode(self.rejected, serializer);
+        <i64>::sse_encode(self.skipped_files, serializer);
         <i64>::sse_encode(self.anomaly_count, serializer);
         <Option<std::collections::HashMap<String, i64>>>::sse_encode(self.counts, serializer);
         <Vec<String>>::sse_encode(self.anomalies, serializer);
@@ -6103,6 +6116,9 @@ impl SseEncode for crate::api::stats::StatsSync {
         <crate::api::stats::StatsCounts>::sse_encode(self.counts, serializer);
         <Vec<String>>::sse_encode(self.anomalies, serializer);
         <i64>::sse_encode(self.file_count, serializer);
+        <i64>::sse_encode(self.parsed_files, serializer);
+        <i64>::sse_encode(self.cached_files, serializer);
+        <i64>::sse_encode(self.skipped_files, serializer);
         <i64>::sse_encode(self.duration_ms, serializer);
     }
 }
