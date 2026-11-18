@@ -1,5 +1,6 @@
 //! `sync_bench generate --home <TEMP/fixture> [--scale N] [--seed S]`
 //! `sync_bench run --home <TEMP/fixture> --out <TEMP/results> [--runs N]`
+//! `sync_bench once --home <TEMP/fixture> --data <TEMP/ledger> --out <TEMP/results>`
 
 #[path = "support/system_home.rs"]
 mod system_home;
@@ -330,14 +331,19 @@ fn measure_queries(client: &StatsClient) -> Result<QueryMeasurements> {
     Ok(QueryMeasurements { timings, results })
 }
 
-fn snapshot_rows(db: &Connection, sql: &str, home: &Path) -> Result<Vec<Value>> {
+fn snapshot_rows(
+    db: &Connection,
+    sql: &str,
+    args: impl rusqlite::Params,
+    home: &Path,
+) -> Result<Vec<Value>> {
     let mut statement = db.prepare(sql)?;
     let columns = statement
         .column_names()
         .into_iter()
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    let mut rows = statement.query([])?;
+    let mut rows = statement.query(args)?;
     let mut result = Vec::new();
     while let Some(row) = rows.next()? {
         let mut object = Map::new();
@@ -369,15 +375,26 @@ fn snapshot_rows(db: &Connection, sql: &str, home: &Path) -> Result<Vec<Value>> 
     Ok(result)
 }
 
-fn snapshot(db: &Connection, home: &Path, queries: Map<String, Value>) -> Result<Value> {
+fn snapshot(
+    db: &Connection,
+    home: &Path,
+    queries: Map<String, Value>,
+    include_inactive: bool,
+) -> Result<Value> {
     let usage = snapshot_rows(
         db,
         "SELECT u.*,
         (SELECT s.record_key FROM usage_records s WHERE s.id=u.superseded_by) AS superseding_key
-        FROM usage_records u WHERE u.active=1 ORDER BY u.record_key",
+        FROM usage_records u WHERE ?1 OR u.active=1 ORDER BY u.record_key",
+        [include_inactive],
         home,
     )?;
-    let timings = snapshot_rows(db, "SELECT * FROM usage_timings ORDER BY record_key", home)?;
+    let timings = snapshot_rows(
+        db,
+        "SELECT * FROM usage_timings ORDER BY record_key",
+        [],
+        home,
+    )?;
     let (cost_micros, priced, active): (Option<i64>, i64, i64) = db.query_row(
         "SELECT SUM(cost_micros), COUNT(cost_micros), COUNT(*) FROM usage_records WHERE active=1",
         [],
@@ -392,7 +409,7 @@ fn snapshot(db: &Connection, home: &Path, queries: Map<String, Value>) -> Result
     }))
 }
 
-fn run(home: &Path, out: &Path, runs: usize) -> Result<()> {
+fn run(home: &Path, out: &Path, runs: usize, existing_data: Option<&Path>) -> Result<()> {
     checked_temp_path(home)?;
     checked_temp_path(out)?;
     let home = home.canonicalize()?;
@@ -400,9 +417,24 @@ fn run(home: &Path, out: &Path, runs: usize) -> Result<()> {
     if within(&home, &out) || within(&out, &home) {
         return Err("benchmark home and output must not overlap".into());
     }
+    let data = if let Some(data) = existing_data {
+        checked_temp_path(data)?;
+        let data = std::path::absolute(data)?;
+        if [&home, &out]
+            .into_iter()
+            .any(|root| within(root, &data) || within(&data, root))
+        {
+            return Err("benchmark home, data and output must not overlap".into());
+        }
+        if data.try_exists()? {
+            check_input_tree(&data)?;
+        }
+        data
+    } else {
+        out.join("data")
+    };
     check_input_tree(&home)?;
     empty_output(&out)?;
-    let data = out.join("data");
     let mut results = Vec::new();
     let mut baseline = None;
     let mut records_by_source = BTreeMap::new();
@@ -417,7 +449,7 @@ fn run(home: &Path, out: &Path, runs: usize) -> Result<()> {
         let queries = measure_queries(&client)?;
         let db =
             Connection::open_with_flags(data.join("ledger.db"), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-        let snapshot = snapshot(&db, &home, queries.results)?;
+        let snapshot = snapshot(&db, &home, queries.results, existing_data.is_some())?;
         if index == 1 {
             for row in snapshot["usage"].as_array().unwrap() {
                 *records_by_source
@@ -457,13 +489,13 @@ fn run(home: &Path, out: &Path, runs: usize) -> Result<()> {
     Ok(())
 }
 
-fn execute() -> Result<()> {
-    let mut args = env::args().skip(1);
-    let command = args.next().ok_or("expected generate or run")?;
+fn execute(mut args: impl Iterator<Item = String>) -> Result<()> {
+    let command = args.next().ok_or("expected generate, run or once")?;
     let allowed: &[&str] = match command.as_str() {
         "generate" => &["--home", "--scale", "--seed"],
         "run" => &["--home", "--out", "--runs"],
-        _ => return Err("expected generate or run".into()),
+        "once" => &["--home", "--out", "--data"],
+        _ => return Err("expected generate, run or once".into()),
     };
     let mut flags = BTreeMap::new();
     while let Some(flag) = args.next() {
@@ -482,18 +514,22 @@ fn execute() -> Result<()> {
         generate(home, scale, seed)
     } else {
         let out = Path::new(flags.get("--out").ok_or("--out is required")?);
+        if command == "once" {
+            let data = Path::new(flags.get("--data").ok_or("--data is required")?);
+            return run(home, out, 1, Some(data));
+        }
         let runs = flags.get("--runs").map_or(Ok(3), |value| value.parse())?;
         if runs == 0 {
             return Err("--runs must be positive".into());
         }
-        // Fix the query zone before creating the first client in this standalone process.
-        env::set_var("TZ", "UTC");
-        run(home, out, runs)
+        run(home, out, runs, None)
     }
 }
 
 fn main() {
-    if let Err(error) = execute() {
+    // Fix the query zone before creating the first client in this standalone process.
+    env::set_var("TZ", "UTC");
+    if let Err(error) = execute(env::args().skip(1)) {
         eprintln!("sync_bench: {error}");
         std::process::exit(1);
     }
@@ -550,6 +586,43 @@ mod tests {
         let (totals, _) = sync_benchmark(&root.path().join("data"), &sample, CLOCK_MS).unwrap();
         assert_eq!(totals["counts"]["cross_file_copies"], 0);
         assert_eq!(totals["inserted"], 242);
+    }
+
+    #[test]
+    fn single_sync_can_reopen_an_existing_ledger() {
+        let root = tempfile::tempdir().unwrap();
+        let home = root.path().join("home");
+        let logs = home.join(".qwen/usage");
+        fs::create_dir_all(&logs).unwrap();
+        let path = logs.join("token-usage-qwen-test.jsonl");
+        let record = |tokens| {
+            json!({
+                "id":"request","sessionId":"qwen-test","timestamp":CLOCK_MS - DAY_MS,
+                "inputTokens":tokens,"outputTokens":10,
+            })
+        };
+        let data = root.path().join("data");
+        for (index, tokens, expected) in [(1, 20, "inserted"), (2, 40, "updated")] {
+            fs::write(&path, record(tokens).to_string()).unwrap();
+            let output = root.path().join(index.to_string());
+            execute(
+                [
+                    "once",
+                    "--home",
+                    home.to_str().unwrap(),
+                    "--data",
+                    data.to_str().unwrap(),
+                    "--out",
+                    output.to_str().unwrap(),
+                ]
+                .into_iter()
+                .map(str::to_owned),
+            )
+            .unwrap();
+            let result: Value =
+                serde_json::from_slice(&fs::read(output.join("benchmark.json")).unwrap()).unwrap();
+            assert_eq!(result["runs"][0]["sync"][expected], 1);
+        }
     }
 
     #[test]

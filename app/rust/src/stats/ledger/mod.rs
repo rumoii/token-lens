@@ -6,12 +6,14 @@ use super::{
 use rusqlite::{
     params, params_from_iter,
     types::{Value as SqlValue, ValueRef},
-    Connection, Transaction, TransactionBehavior,
+    Connection, Statement, Transaction, TransactionBehavior,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::LazyLock;
 mod read;
 
 const TOKENS: [&str; 4] = [
@@ -37,11 +39,24 @@ const FIELDS: [&str; 15] = [
     "source_file",
     "parser_rev",
 ];
+static UPDATE_USAGE: LazyLock<String> = LazyLock::new(|| {
+    let assignments = FIELDS.map(|f| format!("{f}=?")).join(",");
+    format!("UPDATE usage_records SET content_hash=?,{assignments},revision=revision+1,price_version=?,cost_micros=?,price_source=? WHERE id=?")
+});
+static INSERT_USAGE: LazyLock<String> = LazyLock::new(|| {
+    let placeholders = ["?"; FIELDS.len() + 6].join(",");
+    format!(
+        "INSERT INTO usage_records(record_key,content_hash,source,{},price_version,cost_micros,price_source) VALUES ({placeholders})",
+        FIELDS.join(",")
+    )
+});
+const DELETE_TIMING: &str = "DELETE FROM usage_timings WHERE record_key=?";
 
 pub struct Ledger {
     pub db: Connection,
     pub clock: Clock,
     prune_cache: std::cell::RefCell<read::PruneCache>,
+    timing_revisions: RefCell<Option<TimingFileRevisions>>,
 }
 
 pub fn sql_value(value: &Value) -> SqlValue {
@@ -58,6 +73,15 @@ pub fn sql_value(value: &Value) -> SqlValue {
 
 pub fn rows(db: &Connection, sql: &str, args: &[Value]) -> Result<Vec<Value>> {
     let mut statement = db.prepare(sql)?;
+    query_rows(&mut statement, args)
+}
+
+fn cached_rows(db: &Connection, sql: &str, args: &[Value]) -> Result<Vec<Value>> {
+    let mut statement = db.prepare_cached(sql)?;
+    query_rows(&mut statement, args)
+}
+
+fn query_rows(statement: &mut Statement<'_>, args: &[Value]) -> Result<Vec<Value>> {
     let columns: Vec<_> = statement
         .column_names()
         .iter()
@@ -181,6 +205,47 @@ pub struct Revisions {
     pub timing: Option<i64>,
 }
 
+struct TimingFileRevisions {
+    data_version: i64,
+    total_changes: u64,
+    // None means the file may have rows with different revisions.
+    files: HashMap<String, Option<i64>>,
+}
+
+impl TimingFileRevisions {
+    fn read(db: &Connection, data_version: i64) -> Result<Self> {
+        let mut statement = db.prepare_cached(
+            "SELECT source_file, min(coalesce(parser_rev,1)), max(coalesce(parser_rev,1))
+             FROM usage_timings WHERE typeof(source_file)='text' GROUP BY source_file",
+        )?;
+        let mut rows = statement.query([])?;
+        let mut files = HashMap::new();
+        while let Some(row) = rows.next()? {
+            // Invalid UTF-8 cannot match a file argument. Non-integer revisions
+            // go through the exact SQL comparison during revocation.
+            if let Ok(file) = row.get_ref(0)?.as_str() {
+                let revision = row
+                    .get::<_, i64>(1)
+                    .ok()
+                    .filter(|&rev| row.get::<_, i64>(2).ok() == Some(rev));
+                files.insert(file.to_owned(), revision);
+            }
+        }
+        Ok(Self {
+            data_version,
+            total_changes: db.total_changes(),
+            files,
+        })
+    }
+
+    fn note(&mut self, file: &str, revision: i64) {
+        let known = self.files.entry(file.to_owned()).or_insert(Some(revision));
+        if *known != Some(revision) {
+            *known = None;
+        }
+    }
+}
+
 impl Ledger {
     pub fn open(path: &Path, clock: Clock) -> Result<Self> {
         if path != Path::new(":memory:") {
@@ -252,6 +317,7 @@ impl Ledger {
             db,
             clock,
             prune_cache: Default::default(),
+            timing_revisions: Default::default(),
         })
     }
 
@@ -261,8 +327,8 @@ impl Ledger {
         file: Option<&str>,
         revision: Option<i64>,
         usage_unchanged: bool,
-    ) -> Result<()> {
-        let old = rows(
+    ) -> Result<bool> {
+        let old = cached_rows(
             &self.db,
             "SELECT * FROM usage_timings WHERE record_key=?",
             &[record["record_key"].clone()],
@@ -301,11 +367,12 @@ impl Ledger {
         if record["kind"].as_str().unwrap_or("event") != "event"
             || (!record["timing"].is_object() && !retain_old)
         {
-            self.db.execute(
-                "DELETE FROM usage_timings WHERE record_key=?",
-                [record["record_key"].as_str()],
-            )?;
-            return Ok(());
+            if old.is_some() {
+                self.db
+                    .prepare_cached(DELETE_TIMING)?
+                    .execute([record["record_key"].as_str()])?;
+            }
+            return Ok(false);
         }
         let mut timing = if retain_old {
             old.as_ref().unwrap().clone()
@@ -331,20 +398,21 @@ impl Ledger {
         let mut args = vec![record["record_key"].clone(), record["source"].clone()];
         args.extend(values);
         args.extend([source_file, timing_rev, json!(hash)]);
-        self.db.execute("INSERT INTO usage_timings(record_key,source,ttft_ms,ttft_method,generation_ms,generation_method,duration_ms,duration_method,timing_output_tokens,scope,status,source_file,parser_rev,timing_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(record_key) DO UPDATE SET source=excluded.source,ttft_ms=excluded.ttft_ms,ttft_method=excluded.ttft_method,generation_ms=excluded.generation_ms,generation_method=excluded.generation_method,duration_ms=excluded.duration_ms,duration_method=excluded.duration_method,timing_output_tokens=excluded.timing_output_tokens,scope=excluded.scope,status=excluded.status,source_file=excluded.source_file,parser_rev=excluded.parser_rev,timing_hash=excluded.timing_hash WHERE usage_timings.timing_hash!=excluded.timing_hash OR usage_timings.source_file IS NOT excluded.source_file OR usage_timings.parser_rev IS NOT excluded.parser_rev",params_from_iter(args.iter().map(sql_value)))?;
-        Ok(())
+        let written = self.db.prepare_cached("INSERT INTO usage_timings(record_key,source,ttft_ms,ttft_method,generation_ms,generation_method,duration_ms,duration_method,timing_output_tokens,scope,status,source_file,parser_rev,timing_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(record_key) DO UPDATE SET source=excluded.source,ttft_ms=excluded.ttft_ms,ttft_method=excluded.ttft_method,generation_ms=excluded.generation_ms,generation_method=excluded.generation_method,duration_ms=excluded.duration_ms,duration_method=excluded.duration_method,timing_output_tokens=excluded.timing_output_tokens,scope=excluded.scope,status=excluded.status,source_file=excluded.source_file,parser_rev=excluded.parser_rev,timing_hash=excluded.timing_hash WHERE usage_timings.timing_hash!=excluded.timing_hash OR usage_timings.source_file IS NOT excluded.source_file OR usage_timings.parser_rev IS NOT excluded.parser_rev")?
+            .execute(params_from_iter(args.iter().map(sql_value)))?;
+        Ok(written > 0)
     }
 
     fn supersede(&self, record: &Value, id: i64, stats: &mut Value) -> Result<()> {
         if let Some(replaces) = record["replaces"].as_array() {
             for key in replaces {
                 if key.as_str().is_some_and(|k| !k.is_empty()) && *key != record["record_key"] {
-                    let count = self.db.execute("UPDATE usage_records SET active=0,superseded_by=? WHERE record_key=? AND active=1", params![id, key.as_str()])?;
+                    let count = self.db.prepare_cached("UPDATE usage_records SET active=0,superseded_by=? WHERE record_key=? AND active=1")?
+                        .execute(params![id, key.as_str()])?;
                     if count > 0 {
-                        self.db.execute(
-                            "DELETE FROM usage_timings WHERE record_key=?",
-                            [key.as_str()],
-                        )?;
+                        self.db
+                            .prepare_cached(DELETE_TIMING)?
+                            .execute([key.as_str()])?;
                         increment(&mut stats["counts"], "replaced");
                     }
                 }
@@ -403,6 +471,8 @@ impl Ledger {
     ) -> Result<Value> {
         let revision = revisions.usage;
         let transaction = Transaction::new_unchecked(&self.db, TransactionBehavior::Immediate)?;
+        let before = self.db.total_changes();
+        let mut timing_upserted = false;
         let mut stats = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"counts":{"relabeled":0,"reactivated":0,"replaced":0,"deactivated":0,"vanished":0,"rev_corrections":0,"cumulative_decrease":0},"anomalies":[]});
         let mut produced = HashSet::new();
         for record in records {
@@ -424,7 +494,7 @@ impl Ledger {
                 );
                 continue;
             }
-            let old = rows(
+            let old = cached_rows(
                 &self.db,
                 "SELECT * FROM usage_records WHERE record_key=?",
                 &[record["record_key"].clone()],
@@ -456,17 +526,17 @@ impl Ledger {
                         continue;
                     }
                     self.db
-                        .execute("UPDATE usage_records SET active=1 WHERE id=?", [id])?;
+                        .prepare_cached("UPDATE usage_records SET active=1 WHERE id=?")?
+                        .execute([id])?;
                     increment(&mut stats["counts"], "reactivated");
                 }
                 if old["content_hash"] == hash {
                     if !record["project_key"].is_null()
                         && record["project_key"] != old["project_key"]
                     {
-                        self.db.execute(
-                            "UPDATE usage_records SET project_key=? WHERE id=?",
-                            params![sql_value(&record["project_key"]), id],
-                        )?;
+                        self.db
+                            .prepare_cached("UPDATE usage_records SET project_key=? WHERE id=?")?
+                            .execute(params![sql_value(&record["project_key"]), id])?;
                         increment(&mut stats["counts"], "relabeled");
                     } else {
                         increment(&mut stats, "unchanged");
@@ -474,10 +544,11 @@ impl Ledger {
                     if file.is_some_and(|f| old["source_file"] != f)
                         || revision.is_some_and(|v| old["parser_rev"] != v)
                     {
-                        self.db.execute("UPDATE usage_records SET source_file=coalesce(?,source_file),parser_rev=coalesce(?,parser_rev) WHERE id=?", params![file,revision,id])?;
+                        self.db.prepare_cached("UPDATE usage_records SET source_file=coalesce(?,source_file),parser_rev=coalesce(?,parser_rev) WHERE id=?")?
+                            .execute(params![file, revision, id])?;
                     }
                     self.supersede(record, id, &mut stats)?;
-                    self.write_timing(record, file, revisions.timing, true)?;
+                    timing_upserted |= self.write_timing(record, file, revisions.timing, true)?;
                     continue;
                 }
                 if old["kind"] == "cumulative" && gross(record) < gross(old) {
@@ -510,11 +581,12 @@ impl Ledger {
                     price["price_source"].clone(),
                     json!(id),
                 ]);
-                let assignments = FIELDS.map(|f| format!("{f}=?")).join(",");
-                self.db.execute(&format!("UPDATE usage_records SET content_hash=?,{assignments},revision=revision+1,price_version=?,cost_micros=?,price_source=? WHERE id=?"), params_from_iter(args.iter().map(sql_value)))?;
+                self.db
+                    .prepare_cached(&UPDATE_USAGE)?
+                    .execute(params_from_iter(args.iter().map(sql_value)))?;
                 increment(&mut stats, "updated");
                 self.supersede(record, id, &mut stats)?;
-                self.write_timing(record, file, revisions.timing, false)?;
+                timing_upserted |= self.write_timing(record, file, revisions.timing, false)?;
             } else {
                 let mut args = vec![
                     record["record_key"].clone(),
@@ -531,21 +603,23 @@ impl Ledger {
                     price["cost_micros"].clone(),
                     price["price_source"].clone(),
                 ]);
-                let placeholders = vec!["?"; args.len()].join(",");
-                self.db.execute(&format!("INSERT INTO usage_records(record_key,content_hash,source,{},price_version,cost_micros,price_source) VALUES ({placeholders})", FIELDS.join(",")), params_from_iter(args.iter().map(sql_value)))?;
+                self.db
+                    .prepare_cached(&INSERT_USAGE)?
+                    .execute(params_from_iter(args.iter().map(sql_value)))?;
                 increment(&mut stats, "inserted");
                 self.supersede(record, self.db.last_insert_rowid(), &mut stats)?;
-                self.write_timing(record, file, revisions.timing, false)?;
+                timing_upserted |= self.write_timing(record, file, revisions.timing, false)?;
             }
         }
         if let Some(file) = file.filter(|_| !produced.is_empty() || !elsewhere.is_empty()) {
             let mut vanished = 0;
-            for row in rows(&self.db, "SELECT id,record_key,parser_rev FROM usage_records WHERE source_file=? AND active=1", &[json!(file)])? {
+            for row in cached_rows(&self.db, "SELECT id,record_key,parser_rev FROM usage_records WHERE source_file=? AND active=1", &[json!(file)])? {
                 let key = row["record_key"].as_str().unwrap();
                 if produced.contains(key) || elsewhere.iter().any(|s| s == key) { continue; }
                 if revision.is_some_and(|r| r != row["parser_rev"].as_i64().unwrap_or(1)) {
-                    self.db.execute("UPDATE usage_records SET active=0 WHERE id=?", [row["id"].as_i64().unwrap()])?;
-                    self.db.execute("DELETE FROM usage_timings WHERE record_key=?",[key])?;
+                    self.db.prepare_cached("UPDATE usage_records SET active=0 WHERE id=?")?
+                        .execute([row["id"].as_i64().unwrap()])?;
+                    self.db.prepare_cached(DELETE_TIMING)?.execute([key])?;
                     increment(&mut stats["counts"], "deactivated");
                 } else { vanished += 1; }
             }
@@ -560,17 +634,48 @@ impl Ledger {
         if cancelled() {
             return Err(Error("cancelled".into()));
         }
+        let mut timing_revisions = None;
         if let (Some(file), Some(revision)) = (file, revisions.timing) {
             // A successful new timing revision may revoke timings even when the empty-output
             // guard deliberately preserves the historical usage rows.
-            for row in rows(&self.db,"SELECT record_key FROM usage_timings WHERE source_file=? AND coalesce(parser_rev,1)!=?",&[json!(file),json!(revision)])? {
-                let key=row["record_key"].as_str().unwrap();
-                if !elsewhere.iter().any(|other|other==key) {
-                    self.db.execute("DELETE FROM usage_timings WHERE record_key=?",[key])?;
+            let data_version = self
+                .db
+                .prepare_cached("PRAGMA data_version")?
+                .query_row([], |row| row.get(0))?;
+            let previous = self.timing_revisions.borrow_mut().take();
+            let current = match previous {
+                Some(mut previous)
+                    if previous.data_version == data_version
+                        && previous.total_changes == before =>
+                {
+                    // Every upsert in this batch uses the supplied file and revision.
+                    // Deletions and moves can only remove members of other groups.
+                    if timing_upserted {
+                        previous.note(file, revision);
+                    }
+                    previous
+                }
+                _ => TimingFileRevisions::read(&self.db, data_version)?,
+            };
+            if current
+                .files
+                .get(file)
+                .is_some_and(|known| *known != Some(revision))
+            {
+                for row in cached_rows(&self.db,"SELECT record_key FROM usage_timings WHERE source_file=? AND coalesce(parser_rev,1)!=?",&[json!(file),json!(revision)])? {
+                    let key=row["record_key"].as_str().unwrap();
+                    if !elsewhere.iter().any(|other|other==key) {
+                        self.db.prepare_cached(DELETE_TIMING)?.execute([key])?;
+                    }
                 }
             }
+            timing_revisions = Some(current);
         }
         transaction.commit()?;
+        if let Some(mut current) = timing_revisions {
+            current.total_changes = self.db.total_changes();
+            *self.timing_revisions.borrow_mut() = Some(current);
+        }
         Ok(stats)
     }
 
@@ -695,6 +800,217 @@ mod tests {
             })
             .unwrap();
         assert_eq!(second["unchanged"], 1);
+    }
+
+    #[test]
+    fn unchanged_record_without_timing_does_not_attempt_a_delete() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        let record = json!({"record_key":"codex|plain","source":"codex","observed_at":"2026-01-15T12:00:00.000Z","input_tokens":12});
+        let mut timed = record.clone();
+        timed["record_key"] = json!("codex|timed");
+        timed["timing"] = json!({"duration_ms":1000,"scope":"request","status":"completed"});
+        let file = Some("synthetic.jsonl");
+        ledger
+            .batch(&[record.clone(), timed], file, Some(1), &[], |_| {
+                Value::Null
+            })
+            .unwrap();
+        let query = "SELECT * FROM usage_timings ORDER BY record_key";
+        let before = rows(&ledger.db, query, &[]).unwrap();
+        assert_eq!(before.len(), 1);
+
+        // The transaction opens before pricing. Even a DELETE matching no rows fails here.
+        let result = ledger.batch(&[record], file, Some(1), &[], |_| {
+            ledger.db.execute_batch("PRAGMA query_only=ON").unwrap();
+            Value::Null
+        });
+        ledger.db.execute_batch("PRAGMA query_only=OFF").unwrap();
+        assert_eq!(result.unwrap()["unchanged"], 1);
+        assert_eq!(rows(&ledger.db, query, &[]).unwrap(), before);
+    }
+
+    #[test]
+    fn timing_only_progress_and_changed_usage_replace_whole_groups() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        let mut record = json!({
+            "record_key":"codex|timed","source":"codex","observed_at":"2026-01-15T12:00:00.000Z",
+            "input_tokens":12,"output_tokens":4,
+            "timing":{"ttft_ms":300,"ttft_method":"log_timestamps","scope":"request","status":"partial","timing_output_tokens":4}
+        });
+        let write = |record: &Value| {
+            ledger
+                .batch(
+                    std::slice::from_ref(record),
+                    Some("synthetic.jsonl"),
+                    Some(1),
+                    &[],
+                    |_| Value::Null,
+                )
+                .unwrap()
+        };
+        let timing = || {
+            rows(&ledger.db, "SELECT * FROM usage_timings", &[])
+                .unwrap()
+                .pop()
+                .unwrap()
+        };
+        assert_eq!(write(&record)["inserted"], 1);
+        assert_eq!(timing()["status"], "partial");
+
+        record["timing"]["status"] = json!("completed");
+        record["timing"]["generation_ms"] = json!(700);
+        record["timing"]["ttft_ms"] = json!(350);
+        assert_eq!(write(&record)["unchanged"], 1);
+        assert_eq!(timing()["ttft_ms"], 350);
+        assert_eq!(timing()["generation_ms"], 700);
+
+        record["output_tokens"] = json!(9);
+        record["timing"] = json!({
+            "duration_ms":1600,"duration_method":"client_reported","scope":"turn",
+            "status":"partial","timing_output_tokens":9
+        });
+        assert_eq!(write(&record)["updated"], 1);
+        let current = timing();
+        assert_eq!(current["ttft_ms"], Value::Null);
+        assert_eq!(current["ttft_method"], Value::Null);
+        assert_eq!(current["generation_ms"], Value::Null);
+        assert_eq!(current["duration_ms"], 1600);
+        assert_eq!(current["status"], "partial");
+        assert_eq!(current["scope"], "turn");
+        assert_eq!(current["timing_output_tokens"], 9);
+    }
+
+    #[test]
+    fn timing_revocation_refreshes_after_local_or_external_writes() {
+        for external in [false, true] {
+            let temp = tempfile::tempdir().unwrap();
+            let path = temp.path().join("ledger.db");
+            let ledger = Ledger::open(&path, Clock::Fixed(1768478400000)).unwrap();
+            let record = json!({
+                "record_key":"codex|timed","source":"codex","observed_at":"2026-01-15T12:00:00.000Z",
+                "input_tokens":12,"timing":{"duration_ms":1000,"scope":"request"}
+            });
+            ledger
+                .batch(&[record], Some("usage.jsonl"), Some(1), &[], |_| {
+                    Value::Null
+                })
+                .unwrap();
+            let other = external.then(|| Connection::open(&path).unwrap());
+            other
+                .as_ref()
+                .unwrap_or(&ledger.db)
+                .execute(
+                    "UPDATE usage_timings SET source_file='timing.jsonl', parser_rev=NULL",
+                    [],
+                )
+                .unwrap();
+            ledger
+                .batch_with_timing_revision(
+                    &[],
+                    Some("timing.jsonl"),
+                    Some(1),
+                    Some(2),
+                    &[],
+                    |_| Value::Null,
+                )
+                .unwrap();
+            assert!(rows(&ledger.db, "SELECT * FROM usage_timings", &[])
+                .unwrap()
+                .is_empty());
+            let usage = rows(
+                &ledger.db,
+                "SELECT active,source_file FROM usage_records",
+                &[],
+            )
+            .unwrap();
+            assert_eq!(usage, [json!({"active":1,"source_file":"usage.jsonl"})]);
+        }
+    }
+
+    #[test]
+    fn timing_revocation_sees_files_written_after_the_first_scan() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        let mut record = json!({
+            "record_key":"codex|seed","source":"codex","observed_at":"2026-01-15T12:00:00.000Z",
+            "input_tokens":12,"timing":{"duration_ms":1000,"scope":"request"}
+        });
+        ledger
+            .batch(&[record.clone()], Some("seed.jsonl"), Some(1), &[], |_| {
+                Value::Null
+            })
+            .unwrap();
+        record["record_key"] = json!("codex|later");
+        ledger
+            .batch(&[record], Some("later.jsonl"), Some(1), &[], |_| {
+                Value::Null
+            })
+            .unwrap();
+        let revoke = |elsewhere: &[String]| {
+            ledger
+                .batch_with_timing_revision(
+                    &[],
+                    Some("later.jsonl"),
+                    Some(1),
+                    Some(2),
+                    elsewhere,
+                    |_| Value::Null,
+                )
+                .unwrap();
+            rows(
+                &ledger.db,
+                "SELECT record_key FROM usage_timings ORDER BY record_key",
+                &[],
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            revoke(&["codex|later".into()]),
+            [
+                json!({"record_key":"codex|later"}),
+                json!({"record_key":"codex|seed"})
+            ]
+        );
+        assert_eq!(revoke(&[]), [json!({"record_key":"codex|seed"})]);
+    }
+
+    #[test]
+    fn file_revision_reactivates_usage_but_same_revision_refuses_a_decrease() {
+        let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
+        let mut cumulative = json!({"record_key":"codex|cumulative","kind":"cumulative","source":"codex","observed_at":"2026-01-15T12:00:00.000Z","input_tokens":12});
+        let mut anchor = cumulative.clone();
+        anchor["record_key"] = json!("codex|anchor");
+        let write = |records: &[Value], revision| {
+            ledger
+                .batch(
+                    records,
+                    Some("synthetic.jsonl"),
+                    Some(revision),
+                    &[],
+                    |_| Value::Null,
+                )
+                .unwrap()
+        };
+        assert_eq!(
+            write(&[anchor.clone(), cumulative.clone()], 1)["inserted"],
+            2
+        );
+        assert_eq!(write(&[anchor], 2)["counts"]["deactivated"], 1);
+        let result = write(&[cumulative.clone()], 2);
+        assert_eq!(result["counts"]["reactivated"], 1);
+        assert_eq!(result["unchanged"], 1);
+        cumulative["input_tokens"] = json!(7);
+        let result = write(&[cumulative], 2);
+        assert_eq!(result["counts"]["cumulative_decrease"], 1);
+        assert_eq!(result["updated"], 0);
+        assert_eq!(
+            result["anomalies"][0],
+            "cumulative_decrease: codex|cumulative — 12 → 7"
+        );
+        let saved = rows(&ledger.db, "SELECT active,input_tokens,parser_rev FROM usage_records WHERE record_key='codex|cumulative'", &[]).unwrap();
+        assert_eq!(
+            saved,
+            [json!({"active":1,"input_tokens":12,"parser_rev":2})]
+        );
     }
 
     #[test]
