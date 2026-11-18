@@ -1,6 +1,7 @@
 use super::Result;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
+use std::time::Instant;
 
 #[derive(Clone, Default)]
 pub struct Environment {
@@ -535,9 +536,18 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
 }
 
 pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, Vec<PathBuf>)>> {
+    discover_profiled(home, env, None)
+}
+
+pub(super) fn discover_profiled(
+    home: &Path,
+    env: &Environment,
+    mut source_ns: Option<&mut BTreeMap<String, u64>>,
+) -> Result<Vec<(String, Vec<PathBuf>)>> {
     let home = normalize(home);
     let home = home.as_path();
     let mut out = Vec::new();
+    let mut started = source_ns.is_some().then(Instant::now);
     let mut add = |source: &str, files: Vec<PathBuf>| {
         let mut unique = Vec::new();
         // Approved difference from Node's ineffective nodir option: only ordinary files enter discovery.
@@ -550,6 +560,11 @@ pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, 
             }
         }
         out.push((source.into(), unique));
+        if let (Some(start), Some(times)) = (started, source_ns.as_deref_mut()) {
+            let now = Instant::now();
+            times.insert(source.into(), now.duration_since(start).as_nanos() as u64);
+            started = Some(now);
+        }
     };
     for (source, root, pattern) in [
         ("claude", ".claude/projects", "**/*.jsonl"),

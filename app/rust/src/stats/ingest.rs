@@ -8,13 +8,39 @@ use super::{
     lock::SyncLock,
     pricing, Error, Result,
 };
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
     time::Instant,
 };
+
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncPhases {
+    discovery_ns: u64,
+    #[serde(flatten)]
+    adapter: adapters::ReadParsePhases,
+    settle_ns: u64,
+    write_ns: u64,
+    write_transactions: usize,
+    reprice_ns: u64,
+    finish_run_ns: u64,
+    total_ns: u64,
+    files: usize,
+    attempted: u64,
+    sources: BTreeMap<String, SourcePhases>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SourcePhases {
+    files: usize,
+    discovery_ns: u64,
+    total_ns: u64,
+}
 
 struct Parsed {
     file: String,
@@ -304,6 +330,38 @@ pub fn sync(
     zone: &LocalZone,
     cancel: &AtomicBool,
 ) -> Result<Value> {
+    sync_profiled(data, home, environment, clock, zone, cancel).map(|(result, _)| result)
+}
+
+// Rust-only entry point for the synthetic benchmark. Discovery uses no process overrides.
+pub fn sync_benchmark(
+    data: &Path,
+    home: &Path,
+    now_millis: i64,
+) -> std::result::Result<(Value, Value), String> {
+    let environment = Environment {
+        platform: Environment::process().platform,
+        ..Environment::default()
+    };
+    sync_profiled(
+        data,
+        home,
+        &environment,
+        Clock::Fixed(now_millis),
+        &LocalZone::System,
+        &AtomicBool::new(false),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn sync_profiled(
+    data: &Path,
+    home: &Path,
+    environment: &discovery::Environment,
+    clock: Clock,
+    zone: &LocalZone,
+    cancel: &AtomicBool,
+) -> Result<(Value, Value)> {
     let started = Instant::now();
     let log = crate::diagnostics::RuntimeLog::new(data, Some(home));
     let _lock = SyncLock::acquire(data)?;
@@ -311,17 +369,24 @@ pub fn sync(
     let run = ledger.begin_run()?;
     let result = (|| {
         let mut totals = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"repriced":0,"counts":{"read_failed":0,"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0,"cross_file_copies":0},"anomalies":[]});
-        let mut file_count = 0;
-        for (source, files) in discovery::discover_with_env(home, environment)? {
+        let mut phases = SyncPhases::default();
+        let mut source_discovery = BTreeMap::new();
+        let start = Instant::now();
+        let discovered =
+            discovery::discover_profiled(home, environment, Some(&mut source_discovery))?;
+        phases.discovery_ns = start.elapsed().as_nanos() as u64;
+        for (source, files) in discovered {
+            let source_started = Instant::now();
             let discovered_files = files.clone();
-            file_count += files.len();
+            let source_files = files.len();
+            phases.files += source_files;
             let mut parsed = Vec::new();
             for path in files {
                 if cancel.load(Ordering::Acquire) {
                     return Err(Error("cancelled".into()));
                 }
                 let file = path.to_string_lossy().to_string();
-                match adapters::parse(&source, &file, &path, zone) {
+                match adapters::parse_profiled(&source, &file, &path, zone, &mut phases.adapter) {
                     Ok((mut records, mut notes)) => {
                         records.retain(|r| {
                             if r.is_object() && !jscompat::truthy(&r["observed_at"]) {
@@ -357,7 +422,9 @@ pub fn sync(
                 }
             }
             let previous_anomalies = totals["anomalies"].as_array().unwrap().len();
+            let start = Instant::now();
             let elsewhere = settle(&mut parsed, &mut totals);
+            phases.settle_ns += start.elapsed().as_nanos() as u64;
             for note in totals["anomalies"].as_array().unwrap()[previous_anomalies..]
                 .iter()
                 .filter_map(Value::as_str)
@@ -369,6 +436,7 @@ pub fn sync(
                 );
             }
             for file in parsed {
+                let start = Instant::now();
                 let stats = ledger.batch_cancellable(
                     &file.records,
                     Some(&file.file),
@@ -380,6 +448,8 @@ pub fn sync(
                     pricing::cost_of,
                     || cancel.load(Ordering::Acquire),
                 )?;
+                phases.write_ns += start.elapsed().as_nanos() as u64;
+                phases.write_transactions += 1;
                 for note in stats["anomalies"]
                     .as_array()
                     .into_iter()
@@ -406,14 +476,27 @@ pub fn sync(
                     .unwrap()
                     .extend(stats["anomalies"].as_array().unwrap().clone());
             }
+            let discovery_ns = source_discovery.remove(&source).unwrap_or_default();
+            phases.sources.insert(
+                source,
+                SourcePhases {
+                    files: source_files,
+                    discovery_ns,
+                    total_ns: discovery_ns + source_started.elapsed().as_nanos() as u64,
+                },
+            );
         }
         if cancel.load(Ordering::Acquire) {
             return Err(Error("cancelled".into()));
         }
-        totals["repriced"] =
-            json!(ledger
-                .reprice_cancellable(pricing::PRICE_VERSION, pricing::cost_of, || cancel
-                    .load(Ordering::Acquire))?);
+        let start = Instant::now();
+        let repriced =
+            ledger.reprice_cancellable(pricing::PRICE_VERSION, pricing::cost_of, || {
+                cancel.load(Ordering::Acquire)
+            })?;
+        phases.reprice_ns = start.elapsed().as_nanos() as u64;
+        totals["repriced"] = json!(repriced);
+        let start = Instant::now();
         ledger.finish_run(
             run,
             if totals["anomalies"].as_array().unwrap().is_empty() {
@@ -423,10 +506,17 @@ pub fn sync(
             },
             &totals,
         )?;
+        phases.finish_run_ns = start.elapsed().as_nanos() as u64;
+        let file_count = phases.files;
         totals["fileCount"] = json!(file_count);
-        totals["durationMs"] = json!(started.elapsed().as_millis() as u64);
+        let duration = started.elapsed();
+        totals["durationMs"] = json!(duration.as_millis() as u64);
+        phases.total_ns = duration.as_nanos() as u64;
+        phases.attempted = totals["attempted"].as_u64().unwrap();
         log.write("INFO", "sync", &format!("end durationMs={} files={file_count} attempted={} inserted={} updated={} unchanged={} rejected={} counts={}", totals["durationMs"], totals["attempted"], totals["inserted"], totals["updated"], totals["unchanged"], totals["rejected"], totals["counts"]));
-        Ok(totals)
+        let phases = json!(phases);
+        log.write("INFO", "sync", &format!("phases {phases}"));
+        Ok((totals, phases))
     })();
     if let Err(error) = &result {
         let _ = ledger.fail_run(run, &error.to_string());
@@ -450,6 +540,67 @@ pub fn sync(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sync_reports_phases_and_counts_without_paths() {
+        let directory = tempfile::tempdir().unwrap();
+        let home = directory.path().join("private-synthetic-home");
+        let data = directory.path().join("data");
+        let log_file = home.join(".claude/projects/synthetic.jsonl");
+        std::fs::create_dir_all(log_file.parent().unwrap()).unwrap();
+        let text = r#"{"sessionId":"session","timestamp":"2026-01-15T01:00:00Z","message":{"id":"message","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":2}}}"#;
+        std::fs::write(&log_file, text).unwrap();
+
+        let result = sync(
+            &data,
+            &home,
+            &discovery::Environment::default(),
+            Clock::Fixed(1768478400000),
+            &LocalZone::Fixed(0),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let log = std::fs::read_dir(data.join("logs"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| path.extension().is_some_and(|ext| ext == "log"))
+            .map(|path| std::fs::read_to_string(path).unwrap())
+            .expect("sync runtime log");
+        let (end, phases) = log
+            .lines()
+            .zip(log.lines().skip(1))
+            .find(|(end, phases)| end.contains("end durationMs=") && phases.contains("phases "))
+            .expect("phase summary follows sync end");
+        assert!(end.contains("attempted=1"));
+        assert!(phases.contains("INFO"));
+        assert!(!phases.contains("private-synthetic-home"));
+        assert!(!phases.contains("synthetic.jsonl"));
+        let phases: Value = serde_json::from_str(phases.split_once("phases ").unwrap().1).unwrap();
+        assert_eq!(phases["files"], result["fileCount"]);
+        assert_eq!(phases["attempted"], result["attempted"]);
+        assert_eq!(phases["sources"]["claude"]["files"], 1);
+        assert_eq!(phases["readFiles"], 1);
+        assert_eq!(phases["readBytes"], text.len());
+        assert_eq!(phases["parsedFiles"], 1);
+        assert_eq!(phases["sqliteFiles"], 0);
+        assert_eq!(phases["decompressedFiles"], 0);
+        assert_eq!(phases["writeTransactions"], 1);
+        let phase_ns: u64 = [
+            "discoveryNs",
+            "readNs",
+            "decompressNs",
+            "parseNs",
+            "sqliteNs",
+            "settleNs",
+            "writeNs",
+            "repriceNs",
+            "finishRunNs",
+        ]
+        .iter()
+        .map(|key| phases[key].as_u64().unwrap())
+        .sum();
+        assert!(phase_ns <= phases["totalNs"].as_u64().unwrap());
+    }
+
     #[test]
     fn ingestion_matches_node() {
         let directory = tempfile::tempdir().unwrap();

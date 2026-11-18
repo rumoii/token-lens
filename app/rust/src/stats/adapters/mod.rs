@@ -37,8 +37,10 @@ use super::{jscompat::LocalZone, Error, Result};
 pub(super) use lines::file_tag;
 #[cfg(test)]
 use num::plus;
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::Path;
+use std::time::Instant;
 #[cfg(test)]
 fn strip_unknown_timings(records: &mut [Value]) {
     // Node fixtures have no first-output evidence; E4b total durations are checked separately.
@@ -66,33 +68,67 @@ fn strip_unknown_timings(records: &mut [Value]) {
         }
     }
 }
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ReadParsePhases {
+    pub(super) read_ns: u64,
+    pub(super) decompress_ns: u64,
+    pub(super) parse_ns: u64,
+    pub(super) sqlite_ns: u64,
+    pub(super) read_files: usize,
+    pub(super) decompressed_files: usize,
+    pub(super) parsed_files: usize,
+    pub(super) read_bytes: usize,
+    pub(super) compressed_bytes: usize,
+    pub(super) decompressed_bytes: usize,
+    pub(super) sqlite_files: usize,
+}
+
+#[cfg(test)]
 pub fn parse(
     source: &str,
     identity: &str,
     file: &Path,
     zone: &LocalZone,
 ) -> Result<(Vec<Value>, Value)> {
-    let mut notes = json!({"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0});
-    if matches!(
+    parse_profiled(
         source,
-        "hermes"
-            | "cursor"
-            | "opencode"
-            | "kilo"
-            | "goose"
-            | "zed"
-            | "copilot"
-            | "mimo"
-            | "minimax"
-            | "zcode"
-            | "anythingllm"
-    ) {
-        let csv = source == "cursor"
-            && Path::new(identity)
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("csv"));
+        identity,
+        file,
+        zone,
+        &mut ReadParsePhases::default(),
+    )
+}
+
+pub(super) fn parse_profiled(
+    source: &str,
+    identity: &str,
+    file: &Path,
+    zone: &LocalZone,
+    phases: &mut ReadParsePhases,
+) -> Result<(Vec<Value>, Value)> {
+    let mut notes = json!({"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0});
+    let cursor_csv = source == "cursor"
+        && Path::new(identity)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("csv"));
+    if !cursor_csv
+        && matches!(
+            source,
+            "hermes"
+                | "cursor"
+                | "opencode"
+                | "kilo"
+                | "goose"
+                | "zed"
+                | "copilot"
+                | "mimo"
+                | "minimax"
+                | "zcode"
+                | "anythingllm"
+        )
+    {
         if source == "cursor"
-            && !csv
             && !Path::new(identity).extension().is_some_and(|e| {
                 ["vscdb", "sqlite", "db"]
                     .iter()
@@ -101,25 +137,27 @@ pub fn parse(
         {
             return Ok((Vec::new(), notes));
         }
-        if !csv && !file.exists() {
+        if !file.exists() {
             return Ok((Vec::new(), notes));
         }
+        let started = Instant::now();
         let records = match source {
-            "hermes" => hermes::parse(file, zone, &mut notes)?,
-            "cursor" if csv => cursor::csv(identity, file, zone, &mut notes)?,
-            "cursor" => cursor::parse(identity, file, zone, &mut notes)?,
-            "opencode" => opencode::parse(identity, file, source, zone, &mut notes)?,
-            "mimo" => mimo::parse(identity, file, zone, &mut notes)?,
-            "kilo" => kilo::parse(file, zone, &mut notes)?,
-            "goose" => goose::parse(file, zone, &mut notes)?,
-            "zed" => zed::parse(file, zone, &mut notes)?,
-            "copilot" => copilot::parse(identity, file, zone, &mut notes)?,
-            "minimax" => minimax::parse(file, zone, &mut notes)?,
-            "zcode" => zcode::parse(file, zone, &mut notes)?,
-            "anythingllm" => anythingllm::parse(file, zone, &mut notes)?,
+            "hermes" => hermes::parse(file, zone, &mut notes),
+            "cursor" => cursor::parse(identity, file, zone, &mut notes),
+            "opencode" => opencode::parse(identity, file, source, zone, &mut notes),
+            "mimo" => mimo::parse(identity, file, zone, &mut notes),
+            "kilo" => kilo::parse(file, zone, &mut notes),
+            "goose" => goose::parse(file, zone, &mut notes),
+            "zed" => zed::parse(file, zone, &mut notes),
+            "copilot" => copilot::parse(identity, file, zone, &mut notes),
+            "minimax" => minimax::parse(file, zone, &mut notes),
+            "zcode" => zcode::parse(file, zone, &mut notes),
+            "anythingllm" => anythingllm::parse(file, zone, &mut notes),
             _ => unreachable!(),
         };
-        return Ok((records, notes));
+        phases.sqlite_ns += started.elapsed().as_nanos() as u64;
+        phases.sqlite_files += 1;
+        return Ok((records?, notes));
     }
     if matches!(
         source,
@@ -135,36 +173,51 @@ pub fn parse(
     {
         return Ok((Vec::new(), notes));
     }
-    let mut bytes = match std::fs::read(file) {
+    let started = Instant::now();
+    let bytes = std::fs::read(file);
+    phases.read_ns += started.elapsed().as_nanos() as u64;
+    phases.read_files += 1;
+    let mut bytes = match bytes {
         Ok(bytes) => bytes,
         Err(error) if source == "continue" && error.kind() == std::io::ErrorKind::NotFound => {
             return Ok((Vec::new(), notes))
         }
         Err(error) => return Err(error.into()),
     };
+    phases.read_bytes += bytes.len();
     if source == "codex" && identity.ends_with(".zst") {
-        bytes = zstd::decode(&bytes)?;
+        phases.compressed_bytes += bytes.len();
+        let started = Instant::now();
+        let decoded = zstd::decode(&bytes);
+        phases.decompress_ns += started.elapsed().as_nanos() as u64;
+        phases.decompressed_files += 1;
+        bytes = decoded?;
+        phases.decompressed_bytes += bytes.len();
     }
+    let started = Instant::now();
     let records = match source {
-        "claude" => claude::parse(identity, &bytes, zone, &mut notes),
-        "codex" => codex::parse(identity, &bytes, zone, &mut notes)?,
-        "qwen" => qwen::parse(identity, file, &bytes, zone, &mut notes)?,
-        "dsh" => dsh::parse(identity, file, &bytes, zone, &mut notes)?,
-        "grok" => grok::parse(identity, file, &bytes, zone, &mut notes)?,
-        "aider" => aider::parse(identity, file, &bytes, zone, &mut notes)?,
-        "pi" => pi::parse(identity, file, &bytes, zone, &mut notes)?,
-        "commandcode" => commandcode::parse(identity, file, &bytes, zone, &mut notes)?,
-        "cline" => cline::parse(identity, file, &bytes, zone, &mut notes)?,
-        "gemini" => gemini::parse(identity, file, &bytes, zone, &mut notes)?,
-        "continue" => continue_::parse(identity, file, &bytes, zone, &mut notes)?,
-        "trae" => trae::parse(identity, file, &bytes, zone, &mut notes)?,
-        "openclaw" => openclaw::parse(identity, file, &bytes, zone, &mut notes)?,
-        "kimi" => kimi::parse(identity, file, &bytes, zone, &mut notes)?,
-        "openhands" => openhands::parse(identity, file, &bytes, zone, &mut notes)?,
-        "codebuddy" => codebuddy::parse(identity, file, &bytes, zone, &mut notes)?,
-        _ => return Err(Error(format!("unknown source: {source}"))),
+        "claude" => Ok(claude::parse(identity, &bytes, zone, &mut notes)),
+        "codex" => codex::parse(identity, &bytes, zone, &mut notes),
+        "cursor" => cursor::csv(identity, &bytes, zone, &mut notes),
+        "qwen" => qwen::parse(identity, file, &bytes, zone, &mut notes),
+        "dsh" => dsh::parse(identity, file, &bytes, zone, &mut notes),
+        "grok" => grok::parse(identity, file, &bytes, zone, &mut notes),
+        "aider" => aider::parse(identity, file, &bytes, zone, &mut notes),
+        "pi" => pi::parse(identity, file, &bytes, zone, &mut notes),
+        "commandcode" => commandcode::parse(identity, file, &bytes, zone, &mut notes),
+        "cline" => cline::parse(identity, file, &bytes, zone, &mut notes),
+        "gemini" => gemini::parse(identity, file, &bytes, zone, &mut notes),
+        "continue" => continue_::parse(identity, file, &bytes, zone, &mut notes),
+        "trae" => trae::parse(identity, file, &bytes, zone, &mut notes),
+        "openclaw" => openclaw::parse(identity, file, &bytes, zone, &mut notes),
+        "kimi" => kimi::parse(identity, file, &bytes, zone, &mut notes),
+        "openhands" => openhands::parse(identity, file, &bytes, zone, &mut notes),
+        "codebuddy" => codebuddy::parse(identity, file, &bytes, zone, &mut notes),
+        _ => Err(Error(format!("unknown source: {source}"))),
     };
-    Ok((records, notes))
+    phases.parse_ns += started.elapsed().as_nanos() as u64;
+    phases.parsed_files += 1;
+    Ok((records?, notes))
 }
 
 #[cfg(test)]

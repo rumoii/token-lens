@@ -75,12 +75,11 @@ fn csv_row(chars: &[char], mut i: usize) -> (Vec<String>, usize) {
 
 pub(super) fn csv(
     identity: &str,
-    file: &Path,
+    bytes: &[u8],
     zone: &LocalZone,
     notes: &mut Value,
 ) -> Result<Vec<Value>> {
-    let bytes = std::fs::read(file)?;
-    let text = String::from_utf8_lossy(&bytes);
+    let text = String::from_utf8_lossy(bytes);
     let chars = text.chars().collect::<Vec<_>>();
     if chars.is_empty() {
         return Ok(Vec::new());
