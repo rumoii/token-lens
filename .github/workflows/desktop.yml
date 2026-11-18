@@ -55,16 +55,20 @@ jobs:
     env:
       FLUTTER_SUPPRESS_ANALYTICS: 'true'
       DART_SUPPRESS_ANALYTICS: 'true'
-      TEMP: ${{ runner.temp }}
-      TMP: ${{ runner.temp }}
-      TMPDIR: ${{ runner.temp }}
-      TOKEN_LENS_PREVIEW_DATA_DIR: ${{ runner.temp }}/token-lens-preview-data
-      TOKEN_LENS_PREVIEW_HOME: ${{ runner.temp }}/token-lens-preview-home
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Set isolated runner environment
+        run: |
+          printf '%s\n' \
+            "TEMP=$RUNNER_TEMP" \
+            "TMP=$RUNNER_TEMP" \
+            "TMPDIR=$RUNNER_TEMP" \
+            "TOKEN_LENS_PREVIEW_DATA_DIR=$RUNNER_TEMP/token-lens-preview-data" \
+            "TOKEN_LENS_PREVIEW_HOME=$RUNNER_TEMP/token-lens-preview-home" >> "$GITHUB_ENV"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2

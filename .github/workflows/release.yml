@@ -79,13 +79,17 @@ jobs:
       DART_SUPPRESS_ANALYTICS: 'true'
       RELEASE_VERSION: ${{ needs.version.outputs.version }}
       ARCHIVE_PLATFORM: ${{ matrix.archive }}
-      TOKEN_LENS_PREVIEW_DATA_DIR: ${{ runner.temp }}/token-lens-release-data
-      TOKEN_LENS_PREVIEW_HOME: ${{ runner.temp }}/token-lens-release-home
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Set isolated runner environment
+        run: |
+          printf '%s\n' \
+            "TOKEN_LENS_PREVIEW_DATA_DIR=$RUNNER_TEMP/token-lens-release-data" \
+            "TOKEN_LENS_PREVIEW_HOME=$RUNNER_TEMP/token-lens-release-home" >> "$GITHUB_ENV"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
