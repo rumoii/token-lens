@@ -108,14 +108,14 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 
 - **只读本机日志**：只读取各工具已经写在本机的用量元数据（四类 token、模型、时间、会话、项目路径），不读也不保存提示词、回复、代码和凭据，不修改这些工具的任何文件。
 - **数据只在本机**：用量、偏好和新闻缓存都在系统的应用支持目录下的 `data` 文件夹里：Windows 上是 `%APPDATA%\Token Lens\Token Lens\data`，macOS 上是 `~/Library/Application Support/io.github.rumoii.token-lens/data`。不再需要时整个删掉即可。
-- **会联网的只有两件事**：AI 热点按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率。请求不带账号、凭据或用量数据。来源清单和请求方式见 [specs/news.md](specs/news.md)。
+- **会联网的只有三件事**：AI 热点按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）。请求不带账号、凭据或用量数据。来源清单和请求方式见 [specs/news.md](specs/news.md)，检查更新见 [specs/update.md](specs/update.md)。
 - 没有账号、上传、遥测或第三方分析。完整说明见 [隐私说明](PRIVACY.md)。
 
 ## 工作原理
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
-  <img src="docs/images/architecture.svg" alt="各工具的本机日志只读进入 Rust 适配器，写进 SQLite 账本，再由 Flutter 界面显示；联网只有 AI 热点和汇率两处，结果只给界面用，不进账本。">
+  <img src="docs/images/architecture.svg" alt="各工具的本机日志只读进入 Rust 适配器，写进 SQLite 账本，再由 Flutter 界面显示；联网只有 AI 热点、汇率和检查更新三处，结果只给界面用，不进账本。">
 </picture>
 
 - 界面是 Flutter，统计、计价和新闻刷新都在随程序分发的 Rust 库里，通过 flutter_rust_bridge 在进程内调用；没有本地网页服务，也不用 WebView。
@@ -166,6 +166,7 @@ CLI 用法：`lens [collect|summary|reprice|serve] [--data-dir <dir>] [--port <p
 | [specs/desktop.md](specs/desktop.md) | 桌面应用的技术决定 |
 | [specs/stats.md](specs/stats.md) | 统计、计时与界面规则 |
 | [specs/news.md](specs/news.md) | 新闻来源与联网边界 |
+| [specs/update.md](specs/update.md) | 检查更新的请求与边界 |
 | [specs/adapters.md](specs/adapters.md) | 适配器契约 |
 | [specs/log-schemas.yaml](specs/log-schemas.yaml) | 日志字段事实 |
 | [specs/pricing.md](specs/pricing.md) | 定价契约 |

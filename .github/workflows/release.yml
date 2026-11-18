@@ -23,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check tag against pubspec
+      - name: Check tag, pubspec and Rust versions
         id: version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -32,6 +32,7 @@ jobs:
           import os
           from pathlib import Path
           import re
+          import tomllib
 
           tag = os.environ['RELEASE_TAG']
           number = r'(?:0|[1-9][0-9]*)'
@@ -44,6 +45,9 @@ jobs:
           if len(versions) != 1:
               raise SystemExit('Expected exactly one version in app/pubspec.yaml.')
           version = versions[0].split('+', 1)[0]
+          cargo_version = tomllib.loads(Path('app/rust/Cargo.toml').read_text(encoding='utf-8'))['package']['version']
+          if cargo_version != version:
+              raise SystemExit(f'pubspec.yaml version {version} does not match rust/Cargo.toml package version {cargo_version}.')
           if match[1] != version:
               raise SystemExit(f'Tag version {match[1]} does not match pubspec version {version}.')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:

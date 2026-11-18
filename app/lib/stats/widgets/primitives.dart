@@ -53,9 +53,15 @@ class _LensInputModality extends ChangeNotifier {
 }
 
 class LensFocusOutline extends StatefulWidget {
-  const LensFocusOutline({super.key, required this.child, this.radius = 8});
+  const LensFocusOutline({
+    super.key,
+    required this.child,
+    this.radius = 8,
+    this.inset = false,
+  });
   final Widget child;
   final double radius;
+  final bool inset;
   @override
   State<LensFocusOutline> createState() => _LensFocusOutlineState();
 }
@@ -86,7 +92,11 @@ class _LensFocusOutlineState extends State<LensFocusOutline> {
     onFocusChange: (value) => setState(() => focused = value),
     child: CustomPaint(
       foregroundPainter: focused && _inputModality.keyboard
-          ? LensFocusRing(LensPalette.of(context)['clay'], widget.radius)
+          ? LensFocusRing(
+              LensPalette.of(context)['clay'],
+              widget.radius,
+              inset: widget.inset,
+            )
           : null,
       child: widget.child,
     ),
@@ -94,16 +104,17 @@ class _LensFocusOutlineState extends State<LensFocusOutline> {
 }
 
 class LensFocusRing extends CustomPainter {
-  const LensFocusRing(this.color, this.radius);
+  const LensFocusRing(this.color, this.radius, {this.inset = false});
   final Color color;
   final double radius;
+  final bool inset;
   double get strokeWidth => 2;
-  double get offset => 2;
+  double get offset => inset ? -strokeWidth : 2;
   @override
   void paint(Canvas canvas, Size size) => canvas.drawRRect(
     RRect.fromRectAndRadius(
       (Offset.zero & size).inflate(offset + strokeWidth / 2),
-      Radius.circular(radius + offset),
+      Radius.circular(inset ? radius : radius + offset),
     ),
     Paint()
       ..color = color
@@ -112,7 +123,7 @@ class LensFocusRing extends CustomPainter {
   );
   @override
   bool shouldRepaint(LensFocusRing old) =>
-      old.color != color || old.radius != radius;
+      old.color != color || old.radius != radius || old.inset != inset;
 }
 
 class LensCard extends StatefulWidget {
@@ -244,6 +255,7 @@ class LensButton extends StatelessWidget {
           'sm': 28.0,
           'md': 32.0,
           'lg': 40.0,
+          'settings': 40.0,
           'link': 24.0,
           'sidebar': 30.0,
         }[size] ??
@@ -254,6 +266,7 @@ class LensButton extends StatelessWidget {
       enabled: onPressed != null,
       child: LensPressFeedback(
         builder: (states) => LensFocusOutline(
+          radius: size == 'settings' ? h / 2 : 8,
           child: TextButton(
             statesController: states,
             focusNode: focusNode,
@@ -271,7 +284,11 @@ class LensButton extends StatelessWidget {
               ),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: WidgetStatePropertyAll(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                size == 'settings'
+                    ? const StadiumBorder()
+                    : RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
               ),
               textStyle: WidgetStatePropertyAll(
                 p.text(

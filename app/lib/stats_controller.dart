@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'stats_gateway.dart';
 import 'stats/logic/period.dart';
 import 'stats/preferences.dart';
+import 'update/update_check.dart';
+import 'update/update_controller.dart';
 
 class StatsHomeData {
   const StatsHomeData({
@@ -47,10 +49,32 @@ class StatsController extends ChangeNotifier {
     this.store,
     this.preferences = const UiPreferences(),
     DateTime Function()? clock,
+    this.updateRequest = requestUpdate,
+    this.updateTimer = Timer.new,
   }) : clock = clock ?? DateTime.now;
   final StatsGateway gateway;
   final PreferencesStore? store;
   final DateTime Function() clock;
+  final UpdateRequest updateRequest;
+  final UpdateTimer updateTimer;
+  late final updates = UpdateController(
+    readPreferences: () => preferences,
+    savePreferences: setPreferences,
+    clock: clock,
+    request: updateRequest,
+    createTimer: updateTimer,
+  )..addListener(_notify);
+  Future<StatsHealth>? _health;
+  Future<StatsHealth> health() => _health ??= gateway.health().then(
+    (value) {
+      updates.setCurrentVersion(value.version);
+      return value;
+    },
+    onError: (Object error, StackTrace stack) {
+      _health = null;
+      Error.throwWithStackTrace(error, stack);
+    },
+  );
   UiPreferences preferences;
   StatsHomeData? overview;
   StatsSync? lastSync;
@@ -88,6 +112,10 @@ class StatsController extends ChangeNotifier {
   Future<void> start() async {
     if (_started || _closed) return;
     _started = true;
+    updates.start();
+    unawaited(
+      health().then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+    );
     await load();
     if (_closed) return;
     _timer = Timer.periodic(
@@ -393,6 +421,7 @@ class StatsController extends ChangeNotifier {
   Future<void> shutdown() => _shutdown ??= _close();
   Future<void> _close() async {
     _closed = true;
+    updates.close();
     _generation++;
     _statusGeneration++;
     _timer?.cancel();
@@ -408,6 +437,8 @@ class StatsController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     unawaited(shutdown());
+    updates.removeListener(_notify);
+    updates.dispose();
     super.dispose();
   }
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'logic/period.dart';
 import 'logic/format.dart';
+import '../update/update_check.dart';
 
 class UiPreferences {
   const UiPreferences({
@@ -15,6 +16,10 @@ class UiPreferences {
     this.rates = defaultRates,
     this.rateSource = 'default',
     this.ratesFetchedAt,
+    this.autoCheckUpdates = true,
+    this.updateLastAttemptMs,
+    this.updateResult,
+    this.updateIgnoredVersion,
   });
   final String appearance, tokenMode, unitSystem, currency;
   final StatsPeriod period;
@@ -22,6 +27,10 @@ class UiPreferences {
   final Map<String, num> rates;
   final String rateSource;
   final int? ratesFetchedAt;
+  final bool autoCheckUpdates;
+  final int? updateLastAttemptMs;
+  final UpdateResult? updateResult;
+  final String? updateIgnoredVersion;
   static const _unchanged = Object();
 
   static Map<String, num> _rates(Object? value) {
@@ -48,6 +57,10 @@ class UiPreferences {
     Map<String, num>? rates,
     String? rateSource,
     Object? ratesFetchedAt = _unchanged,
+    bool? autoCheckUpdates,
+    Object? updateLastAttemptMs = _unchanged,
+    Object? updateResult = _unchanged,
+    Object? updateIgnoredVersion = _unchanged,
   }) => UiPreferences(
     appearance: appearance ?? this.appearance,
     tokenMode: tokenMode ?? this.tokenMode,
@@ -60,6 +73,16 @@ class UiPreferences {
     ratesFetchedAt: identical(ratesFetchedAt, _unchanged)
         ? this.ratesFetchedAt
         : _fetchedAt(ratesFetchedAt),
+    autoCheckUpdates: autoCheckUpdates ?? this.autoCheckUpdates,
+    updateLastAttemptMs: identical(updateLastAttemptMs, _unchanged)
+        ? this.updateLastAttemptMs
+        : _fetchedAt(updateLastAttemptMs),
+    updateResult: identical(updateResult, _unchanged)
+        ? this.updateResult
+        : updateResult as UpdateResult?,
+    updateIgnoredVersion: identical(updateIgnoredVersion, _unchanged)
+        ? this.updateIgnoredVersion
+        : UpdateVersion.parse(updateIgnoredVersion)?.value,
   );
   static UiPreferences decode(String text) {
     try {
@@ -112,6 +135,13 @@ class UiPreferences {
         rates: _rates(value['rates']),
         rateSource: _rateSource(value['rateSource']),
         ratesFetchedAt: _fetchedAt(value['ratesFetchedAt']),
+        autoCheckUpdates: value['autoCheckUpdates'] is bool
+            ? value['autoCheckUpdates']
+            : true,
+        updateLastAttemptMs: _fetchedAt(value['updateLastAttemptMs']),
+        updateResult: _updateResult(value),
+        updateIgnoredVersion: UpdateVersion.parse(value['updateIgnoredVersion'])
+            ?.value,
       );
     } catch (_) {
       return const UiPreferences();
@@ -128,7 +158,40 @@ class UiPreferences {
     'rates': _rates(rates),
     'rateSource': _rateSource(rateSource),
     'ratesFetchedAt': _fetchedAt(ratesFetchedAt),
+    'autoCheckUpdates': autoCheckUpdates,
+    'updateLastAttemptMs': _fetchedAt(updateLastAttemptMs),
+    'updateKind': updateResult?.kind.name,
+    'updateLatestVersion': updateResult?.kind == UpdateKind.available
+        ? updateResult?.version
+        : null,
+    'updatePublishedAtMs': updateResult?.kind == UpdateKind.available
+        ? _fetchedAt(updateResult?.publishedAt?.millisecondsSinceEpoch)
+        : null,
+    'updateIgnoredVersion': UpdateVersion.parse(updateIgnoredVersion)?.value,
   });
+
+  static UpdateResult? _updateResult(Map<String, dynamic> value) {
+    final kind = UpdateKind.values
+        .where((k) => k.name == value['updateKind'])
+        .firstOrNull;
+    if (kind == null) return null;
+    final version = UpdateVersion.parse(value['updateLatestVersion'])?.value;
+    if (kind == UpdateKind.available && version == null) return null;
+    final ms = _fetchedAt(value['updatePublishedAtMs']);
+    DateTime? published;
+    try {
+      if (ms != null) {
+        published = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+      }
+    } catch (_) {
+      /* Out-of-range dates are absent. */
+    }
+    return UpdateResult(
+      kind,
+      version: kind == UpdateKind.available ? version : null,
+      publishedAt: kind == UpdateKind.available ? published : null,
+    );
+  }
 }
 
 class PreferencesStore {

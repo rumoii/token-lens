@@ -110,14 +110,14 @@ Experimental = verified against synthetic samples, still waiting for real-log ac
 
 - **Reads local logs only**: Token Lens reads only the usage metadata that the tools already wrote on this computer (the four token kinds, model, time, session, project path). It never reads or stores prompts, replies, code or credentials, and never modifies those tools' files.
 - **Data stays on this computer**: usage, preferences and the news cache live in a `data` folder under the system's application support directory: `%APPDATA%\Token Lens\Token Lens\data` on Windows, `~/Library/Application Support/io.github.rumoii.token-lens/data` on macOS. Delete that folder to remove everything.
-- **Only two things use the network**: AI news refreshes its sources on the schedule above, and clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate. Neither request carries an account, credentials or usage data. The source list and request rules are in [specs/news.md](specs/news.md).
+- **Only three things use the network**: AI news refreshes its sources on the schedule above; clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [specs/news.md](specs/news.md); the update check is described in [specs/update.md](specs/update.md).
 - No accounts, uploads, telemetry or third-party analytics. See the [privacy policy](PRIVACY.md) for details.
 
 ## How it works
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture.en-dark.svg">
-  <img src="docs/images/architecture.en.svg" alt="Local tool logs are read by Rust adapters into a SQLite ledger and shown by the Flutter UI; only AI news and the exchange rate use the network, and their results go to the UI, never the ledger.">
+  <img src="docs/images/architecture.en.svg" alt="Local tool logs are read by Rust adapters into a SQLite ledger and shown by the Flutter UI; only AI news, the exchange rate and the update check use the network, and their results go to the UI, never the ledger.">
 </picture>
 
 - The UI is Flutter. Collection, pricing and news refresh run in a Rust library shipped with the app and called in-process through flutter_rust_bridge; there is no local web server and no WebView.
@@ -168,6 +168,7 @@ The specifications are written in Simplified Chinese.
 | [specs/desktop.md](specs/desktop.md) | Desktop app technical decisions |
 | [specs/stats.md](specs/stats.md) | Statistics, timing and UI rules |
 | [specs/news.md](specs/news.md) | News sources and network boundary |
+| [specs/update.md](specs/update.md) | Update check requests and boundary |
 | [specs/adapters.md](specs/adapters.md) | Adapter contract |
 | [specs/log-schemas.yaml](specs/log-schemas.yaml) | Log field facts |
 | [specs/pricing.md](specs/pricing.md) | Pricing contract |

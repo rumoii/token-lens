@@ -17,6 +17,7 @@ import 'sources_page.dart';
 import 'settings_page.dart';
 import 'onboarding_page.dart';
 import 'widgets/motion.dart';
+import '../update/update_widgets.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({
@@ -43,6 +44,7 @@ class _StatsPageState extends State<StatsPage> {
   final scaffold = GlobalKey<ScaffoldState>();
   final _contentScroll = SmoothWheelController();
   final _sidebarScroll = SmoothWheelController();
+  final _updateCard = GlobalKey();
   String page = 'home', query = '';
   static const nav = {
     'home': ('用量总览', Icons.insights_outlined),
@@ -72,6 +74,17 @@ class _StatsPageState extends State<StatsPage> {
               params,
             )
           : Uri(queryParameters: params).query;
+    });
+  }
+
+  void openUpdate() {
+    navigate('settings');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final card = _updateCard.currentContext;
+      if (card != null) {
+        unawaited(Scrollable.ensureVisible(card, alignment: 0.12));
+      }
     });
   }
 
@@ -341,6 +354,7 @@ class _StatsPageState extends State<StatsPage> {
                   color: p['line'],
                 ),
                 const SizedBox(height: 16),
+                UpdateHint(controller: c.updates, onOpen: openUpdate),
                 Semantics(
                   liveRegion: true,
                   child: Row(
@@ -578,6 +592,7 @@ class _StatsPageState extends State<StatsPage> {
                                                 )
                                               : StatsSettingsPage(
                                                   controller: widget.controller,
+                                                  updateCardKey: _updateCard,
                                                   query: query,
                                                   openLink: widget.openLink,
                                                 ),

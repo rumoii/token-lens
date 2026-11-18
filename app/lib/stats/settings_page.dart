@@ -10,6 +10,7 @@ import 'widgets/primitives.dart';
 import 'widgets/resource.dart';
 import 'widgets/settings_display.dart';
 import 'widgets/settings_prices.dart';
+import '../update/update_widgets.dart';
 
 class StatsSettingsPage extends StatefulWidget {
   const StatsSettingsPage({
@@ -18,11 +19,13 @@ class StatsSettingsPage extends StatefulWidget {
     this.query = '',
     this.openLink,
     this.downloadsDirectory,
+    this.updateCardKey,
   });
   final StatsController controller;
   final String query;
   final Future<bool> Function(Uri)? openLink;
   final Future<Directory?> Function()? downloadsDirectory;
+  final GlobalKey? updateCardKey;
 
   @override
   State<StatsSettingsPage> createState() => _StatsSettingsPageState();
@@ -107,7 +110,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
       identity,
       () => c.gateway.breakdown('source_model', const StatsFilter()),
     );
-    health.read(c.gateway, c.gateway.health);
+    health.read(c.gateway, c.health);
   }
 
   void controllerChanged() {
@@ -197,6 +200,12 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
               ),
             ],
           ),
+        ),
+        gap(),
+        SettingsUpdate(
+          key: widget.updateCardKey,
+          controller: widget.controller.updates,
+          openLink: widget.openLink,
         ),
         gap(),
         LensCard(
