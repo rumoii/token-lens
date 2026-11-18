@@ -36,8 +36,8 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
     <td align="center"><img src="docs/images/screenshot-detail.png" width="420" alt="明细：按项目拆开"><br>明细：按项目拆开</td>
   </tr>
   <tr>
+    <td align="center"><img src="docs/images/screenshot-session-requests.png" width="420" alt="会话详情：每次请求"><br>会话详情：每次请求</td>
     <td align="center"><img src="docs/images/screenshot-sessions.png" width="420" alt="会话列表"><br>会话列表</td>
-    <td align="center"><img src="docs/images/screenshot-sources.png" width="420" alt="工具与核对情况"><br>工具与核对情况</td>
   </tr>
   <tr>
     <td align="center" colspan="2"><img src="docs/images/screenshot-overview-dark.png" width="420" alt="深色主题"><br>深色主题</td>
@@ -113,10 +113,10 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 
 ## 工作原理
 
-```
-各工具的本机日志 ──只读──▶ Rust 适配器 ──▶ SQLite 账本 ──▶ Flutter 界面
-（JSONL / JSON / SQLite）   归一成四类 token    ledger.db       查询、计价、显示
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+  <img src="docs/images/architecture.svg" alt="各工具的本机日志只读进入 Rust 适配器，写进 SQLite 账本，再由 Flutter 界面显示；联网只有 AI 热点和汇率两处，结果只给界面用，不进账本。">
+</picture>
 
 - 界面是 Flutter，统计、计价和新闻刷新都在随程序分发的 Rust 库里，通过 flutter_rust_bridge 在进程内调用；没有本地网页服务，也不用 WebView。
 - 同一条记录重复读取不会重复计数；日志被客户端清理后，已经记下的用量仍然保留。

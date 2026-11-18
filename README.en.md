@@ -38,8 +38,8 @@ The app and the specifications are written in Simplified Chinese.
     <td align="center"><img src="docs/images/screenshot-detail.png" width="420" alt="Breakdown by project"><br>Breakdown by project</td>
   </tr>
   <tr>
+    <td align="center"><img src="docs/images/screenshot-session-requests.png" width="420" alt="Session detail: each request"><br>Session detail: each request</td>
     <td align="center"><img src="docs/images/screenshot-sessions.png" width="420" alt="Sessions"><br>Sessions</td>
-    <td align="center"><img src="docs/images/screenshot-sources.png" width="420" alt="Tool sources"><br>Tool sources</td>
   </tr>
   <tr>
     <td align="center" colspan="2"><img src="docs/images/screenshot-overview-dark.png" width="420" alt="Dark theme"><br>Dark theme</td>
@@ -115,10 +115,10 @@ Experimental = verified against synthetic samples, still waiting for real-log ac
 
 ## How it works
 
-```
-Local tool logs ──read-only──▶ Rust adapters ──▶ SQLite ledger ──▶ Flutter UI
-(JSONL / JSON / SQLite)        four token kinds   ledger.db         queries, pricing, display
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture.en-dark.svg">
+  <img src="docs/images/architecture.en.svg" alt="Local tool logs are read by Rust adapters into a SQLite ledger and shown by the Flutter UI; only AI news and the exchange rate use the network, and their results go to the UI, never the ledger.">
+</picture>
 
 - The UI is Flutter. Collection, pricing and news refresh run in a Rust library shipped with the app and called in-process through flutter_rust_bridge; there is no local web server and no WebView.
 - Reading the same record again never counts it twice, and usage already recorded stays even after a client prunes its logs.
