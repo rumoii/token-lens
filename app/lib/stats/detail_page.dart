@@ -18,6 +18,7 @@ import 'logic/tool_order.dart';
 import 'logic/tools.dart';
 import 'theme/palette.dart';
 import 'widgets/primitives.dart';
+import 'widgets/sync_status.dart';
 import 'widgets/charts.dart';
 import 'widgets/date_range.dart';
 import 'widgets/filters.dart';
@@ -179,6 +180,8 @@ class StatsDetail extends StatefulWidget {
     required this.onHome,
     required this.onSettings,
     this.onSessions,
+    this.onSources,
+    this.onManageHidden,
     this.openLink,
     this.downloadsDirectory,
   });
@@ -186,6 +189,7 @@ class StatsDetail extends StatefulWidget {
   final String query;
   final ValueChanged<String> onQuery;
   final VoidCallback onHome, onSettings;
+  final VoidCallback? onSources, onManageHidden;
   final ValueChanged<Map<String, String>>? onSessions;
   final Future<bool> Function(Uri)? openLink;
   final Future<Directory?> Function()? downloadsDirectory;
@@ -207,7 +211,13 @@ class _StatsDetailState extends State<StatsDetail> {
   String? exportedPath;
   Object? exportError;
   StatsController get c => widget.controller;
-  Map<String, String> get d => readDetail(widget.query);
+  String _scope = '';
+  Map<String, String> get d {
+    final query = readDetail(widget.query);
+    if (c.isHidden(query['tool'])) query['tool'] = '';
+    return query;
+  }
+
   StatsPeriod get period => StatsPeriod.parse(widget.query);
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
@@ -367,12 +377,17 @@ class _StatsDetailState extends State<StatsDetail> {
   void refresh() {
     final detail = d, current = period, now = c.clock();
     final range = current.range(now);
-    final base = StatsFilter(from: range.from, to: range.to);
+    final base = c.visibleFilter(StatsFilter(from: range.from, to: range.to));
+    final scope = c.hiddenScope;
+    final retainData = scope == _scope;
+    _scope = scope;
     final picked = bucketRange(detail['bucket']!, range);
-    final filter = detailFilter(detail, range);
-    final scoped = picked == null ? filter : detailFilter(detail, picked);
+    final filter = c.visibleFilter(detailFilter(detail, range));
+    final scoped = picked == null
+        ? filter
+        : c.visibleFilter(detailFilter(detail, picked));
     final pk =
-        '${current.query}|${filter.source}|${filter.model}|${filter.project}|${c.ledgerVersion}';
+        '${current.query}|${filter.source}|${filter.model}|${filter.project}|${c.ledgerVersion}|$scope';
     final sk =
         '$pk|${picked != null || detail['bucket']!.contains('T') ? detail['bucket'] : ''}';
     Future<PeriodAxis> axis() async => current.axis(
@@ -382,20 +397,21 @@ class _StatsDetailState extends State<StatsDetail> {
           : null,
     );
     options.read(
-      '${current.query}|${c.ledgerVersion}',
+      '${current.query}|${c.ledgerVersion}|$scope',
       () => Future.wait([
         c.gateway.breakdown('source_model', base),
         c.gateway.breakdown('project', base),
       ]),
+      retainData: retainData,
     );
-    summary.read(sk, () => c.gateway.summary(scoped));
+    summary.read(sk, () => c.gateway.summary(scoped), retainData: retainData);
     trend.read(pk, () async {
       final a = await axis();
       return (
         axis: a,
         data: await c.gateway.matrix(a.granularity, 'source', filter),
       );
-    });
+    }, retainData: retainData);
     if (detail['dim'] == 'request') return;
     table.read('$sk|${detail['dim']}', () async {
       if (detail['dim'] == 'date') {
@@ -419,7 +435,7 @@ class _StatsDetailState extends State<StatsDetail> {
           scoped,
         ),
       );
-    });
+    }, retainData: retainData);
   }
 
   void go(Map<String, String> next, [StatsPeriod? value]) =>
@@ -693,7 +709,12 @@ class _StatsDetailState extends State<StatsDetail> {
   Widget trendContent(({PeriodAxis axis, StatsMatrix data})? value) {
     if (value == null) return const SizedBox();
     final buckets = buildBuckets(value.data.rows, value.axis, c.clock());
-    final sequence = sourceSequence(c.overview?.sources.sources ?? []),
+    final sequence = sourceSequence(
+          c.overview?.sources.sources
+                  .where((s) => !c.isHidden(s.source))
+                  .toList() ??
+              [],
+        ),
         slots = assignToolColors(sequence);
     final order = sortByToolOrder(
       buckets
@@ -1360,17 +1381,27 @@ class _StatsDetailState extends State<StatsDetail> {
       spacing: narrow ? 12 : 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (c.fullSyncRunning || c.syncReceipt != null)
+          StatsSyncBanner(controller: c, onSources: widget.onSources),
         LayoutBuilder(
           builder: (context, box) {
             final title = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  context.strings.breakdown,
-                  style: p
-                      .serif(narrow ? 24 : 28, weight: FontWeight.w500)
-                      .copyWith(height: 1.25),
+                StatsSyncTitle(
+                  controller: c,
+                  title: Text(
+                    context.strings.breakdown,
+                    style: p
+                        .serif(narrow ? 24 : 28, weight: FontWeight.w500)
+                        .copyWith(height: 1.25),
+                  ),
                 ),
+                if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
+                  StatsHiddenNotice(
+                    controller: c,
+                    onManage: widget.onManageHidden!,
+                  ),
                 const SizedBox(height: 4),
                 Text(
                   context.strings.breakdownDescription(switch (period.period) {
@@ -1391,7 +1422,15 @@ class _StatsDetailState extends State<StatsDetail> {
                     children: [
                       Expanded(child: title),
                       const SizedBox(width: 24),
-                      controls,
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: box.maxWidth - 420 - 24,
+                        ),
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: controls,
+                        ),
+                      ),
                     ],
                   )
                 : Column(
@@ -1485,12 +1524,14 @@ class _StatsDetailState extends State<StatsDetail> {
                     controller: c,
                     identity:
                         '${period.query}|${d['tool']}|${d['model']}|${d['project']}|${d['bucket']}|${c.ledgerVersion}',
-                    filter: StatsFilter(
-                      from: picked?.from ?? period.range(c.clock()).from,
-                      to: picked?.to ?? period.range(c.clock()).to,
-                      source: d['tool']!.isEmpty ? null : d['tool'],
-                      model: d['model']!.isEmpty ? null : d['model'],
-                      project: d['project']!.isEmpty ? null : d['project'],
+                    filter: c.visibleFilter(
+                      StatsFilter(
+                        from: picked?.from ?? period.range(c.clock()).from,
+                        to: picked?.to ?? period.range(c.clock()).to,
+                        source: d['tool']!.isEmpty ? null : d['tool'],
+                        model: d['model']!.isEmpty ? null : d['model'],
+                        project: d['project']!.isEmpty ? null : d['project'],
+                      ),
                     ),
                     onOpen: (r) {
                       final sessionId = r.sessionId;

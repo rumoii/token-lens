@@ -10,6 +10,7 @@ import 'theme/palette.dart';
 import 'widgets/primitives.dart';
 import 'widgets/resource.dart';
 import 'widgets/sources_parts.dart';
+import 'widgets/source_inventory.dart';
 
 class StatsSourcesPage extends StatefulWidget {
   const StatsSourcesPage({
@@ -17,10 +18,12 @@ class StatsSourcesPage extends StatefulWidget {
     required this.controller,
     this.query = '',
     required this.onDetail,
+    this.openLink,
   });
   final StatsController controller;
   final String query;
   final ValueChanged<Map<String, String>> onDetail;
+  final Future<bool> Function(Uri)? openLink;
 
   @override
   State<StatsSourcesPage> createState() => _StatsSourcesPageState();
@@ -28,6 +31,7 @@ class StatsSourcesPage extends StatefulWidget {
 
 class _StatsSourcesPageState extends State<StatsSourcesPage> {
   late final sources = LensResource<StatsSources>(changed);
+  late final inventory = LensResource<StatsDiscovery>(changed);
   late final month = LensResource<StatsBreakdown>(changed);
   StatsSync? receiptBeforeSync;
   StatsController get c => widget.controller;
@@ -44,6 +48,10 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
     final range = const StatsPeriod('month').range(c.clock());
     final identity = (c.gateway, c.ledgerVersion, range.from, range.to);
     sources.read(identity, () => c.gateway.sources());
+    inventory.read((
+      c.gateway,
+      c.syncDiscoveryRevision,
+    ), () => c.gateway.discovery(fresh: true));
     month.read(
       identity,
       () => c.gateway.breakdown(
@@ -76,6 +84,7 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
   void dispose() {
     c.removeListener(refresh);
     sources.dispose();
+    inventory.dispose();
     month.dispose();
     super.dispose();
   }
@@ -106,6 +115,8 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
         if (issue.permissionDenied > 0) issue.source,
     };
     final deniedOnly = denied.difference(found);
+    final discovery = inventory.data;
+    final hasInventory = discovery?.tools.isNotEmpty == true;
     final missing = tools.keys
         .where((id) => !found.contains(id) && !denied.contains(id))
         .toList();
@@ -126,11 +137,18 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            context.strings.sourcesIntro(
-              list.isEmpty
-                  ? ''
-                  : context.strings.toolsFoundOnComputer(list.length),
-            ),
+            hasInventory
+                ? context.strings.inventoryIntro(
+                    discovery!.supported,
+                    discovery.tools
+                        .where((tool) => tool.status == 'found')
+                        .length,
+                  )
+                : context.strings.sourcesIntro(
+                    list.isEmpty
+                        ? ''
+                        : context.strings.toolsFoundOnComputer(list.length),
+                  ),
             style: p
                 .text(14, p.secondary)
                 .copyWith(height: 1.5, letterSpacing: 0),
@@ -152,62 +170,97 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
                 : c.lastSync,
           ),
           SizedBox(height: gap),
-          ResourceBlock(
-            resource: month,
-            rows: 1,
-            builder: (_) => ResourceBlock(
-              resource: sources,
+          if (hasInventory)
+            ResourceBlock(
+              resource: inventory,
               rows: 5,
-              builder: (_) => list.isEmpty && deniedOnly.isEmpty
-                  ? LensCard(
-                      padding: EdgeInsets.all(16),
-                      child: EmptyState(
-                        title: context.strings.noToolLogsFoundYet,
-                        hint: context.strings.useASupportedAiCodingToolThen,
-                      ),
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = MediaQuery.sizeOf(context).width >= 1024
-                            ? 2
-                            : 1;
-                        final width =
-                            (constraints.maxWidth - gap * (columns - 1)) /
-                            columns;
-                        return Wrap(
-                          spacing: gap,
-                          runSpacing: gap,
-                          children: [
-                            for (final item in list)
-                              SizedBox(
-                                width: width,
-                                child: SourcesToolCard(
-                                  key: ValueKey('tool-${item.source}'),
-                                  item: item,
-                                  permissionDenied: denied.contains(
-                                    item.source,
-                                  ),
-                                  monthTokens: monthBy[item.source] ?? 0,
-                                  controller: c,
-                                  onDetail: () => widget.onDetail({
-                                    'tool': item.source,
-                                    'dim': 'model',
-                                  }),
-                                ),
-                              ),
-                            for (final id in deniedOnly)
-                              SizedBox(
-                                key: ValueKey('tool-$id'),
-                                width: width,
-                                child: SourcesUnreadableToolCard(source: id),
-                              ),
-                          ],
-                        );
-                      },
+              builder: (_) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (month.error != null)
+                    ResourceBlock(
+                      resource: month,
+                      builder: (_) => const SizedBox.shrink(),
                     ),
+                  if (sources.error != null)
+                    ResourceBlock(
+                      resource: sources,
+                      builder: (_) => const SizedBox.shrink(),
+                    ),
+                  SourceInventory(
+                    discovery: discovery!,
+                    sources: sources.data?.sources ?? const [],
+                    month: monthBy,
+                    controller: c,
+                    query: widget.query,
+                    onDetail: widget.onDetail,
+                    openLink: widget.openLink,
+                  ),
+                ],
+              ),
+            )
+          else if (!inventory.ready)
+            ResourceBlock(
+              resource: inventory,
+              rows: 5,
+              builder: (_) => const SizedBox.shrink(),
+            )
+          else
+            ResourceBlock(
+              resource: month,
+              rows: 1,
+              builder: (_) => ResourceBlock(
+                resource: sources,
+                rows: 5,
+                builder: (_) => list.isEmpty && deniedOnly.isEmpty
+                    ? LensCard(
+                        padding: EdgeInsets.all(16),
+                        child: EmptyState(
+                          title: context.strings.noToolLogsFoundYet,
+                          hint: context.strings.useASupportedAiCodingToolThen,
+                        ),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns =
+                              MediaQuery.sizeOf(context).width >= 1024 ? 2 : 1;
+                          final width =
+                              (constraints.maxWidth - gap * (columns - 1)) /
+                              columns;
+                          return Wrap(
+                            spacing: gap,
+                            runSpacing: gap,
+                            children: [
+                              for (final item in list)
+                                SizedBox(
+                                  width: width,
+                                  child: SourcesToolCard(
+                                    key: ValueKey('tool-${item.source}'),
+                                    item: item,
+                                    permissionDenied: denied.contains(
+                                      item.source,
+                                    ),
+                                    monthTokens: monthBy[item.source] ?? 0,
+                                    controller: c,
+                                    onDetail: () => widget.onDetail({
+                                      'tool': item.source,
+                                      'dim': 'model',
+                                    }),
+                                  ),
+                                ),
+                              for (final id in deniedOnly)
+                                SizedBox(
+                                  key: ValueKey('tool-$id'),
+                                  width: width,
+                                  child: SourcesUnreadableToolCard(source: id),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
             ),
-          ),
-          if (missing.isNotEmpty) ...[
+          if (inventory.ready && !hasInventory && missing.isNotEmpty) ...[
             SizedBox(height: gap),
             SourcesMissingTools(ids: missing),
           ],

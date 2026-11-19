@@ -17,7 +17,17 @@ fn filter(params: &Value, offset: i32) -> Result<Value> {
             .filter(|s| !s.is_empty())
             .map_or(Value::Null, |s| json!(s));
     }
+    add_exclusions(&mut result, params);
     Ok(result)
+}
+
+fn add_exclusions(filter: &mut Value, params: &Value) {
+    if params["exclude_sources"]
+        .as_array()
+        .is_some_and(|ids| !ids.is_empty())
+    {
+        filter["exclude_sources"] = params["exclude_sources"].clone();
+    }
 }
 
 pub fn validate_range(params: &Value) -> Result<()> {
@@ -301,6 +311,7 @@ pub fn requests(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resul
         filter["bucket"] = params["bucket"].clone();
         filter
     };
+    add_exclusions(&mut filter, params);
     filter["include_summary"] = params["include_summary"].clone();
     let mut result = ledger.requests(
         &filter,
@@ -338,6 +349,12 @@ pub fn session_detail(
         return Err(super::Error(
             "INVALID_PARAM: granularity 必须为 hour 或 day".into(),
         ));
+    }
+    if params["exclude_sources"]
+        .as_array()
+        .is_some_and(|ids| ids.iter().any(|id| id == source))
+    {
+        return Ok(None);
     }
     let Some(detail) = ledger.session_detail(source, session, granularity, offset)? else {
         return Ok(None);
@@ -389,11 +406,22 @@ pub fn session_detail(
     ))
 }
 
+#[cfg(test)]
 pub fn sources(
     ledger: &Ledger,
     now: &str,
     exists: impl Fn(&str) -> bool,
     tz: &str,
+) -> Result<Value> {
+    sources_for(ledger, now, exists, tz, false)
+}
+
+pub(crate) fn sources_for(
+    ledger: &Ledger,
+    now: &str,
+    exists: impl Fn(&str) -> bool,
+    tz: &str,
+    include_sync_history: bool,
 ) -> Result<Value> {
     let evidence: Value = serde_json::from_str(source_notes::EVIDENCE)?;
     let limits: Value = serde_json::from_str(source_notes::SOURCE_LIMITS)?;
@@ -428,7 +456,9 @@ pub fn sources(
         Value::Null
     } else {
         let mut value = run.clone();
-        value.as_object_mut().unwrap().remove("id");
+        if !include_sync_history {
+            value.as_object_mut().unwrap().remove("id");
+        }
         for field in ["started_at", "finished_at"] {
             value[field] = json!(run[field]
                 .as_i64()
@@ -444,14 +474,47 @@ pub fn sources(
     let mut snapshot = snapshot(ledger, &json!({}), tz);
     snapshot["known_sources"] = json!(evidence.as_object().unwrap().len());
     let mut result = json!({"sources":sources,"last_run":last_run,"snapshot":snapshot});
+    if include_sync_history {
+        result["has_successful_sync"] = json!(ledger.has_successful_sync()?);
+    }
     if !discovery_issues.is_empty() {
         result["discovery_issues"] = json!(discovery_issues);
     }
     Ok(result)
 }
 
+#[cfg(test)]
 pub fn discovery(home: &std::path::Path, environment: &super::ingest::Environment) -> Value {
-    let found = super::discovery::discover_profiled(home, environment, None);
+    discovery_summary(&super::discovery::discover_profiled(
+        home,
+        environment,
+        None,
+        false,
+    ))
+}
+
+pub(crate) fn unrecorded_source_profiles() -> Result<HashMap<String, Value>> {
+    let evidence: Value = serde_json::from_str(source_notes::EVIDENCE)?;
+    let limits: Value = serde_json::from_str(source_notes::SOURCE_LIMITS)?;
+    Ok(super::adapters::PARSER_REV.iter().map(|(source, _)| {
+        let entries = limits[*source].as_array().map(Vec::as_slice).unwrap_or_default();
+        let notes: Vec<_> = entries.iter().map(|row| json!({
+            "text": row[1], "impact": row[2], "text_en": row[4]
+        })).collect();
+        let profile = json!({
+            "source": source, "evidence": evidence[*source].as_str().unwrap_or("B"),
+            "status": "no_data", "records": 0, "record_mode": "event",
+            "retention": {"reviewable": 0, "logs_gone": 0},
+            "checks": {"time_out_of_range": 0, "huge_requests": 0, "null_model": 0, "mixed_kind_sessions": 0},
+            "limits": entries.iter().map(|entry| &entry[0]).collect::<Vec<_>>(),
+            "limits_en": entries.iter().map(|entry| &entry[3]).collect::<Vec<_>>(),
+            "notes": notes,
+        });
+        (source.to_string(), profile)
+    }).collect())
+}
+
+pub(crate) fn discovery_summary(found: &super::discovery::Discovery) -> Value {
     let mut sources: Vec<_> = found
         .files
         .iter()

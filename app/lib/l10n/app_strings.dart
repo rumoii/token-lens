@@ -37,6 +37,82 @@ extension AppStringsContext on BuildContext {
 }
 
 abstract class AppStrings {
+  String inventoryIntro(int total, int found);
+
+  String get inventoryFound;
+
+  String get inventoryIssues;
+
+  String get inventoryHidden;
+
+  String get inventoryMissing;
+
+  String get inventorySearch;
+
+  String get inventoryVisibility;
+
+  String get inventoryFolder;
+
+  String get inventoryFiles;
+
+  String get inventoryLastUsed;
+
+  String get inventoryShow;
+
+  String get inventoryDenied;
+
+  String get inventoryReadError;
+
+  String inventoryMonth(String value);
+
+  String inventoryFilesFound(int n);
+
+  String get inventoryPathMissing;
+
+  String get inventoryLocations;
+
+  String get inventoryOpen;
+
+  String get inventoryCopy;
+
+  String get inventoryCopied;
+
+  String get inventoryShowInStats;
+
+  String get inventoryViewUsage;
+
+  String progressSyncing(String tool);
+
+  String get progressSynced;
+
+  String progressDiscovering(String title);
+
+  String progressReading(
+    String title,
+    String tool,
+    int index,
+    int total,
+    int files,
+  );
+
+  String get progressFirst;
+
+  String get progressReread;
+
+  String get progressFirstHint;
+
+  String progressFailed(String reason);
+
+  String get progressEarlierDataPreserved;
+
+  String progressIssues(int n);
+
+  String get progressDismiss;
+
+  String hiddenToolsNotice(int n);
+
+  String get hiddenToolsManage;
+
   const AppStrings();
 
   String get languageCode;

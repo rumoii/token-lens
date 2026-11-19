@@ -103,6 +103,13 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
             args.push(json!(value));
         }
     }
+    if let Some(ids) = filter["exclude_sources"]
+        .as_array()
+        .filter(|ids| !ids.is_empty())
+    {
+        clauses.push("source NOT IN (SELECT value FROM json_each(?) WHERE type='text')".into());
+        args.push(json!(json!(ids).to_string()));
+    }
     if filter["projectPaths"].is_array() {
         clauses.push("project_key IN (SELECT value FROM json_each(?))".into());
         args.push(json!(filter["projectPaths"].to_string()));
@@ -722,6 +729,14 @@ impl Ledger {
         let (clause, args) = scope(self, filter)?;
         rows(&self.db,&format!("SELECT source,model,provider,project_key,price_version,cost_micros,kind,observed_at,ended_at,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cache_write_5m_tokens,cache_write_1h_tokens FROM usage_records WHERE {clause} AND cost_micros IS NOT NULL"),&args)
     }
+    pub(crate) fn has_successful_sync(&self) -> Result<bool> {
+        Ok(self.db.query_row(
+            "SELECT EXISTS (SELECT 1 FROM ingest_runs WHERE status IN ('ok','completed_with_anomalies'))",
+            [],
+            |row| row.get(0),
+        )?)
+    }
+
     pub fn last_run(&self) -> Result<Value> {
         let mut row = self.output_last_run()?;
         if let Some(counts) = row.get_mut("counts").and_then(Value::as_object_mut) {

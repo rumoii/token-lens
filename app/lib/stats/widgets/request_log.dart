@@ -1,5 +1,6 @@
 import '../../l10n/app_strings.dart';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import '../../stats_controller.dart';
@@ -59,7 +60,15 @@ class _RequestLogState extends State<RequestLog> {
   @override
   void didUpdateWidget(RequestLog old) {
     super.didUpdateWidget(old);
-    if (old.identity != widget.identity || old.controller != c) load();
+    final changedScope = !listEquals(
+      old.filter.excludeSources,
+      widget.filter.excludeSources,
+    );
+    if (old.identity != widget.identity ||
+        old.controller != c ||
+        changedScope) {
+      load(retainData: !changedScope);
+    }
   }
 
   @override
@@ -68,7 +77,7 @@ class _RequestLogState extends State<RequestLog> {
     super.dispose();
   }
 
-  void load({bool more = false}) {
+  void load({bool more = false, bool retainData = true}) {
     if (more && (resource.loading || resource.data == null)) return;
     final previous = more ? resource.data : null;
     final query = StatsRequestQuery(
@@ -93,7 +102,7 @@ class _RequestLogState extends State<RequestLog> {
               slow: previous.slow,
               snapshot: next.snapshot,
             );
-    });
+    }, retainData: retainData);
   }
 
   void order(String key) {

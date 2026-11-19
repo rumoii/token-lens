@@ -1,6 +1,6 @@
-use crate::stats::{
-    clock::Clock, ingest, jscompat::LocalZone, ledger::Ledger, output, pricing, service, timezone,
-};
+#[cfg(test)]
+use crate::stats::jscompat::LocalZone;
+use crate::stats::{clock::Clock, ingest, ledger::Ledger, output, pricing, service, timezone};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -20,6 +20,8 @@ pub struct StatsFilter {
     pub source: Option<String>,
     pub model: Option<String>,
     pub project: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_sources: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -442,6 +444,8 @@ pub struct StatsSource {
 #[flutter_rust_bridge::frb]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSourceRun {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
     pub status: String,
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
@@ -459,6 +463,7 @@ pub struct StatsSourceRun {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSources {
+    pub has_successful_sync: Option<bool>,
     pub sources: Vec<StatsSource>,
     pub last_run: Option<StatsSourceRun>,
     pub snapshot: StatsSnapshot,
@@ -470,12 +475,40 @@ pub struct StatsDiscoveredSource {
     pub source: String,
     pub files: i64,
 }
+#[flutter_rust_bridge::frb]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsDiscovery {
     pub sources: Vec<StatsDiscoveredSource>,
     pub supported: i64,
     #[serde(default)]
     pub discovery_issues: Option<Vec<StatsDiscoveryIssue>>,
+    #[serde(default)]
+    #[frb(default = [])]
+    pub tools: Vec<StatsDiscoveredTool>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsDiscoveredTool {
+    pub source: String,
+    pub status: String,
+    pub directories: Vec<StatsLogDirectory>,
+    pub profile: Option<StatsSource>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsLogDirectory {
+    pub path: String,
+    pub status: String,
+    pub files: i64,
+    pub exists: bool,
+}
+#[derive(Clone, Debug)]
+pub struct StatsSyncProgress {
+    pub stage: String,
+    pub source: Option<String>,
+    pub index: i64,
+    pub total: i64,
+    pub files_read: i64,
+    pub trigger: String,
+    pub first_sync: Option<bool>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsDiscoveryIssue {
@@ -563,6 +596,7 @@ struct State {
     running: AtomicBool,
     clock: Clock,
     discovery: Mutex<Option<(i64, StatsDiscovery)>>,
+    progress: Mutex<Option<StatsSyncProgress>>,
     log: crate::diagnostics::RuntimeLog,
 }
 
@@ -683,6 +717,7 @@ impl StatsClient {
                 running: AtomicBool::new(false),
                 clock,
                 discovery: Mutex::new(None),
+                progress: Mutex::new(None),
             }),
         })
     }
@@ -693,6 +728,9 @@ impl StatsClient {
         clock: Clock,
     ) -> Result<Self, String> {
         Self::initialize(data_dir, logs_home, clock)
+    }
+    pub fn sync_progress(&self) -> Option<StatsSyncProgress> {
+        self.state.progress.lock().ok()?.clone()
     }
     pub fn sync(&self) -> Result<StatsSync, String> {
         self.sync_triggered("manual".into())
@@ -757,13 +795,14 @@ impl StatsClient {
         {
             return Err("SYNC_BUSY: 已有同步或采集任务在执行中".into());
         }
-        struct Running<'a>(&'a AtomicBool);
+        struct Running<'a>(&'a State);
         impl Drop for Running<'_> {
             fn drop(&mut self) {
-                self.0.store(false, Ordering::Release);
+                *self.0.progress.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                self.0.running.store(false, Ordering::Release);
             }
         }
-        let _running = Running(&self.state.running);
+        let _running = Running(&self.state);
         if self.state.closed.load(Ordering::Acquire) {
             return Err("closed".into());
         }
@@ -774,14 +813,49 @@ impl StatsClient {
         } else {
             environment
         };
+        let mut progress = StatsSyncProgress {
+            stage: "discovering".into(),
+            source: None,
+            index: 0,
+            total: crate::stats::adapters::PARSER_REV.len() as i64,
+            files_read: 0,
+            trigger: trigger.into(),
+            first_sync: None,
+        };
+        let publish = |progress: &StatsSyncProgress| {
+            *self
+                .state
+                .progress
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Some(progress.clone());
+        };
+        publish(&progress);
         let result = ingest::sync_triggered(
             &self.state.data,
             &self.state.home,
             environment,
             self.state.clock.clone(),
-            &LocalZone::System,
             &self.state.closed,
             trigger,
+            &mut |event| {
+                match event {
+                    ingest::Progress::Discovering { first_sync } => {
+                        progress.first_sync = Some(first_sync);
+                    }
+                    ingest::Progress::Reading {
+                        source,
+                        index,
+                        total,
+                    } => {
+                        progress.stage = "reading".into();
+                        progress.source = Some(source.into());
+                        progress.index = index as i64;
+                        progress.total = total as i64;
+                    }
+                    ingest::Progress::FileRead => progress.files_read += 1,
+                }
+                publish(&progress);
+            },
         )
         .map_err(|e| e.to_string())?;
         serde_json::from_value(result).map_err(|e| e.to_string())
@@ -941,11 +1015,12 @@ impl StatsClient {
     pub fn sources(&self) -> Result<StatsSources, String> {
         let result = (|| {
             let ledger = self.open()?;
-            let value = service::sources(
+            let value = service::sources_for(
                 &ledger,
                 &self.state.clock.iso(),
                 |path| std::path::Path::new(path).exists(),
                 &self.state.timezone,
+                true,
             )
             .map_err(|e| e.to_string())?;
             let mut sources: StatsSources =
@@ -1001,7 +1076,10 @@ impl StatsClient {
         {
             return Err("Invalid export period.".into());
         }
-        let mut filter = json!(request.filter);
+        let mut filter = json!(StatsFilter {
+            exclude_sources: None,
+            ..request.filter
+        });
         service::validate_range(&filter).map_err(|e| e.to_string())?;
         filter["offsetMinutes"] = json!(offset_minutes);
         let scope = output::Scope {
@@ -1086,9 +1164,23 @@ impl StatsClient {
         } else {
             environment
         };
-        let value = service::discovery(&self.state.home, environment);
-        let mut value: StatsDiscovery = serde_json::from_value(value).map_err(|e| e.to_string())?;
-        value.discovery_issues.get_or_insert_with(Vec::new);
+        let mut found =
+            crate::stats::discovery::discover_profiled(&self.state.home, environment, None, true);
+        let mut profiles = service::unrecorded_source_profiles().map_err(|e| e.to_string())?;
+        for tool in &mut found.tools {
+            tool.profile = profiles
+                .remove(&tool.source)
+                .map(serde_json::from_value)
+                .transpose()
+                .map_err(|e| e.to_string())?;
+        }
+        let value: StatsDiscovery = serde_json::from_value(service::discovery_summary(&found))
+            .map_err(|e| e.to_string())?;
+        let value = StatsDiscovery {
+            discovery_issues: Some(value.discovery_issues.unwrap_or_default()),
+            tools: found.tools,
+            ..value
+        };
         *cache = Some((now, value.clone()));
         Ok(value)
     }

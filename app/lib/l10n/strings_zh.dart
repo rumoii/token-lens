@@ -1,6 +1,120 @@
 part of 'app_strings.dart';
 
 final class ChineseStrings extends AppStrings {
+  @override
+  String inventoryIntro(int total, int found) =>
+      '支持 $total 个 AI 编程工具，这台电脑上找到 $found 个。Token Lens 只读它们的日志，不上传，也不改动这些工具。';
+
+  @override
+  String get inventoryFound => '已找到';
+
+  @override
+  String get inventoryIssues => '有问题';
+
+  @override
+  String get inventoryHidden => '已隐藏';
+
+  @override
+  String get inventoryMissing => '没装';
+
+  @override
+  String get inventorySearch => '搜工具或路径';
+
+  @override
+  String get inventoryVisibility =>
+      '隐藏只影响显示：隐藏的工具不出现在总览、明细、会话和侧栏里，日志照常读取、记账，随时可以恢复。';
+
+  @override
+  String get inventoryFolder => '日志目录';
+
+  @override
+  String get inventoryFiles => '文件';
+
+  @override
+  String get inventoryLastUsed => '最近使用';
+
+  @override
+  String get inventoryShow => '显示';
+
+  @override
+  String get inventoryDenied => '没有权限';
+
+  @override
+  String get inventoryReadError => '读取出错';
+
+  @override
+  String inventoryMonth(String value) => '本月 $value';
+
+  @override
+  String inventoryFilesFound(int n) => '找到 $n 个文件';
+
+  @override
+  String get inventoryPathMissing => '不存在';
+
+  @override
+  String get inventoryLocations => '会在这些位置找日志';
+
+  @override
+  String get inventoryOpen => '打开';
+
+  @override
+  String get inventoryCopy => '复制路径';
+
+  @override
+  String get inventoryCopied => '已复制';
+
+  @override
+  String get inventoryShowInStats => '在统计中显示';
+
+  @override
+  String get inventoryViewUsage => '查看用量';
+
+  @override
+  String progressSyncing(String tool) => '同步中 · $tool';
+
+  @override
+  String get progressSynced => '已同步';
+
+  @override
+  String progressDiscovering(String title) => '$title：正在查找日志目录';
+
+  @override
+  String progressReading(
+    String title,
+    String tool,
+    int index,
+    int total,
+    int files,
+  ) =>
+      '$title：正在读取 $tool（第 $index/$total 个工具）· 已读 $files 个文件。读完的工具会先显示出来，可以照常查看。';
+
+  @override
+  String get progressFirst => '第一次同步';
+
+  @override
+  String get progressReread => '重新读取全部日志';
+
+  @override
+  String get progressFirstHint => '第一次同步还没读完，下面是已经读到的部分。';
+
+  @override
+  String progressFailed(String reason) => '同步失败：$reason';
+
+  @override
+  String get progressEarlierDataPreserved => '已保留先前采集的数据。';
+
+  @override
+  String progressIssues(int n) => '同步完成，但有 $n 处异常';
+
+  @override
+  String get progressDismiss => '关闭';
+
+  @override
+  String hiddenToolsNotice(int n) => '已隐藏 $n 个工具';
+
+  @override
+  String get hiddenToolsManage => '管理';
+
   const ChineseStrings();
 
   @override

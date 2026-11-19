@@ -698,6 +698,17 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                 counting ? null : widget.onStart,
                               ),
                       ),
+                      if (counting && c.firstSyncRunning) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: LensButton(
+                            label: context.strings.viewUsage,
+                            size: 'link',
+                            variant: 'ghost',
+                            onPressed: widget.onEnter,
+                          ),
+                        ),
+                      ],
                       if (!counting && found.isNotEmpty && denied.isNotEmpty)
                         Center(
                           child: action(

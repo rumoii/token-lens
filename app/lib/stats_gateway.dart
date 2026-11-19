@@ -32,6 +32,10 @@ abstract interface class StatsGateway {
   Future<void> shutdown();
 }
 
+abstract interface class StatsProgressGateway {
+  Future<StatsSyncProgress?> syncProgress();
+}
+
 abstract interface class StatsUsageExporter {
   Future<String> exportUsage({
     required String by,
@@ -43,7 +47,8 @@ abstract interface class StatsUsageExporter {
   });
 }
 
-class RustStatsGateway implements StatsGateway, StatsUsageExporter {
+class RustStatsGateway
+    implements StatsGateway, StatsProgressGateway, StatsUsageExporter {
   RustStatsGateway(this.client);
   final StatsClient client;
   int get _offset => DateTime.now().timeZoneOffset.inMinutes;
@@ -109,6 +114,8 @@ class RustStatsGateway implements StatsGateway, StatsUsageExporter {
       client.discovery(fresh: fresh);
   @override
   Future<StatsHealth> health() => client.health();
+  @override
+  Future<StatsSyncProgress?> syncProgress() => client.syncProgress();
   @override
   Future<StatsSync> sync({String trigger = 'manual'}) =>
       client.syncTriggered(trigger: trigger);

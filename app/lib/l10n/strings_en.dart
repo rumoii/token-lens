@@ -1,6 +1,123 @@
 part of 'app_strings.dart';
 
 final class EnglishStrings extends AppStrings {
+  @override
+  String inventoryIntro(int total, int found) =>
+      'Supports $total AI coding tools; $found found on this computer. Token Lens reads local logs only, uploads nothing and leaves tools unchanged.';
+
+  @override
+  String get inventoryFound => 'Found';
+
+  @override
+  String get inventoryIssues => 'Issues';
+
+  @override
+  String get inventoryHidden => 'Hidden';
+
+  @override
+  String get inventoryMissing => 'Not installed';
+
+  @override
+  String get inventorySearch => 'Search tools or paths';
+
+  @override
+  String get inventoryVisibility =>
+      'Hiding only affects display: hidden tools leave the overview, breakdown, sessions and sidebar, but their logs are still read and recorded. You can show them again at any time.';
+
+  @override
+  String get inventoryFolder => 'Log folder';
+
+  @override
+  String get inventoryFiles => 'Files';
+
+  @override
+  String get inventoryLastUsed => 'Last used';
+
+  @override
+  String get inventoryShow => 'Show';
+
+  @override
+  String get inventoryDenied => 'No permission';
+
+  @override
+  String get inventoryReadError => 'Read error';
+
+  @override
+  String inventoryMonth(String value) => '$value this month';
+
+  @override
+  String inventoryFilesFound(int n) => '$n ${n == 1 ? "file" : "files"} found';
+
+  @override
+  String get inventoryPathMissing => 'Not found';
+
+  @override
+  String get inventoryLocations => 'Token Lens looks for logs here';
+
+  @override
+  String get inventoryOpen => 'Open';
+
+  @override
+  String get inventoryCopy => 'Copy path';
+
+  @override
+  String get inventoryCopied => 'Copied';
+
+  @override
+  String get inventoryShowInStats => 'Show in statistics';
+
+  @override
+  String get inventoryViewUsage => 'View usage';
+
+  @override
+  String progressSyncing(String tool) => 'Syncing · $tool';
+
+  @override
+  String get progressSynced => 'Synced';
+
+  @override
+  String progressDiscovering(String title) => '$title: looking for log folders';
+
+  @override
+  String progressReading(
+    String title,
+    String tool,
+    int index,
+    int total,
+    int files,
+  ) =>
+      '$title: reading $tool ($index of $total tools) · $files ${files == 1 ? "file" : "files"} read. Tools appear as they finish; you can keep browsing.';
+
+  @override
+  String get progressFirst => 'First sync';
+
+  @override
+  String get progressReread => 'Rereading all logs';
+
+  @override
+  String get progressFirstHint =>
+      'The first sync is still running. Below is what has been read so far.';
+
+  @override
+  String progressFailed(String reason) => 'Sync failed: $reason';
+
+  @override
+  String get progressEarlierDataPreserved =>
+      'Previously collected data is still available.';
+
+  @override
+  String progressIssues(int n) =>
+      'Sync finished with $n ${n == 1 ? "issue" : "issues"}';
+
+  @override
+  String get progressDismiss => 'Dismiss';
+
+  @override
+  String hiddenToolsNotice(int n) => '$n ${n == 1 ? "tool" : "tools"} hidden';
+
+  @override
+  String get hiddenToolsManage => 'Manage';
+
   const EnglishStrings();
 
   @override

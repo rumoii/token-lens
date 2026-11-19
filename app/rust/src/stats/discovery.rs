@@ -1,4 +1,5 @@
 use super::Result;
+use crate::api::stats::{StatsDiscoveredTool, StatsLogDirectory};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::{self, DirEntry, FileType};
@@ -103,6 +104,7 @@ struct Scan<'a> {
     failed_dirs: HashSet<PathBuf>,
     checked_dirs: HashSet<PathBuf>,
     failed_entries: HashSet<PathBuf>,
+    path_errors: Option<Vec<(PathBuf, ErrorKind)>>,
 }
 
 impl<'a> Scan<'a> {
@@ -113,6 +115,7 @@ impl<'a> Scan<'a> {
             failed_dirs: HashSet::new(),
             checked_dirs: HashSet::new(),
             failed_entries: HashSet::new(),
+            path_errors: None,
         }
     }
 
@@ -127,13 +130,18 @@ impl<'a> Scan<'a> {
         if linked(&fs::symlink_metadata(&current)?) {
             return Ok(false);
         }
-        for part in relative.components() {
+        let mut parts = relative.components().peekable();
+        while let Some(part) = parts.next() {
             let Component::Normal(name) = part else {
                 return Ok(false);
             };
             current.push(name);
-            if linked(&fs::symlink_metadata(&current)?) {
+            let metadata = fs::symlink_metadata(&current)?;
+            if linked(&metadata) {
                 return Ok(false);
+            }
+            if parts.peek().is_some() && !metadata.is_dir() {
+                return Err(ErrorKind::NotADirectory.into());
             }
         }
         Ok(true)
@@ -143,6 +151,7 @@ impl<'a> Scan<'a> {
         if error.kind() == ErrorKind::NotFound || !self.failed_dirs.insert(normalize(path)) {
             return;
         }
+        self.record_error(path, error.kind());
         match error.kind() {
             ErrorKind::PermissionDenied => self.issue.permission_denied += 1,
             _ => self.issue.io_errors += 1,
@@ -165,7 +174,15 @@ impl<'a> Scan<'a> {
     fn entries(&mut self, root: &Path) -> Vec<DirEntry> {
         self.checked_dirs.insert(normalize(root));
         let entries = self.read_dir(root, |path| fs::read_dir(path));
-        let mut list = self.read_entries(entries.into_iter().flatten());
+        let mut errors = Vec::new();
+        let mut list = self.read_entries(entries.into_iter().flatten().inspect(|entry| {
+            if let Err(error) = entry {
+                errors.push(error.kind());
+            }
+        }));
+        for kind in errors {
+            self.record_error(root, kind);
+        }
         list.sort_by_key(|entry| entry.file_name());
         list
     }
@@ -185,10 +202,17 @@ impl<'a> Scan<'a> {
     fn entry_type(&mut self, entry: &DirEntry) -> Option<FileType> {
         match entry.file_type() {
             Ok(kind) => Some(kind),
-            Err(_) => {
+            Err(error) => {
+                self.record_error(&entry.path(), error.kind());
                 self.entry_error(&entry.path());
                 None
             }
+        }
+    }
+
+    fn record_error(&mut self, path: &Path, kind: ErrorKind) {
+        if let Some(errors) = &mut self.path_errors {
+            errors.push((normalize(path), kind));
         }
     }
 
@@ -216,6 +240,7 @@ impl<'a> Scan<'a> {
                         .parent()
                         .is_some_and(|parent| self.failed_dirs.contains(&normalize(parent)))
                 {
+                    self.record_error(path, error.kind());
                     self.entry_error(path);
                 }
                 false
@@ -542,6 +567,7 @@ fn get_zcode_files(scan: &mut Scan<'_>, home: &Path, env: &Environment) -> Vec<P
             Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or(Value::Null),
             Err(error) => {
                 if error.kind() != ErrorKind::NotFound {
+                    scan.record_error(path, error.kind());
                     scan.entry_error(path);
                 }
                 Value::Null
@@ -602,6 +628,28 @@ fn get_zcode_files(scan: &mut Scan<'_>, home: &Path, env: &Environment) -> Vec<P
     files
 }
 
+fn windows_app_data(home: &Path, env: &Environment) -> [PathBuf; 2] {
+    [
+        env.absolute("APPDATA", home.join("AppData/Roaming")),
+        env.absolute("LOCALAPPDATA", home.join("AppData/Local")),
+    ]
+}
+
+fn mimo_desktop_root(home: &Path, env: &Environment) -> Option<PathBuf> {
+    (env.platform == "win32").then(|| {
+        env.absolute("APPDATA", home.join("AppData/Roaming"))
+            .join("Xiaomi MiMo/mimocode")
+    })
+}
+
+fn kimi_desktop_roots(home: &Path, env: &Environment) -> impl Iterator<Item = PathBuf> {
+    (env.platform == "win32")
+        .then(|| windows_app_data(home, env))
+        .into_iter()
+        .flatten()
+        .flat_map(|base| [base.join("kimi"), base.join("Kimi")])
+}
+
 /// Metadata for the same configured roots used by discovery. This never walks directories.
 pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<PathBuf> {
     let normalized;
@@ -611,7 +659,6 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
     } else {
         home
     };
-    let roaming = || env.absolute("APPDATA", home.join("AppData/Roaming"));
     let local = || env.absolute("LOCALAPPDATA", home.join("AppData/Local"));
     let parents = |paths: Vec<PathBuf>| {
         paths
@@ -730,7 +777,7 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
                 _ if base.is_absolute() => vec![base],
                 _ => vec![],
             };
-            roots.push(roaming().join("Xiaomi MiMo/mimocode"));
+            roots.extend(mimo_desktop_root(home, env));
             roots
         }
         "kimi" => vec![
@@ -739,13 +786,10 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from)
                 .unwrap_or_else(|| home.join(".kimi")),
-            roaming().join("kimi"),
-            roaming().join("Kimi"),
-            local().join("kimi"),
-            local().join("Kimi"),
-            home.join(".config/kimi"),
         ]
         .into_iter()
+        .chain(kimi_desktop_roots(home, env))
+        .chain([home.join(".config/kimi")])
         .filter(|p| p.is_absolute())
         .collect(),
         "minimax" => match env.get("MINIMAX_DATA_DIR").filter(|s| !s.is_empty()) {
@@ -779,27 +823,102 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
     .collect()
 }
 
-pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, Vec<PathBuf>)>> {
-    Ok(discover_profiled(home, env, None).files)
+fn describe_tool(
+    scan: &Scan<'_>,
+    home: &Path,
+    env: &Environment,
+    source: &str,
+    files: &[PathBuf],
+    errors: &[(PathBuf, ErrorKind)],
+) -> StatsDiscoveredTool {
+    let mut seen = HashSet::new();
+    let roots: Vec<_> = scan_roots(home, env, source)
+        .into_iter()
+        .filter(|path| seen.insert(path.clone()))
+        .collect();
+    let mut counts = vec![0; roots.len()];
+    for file in files {
+        let file = normalize(file);
+        // A general search root can contain a more specific candidate directory.
+        if let Some((index, _)) = roots
+            .iter()
+            .enumerate()
+            .filter(|(_, dir)| file.starts_with(dir))
+            .max_by_key(|(_, dir)| dir.components().count())
+        {
+            counts[index] += 1;
+        }
+    }
+    let directories: Vec<_> = roots
+        .iter()
+        .zip(counts)
+        .map(|(dir, files)| {
+            let exists = scan.allowed(dir).unwrap_or(false) && dir.is_dir();
+            let failures = || {
+                errors
+                    .iter()
+                    .filter(|(path, _)| path.starts_with(dir) || dir.starts_with(path))
+            };
+            let status = if files > 0 {
+                "found"
+            } else if failures().any(|(_, kind)| *kind == ErrorKind::PermissionDenied) {
+                "permission_denied"
+            } else if failures().next().is_some() {
+                "io_error"
+            } else {
+                "missing"
+            };
+            StatsLogDirectory {
+                path: dir.to_string_lossy().into_owned(),
+                status: status.into(),
+                files,
+                exists,
+            }
+        })
+        .collect();
+    let has_status = |status| directories.iter().any(|dir| dir.status == status);
+    let status = if has_status("found") {
+        "found"
+    } else if has_status("permission_denied") {
+        "permission_denied"
+    } else if has_status("io_error") {
+        "io_error"
+    } else {
+        "missing"
+    };
+    StatsDiscoveredTool {
+        source: source.into(),
+        status: status.into(),
+        directories,
+        profile: None,
+    }
 }
 
-pub(super) struct Discovery {
+pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, Vec<PathBuf>)>> {
+    Ok(discover_profiled(home, env, None, false).files)
+}
+
+pub(crate) struct Discovery {
     pub files: Vec<(String, Vec<PathBuf>)>,
     pub issues: Vec<DiscoveryIssue>,
+    pub tools: Vec<StatsDiscoveredTool>,
 }
 
-pub(super) fn discover_profiled(
+pub(crate) fn discover_profiled(
     home: &Path,
     env: &Environment,
     mut source_ns: Option<&mut BTreeMap<String, u64>>,
+    include_tools: bool,
 ) -> Discovery {
     let home = normalize(home);
     let home = home.as_path();
     let mut out = Discovery {
         files: Vec::new(),
         issues: Vec::new(),
+        tools: Vec::new(),
     };
     let mut scan = Scan::new(home, env);
+    scan.path_errors = include_tools.then(Vec::new);
     let mut started = source_ns.is_some().then(Instant::now);
     let mut add = |scan: &mut Scan<'_>, source: &str, files: Vec<PathBuf>| {
         let mut unique = Vec::new();
@@ -811,6 +930,10 @@ pub(super) fn discover_profiled(
             {
                 unique.push(file);
             }
+        }
+        if let Some(errors) = scan.path_errors.as_mut().map(std::mem::take) {
+            out.tools
+                .push(describe_tool(scan, home, env, source, &unique, &errors));
         }
         out.files.push((source.into(), unique));
         let issue = scan.take_issue(source);
@@ -916,11 +1039,9 @@ pub(super) fn discover_profiled(
     );
     add(&mut scan, "openclaw", files);
     let mut files = get_mimocode_db_paths(&mut scan, home, env);
-    files.extend(glob(
-        &mut scan,
-        &env.absolute("APPDATA", home.join("AppData/Roaming")),
-        "Xiaomi MiMo/mimocode/mimocode.db",
-    ));
+    if let Some(root) = mimo_desktop_root(home, env) {
+        files.extend(glob(&mut scan, &root, "mimocode.db"));
+    }
     add(&mut scan, "mimo", files);
     let mut files = glob(
         &mut scan,
@@ -935,15 +1056,14 @@ pub(super) fn discover_profiled(
     if share.is_absolute() {
         files.extend(glob(&mut scan, &share, "{sessions,logs}/**/*.{json,jsonl}"));
     }
-    for base in [
-        env.absolute("APPDATA", home.join("AppData/Roaming")),
-        env.absolute("LOCALAPPDATA", home.join("AppData/Local")),
-    ] {
-        files.extend(glob(
-            &mut scan,
-            &base,
-            "{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}",
-        ));
+    if env.platform == "win32" {
+        for base in windows_app_data(home, env) {
+            files.extend(glob(
+                &mut scan,
+                &base,
+                "{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}",
+            ));
+        }
     }
     files.extend(glob(
         &mut scan,
@@ -1398,3 +1518,7 @@ mod b3_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "discovery_s3_tests.rs"]
+mod s3_tests;

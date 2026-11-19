@@ -375,18 +375,40 @@ pub fn reread(
     .map(|(result, _)| result)
 }
 
+pub(crate) enum Progress<'a> {
+    Discovering {
+        first_sync: bool,
+    },
+    Reading {
+        source: &'a str,
+        index: usize,
+        total: usize,
+    },
+    FileRead,
+}
+
 pub(crate) fn sync_triggered(
     data: &Path,
     home: &Path,
     environment: &Environment,
     clock: Clock,
-    zone: &LocalZone,
     cancel: &AtomicBool,
     trigger: &'static str,
+    progress: &mut dyn FnMut(Progress<'_>),
 ) -> Result<Value> {
     let mut options = SyncOptions::new(trigger == "reread");
     options.trigger = Some(trigger);
-    sync_profiled(data, home, environment, clock, zone, cancel, options).map(|(result, _)| result)
+    options.progress = Some(progress);
+    sync_profiled(
+        data,
+        home,
+        environment,
+        clock,
+        &LocalZone::System,
+        cancel,
+        options,
+    )
+    .map(|(result, _)| result)
 }
 
 // Rust-only entry point for the synthetic benchmark. Discovery uses no process overrides.
@@ -419,20 +441,22 @@ enum CacheUpdate {
 }
 
 #[derive(Default)]
-struct SyncOptions {
+struct SyncOptions<'a> {
     no_cache: bool,
     trigger: Option<&'static str>,
+    progress: Option<&'a mut dyn FnMut(Progress<'_>)>,
     #[cfg(test)]
     revisions: Option<Revisions>,
     #[cfg(test)]
     after_parse: Option<fn(&Path)>,
 }
 
-impl SyncOptions {
+impl SyncOptions<'_> {
     fn new(no_cache: bool) -> Self {
         Self {
             no_cache,
             trigger: None,
+            progress: None,
             #[cfg(test)]
             revisions: None,
             #[cfg(test)]
@@ -479,12 +503,17 @@ fn sync_profiled(
     clock: Clock,
     zone: &LocalZone,
     cancel: &AtomicBool,
-    options: SyncOptions,
+    mut options: SyncOptions<'_>,
 ) -> Result<(Value, Value)> {
     let started = Instant::now();
     let log = crate::diagnostics::RuntimeLog::new(data, Some(home));
     let _lock = SyncLock::acquire(data)?;
     let ledger = Ledger::open(&data.join("ledger.db"), clock)?;
+    if let Some(progress) = options.progress.as_deref_mut() {
+        progress(Progress::Discovering {
+            first_sync: !ledger.has_successful_sync()?,
+        });
+    }
     let run = ledger.begin_run_triggered(options.trigger)?;
     let mut source_results = json!({});
     let result = (|| {
@@ -493,7 +522,7 @@ fn sync_profiled(
         let mut source_discovery = BTreeMap::new();
         let start = Instant::now();
         let discovered =
-            discovery::discover_profiled(home, environment, Some(&mut source_discovery));
+            discovery::discover_profiled(home, environment, Some(&mut source_discovery), false);
         phases.discovery_ns = start.elapsed().as_nanos() as u64;
         for issue in discovered.issues {
             let counts = issue
@@ -510,7 +539,18 @@ fn sync_profiled(
                 source_results[format!("sync_source.{}", issue.source)] = json!(2);
             }
         }
-        for (source, files) in discovered.files {
+        let total = discovered.files.len();
+        for (index, (source, files)) in discovered.files.into_iter().enumerate() {
+            if cancel.load(Ordering::Acquire) {
+                return Err(Error("cancelled".into()));
+            }
+            if let Some(progress) = options.progress.as_deref_mut() {
+                progress(Progress::Reading {
+                    source: &source,
+                    index: index + 1,
+                    total,
+                });
+            }
             let source_started = Instant::now();
             let source_files = files.len();
             let anomaly_count = totals["anomalies"].as_array().unwrap().len();
@@ -601,14 +641,18 @@ fn sync_profiled(
                         }
                     }
                     phases.parsed_files += 1;
-                    match adapters::parse_profiled(
+                    let parsed_file = adapters::parse_profiled(
                         &source,
                         &file,
                         path,
                         zone,
                         environment.preview.then_some(home),
                         &mut phases.adapter,
-                    ) {
+                    );
+                    if let Some(progress) = options.progress.as_deref_mut() {
+                        progress(Progress::FileRead);
+                    }
+                    match parsed_file {
                         Ok((mut records, mut notes)) => {
                             #[cfg(test)]
                             if let Some(after_parse) = options.after_parse {

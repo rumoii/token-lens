@@ -14,6 +14,7 @@ import 'logic/tool_order.dart';
 import 'logic/tools.dart';
 import 'theme/palette.dart';
 import 'widgets/primitives.dart';
+import 'widgets/sync_status.dart';
 import 'widgets/session_usage.dart';
 import 'widgets/charts.dart';
 import 'widgets/date_range.dart';
@@ -27,10 +28,12 @@ class StatsHome extends StatefulWidget {
     required this.onSessions,
     required this.onSources,
     required this.onSettings,
+    this.onManageHidden,
   });
   final StatsController controller;
   final ValueChanged<Map<String, String>> onDetail, onSessions;
   final VoidCallback onSources, onSettings;
+  final VoidCallback? onManageHidden;
   @override
   State<StatsHome> createState() => _StatsHomeState();
 }
@@ -163,12 +166,22 @@ class _StatsHomeState extends State<StatsHome> {
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          greet,
-          style: p
-              .serif(narrow ? 26 : 30, weight: FontWeight.w500)
-              .copyWith(height: 1.25, letterSpacing: -.3),
+        StatsSyncTitle(
+          controller: c,
+          title: Text(
+            greet,
+            style: p
+                .serif(narrow ? 26 : 30, weight: FontWeight.w500)
+                .copyWith(height: 1.25, letterSpacing: -.3),
+          ),
         ),
+        if (c.firstSyncRunning)
+          Text(
+            context.strings.progressFirstHint,
+            style: p.text(13, p.secondary),
+          ),
+        if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
+          StatsHiddenNotice(controller: c, onManage: widget.onManageHidden!),
         const SizedBox(height: 6),
         DefaultTextStyle(
           style: p.text(15, p.secondary).copyWith(height: 1.7),
@@ -184,7 +197,10 @@ class _StatsHomeState extends State<StatsHome> {
             children: [
               Expanded(child: title),
               const SizedBox(width: 24),
-              controls(),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: box.maxWidth - 420 - 24),
+                child: Align(alignment: Alignment.topRight, child: controls()),
+              ),
             ],
           );
         }
@@ -232,14 +248,15 @@ class _StatsHomeState extends State<StatsHome> {
   Widget build(BuildContext context) {
     final data = c.overview;
     final banner = <Widget>[
-      if (c.syncError == null && c.syncFailed)
-        failure(context.strings.theLastSyncDidNotFinish, sync: true),
-      if (c.syncError != null) failure(c.syncError!, sync: true),
-      if (c.warning != null)
-        Text(
-          context.strings.syncFinishedWithWarnings(c.warning),
-          style: p.text(13.5, p['warn']),
-        ),
+      if (c.fullSyncRunning || c.syncReceipt != null)
+        StatsSyncBanner(controller: c, onSources: widget.onSources)
+      else if (c.phase == StatsSyncPhase.idle &&
+          c.syncError != null &&
+          ![
+            'failed',
+            'abandoned',
+          ].contains(c.overview?.sources.lastRun?.status))
+        failure(c.syncError!, sync: true),
       if (c.error != null) failure(c.error!),
     ];
     if (data == null) {
@@ -263,9 +280,15 @@ class _StatsHomeState extends State<StatsHome> {
     final rank = digest.rank, models = digest.models;
     final order = sortByToolOrder(
       rank.map((g) => g.id).toList(),
-      sourceSequence(data.sources.sources),
+      sourceSequence(
+        data.sources.sources.where((s) => !c.isHidden(s.source)).toList(),
+      ),
     );
-    final slots = assignToolColors(sourceSequence(data.sources.sources));
+    final slots = assignToolColors(
+      sourceSequence(
+        data.sources.sources.where((s) => !c.isHidden(s.source)).toList(),
+      ),
+    );
     final period = data.period, now = c.clock();
     final compare = period.compare(now, context.strings);
     final buckets = buildBuckets(data.matrix.rows, data.axis, now);

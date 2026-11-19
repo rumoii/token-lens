@@ -21,6 +21,7 @@ class UiPreferences {
     this.updateLastAttemptMs,
     this.updateResult,
     this.updateIgnoredVersion,
+    this.hiddenTools = const [],
   }); // Null keeps the language default implicit.
 
   final String appearance, tokenMode, currency, language;
@@ -44,6 +45,7 @@ class UiPreferences {
   final int? updateLastAttemptMs;
   final UpdateResult? updateResult;
   final String? updateIgnoredVersion;
+  final List<String> hiddenTools;
   static const _unchanged = Object();
 
   static Map<String, num> _rates(Object? value) {
@@ -75,6 +77,7 @@ class UiPreferences {
     Object? updateLastAttemptMs = _unchanged,
     Object? updateResult = _unchanged,
     Object? updateIgnoredVersion = _unchanged,
+    List<String>? hiddenTools,
   }) => UiPreferences(
     appearance: appearance ?? this.appearance,
     tokenMode: tokenMode ?? this.tokenMode,
@@ -95,6 +98,9 @@ class UiPreferences {
     updateResult: identical(updateResult, _unchanged)
         ? this.updateResult
         : updateResult as UpdateResult?,
+    hiddenTools: hiddenTools == null
+        ? this.hiddenTools
+        : List.unmodifiable(hiddenTools),
     updateIgnoredVersion: identical(updateIgnoredVersion, _unchanged)
         ? this.updateIgnoredVersion
         : UpdateVersion.parse(updateIgnoredVersion)?.value,
@@ -156,6 +162,11 @@ class UiPreferences {
             : true,
         updateLastAttemptMs: _fetchedAt(value['updateLastAttemptMs']),
         updateResult: _updateResult(value),
+        hiddenTools: value['hiddenTools'] is List
+            ? List.unmodifiable(
+                (value['hiddenTools'] as List).whereType<String>().toSet(),
+              )
+            : const [],
         updateIgnoredVersion: UpdateVersion.parse(value['updateIgnoredVersion'])
             ?.value,
       );
@@ -166,6 +177,7 @@ class UiPreferences {
 
   String encode() => jsonEncode({
     'appearance': appearance,
+    'hiddenTools': hiddenTools,
     'tokenMode': tokenMode,
     if (_unitSystem != null) 'unitSystem': _unitSystem,
     'language': _language(language),

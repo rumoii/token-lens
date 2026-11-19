@@ -80,6 +80,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -110,7 +113,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsSessionDetail dco_decode_box_autoadd_stats_session_detail(dynamic raw);
 
   @protected
+  StatsSource dco_decode_box_autoadd_stats_source(dynamic raw);
+
+  @protected
   StatsSourceRun dco_decode_box_autoadd_stats_source_run(dynamic raw);
+
+  @protected
+  StatsSyncProgress dco_decode_box_autoadd_stats_sync_progress(dynamic raw);
 
   @protected
   StatsTimeOfDay dco_decode_box_autoadd_stats_time_of_day(dynamic raw);
@@ -168,10 +177,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<StatsDiscoveredTool> dco_decode_list_stats_discovered_tool(dynamic raw);
+
+  @protected
   List<StatsDiscoveryIssue> dco_decode_list_stats_discovery_issue(dynamic raw);
 
   @protected
   List<StatsGroup> dco_decode_list_stats_group(dynamic raw);
+
+  @protected
+  List<StatsLogDirectory> dco_decode_list_stats_log_directory(dynamic raw);
 
   @protected
   List<StatsModelPrice> dco_decode_list_stats_model_price(dynamic raw);
@@ -227,6 +242,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -253,7 +271,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsSource? dco_decode_opt_box_autoadd_stats_source(dynamic raw);
+
+  @protected
   StatsSourceRun? dco_decode_opt_box_autoadd_stats_source_run(dynamic raw);
+
+  @protected
+  StatsSyncProgress? dco_decode_opt_box_autoadd_stats_sync_progress(
+    dynamic raw,
+  );
 
   @protected
   StatsTimeOfDay? dco_decode_opt_box_autoadd_stats_time_of_day(dynamic raw);
@@ -318,6 +344,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsDiscoveredSource dco_decode_stats_discovered_source(dynamic raw);
 
   @protected
+  StatsDiscoveredTool dco_decode_stats_discovered_tool(dynamic raw);
+
+  @protected
   StatsDiscovery dco_decode_stats_discovery(dynamic raw);
 
   @protected
@@ -331,6 +360,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsHealth dco_decode_stats_health(dynamic raw);
+
+  @protected
+  StatsLogDirectory dco_decode_stats_log_directory(dynamic raw);
 
   @protected
   StatsMatrix dco_decode_stats_matrix(dynamic raw);
@@ -418,6 +450,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsSync dco_decode_stats_sync(dynamic raw);
+
+  @protected
+  StatsSyncProgress dco_decode_stats_sync_progress(dynamic raw);
 
   @protected
   StatsThroughput dco_decode_stats_throughput(dynamic raw);
@@ -509,6 +544,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
@@ -547,7 +585,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsSource sse_decode_box_autoadd_stats_source(SseDeserializer deserializer);
+
+  @protected
   StatsSourceRun sse_decode_box_autoadd_stats_source_run(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSyncProgress sse_decode_box_autoadd_stats_sync_progress(
     SseDeserializer deserializer,
   );
 
@@ -615,12 +661,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<StatsDiscoveredTool> sse_decode_list_stats_discovered_tool(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<StatsDiscoveryIssue> sse_decode_list_stats_discovery_issue(
     SseDeserializer deserializer,
   );
 
   @protected
   List<StatsGroup> sse_decode_list_stats_group(SseDeserializer deserializer);
+
+  @protected
+  List<StatsLogDirectory> sse_decode_list_stats_log_directory(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<StatsModelPrice> sse_decode_list_stats_model_price(
@@ -692,6 +748,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
@@ -728,7 +787,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsSource? sse_decode_opt_box_autoadd_stats_source(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsSourceRun? sse_decode_opt_box_autoadd_stats_source_run(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSyncProgress? sse_decode_opt_box_autoadd_stats_sync_progress(
     SseDeserializer deserializer,
   );
 
@@ -817,6 +886,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsDiscoveredTool sse_decode_stats_discovered_tool(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsDiscovery sse_decode_stats_discovery(SseDeserializer deserializer);
 
   @protected
@@ -832,6 +906,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsHealth sse_decode_stats_health(SseDeserializer deserializer);
+
+  @protected
+  StatsLogDirectory sse_decode_stats_log_directory(
+    SseDeserializer deserializer,
+  );
 
   @protected
   StatsMatrix sse_decode_stats_matrix(SseDeserializer deserializer);
@@ -933,6 +1012,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsSync sse_decode_stats_sync(SseDeserializer deserializer);
 
   @protected
+  StatsSyncProgress sse_decode_stats_sync_progress(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsThroughput sse_decode_stats_throughput(SseDeserializer deserializer);
 
   @protected
@@ -1029,6 +1113,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -1086,8 +1173,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_stats_source(
+    StatsSource self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_stats_source_run(
     StatsSourceRun self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_sync_progress(
+    StatsSyncProgress self,
     SseSerializer serializer,
   );
 
@@ -1179,6 +1278,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_stats_discovered_tool(
+    List<StatsDiscoveredTool> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_stats_discovery_issue(
     List<StatsDiscoveryIssue> self,
     SseSerializer serializer,
@@ -1187,6 +1292,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_stats_group(
     List<StatsGroup> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_log_directory(
+    List<StatsLogDirectory> self,
     SseSerializer serializer,
   );
 
@@ -1278,6 +1389,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
 
   @protected
@@ -1323,8 +1437,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_stats_source(
+    StatsSource? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_stats_source_run(
     StatsSourceRun? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_stats_sync_progress(
+    StatsSyncProgress? self,
     SseSerializer serializer,
   );
 
@@ -1434,6 +1560,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_stats_discovered_tool(
+    StatsDiscoveredTool self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_stats_discovery(
     StatsDiscovery self,
     SseSerializer serializer,
@@ -1453,6 +1585,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_stats_health(StatsHealth self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_log_directory(
+    StatsLogDirectory self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stats_matrix(StatsMatrix self, SseSerializer serializer);
@@ -1585,6 +1723,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_stats_sync(StatsSync self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_sync_progress(
+    StatsSyncProgress self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stats_throughput(

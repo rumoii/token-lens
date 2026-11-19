@@ -70,6 +70,7 @@ class _StatsPageState extends State<StatsPage> {
 
   void navigate(String target, [Map<String, String> params = const {}]) {
     scaffold.currentState?.closeDrawer();
+    params = widget.controller.visibleQuery({...params});
     setState(() {
       page = target;
       query = target == 'detail'
@@ -82,6 +83,8 @@ class _StatsPageState extends State<StatsPage> {
           : Uri(queryParameters: params).query;
     });
   }
+
+  void manageHidden() => navigate('sources', {'filter': 'hidden'});
 
   void openUpdate() {
     navigate('settings');
@@ -129,9 +132,10 @@ class _StatsPageState extends State<StatsPage> {
     final p = LensPalette.of(context), c = widget.controller;
     final entries =
         <String, int>{
-          for (final s in c.overview?.sources.sources ?? []) s.source: 0,
+          for (final s in c.overview?.sources.sources ?? [])
+            if (!c.isHidden(s.source)) s.source: 0,
           for (final g in c.overview?.sidebar.groups ?? [])
-            if (g.key != null) g.key!: g.grossTokens,
+            if (g.key != null && !c.isHidden(g.key)) g.key!: g.grossTokens,
         }.entries.toList()..sort((a, b) {
           final delta = b.value - a.value;
           return delta != 0 ? delta : a.key.compareTo(b.key);
@@ -290,6 +294,7 @@ class _StatsPageState extends State<StatsPage> {
                                         ),
                                         () => navigate(target),
                                         active: page == target,
+                                        key: ValueKey('nav-$target'),
                                         trailing:
                                             target == 'news' &&
                                                 widget.newsListenable != null &&
@@ -345,6 +350,7 @@ class _StatsPageState extends State<StatsPage> {
                                     'tool': entry.key,
                                     'dim': 'model',
                                   }),
+                                  key: ValueKey('sidebar-tool-${entry.key}'),
                                   trailing: Text(
                                     percentage(
                                       total > 0 ? entry.value / total : 0,
@@ -464,6 +470,12 @@ class _StatsPageState extends State<StatsPage> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.controller,
     builder: (context, _) {
+      if (query.isNotEmpty && widget.controller.hiddenTools.isNotEmpty) {
+        final params = Uri.splitQueryString(query);
+        final count = params.length;
+        widget.controller.visibleQuery(params);
+        if (params.length != count) query = Uri(queryParameters: params).query;
+      }
       final p = LensPalette.of(context);
       final narrow = MediaQuery.sizeOf(context).width < 768;
       return FocusTraversalGroup(
@@ -564,6 +576,7 @@ class _StatsPageState extends State<StatsPage> {
                                                       navigate('sessions', p),
                                                   onSources: () =>
                                                       navigate('sources'),
+                                                  onManageHidden: manageHidden,
                                                   onSettings: () =>
                                                       navigate('settings'),
                                                 )
@@ -571,6 +584,9 @@ class _StatsPageState extends State<StatsPage> {
                                               ? StatsDetail(
                                                   controller: widget.controller,
                                                   openLink: widget.openLink,
+                                                  onSources: () =>
+                                                      navigate('sources'),
+                                                  onManageHidden: manageHidden,
                                                   onSessions: (p) =>
                                                       navigate('sessions', p),
                                                   query: query,
@@ -594,6 +610,9 @@ class _StatsPageState extends State<StatsPage> {
                                               : page == 'sessions'
                                               ? StatsSessionsPage(
                                                   controller: widget.controller,
+                                                  onSources: () =>
+                                                      navigate('sources'),
+                                                  onManageHidden: manageHidden,
                                                   query: query,
                                                   onQuery: (value) => setState(
                                                     () => query = value,
@@ -607,6 +626,7 @@ class _StatsPageState extends State<StatsPage> {
                                               : page == 'sources'
                                               ? StatsSourcesPage(
                                                   controller: widget.controller,
+                                                  openLink: widget.openLink,
                                                   query: query,
                                                   onDetail: (params) =>
                                                       navigate(

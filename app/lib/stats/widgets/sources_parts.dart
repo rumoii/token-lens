@@ -20,7 +20,7 @@ TextStyle _sourceText(
   Color? color,
   FontWeight weight = FontWeight.w400,
 ]) => p.text(size, color, weight).copyWith(height: 1.5, letterSpacing: 0);
-String _relative(String? iso, DateTime now, AppStrings strings) {
+String sourceRelativeTime(String? iso, DateTime now, AppStrings strings) {
   final then = DateTime.tryParse(iso ?? '');
   if (then == null) return '—';
   final minutes = (now.difference(then).inMilliseconds / 60000 + .5).floor();
@@ -229,7 +229,7 @@ class SourcesSyncStatus extends StatelessWidget {
                         Text(
                           problem ??
                               context.strings.synced0NoIssues(
-                                _relative(
+                                sourceRelativeTime(
                                   run!.finishedAt,
                                   c.clock(),
                                   context.strings,
@@ -433,12 +433,13 @@ class SourcesToolCard extends StatelessWidget {
     super.key,
     required this.item,
     this.permissionDenied = false,
+    this.showHeading = true,
     required this.monthTokens,
     required this.controller,
     required this.onDetail,
   });
   final StatsSource item;
-  final bool permissionDenied;
+  final bool permissionDenied, showHeading;
   final int monthTokens;
   final StatsController controller;
   final VoidCallback onDetail;
@@ -535,78 +536,84 @@ class SourcesToolCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              ToolTile(item.source, size: 40),
-              const SizedBox(width: 12),
-              Expanded(
-                child: stack([
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        toolOf(item.source).name,
-                        style: _sourceText(p, 15, null, FontWeight.w600),
-                      ),
-                      _Pill(context.strings.supported, tone: 'ok', check: true),
-                    ],
-                  ),
-                  Wrap(
-                    runSpacing: 2,
-                    children: [
-                      Text(
-                        context.strings.lastUsed0(
-                          _relative(
-                            item.lastObservedAt,
-                            controller.clock(),
-                            context.strings,
+          if (showHeading) ...[
+            Row(
+              children: [
+                ToolTile(item.source, size: 40),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: stack([
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          toolOf(item.source).name,
+                          style: _sourceText(p, 15, null, FontWeight.w600),
+                        ),
+                        _Pill(
+                          context.strings.supported,
+                          tone: 'ok',
+                          check: true,
+                        ),
+                      ],
+                    ),
+                    Wrap(
+                      runSpacing: 2,
+                      children: [
+                        Text(
+                          context.strings.lastUsed0(
+                            sourceRelativeTime(
+                              item.lastObservedAt,
+                              controller.clock(),
+                              context.strings,
+                            ),
                           ),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: _sourceText(p, 12.5, p.muted),
                         ),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: _sourceText(p, 12.5, p.muted),
-                      ),
-                      Text(
-                        context.strings.sourceMonthlyTokens(
-                          tokenCount(
-                            monthTokens,
-                            mode: controller.preferences.tokenMode,
-                            unitSystem: controller.unitSystem,
+                        Text(
+                          context.strings.sourceMonthlyTokens(
+                            tokenCount(
+                              monthTokens,
+                              mode: controller.preferences.tokenMode,
+                              unitSystem: controller.unitSystem,
+                            ),
                           ),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: _sourceText(p, 12.5, p.muted),
                         ),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: _sourceText(p, 12.5, p.muted),
-                      ),
-                      Text(
-                        context.strings.sourceRecordCount(
-                          toDisplayNumber(item.records),
+                        Text(
+                          context.strings.sourceRecordCount(
+                            toDisplayNumber(item.records),
+                          ),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: _sourceText(p, 12.5, p.muted),
                         ),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: _sourceText(p, 12.5, p.muted),
-                      ),
-                    ],
-                  ),
-                ]),
-              ),
-              const SizedBox(width: 12),
-              Semantics(
-                link: true,
-                child: LensButton(
-                  label: context.strings.sourceViewUsage,
-                  size: 'link',
-                  variant: 'ghost',
-                  icon: Icons.arrow_forward,
-                  trailingIcon: true,
-                  onPressed: onDetail,
+                      ],
+                    ),
+                  ]),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+                const SizedBox(width: 12),
+                Semantics(
+                  link: true,
+                  child: LensButton(
+                    label: context.strings.sourceViewUsage,
+                    size: 'link',
+                    variant: 'ghost',
+                    icon: Icons.arrow_forward,
+                    trailingIcon: true,
+                    onPressed: onDetail,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           stack([
             field(
               context.strings.status,

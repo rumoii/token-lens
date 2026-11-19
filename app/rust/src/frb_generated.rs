@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 105180837;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1635324002;
 
 // Section: executor
 
@@ -1457,6 +1457,57 @@ fn wire__crate__api__stats__StatsClient_sync_impl(
         },
     )
 }
+fn wire__crate__api__stats__StatsClient_sync_progress_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_sync_progress",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Ok::<_, ()>(crate::api::stats::StatsClient::sync_progress(
+                        &*api_that_guard,
+                    ))?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats__StatsClient_sync_triggered_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1974,6 +2025,20 @@ impl SseDecode for Vec<crate::api::stats::StatsDiscoveredSource> {
     }
 }
 
+impl SseDecode for Vec<crate::api::stats::StatsDiscoveredTool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsDiscoveredTool>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::stats::StatsDiscoveryIssue> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1995,6 +2060,20 @@ impl SseDecode for Vec<crate::api::stats::StatsGroup> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::stats::StatsGroup>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::stats::StatsLogDirectory> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsLogDirectory>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -2251,6 +2330,17 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<bool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<bool>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<f64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2345,11 +2435,35 @@ impl SseDecode for Option<crate::api::stats::StatsSessionDetail> {
     }
 }
 
+impl SseDecode for Option<crate::api::stats::StatsSource> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::stats::StatsSource>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::stats::StatsSourceRun> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::stats::StatsSourceRun>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::stats::StatsSyncProgress> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::stats::StatsSyncProgress>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -2692,6 +2806,23 @@ impl SseDecode for crate::api::stats::StatsDiscoveredSource {
     }
 }
 
+impl SseDecode for crate::api::stats::StatsDiscoveredTool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_source = <String>::sse_decode(deserializer);
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_directories =
+            <Vec<crate::api::stats::StatsLogDirectory>>::sse_decode(deserializer);
+        let mut var_profile = <Option<crate::api::stats::StatsSource>>::sse_decode(deserializer);
+        return crate::api::stats::StatsDiscoveredTool {
+            source: var_source,
+            status: var_status,
+            directories: var_directories,
+            profile: var_profile,
+        };
+    }
+}
+
 impl SseDecode for crate::api::stats::StatsDiscovery {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2700,10 +2831,12 @@ impl SseDecode for crate::api::stats::StatsDiscovery {
         let mut var_supported = <i64>::sse_decode(deserializer);
         let mut var_discoveryIssues =
             <Option<Vec<crate::api::stats::StatsDiscoveryIssue>>>::sse_decode(deserializer);
+        let mut var_tools = <Vec<crate::api::stats::StatsDiscoveredTool>>::sse_decode(deserializer);
         return crate::api::stats::StatsDiscovery {
             sources: var_sources,
             supported: var_supported,
             discovery_issues: var_discoveryIssues,
+            tools: var_tools,
         };
     }
 }
@@ -2732,12 +2865,14 @@ impl SseDecode for crate::api::stats::StatsFilter {
         let mut var_source = <Option<String>>::sse_decode(deserializer);
         let mut var_model = <Option<String>>::sse_decode(deserializer);
         let mut var_project = <Option<String>>::sse_decode(deserializer);
+        let mut var_excludeSources = <Option<Vec<String>>>::sse_decode(deserializer);
         return crate::api::stats::StatsFilter {
             from: var_from,
             to: var_to,
             source: var_source,
             model: var_model,
             project: var_project,
+            exclude_sources: var_excludeSources,
         };
     }
 }
@@ -2802,6 +2937,22 @@ impl SseDecode for crate::api::stats::StatsHealth {
             data_dir: var_dataDir,
             ledger_path: var_ledgerPath,
             schema_version: var_schemaVersion,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsLogDirectory {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_path = <String>::sse_decode(deserializer);
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_files = <i64>::sse_decode(deserializer);
+        let mut var_exists = <bool>::sse_decode(deserializer);
+        return crate::api::stats::StatsLogDirectory {
+            path: var_path,
+            status: var_status,
+            files: var_files,
+            exists: var_exists,
         };
     }
 }
@@ -3351,6 +3502,7 @@ impl SseDecode for crate::api::stats::StatsSourceNote {
 impl SseDecode for crate::api::stats::StatsSourceRun {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <Option<i64>>::sse_decode(deserializer);
         let mut var_status = <String>::sse_decode(deserializer);
         let mut var_startedAt = <Option<String>>::sse_decode(deserializer);
         let mut var_finishedAt = <Option<String>>::sse_decode(deserializer);
@@ -3365,6 +3517,7 @@ impl SseDecode for crate::api::stats::StatsSourceRun {
             <Option<std::collections::HashMap<String, i64>>>::sse_decode(deserializer);
         let mut var_anomalies = <Vec<String>>::sse_decode(deserializer);
         return crate::api::stats::StatsSourceRun {
+            id: var_id,
             status: var_status,
             started_at: var_startedAt,
             finished_at: var_finishedAt,
@@ -3384,12 +3537,14 @@ impl SseDecode for crate::api::stats::StatsSourceRun {
 impl SseDecode for crate::api::stats::StatsSources {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_hasSuccessfulSync = <Option<bool>>::sse_decode(deserializer);
         let mut var_sources = <Vec<crate::api::stats::StatsSource>>::sse_decode(deserializer);
         let mut var_lastRun = <Option<crate::api::stats::StatsSourceRun>>::sse_decode(deserializer);
         let mut var_snapshot = <crate::api::stats::StatsSnapshot>::sse_decode(deserializer);
         let mut var_discoveryIssues =
             <Option<Vec<crate::api::stats::StatsDiscoveryIssue>>>::sse_decode(deserializer);
         return crate::api::stats::StatsSources {
+            has_successful_sync: var_hasSuccessfulSync,
             sources: var_sources,
             last_run: var_lastRun,
             snapshot: var_snapshot,
@@ -3462,6 +3617,28 @@ impl SseDecode for crate::api::stats::StatsSync {
             cached_files: var_cachedFiles,
             skipped_files: var_skippedFiles,
             duration_ms: var_durationMs,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsSyncProgress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_stage = <String>::sse_decode(deserializer);
+        let mut var_source = <Option<String>>::sse_decode(deserializer);
+        let mut var_index = <i64>::sse_decode(deserializer);
+        let mut var_total = <i64>::sse_decode(deserializer);
+        let mut var_filesRead = <i64>::sse_decode(deserializer);
+        let mut var_trigger = <String>::sse_decode(deserializer);
+        let mut var_firstSync = <Option<bool>>::sse_decode(deserializer);
+        return crate::api::stats::StatsSyncProgress {
+            stage: var_stage,
+            source: var_source,
+            index: var_index,
+            total: var_total,
+            files_read: var_filesRead,
+            trigger: var_trigger,
+            first_sync: var_firstSync,
         };
     }
 }
@@ -3749,21 +3926,27 @@ fn pde_ffi_dispatcher_primary_impl(
         25 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
         26 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
         27 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
+        28 => wire__crate__api__stats__StatsClient_sync_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => {
+        29 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        30 => {
             wire__crate__api__stats__StatsClient_timeseries_impl(port, ptr, rust_vec_len, data_len)
         }
-        30 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__diagnostics__write_runtime_error_impl(
+        31 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__diagnostics__write_runtime_error_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4101,12 +4284,36 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsDiscoveredSource>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsDiscoveredTool {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.source.into_into_dart().into_dart(),
+            self.status.into_into_dart().into_dart(),
+            self.directories.into_into_dart().into_dart(),
+            self.profile.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsDiscoveredTool
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsDiscoveredTool>
+    for crate::api::stats::StatsDiscoveredTool
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsDiscoveredTool {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsDiscovery {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.sources.into_into_dart().into_dart(),
             self.supported.into_into_dart().into_dart(),
             self.discovery_issues.into_into_dart().into_dart(),
+            self.tools.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4154,6 +4361,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsFilter {
             self.source.into_into_dart().into_dart(),
             self.model.into_into_dart().into_dart(),
             self.project.into_into_dart().into_dart(),
+            self.exclude_sources.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4224,6 +4432,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsHealth>
     for crate::api::stats::StatsHealth
 {
     fn into_into_dart(self) -> crate::api::stats::StatsHealth {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsLogDirectory {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.path.into_into_dart().into_dart(),
+            self.status.into_into_dart().into_dart(),
+            self.files.into_into_dart().into_dart(),
+            self.exists.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsLogDirectory
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsLogDirectory>
+    for crate::api::stats::StatsLogDirectory
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsLogDirectory {
         self
     }
 }
@@ -4857,6 +5088,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsSourceNote>
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSourceRun {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.id.into_into_dart().into_dart(),
             self.status.into_into_dart().into_dart(),
             self.started_at.into_into_dart().into_dart(),
             self.finished_at.into_into_dart().into_dart(),
@@ -4888,6 +5120,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsSourceRun>
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSources {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.has_successful_sync.into_into_dart().into_dart(),
             self.sources.into_into_dart().into_dart(),
             self.last_run.into_into_dart().into_dart(),
             self.snapshot.into_into_dart().into_dart(),
@@ -4977,6 +5210,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsSync>
     for crate::api::stats::StatsSync
 {
     fn into_into_dart(self) -> crate::api::stats::StatsSync {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSyncProgress {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.stage.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
+            self.index.into_into_dart().into_dart(),
+            self.total.into_into_dart().into_dart(),
+            self.files_read.into_into_dart().into_dart(),
+            self.trigger.into_into_dart().into_dart(),
+            self.first_sync.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsSyncProgress
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsSyncProgress>
+    for crate::api::stats::StatsSyncProgress
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsSyncProgress {
         self
     }
 }
@@ -5378,6 +5637,16 @@ impl SseEncode for Vec<crate::api::stats::StatsDiscoveredSource> {
     }
 }
 
+impl SseEncode for Vec<crate::api::stats::StatsDiscoveredTool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsDiscoveredTool>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::stats::StatsDiscoveryIssue> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5394,6 +5663,16 @@ impl SseEncode for Vec<crate::api::stats::StatsGroup> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::stats::StatsGroup>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::stats::StatsLogDirectory> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsLogDirectory>::sse_encode(item, serializer);
         }
     }
 }
@@ -5579,6 +5858,16 @@ impl SseEncode for Option<String> {
     }
 }
 
+impl SseEncode for Option<bool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <bool>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<f64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5659,12 +5948,32 @@ impl SseEncode for Option<crate::api::stats::StatsSessionDetail> {
     }
 }
 
+impl SseEncode for Option<crate::api::stats::StatsSource> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::stats::StatsSource>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::stats::StatsSourceRun> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::stats::StatsSourceRun>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::stats::StatsSyncProgress> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::stats::StatsSyncProgress>::sse_encode(value, serializer);
         }
     }
 }
@@ -5897,6 +6206,16 @@ impl SseEncode for crate::api::stats::StatsDiscoveredSource {
     }
 }
 
+impl SseEncode for crate::api::stats::StatsDiscoveredTool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.source, serializer);
+        <String>::sse_encode(self.status, serializer);
+        <Vec<crate::api::stats::StatsLogDirectory>>::sse_encode(self.directories, serializer);
+        <Option<crate::api::stats::StatsSource>>::sse_encode(self.profile, serializer);
+    }
+}
+
 impl SseEncode for crate::api::stats::StatsDiscovery {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5906,6 +6225,7 @@ impl SseEncode for crate::api::stats::StatsDiscovery {
             self.discovery_issues,
             serializer,
         );
+        <Vec<crate::api::stats::StatsDiscoveredTool>>::sse_encode(self.tools, serializer);
     }
 }
 
@@ -5927,6 +6247,7 @@ impl SseEncode for crate::api::stats::StatsFilter {
         <Option<String>>::sse_encode(self.source, serializer);
         <Option<String>>::sse_encode(self.model, serializer);
         <Option<String>>::sse_encode(self.project, serializer);
+        <Option<Vec<String>>>::sse_encode(self.exclude_sources, serializer);
     }
 }
 
@@ -5962,6 +6283,16 @@ impl SseEncode for crate::api::stats::StatsHealth {
         <String>::sse_encode(self.data_dir, serializer);
         <String>::sse_encode(self.ledger_path, serializer);
         <i64>::sse_encode(self.schema_version, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsLogDirectory {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.path, serializer);
+        <String>::sse_encode(self.status, serializer);
+        <i64>::sse_encode(self.files, serializer);
+        <bool>::sse_encode(self.exists, serializer);
     }
 }
 
@@ -6285,6 +6616,7 @@ impl SseEncode for crate::api::stats::StatsSourceNote {
 impl SseEncode for crate::api::stats::StatsSourceRun {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<i64>>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.status, serializer);
         <Option<String>>::sse_encode(self.started_at, serializer);
         <Option<String>>::sse_encode(self.finished_at, serializer);
@@ -6303,6 +6635,7 @@ impl SseEncode for crate::api::stats::StatsSourceRun {
 impl SseEncode for crate::api::stats::StatsSources {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<bool>>::sse_encode(self.has_successful_sync, serializer);
         <Vec<crate::api::stats::StatsSource>>::sse_encode(self.sources, serializer);
         <Option<crate::api::stats::StatsSourceRun>>::sse_encode(self.last_run, serializer);
         <crate::api::stats::StatsSnapshot>::sse_encode(self.snapshot, serializer);
@@ -6350,6 +6683,19 @@ impl SseEncode for crate::api::stats::StatsSync {
         <i64>::sse_encode(self.cached_files, serializer);
         <i64>::sse_encode(self.skipped_files, serializer);
         <i64>::sse_encode(self.duration_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsSyncProgress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.stage, serializer);
+        <Option<String>>::sse_encode(self.source, serializer);
+        <i64>::sse_encode(self.index, serializer);
+        <i64>::sse_encode(self.total, serializer);
+        <i64>::sse_encode(self.files_read, serializer);
+        <String>::sse_encode(self.trigger, serializer);
+        <Option<bool>>::sse_encode(self.first_sync, serializer);
     }
 }
 

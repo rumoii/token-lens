@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `for_cli`, `initialize`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -95,6 +95,8 @@ abstract class StatsClient implements RustOpaqueInterface {
   });
 
   Future<StatsSync> sync_();
+
+  Future<StatsSyncProgress?> syncProgress();
 
   Future<StatsSync> syncTriggered({required String trigger});
 
@@ -421,20 +423,56 @@ class StatsDiscoveredSource {
           files == other.files;
 }
 
+class StatsDiscoveredTool {
+  final String source;
+  final String status;
+  final List<StatsLogDirectory> directories;
+  final StatsSource? profile;
+
+  const StatsDiscoveredTool({
+    required this.source,
+    required this.status,
+    required this.directories,
+    this.profile,
+  });
+
+  @override
+  int get hashCode =>
+      source.hashCode ^
+      status.hashCode ^
+      directories.hashCode ^
+      profile.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsDiscoveredTool &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          status == other.status &&
+          directories == other.directories &&
+          profile == other.profile;
+}
+
 class StatsDiscovery {
   final List<StatsDiscoveredSource> sources;
   final int supported;
   final List<StatsDiscoveryIssue>? discoveryIssues;
+  final List<StatsDiscoveredTool> tools;
 
   const StatsDiscovery({
     required this.sources,
     required this.supported,
     this.discoveryIssues,
+    this.tools = const [],
   });
 
   @override
   int get hashCode =>
-      sources.hashCode ^ supported.hashCode ^ discoveryIssues.hashCode;
+      sources.hashCode ^
+      supported.hashCode ^
+      discoveryIssues.hashCode ^
+      tools.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -443,7 +481,8 @@ class StatsDiscovery {
           runtimeType == other.runtimeType &&
           sources == other.sources &&
           supported == other.supported &&
-          discoveryIssues == other.discoveryIssues;
+          discoveryIssues == other.discoveryIssues &&
+          tools == other.tools;
 }
 
 class StatsDiscoveryIssue {
@@ -483,6 +522,7 @@ class StatsFilter {
   final String? source;
   final String? model;
   final String? project;
+  final List<String>? excludeSources;
 
   const StatsFilter({
     this.from,
@@ -490,6 +530,7 @@ class StatsFilter {
     this.source,
     this.model,
     this.project,
+    this.excludeSources,
   });
 
   static Future<StatsFilter> default_() =>
@@ -501,7 +542,8 @@ class StatsFilter {
       to.hashCode ^
       source.hashCode ^
       model.hashCode ^
-      project.hashCode;
+      project.hashCode ^
+      excludeSources.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -512,7 +554,8 @@ class StatsFilter {
           to == other.to &&
           source == other.source &&
           model == other.model &&
-          project == other.project;
+          project == other.project &&
+          excludeSources == other.excludeSources;
 }
 
 class StatsGroup {
@@ -635,6 +678,34 @@ class StatsHealth {
           dataDir == other.dataDir &&
           ledgerPath == other.ledgerPath &&
           schemaVersion == other.schemaVersion;
+}
+
+class StatsLogDirectory {
+  final String path;
+  final String status;
+  final int files;
+  final bool exists;
+
+  const StatsLogDirectory({
+    required this.path,
+    required this.status,
+    required this.files,
+    required this.exists,
+  });
+
+  @override
+  int get hashCode =>
+      path.hashCode ^ status.hashCode ^ files.hashCode ^ exists.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsLogDirectory &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          status == other.status &&
+          files == other.files &&
+          exists == other.exists;
 }
 
 class StatsMatrix {
@@ -1653,6 +1724,7 @@ class StatsSourceNote {
 }
 
 class StatsSourceRun {
+  final int? id;
   final String status;
   final String? startedAt;
   final String? finishedAt;
@@ -1667,6 +1739,7 @@ class StatsSourceRun {
   final List<String> anomalies;
 
   const StatsSourceRun({
+    this.id,
     required this.status,
     this.startedAt,
     this.finishedAt,
@@ -1683,6 +1756,7 @@ class StatsSourceRun {
 
   @override
   int get hashCode =>
+      id.hashCode ^
       status.hashCode ^
       startedAt.hashCode ^
       finishedAt.hashCode ^
@@ -1701,6 +1775,7 @@ class StatsSourceRun {
       identical(this, other) ||
       other is StatsSourceRun &&
           runtimeType == other.runtimeType &&
+          id == other.id &&
           status == other.status &&
           startedAt == other.startedAt &&
           finishedAt == other.finishedAt &&
@@ -1716,12 +1791,14 @@ class StatsSourceRun {
 }
 
 class StatsSources {
+  final bool? hasSuccessfulSync;
   final List<StatsSource> sources;
   final StatsSourceRun? lastRun;
   final StatsSnapshot snapshot;
   final List<StatsDiscoveryIssue>? discoveryIssues;
 
   const StatsSources({
+    this.hasSuccessfulSync,
     required this.sources,
     this.lastRun,
     required this.snapshot,
@@ -1730,6 +1807,7 @@ class StatsSources {
 
   @override
   int get hashCode =>
+      hasSuccessfulSync.hashCode ^
       sources.hashCode ^
       lastRun.hashCode ^
       snapshot.hashCode ^
@@ -1740,6 +1818,7 @@ class StatsSources {
       identical(this, other) ||
       other is StatsSources &&
           runtimeType == other.runtimeType &&
+          hasSuccessfulSync == other.hasSuccessfulSync &&
           sources == other.sources &&
           lastRun == other.lastRun &&
           snapshot == other.snapshot &&
@@ -1877,6 +1956,49 @@ class StatsSync {
           cachedFiles == other.cachedFiles &&
           skippedFiles == other.skippedFiles &&
           durationMs == other.durationMs;
+}
+
+class StatsSyncProgress {
+  final String stage;
+  final String? source;
+  final int index;
+  final int total;
+  final int filesRead;
+  final String trigger;
+  final bool? firstSync;
+
+  const StatsSyncProgress({
+    required this.stage,
+    this.source,
+    required this.index,
+    required this.total,
+    required this.filesRead,
+    required this.trigger,
+    this.firstSync,
+  });
+
+  @override
+  int get hashCode =>
+      stage.hashCode ^
+      source.hashCode ^
+      index.hashCode ^
+      total.hashCode ^
+      filesRead.hashCode ^
+      trigger.hashCode ^
+      firstSync.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSyncProgress &&
+          runtimeType == other.runtimeType &&
+          stage == other.stage &&
+          source == other.source &&
+          index == other.index &&
+          total == other.total &&
+          filesRead == other.filesRead &&
+          trigger == other.trigger &&
+          firstSync == other.firstSync;
 }
 
 class StatsThroughput {

@@ -27,3 +27,13 @@ String? localizedWarnings(List<String> warnings, AppStrings strings) =>
     : warnings
           .map((warning) => localizedAnomaly(warning, strings))
           .join(strings.sentenceSeparator);
+
+String syncFailureMessage(Object failure, AppStrings strings) =>
+    failure.toString().contains("LEGACY_SYNC_LOCK")
+    ? strings.anOlderCollectorLockWasFoundClose
+    : strings.syncFailedPreviouslyCollectedDataIsStill;
+
+String syncFailureReason(String message, AppStrings strings) =>
+    message == strings.syncFailedPreviouslyCollectedDataIsStill
+    ? strings.progressEarlierDataPreserved
+    : message;

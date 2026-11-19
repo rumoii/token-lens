@@ -18,6 +18,7 @@ import 'widgets/filters.dart';
 import 'widgets/date_range.dart';
 import 'widgets/session_usage.dart';
 import 'widgets/primitives.dart';
+import 'widgets/sync_status.dart';
 import 'widgets/resource.dart';
 import 'widgets/side_panel.dart';
 import 'widgets/timing.dart';
@@ -59,11 +60,14 @@ class StatsSessionsPage extends StatefulWidget {
     required this.query,
     required this.onQuery,
     required this.onDetail,
+    this.onSources,
+    this.onManageHidden,
   });
   final StatsController controller;
   final String query;
   final ValueChanged<String> onQuery;
   final ValueChanged<Map<String, String>> onDetail;
+  final VoidCallback? onSources, onManageHidden;
   @override
   State<StatsSessionsPage> createState() => _StatsSessionsPageState();
 }
@@ -76,7 +80,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   String? cursor, _pageIdentity, _opened;
   bool _panel = false, _navigating = false;
   StatsController get c => widget.controller;
-  Map<String, String> get q => Uri.splitQueryString(widget.query);
+  Map<String, String> get q =>
+      c.visibleQuery(Uri.splitQueryString(widget.query));
+  String _scope = '';
   StatsPeriod get period => q.containsKey('period')
       ? StatsPeriod.parse(widget.query)
       : c.preferences.period;
@@ -121,12 +127,16 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
 
   StatsFilter get usageFilter {
     final range = period.range(c.clock()), params = q;
-    return StatsFilter(
-      from: range.from,
-      to: range.to,
-      source: params['tool']?.isNotEmpty == true ? params['tool'] : null,
-      project: params['project']?.isNotEmpty == true ? params['project'] : null,
-      model: params['model']?.isNotEmpty == true ? params['model'] : null,
+    return c.visibleFilter(
+      StatsFilter(
+        from: range.from,
+        to: range.to,
+        source: params['tool']?.isNotEmpty == true ? params['tool'] : null,
+        project: params['project']?.isNotEmpty == true
+            ? params['project']
+            : null,
+        model: params['model']?.isNotEmpty == true ? params['model'] : null,
+      ),
     );
   }
 
@@ -136,8 +146,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
 
   void refresh() {
     final params = q;
+    final scope = c.hiddenScope;
+    final retainData = scope == _scope;
+    _scope = scope;
     final identity =
-        '${c.ledgerVersion}|${params['tool']}|${params['project']}|${params['model']}|${period.query}|${period.range(c.clock())}';
+        '${c.ledgerVersion}|${params['tool']}|${params['project']}|${params['model']}|${period.query}|${period.range(c.clock())}|$scope';
     if (_pageIdentity != identity) {
       _pageIdentity = identity;
       history = [];
@@ -148,11 +161,14 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     page.read(
       '$identity|$cursor',
       () => c.gateway.sessions(filter, limit: 50, cursor: at),
+      retainData: retainData,
     );
     sources.read(c.ledgerVersion, () => c.gateway.sources());
     projects.read(
-      c.ledgerVersion,
-      () => c.gateway.breakdown('project', const StatsFilter()),
+      (c.ledgerVersion, scope),
+      () =>
+          c.gateway.breakdown('project', c.visibleFilter(const StatsFilter())),
+      retainData: retainData,
     );
   }
 
@@ -185,7 +201,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   }
 
   Future<void> open(String source, String sessionId) async {
-    if (_panel) return;
+    if (_panel || c.isHidden(source)) return;
     _panel = true;
     final found = items
         .where((r) => r.source == source && r.sessionId == sessionId)
@@ -268,7 +284,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         label: context.strings.tool,
         options: [
           for (final s in sources.data?.sources ?? <StatsSource>[])
-            if (s.records > 0)
+            if (s.records > 0 && !c.isHidden(s.source))
               FilterOption(s.source, toolOf(s.source).name, tool: s.source),
         ],
         onPick: (v) => filter('tool', v),
@@ -696,12 +712,21 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          context.strings.sessions,
-          style: p
-              .serif(narrow ? 24 : 28, weight: FontWeight.w500)
-              .copyWith(height: 1.25),
+        if (c.fullSyncRunning || c.syncReceipt != null) ...[
+          StatsSyncBanner(controller: c, onSources: widget.onSources),
+          SizedBox(height: narrow ? 12 : 16),
+        ],
+        StatsSyncTitle(
+          controller: c,
+          title: Text(
+            context.strings.sessions,
+            style: p
+                .serif(narrow ? 24 : 28, weight: FontWeight.w500)
+                .copyWith(height: 1.25),
+          ),
         ),
+        if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
+          StatsHiddenNotice(controller: c, onManage: widget.onManageHidden!),
         const SizedBox(height: 4),
         Text(
           scoped
@@ -855,15 +880,30 @@ class _SessionDetailState extends State<SessionDetail> {
   );
   void refresh() {
     final range = period.range(c.clock());
-    final filter = widget.filter ?? StatsFilter(from: range.from, to: range.to);
+    final scope = c.hiddenScope;
+    final filter = c.visibleFilter(
+      widget.filter ?? StatsFilter(from: range.from, to: range.to),
+    );
+    if (c.isHidden(widget.source) && widget.onLoaded != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !c.isHidden(widget.source)) return;
+        final route = ModalRoute.of(context);
+        if (route != null && route is RawDialogRoute && route.isActive) {
+          route.navigator?.removeRoute(route);
+        }
+      });
+    }
     detail.read(
-      '${widget.source}|${widget.sessionId}|${c.ledgerVersion}|${period.query}|${filter.from}|${filter.to}|${filter.source}|${filter.model}|${filter.project}',
-      () => c.gateway.sessionDetail(
-        widget.source,
-        widget.sessionId,
-        'day',
-        filter: filter,
-      ),
+      '${widget.source}|${widget.sessionId}|${c.ledgerVersion}|${period.query}|${filter.from}|${filter.to}|${filter.source}|${filter.model}|${filter.project}|$scope',
+      () => c.isHidden(widget.source)
+          ? Future.value(null)
+          : c.gateway.sessionDetail(
+              widget.source,
+              widget.sessionId,
+              'day',
+              filter: filter,
+            ),
+      retainData: !c.isHidden(widget.source),
     );
     if (mounted) setState(() {});
   }
@@ -981,7 +1021,12 @@ class _SessionDetailState extends State<SessionDetail> {
     ];
     final kindSum = kinds.fold<int>(0, (n, k) => n + (k ?? 0));
     final slots = assignToolColors(
-      sourceSequence(c.overview?.sources.sources ?? []),
+      sourceSequence(
+        c.overview?.sources.sources
+                .where((s) => !c.isHidden(s.source))
+                .toList() ??
+            [],
+      ),
     );
     Widget mini(String label, Widget v, {Key? key}) => Expanded(
       child: Container(
@@ -1562,7 +1607,7 @@ class _SessionDetailState extends State<SessionDetail> {
                 controller: c,
                 identity:
                     '${widget.source}|${widget.sessionId}|${c.ledgerVersion}',
-                filter: const StatsFilter(),
+                filter: c.visibleFilter(const StatsFilter()),
                 source: widget.source,
                 sessionId: widget.sessionId,
               ),

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import 'stats_gateway.dart';
 import 'stats/logic/period.dart';
+import 'stats/logic/tools.dart';
 import 'stats/preferences.dart';
 import 'update/update_check.dart';
 import 'update/update_controller.dart';
@@ -103,7 +104,137 @@ class StatsController extends ChangeNotifier {
   StatsSyncErrorKind? syncErrorKind;
   bool loading = false;
   bool sourcesReadSucceeded = false;
-  int ledgerVersion = 0;
+  int ledgerVersion = 0, syncDiscoveryRevision = 0;
+
+  Iterable<String> get hiddenTools =>
+      preferences.hiddenTools.where(tools.containsKey);
+  bool isHidden(String? source) =>
+      tools.containsKey(source) && preferences.hiddenTools.contains(source);
+  String get hiddenScope => hiddenTools.join(',');
+
+  StatsFilter visibleFilter(StatsFilter filter) {
+    final hidden = hiddenTools.toList();
+    if (hidden.isEmpty) return filter;
+    return StatsFilter(
+      from: filter.from,
+      to: filter.to,
+      source: filter.source,
+      model: filter.model,
+      project: filter.project,
+      excludeSources: hidden,
+    );
+  }
+
+  Future<void> setToolVisible(String source, bool visible) {
+    final ids = preferences.hiddenTools.toSet();
+    if (visible) {
+      ids.remove(source);
+    } else {
+      ids.add(source);
+    }
+    return setPreferences(preferences.copyWith(hiddenTools: ids.toList()));
+  }
+
+  Map<String, String> visibleQuery(Map<String, String> query) {
+    if (isHidden(query['tool'])) query.remove('tool');
+    if (isHidden(query['source'])) {
+      query.remove('source');
+      query.remove('session');
+    }
+    return query;
+  }
+
+  StatsSyncProgress? progress;
+  bool recentlySynced = false, _hasSucceeded = false;
+  int _syncId = 0;
+  String? _dismissedReceipt;
+  int _refreshedThrough = 0;
+  Timer? _progressTimer, _syncedTimer;
+  bool _pollingProgress = false;
+  bool get firstSyncRunning =>
+      phase == StatsSyncPhase.running &&
+      (progress?.firstSync ?? !(_hasSucceeded || syncSuccessful));
+  bool get fullSyncRunning =>
+      firstSyncRunning || (phase == StatsSyncPhase.running && rereading);
+
+  ({String id, String? reason, int issues})? get syncReceipt {
+    if (busy) return null;
+    final run = overview?.sources.lastRun;
+    final active = _syncId > 0 && phase != StatsSyncPhase.idle;
+    final id = active
+        ? 'local:$_syncId'
+        : 'ledger:${run?.id ?? run?.startedAt}';
+    if (_dismissedReceipt == id) return null;
+    final reason = active && phase == StatsSyncPhase.error
+        ? syncFailureReason(syncError ?? strings.requestFailed, strings)
+        : !active && ['failed', 'abandoned'].contains(run?.status)
+        ? strings.recentSyncIncomplete
+        : null;
+    final issues = active
+        ? (phase == StatsSyncPhase.success ? _warnings.length : 0)
+        : (run?.anomalyCount ?? 0);
+    return reason == null && issues == 0
+        ? null
+        : (id: id, reason: reason, issues: issues);
+  }
+
+  void dismissSyncReceipt(String id) {
+    _dismissedReceipt = id;
+    _notify();
+  }
+
+  void _startProgress() {
+    final provider = gateway;
+    if (provider is! StatsProgressGateway) return;
+    final id = _syncId;
+    _progressTimer = Timer.periodic(
+      const Duration(milliseconds: 300),
+      (_) => unawaited(_pollProgress(provider as StatsProgressGateway, id)),
+    );
+  }
+
+  Future<void> _pollProgress(StatsProgressGateway provider, int id) async {
+    if (_pollingProgress || _closed || phase != StatsSyncPhase.running) return;
+    _pollingProgress = true;
+    try {
+      final next = await provider.syncProgress();
+      if (_closed ||
+          _syncId != id ||
+          phase != StatsSyncPhase.running ||
+          next == null) {
+        return;
+      }
+      progress = next;
+      if (fullSyncRunning && next.index > _refreshedThrough + 1 && !loading) {
+        _refreshedThrough = next.index - 1;
+        ledgerVersion++;
+        unawaited(load());
+      } else {
+        _notify();
+      }
+    } catch (_) {
+      // A failed progress sample can be retried while ingestion is still running.
+    } finally {
+      _pollingProgress = false;
+    }
+  }
+
+  void _stopProgress() {
+    _progressTimer?.cancel();
+    _progressTimer = null;
+    progress = null;
+  }
+
+  void _showSynced() {
+    _hasSucceeded = true;
+    recentlySynced = true;
+    _syncedTimer?.cancel();
+    _syncedTimer = Timer(const Duration(seconds: 4), () {
+      recentlySynced = false;
+      _notify();
+    });
+  }
+
   bool get busy =>
       phase == StatsSyncPhase.running ||
       phase == StatsSyncPhase.conflict ||
@@ -175,11 +306,14 @@ class StatsController extends ChangeNotifier {
 
   Future<void> setPreferences(UiPreferences value) async {
     if (_closed) return;
-    final changed = value.period.query != preferences.period.query;
+    final beforeHidden = hiddenScope;
+    final periodChanged = value.period.query != preferences.period.query;
     preferences = value;
+    final visibilityChanged = beforeHidden != hiddenScope;
+    if (visibilityChanged) overview = null;
     _notify();
     final save = store?.write(value);
-    if (changed) await load();
+    if (periodChanged || visibilityChanged) await load();
     await save;
   }
 
@@ -200,12 +334,16 @@ class StatsController extends ChangeNotifier {
     final readErrors = <String, String>{};
     final now = clock();
     final range = period.range(now), compare = period.compare(now);
-    final filter = StatsFilter(from: range.from, to: range.to);
-    final yearFilter = StatsFilter(
-      from: dayKey(DateTime(now.year, now.month, now.day - 364)),
-      to: dayKey(now),
+    final filter = visibleFilter(StatsFilter(from: range.from, to: range.to));
+    final yearFilter = visibleFilter(
+      StatsFilter(
+        from: dayKey(DateTime(now.year, now.month, now.day - 364)),
+        to: dayKey(now),
+      ),
     );
-    final prevFilter = StatsFilter(from: compare?.from, to: compare?.to);
+    final prevFilter = visibleFilter(
+      StatsFilter(from: compare?.from, to: compare?.to),
+    );
     const emptySnapshot = StatsSnapshot(
       generatedAt: '',
       priceVersion: '',
@@ -326,6 +464,8 @@ class StatsController extends ChangeNotifier {
         ..clear()
         ..addAll(readErrors);
       sourcesReadSucceeded = !readErrors.containsKey('sources');
+      _hasSucceeded |=
+          syncSuccessful || overview!.sources.hasSuccessfulSync == true;
     } catch (failure) {
       if (!_closed && ticket == _generation) {
         _error = (strings) => strings.requestFailed0(failure);
@@ -349,7 +489,12 @@ class StatsController extends ChangeNotifier {
     _statusGeneration++;
     _conflictTimer?.cancel();
     _syncTrigger = trigger;
+    _syncId++;
+    _refreshedThrough = 0;
+    recentlySynced = false;
+    _syncedTimer?.cancel();
     phase = StatsSyncPhase.running;
+    _startProgress();
     syncError = null;
     syncErrorKind = null;
     warning = null;
@@ -357,23 +502,33 @@ class StatsController extends ChangeNotifier {
     try {
       final result = await gateway.sync(trigger: trigger);
       if (_closed) return;
+      final wasFullSync = fullSyncRunning;
+      _stopProgress();
       lastSync = result;
+      syncDiscoveryRevision++;
       ledgerVersion++;
       _warnings = result.anomalies;
       phase = StatsSyncPhase.success;
+      _hasSucceeded = true;
+      if (!wasFullSync &&
+          _warnings.isEmpty &&
+          gateway is StatsProgressGateway) {
+        _showSynced();
+      }
       await load();
     } catch (failure) {
       if (_closed) return;
+      _stopProgress();
       if (failure.toString().contains('SYNC_BUSY')) {
         phase = StatsSyncPhase.conflict;
         _watchConflict(clock());
       } else {
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
-        _syncError = failure.toString().contains('LEGACY_SYNC_LOCK')
-            ? (strings) => strings.anOlderCollectorLockWasFoundClose
-            : (strings) => strings.syncFailedPreviouslyCollectedDataIsStill;
+        _syncError = (strings) => syncFailureMessage(failure, strings);
         // A failed ingestion can still have committed earlier files.
+        syncDiscoveryRevision++;
+        ledgerVersion++;
         await load();
       }
     } finally {
@@ -480,6 +635,8 @@ class StatsController extends ChangeNotifier {
     _statusGeneration++;
     _timer?.cancel();
     _conflictTimer?.cancel();
+    _stopProgress();
+    _syncedTimer?.cancel();
     await gateway.shutdown();
     await _sync;
     await _statusRead;

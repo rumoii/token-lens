@@ -18,10 +18,18 @@ class LensResource<T> {
   int _generation = 0;
   Future<T> Function()? _loader;
   bool get fresh => ready && !loading && error == null;
-  void read(Object identity, Future<T> Function() loader) {
+  void read(
+    Object identity,
+    Future<T> Function() loader, {
+    bool retainData = true,
+  }) {
     _loader = loader;
     if (_identity == identity) return;
     _identity = identity;
+    if (!retainData) {
+      data = null;
+      ready = false;
+    }
     unawaited(reload());
   }
 
