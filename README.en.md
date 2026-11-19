@@ -28,6 +28,7 @@ The app and the specifications are written in Simplified Chinese.
 - **Tools**: which tools were found on this computer, how each one logs usage, whether it was checked against real or sample logs, and its known limitations.
 - **Pricing**: list prices per model, including long-context and time-of-day pricing, shown in USD or CNY. Amounts are for comparison only and are not your bill; on a subscription plan you usually pay less.
 - **AI news**: 20 official blogs, changelogs and community sources, refreshed every 30 minutes while the app is open; read and starred state stays on this computer.
+- **Export and CLI**: export the breakdown as CSV or JSON; the bundled `token-lens-cli` prints usage, cost and sessions as JSON for scripts and AI agents.
 - **Chinese and English interface**, following the system language by default; dark mode; number units in 万 / 亿 or K / M / B.
 
 ## Screenshots
@@ -74,6 +75,22 @@ To check a download: on Windows run `Get-FileHash .\token-lens-<version>-windows
 On first launch Token Lens lists the tools it found on this computer; it reads log contents only after you click "开始统计" (Start), and the first pass reads all of them. After that it syncs every time it opens and every 5 minutes while the window is open; "同步用量" (Sync) in the sidebar syncs on demand. Closing the window quits the app: there is no tray icon, background process or launch at login.
 
 Opening it again brings the existing window to the front.
+
+### Export and CLI
+
+Export, below the Breakdown page, saves the current filters and grouping as CSV or JSON in your Downloads folder. Projects appear by name only unless you check Include full project paths.
+
+`token-lens-cli` ships with the app: `token-lens-cli.exe` in the unzipped folder on Windows, `Token Lens.app/Contents/MacOS/token-lens-cli` on macOS. It reads the same ledger and prints one JSON object per command.
+
+```sh
+token-lens-cli status                          # ledger and last sync
+token-lens-cli summary --period week --compare # this week's usage and cost vs. last week
+token-lens-cli breakdown --by model            # split by model
+token-lens-cli sessions --sort cost --limit 10 # the 10 most expensive sessions
+token-lens-cli sync                            # sync once
+```
+
+Every command except `sync` only reads the ledger: it never goes online or triggers a sync, and `freshness` in the output says when the data was last synced. See [specs/cli.md](specs/cli.md) (in Chinese) for every option and exit code.
 
 ## Supported tools
 
@@ -173,6 +190,7 @@ The specifications are written in Simplified Chinese.
 | [specs/stats.md](specs/stats.md) | Statistics, timing and UI rules |
 | [specs/news.md](specs/news.md) | News sources and network boundary |
 | [specs/update.md](specs/update.md) | Update check requests and boundary |
+| [specs/cli.md](specs/cli.md) | CLI and export output contract |
 | [specs/adapters.md](specs/adapters.md) | Adapter contract |
 | [specs/log-schemas.yaml](specs/log-schemas.yaml) | Log field facts |
 | [specs/pricing.md](specs/pricing.md) | Pricing contract |

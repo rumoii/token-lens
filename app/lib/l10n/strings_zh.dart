@@ -561,6 +561,16 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String diagnosticsExportFailed(Object? error) => '导出失败：$error';
+  @override
+  String get export => '导出';
+  @override
+  String get exportCsv => '导出 CSV';
+  @override
+  String get exportJson => '导出 JSON';
+  @override
+  String get includeFullProjectPaths => '包含完整项目路径';
+  @override
+  String exportCompleted(String name) => '已导出 $name';
 
   @override
   String get exporting => '正在导出…';

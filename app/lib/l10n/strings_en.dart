@@ -604,6 +604,16 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String diagnosticsExportFailed(Object? error) => 'Export failed: $error';
+  @override
+  String get export => 'Export';
+  @override
+  String get exportCsv => 'Export CSV';
+  @override
+  String get exportJson => 'Export JSON';
+  @override
+  String get includeFullProjectPaths => 'Include full project paths';
+  @override
+  String exportCompleted(String name) => 'Exported $name';
 
   @override
   String get exporting => 'Exporting…';

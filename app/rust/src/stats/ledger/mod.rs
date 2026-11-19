@@ -6,7 +6,7 @@ use super::{
 use rusqlite::{
     params, params_from_iter,
     types::{Value as SqlValue, ValueRef},
-    Connection, Statement, Transaction, TransactionBehavior,
+    Connection, OpenFlags, Statement, Transaction, TransactionBehavior,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -59,6 +59,28 @@ pub struct Ledger {
     pub clock: Clock,
     prune_cache: std::cell::RefCell<read::PruneCache>,
     timing_revisions: RefCell<Option<TimingFileRevisions>>,
+}
+
+pub(crate) const LEDGER_VERSION: i64 = 7;
+
+#[derive(Debug)]
+pub(crate) enum ReadOpenError {
+    Missing,
+    Version(i64),
+    Unavailable(Error),
+}
+
+impl std::fmt::Display for ReadOpenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Missing => f.write_str("No ledger exists. Open Token Lens or run sync first."),
+            Self::Version(version) => write!(
+                f,
+                "Ledger version {version} is unsupported. Open the matching Token Lens app first."
+            ),
+            Self::Unavailable(error) => error.fmt(f),
+        }
+    }
 }
 
 pub fn sql_value(value: &Value) -> SqlValue {
@@ -250,6 +272,34 @@ impl TimingFileRevisions {
 }
 
 impl Ledger {
+    pub(crate) fn open_read_only(
+        path: &Path,
+        clock: Clock,
+    ) -> std::result::Result<Self, ReadOpenError> {
+        match path.metadata() {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(ReadOpenError::Missing)
+            }
+            Err(error) => return Err(ReadOpenError::Unavailable(error.into())),
+            Ok(_) => {}
+        }
+        let db = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| ReadOpenError::Unavailable(e.into()))?;
+        let ledger = Self::from_connection(db, clock);
+        Ok(ledger)
+    }
+
+    pub(crate) fn check_read_version(&self) -> std::result::Result<(), ReadOpenError> {
+        let version = self
+            .db
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .map_err(|e| ReadOpenError::Unavailable(e.into()))?;
+        if version != LEDGER_VERSION {
+            return Err(ReadOpenError::Version(version));
+        }
+        Ok(())
+    }
+
     pub fn open(path: &Path, clock: Clock) -> Result<Self> {
         if path != Path::new(":memory:") {
             if let Some(parent) = path.parent() {
@@ -259,7 +309,7 @@ impl Ledger {
         let db = Connection::open(path)?;
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;")?;
         let current: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if current > 7 {
+        if current > LEDGER_VERSION {
             return Err(Error(format!(
                 "账本结构版本 {current} 高于本程序支持的 7，拒绝以旧版本写入"
             )));
@@ -316,15 +366,19 @@ impl Ledger {
             transaction.execute_batch("PRAGMA user_version=6;")?;
             transaction.commit()?;
         }
-        if current < 7 {
+        if current < LEDGER_VERSION {
             ingest_cache::migrate(&db, path, &clock, current > 0)?;
         }
-        Ok(Self {
+        Ok(Self::from_connection(db, clock))
+    }
+
+    fn from_connection(db: Connection, clock: Clock) -> Self {
+        Self {
             db,
             clock,
             prune_cache: Default::default(),
             timing_revisions: Default::default(),
-        })
+        }
     }
 
     fn write_timing(
@@ -708,14 +762,22 @@ impl Ledger {
         Ok(stats)
     }
 
+    #[cfg(test)]
     pub fn begin_run(&self) -> Result<i64> {
+        self.begin_run_triggered(None)
+    }
+
+    pub(crate) fn begin_run_triggered(&self, trigger: Option<&str>) -> Result<i64> {
         self.db.execute(
             "UPDATE ingest_runs SET status='abandoned' WHERE status='running'",
             [],
         )?;
         self.db.execute(
-            "INSERT INTO ingest_runs(started_at,status) VALUES (?,'running')",
-            [self.clock.millis() / 1000],
+            "INSERT INTO ingest_runs(started_at,status,counts) VALUES (?,'running',?)",
+            params![
+                self.clock.millis() / 1000,
+                trigger.map(|name| json!({format!("sync_trigger.{name}"):1}).to_string())
+            ],
         )?;
         Ok(self.db.last_insert_rowid())
     }
@@ -746,19 +808,16 @@ impl Ledger {
                 order
                     .iter()
                     .copied()
-                    .chain(
-                        counts
-                            .keys()
-                            .map(String::as_str)
-                            .filter(|key| key.starts_with("discovery."))
-                    )
+                    .chain(counts.keys().map(String::as_str).filter(|key| {
+                        key.starts_with("discovery.") || key.starts_with("sync_source.")
+                    }))
                     .filter_map(|key| counts.get(key).map(|value| format!("\"{key}\":{value}")))
                     .collect::<Vec<_>>()
                     .join(",")
             )
         });
         let transaction = self.db.unchecked_transaction()?;
-        transaction.execute("UPDATE ingest_runs SET finished_at=?,status=?,attempted=?,inserted=?,updated=?,unchanged=?,rejected=?,notes=?,counts=? WHERE id=?", params![self.clock.millis()/1000,status,sql_value(&stats["attempted"]),sql_value(&stats["inserted"]),sql_value(&stats["updated"]),sql_value(&stats["unchanged"]),sql_value(&stats["rejected"]),notes,counts,id])?;
+        transaction.execute("UPDATE ingest_runs SET finished_at=?1,status=?2,attempted=?3,inserted=?4,updated=?5,unchanged=?6,rejected=?7,notes=?8,counts=CASE WHEN counts IS NULL THEN ?9 ELSE json_patch(counts,coalesce(?9,'{}')) END WHERE id=?10", params![self.clock.millis()/1000,status,sql_value(&stats["attempted"]),sql_value(&stats["inserted"]),sql_value(&stats["updated"]),sql_value(&stats["unchanged"]),sql_value(&stats["rejected"]),notes,counts,id])?;
         if let (Some(parsed), Some(cached), Some(skipped)) = (
             stats["parsedFiles"].as_i64(),
             stats["cachedFiles"].as_i64(),
@@ -773,12 +832,24 @@ impl Ledger {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn fail_run(&self, id: i64, message: &str) -> Result<()> {
+        self.fail_run_with_results(id, message, None)
+    }
+
+    pub(crate) fn fail_run_with_results(
+        &self,
+        id: i64,
+        message: &str,
+        results: Option<&Value>,
+    ) -> Result<()> {
         self.db.execute(
-            "UPDATE ingest_runs SET finished_at=?,status='failed',notes=? WHERE id=?",
+            "UPDATE ingest_runs SET finished_at=?1,status='failed',notes=?2,
+             counts=CASE WHEN ?3 IS NULL THEN counts ELSE json_patch(coalesce(counts,'{}'),?3) END WHERE id=?4",
             params![
                 self.clock.millis() / 1000,
                 json!([format!("run_failed: {message}")]).to_string(),
+                results.map(Value::to_string),
                 id
             ],
         )?;

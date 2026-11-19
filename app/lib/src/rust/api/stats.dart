@@ -7,9 +7,9 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
+// These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `for_cli`, `initialize`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -23,6 +23,11 @@ abstract class StatsClient implements RustOpaqueInterface {
   Future<StatsDiscovery> discovery({required bool fresh});
 
   Future<String> exportDiagnostics({required String directory});
+
+  Future<String> exportUsage({
+    required StatsUsageExport request,
+    required int offsetMinutes,
+  });
 
   Future<StatsHealth> health();
 
@@ -2161,6 +2166,45 @@ class StatsUnallocated {
           costMicros == other.costMicros &&
           recordCount == other.recordCount &&
           reason == other.reason;
+}
+
+class StatsUsageExport {
+  final String by;
+  final String period;
+  final StatsFilter filter;
+  final String format;
+  final bool projectPaths;
+  final String directory;
+
+  const StatsUsageExport({
+    required this.by,
+    required this.period,
+    required this.filter,
+    required this.format,
+    required this.projectPaths,
+    required this.directory,
+  });
+
+  @override
+  int get hashCode =>
+      by.hashCode ^
+      period.hashCode ^
+      filter.hashCode ^
+      format.hashCode ^
+      projectPaths.hashCode ^
+      directory.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsUsageExport &&
+          runtimeType == other.runtimeType &&
+          by == other.by &&
+          period == other.period &&
+          filter == other.filter &&
+          format == other.format &&
+          projectPaths == other.projectPaths &&
+          directory == other.directory;
 }
 
 class StatsWindow {

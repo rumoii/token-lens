@@ -1,8 +1,10 @@
 import '../l10n/app_strings.dart';
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../stats_controller.dart';
 import '../stats_gateway.dart';
@@ -177,12 +179,16 @@ class StatsDetail extends StatefulWidget {
     required this.onHome,
     required this.onSettings,
     this.onSessions,
+    this.openLink,
+    this.downloadsDirectory,
   });
   final StatsController controller;
   final String query;
   final ValueChanged<String> onQuery;
   final VoidCallback onHome, onSettings;
   final ValueChanged<Map<String, String>>? onSessions;
+  final Future<bool> Function(Uri)? openLink;
+  final Future<Directory?> Function()? downloadsDirectory;
   @override
   State<StatsDetail> createState() => _StatsDetailState();
 }
@@ -196,6 +202,10 @@ class _StatsDetailState extends State<StatsDetail> {
   late final table = LensResource<({String kind, Object data})>(changed);
   String? sortKey;
   int sortDir = -1;
+  bool exporting = false, projectPaths = false;
+  final exportFocus = FocusNode();
+  String? exportedPath;
+  Object? exportError;
   StatsController get c => widget.controller;
   Map<String, String> get d => readDetail(widget.query);
   StatsPeriod get period => StatsPeriod.parse(widget.query);
@@ -203,6 +213,127 @@ class _StatsDetailState extends State<StatsDetail> {
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   void changed() {
     if (mounted) setState(() {});
+  }
+
+  StatsFilter detailFilter(Map<String, String> detail, DayRange range) =>
+      StatsFilter(
+        from: range.from,
+        to: range.to,
+        source: detail['tool']!.isEmpty ? null : detail['tool'],
+        model: detail['model']!.isEmpty ? null : detail['model'],
+        project: detail['project']!.isEmpty ? null : detail['project'],
+      );
+
+  Future<void> exportUsage(
+    StatsUsageExporter exporter,
+    String by,
+    String format,
+  ) async {
+    if (exporting) return;
+    final current = period;
+    final detail = d;
+    final range = current.range(c.clock());
+    final picked = bucketRange(detail['bucket']!, range);
+    final filter = detailFilter(detail, picked ?? range);
+    final paths = projectPaths;
+    final gateway = c.gateway;
+    setState(() {
+      exporting = true;
+      exportedPath = null;
+      exportError = null;
+    });
+    try {
+      Directory? downloads;
+      try {
+        downloads =
+            await (widget.downloadsDirectory ?? getDownloadsDirectory)();
+      } catch (_) {
+        /* Fall back to the application data directory. */
+      }
+      final directory =
+          downloads?.path ??
+          '${(await gateway.health()).dataDir}${Platform.pathSeparator}exports';
+      final path = await exporter.exportUsage(
+        by: by,
+        period: picked == null || picked == range ? current.period : 'custom',
+        filter: filter,
+        format: format,
+        projectPaths: paths,
+        directory: directory,
+      );
+      if (mounted) setState(() => exportedPath = path);
+    } catch (error) {
+      if (mounted) setState(() => exportError = error);
+    } finally {
+      if (mounted) setState(() => exporting = false);
+    }
+  }
+
+  Future<void> openExportFolder(String path) async {
+    try {
+      final opened = await widget.openLink?.call(
+        Uri.directory(File(path).parent.path),
+      );
+      if (opened == true) return;
+      if (mounted) {
+        setState(
+          () => exportError = context.strings.couldNotOpenTheContainingFolder,
+        );
+      }
+    } catch (error) {
+      if (mounted) setState(() => exportError = error);
+    }
+  }
+
+  Widget exportMenu(StatsUsageExporter exporter, String? by) {
+    final strings = context.strings;
+    return MenuAnchor(
+      childFocusNode: exportFocus,
+      reservedPadding: const EdgeInsets.all(12),
+      alignmentOffset: const Offset(0, 4),
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(p.surface),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        side: WidgetStatePropertyAll(BorderSide(color: p['line-strong'])),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        elevation: const WidgetStatePropertyAll(4),
+      ),
+      menuChildren: [
+        MenuItemButton(
+          onPressed: by == null ? null : () => exportUsage(exporter, by, 'csv'),
+          child: Text(strings.exportCsv),
+        ),
+        MenuItemButton(
+          onPressed: by == null
+              ? null
+              : () => exportUsage(exporter, by, 'json'),
+          child: Text(strings.exportJson),
+        ),
+        CheckboxMenuButton(
+          value: projectPaths,
+          closeOnActivate: false,
+          onChanged: (value) => setState(() => projectPaths = value ?? false),
+          child: Text(strings.includeFullProjectPaths),
+        ),
+      ],
+      builder: (context, menu, child) => LensButton(
+        label: strings.export,
+        size: 'sm',
+        variant: 'ghost',
+        focusNode: exportFocus,
+        onPressed: by == null || exporting
+            ? null
+            : () {
+                if (menu.isOpen) {
+                  menu.close();
+                } else {
+                  menu.open();
+                }
+              },
+      ),
+    );
   }
 
   @override
@@ -229,6 +360,7 @@ class _StatsDetailState extends State<StatsDetail> {
     summary.dispose();
     trend.dispose();
     table.dispose();
+    exportFocus.dispose();
     super.dispose();
   }
 
@@ -237,20 +369,8 @@ class _StatsDetailState extends State<StatsDetail> {
     final range = current.range(now);
     final base = StatsFilter(from: range.from, to: range.to);
     final picked = bucketRange(detail['bucket']!, range);
-    final filter = StatsFilter(
-      from: range.from,
-      to: range.to,
-      source: detail['tool']!.isEmpty ? null : detail['tool'],
-      model: detail['model']!.isEmpty ? null : detail['model'],
-      project: detail['project']!.isEmpty ? null : detail['project'],
-    );
-    final scoped = StatsFilter(
-      from: picked?.from ?? range.from,
-      to: picked?.to ?? range.to,
-      source: filter.source,
-      model: filter.model,
-      project: filter.project,
-    );
+    final filter = detailFilter(detail, range);
+    final scoped = picked == null ? filter : detailFilter(detail, picked);
     final pk =
         '${current.query}|${filter.source}|${filter.model}|${filter.project}|${c.ledgerVersion}';
     final sk =
@@ -1223,6 +1343,14 @@ class _StatsDetailState extends State<StatsDetail> {
     );
     final dim = d['dim']!,
         picked = bucketRange(d['bucket']!, period.range(c.clock()));
+    final gateway = c.gateway;
+    final exportBy = dim != 'date'
+        ? dim
+        : picked != null
+        ? 'day'
+        : period.period == 'all'
+        ? (trend.fresh ? trend.data?.axis.granularity : null)
+        : period.granularity;
     final filtered = dim == 'request'
         ? false
         : dim == 'date'
@@ -1290,29 +1418,66 @@ class _StatsDetailState extends State<StatsDetail> {
                     : filtered
                     ? context.strings.alreadyFilteredByThisFieldTryAnother
                     : context.strings.selectARowToAddItTo,
-                action: LensSegmented(
-                  options: {
-                    'date':
-                        trend.data?.axis.granularity == 'hour' && picked == null
-                        ? context.strings.byHour
-                        : context.strings.byTime,
-                    'tool': context.strings.byTool,
-                    'model': context.strings.byModel,
-                    'project': context.strings.byProject,
-                    'request': context.strings.byRequest,
-                  },
-                  value: dim,
-                  onChanged: (v) {
-                    setState(() {
-                      sortKey = null;
-                      sortDir = -1;
-                    });
-                    go({...d, 'dim': v});
-                  },
-                  label: context.strings.groupBy,
-                  small: true,
+                action: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    LensSegmented(
+                      options: {
+                        'date':
+                            trend.data?.axis.granularity == 'hour' &&
+                                picked == null
+                            ? context.strings.byHour
+                            : context.strings.byTime,
+                        'tool': context.strings.byTool,
+                        'model': context.strings.byModel,
+                        'project': context.strings.byProject,
+                        'request': context.strings.byRequest,
+                      },
+                      value: dim,
+                      onChanged: (v) {
+                        setState(() {
+                          sortKey = null;
+                          sortDir = -1;
+                        });
+                        go({...d, 'dim': v});
+                      },
+                      label: context.strings.groupBy,
+                      small: true,
+                    ),
+                    if (dim != 'request' && gateway is StatsUsageExporter)
+                      exportMenu(gateway as StatsUsageExporter, exportBy),
+                  ],
                 ),
               ),
+              if (dim != 'request' &&
+                  (exportedPath != null || exportError != null))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                  child: Wrap(
+                    spacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (exportedPath case final path?) ...[
+                        Text(
+                          context.strings.exportCompleted(
+                            File(path).uri.pathSegments.last,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => openExportFolder(path),
+                          child: Text(context.strings.openContainingFolder),
+                        ),
+                      ],
+                      if (exportError case final error?)
+                        Text(
+                          context.strings.diagnosticsExportFailed(error),
+                          style: p.text(13, p['danger']),
+                        ),
+                    ],
+                  ),
+                ),
               if (dim == 'request')
                 Padding(
                   padding: const EdgeInsets.only(top: 12, bottom: 18),

@@ -32,7 +32,18 @@ abstract interface class StatsGateway {
   Future<void> shutdown();
 }
 
-class RustStatsGateway implements StatsGateway {
+abstract interface class StatsUsageExporter {
+  Future<String> exportUsage({
+    required String by,
+    required String period,
+    required StatsFilter filter,
+    required String format,
+    required bool projectPaths,
+    required String directory,
+  });
+}
+
+class RustStatsGateway implements StatsGateway, StatsUsageExporter {
   RustStatsGateway(this.client);
   final StatsClient client;
   int get _offset => DateTime.now().timeZoneOffset.inMinutes;
@@ -104,6 +115,25 @@ class RustStatsGateway implements StatsGateway {
   @override
   Future<String> exportDiagnostics(String directory) =>
       client.exportDiagnostics(directory: directory);
+  @override
+  Future<String> exportUsage({
+    required String by,
+    required String period,
+    required StatsFilter filter,
+    required String format,
+    required bool projectPaths,
+    required String directory,
+  }) => client.exportUsage(
+    request: StatsUsageExport(
+      by: by,
+      period: period,
+      filter: filter,
+      format: format,
+      projectPaths: projectPaths,
+      directory: directory,
+    ),
+    offsetMinutes: _offset,
+  );
   @override
   Future<void> logError(String type, String message, String stack) =>
       client.logError(errorType: type, message: message, stack: stack);

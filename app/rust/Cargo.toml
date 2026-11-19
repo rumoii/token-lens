@@ -7,6 +7,10 @@ publish = false
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+[[bin]]
+name = "token-lens-cli"
+path = "src/bin/token-lens-cli.rs"
+
 [dependencies]
 flutter_rust_bridge = "=2.13.0"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

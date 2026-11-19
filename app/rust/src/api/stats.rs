@@ -1,5 +1,5 @@
 use crate::stats::{
-    clock::Clock, ingest, jscompat::LocalZone, ledger::Ledger, pricing, service, timezone,
+    clock::Clock, ingest, jscompat::LocalZone, ledger::Ledger, output, pricing, service, timezone,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -20,6 +20,16 @@ pub struct StatsFilter {
     pub source: Option<String>,
     pub model: Option<String>,
     pub project: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StatsUsageExport {
+    pub by: String,
+    pub period: String,
+    pub filter: StatsFilter,
+    pub format: String,
+    pub project_paths: bool,
+    pub directory: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -628,6 +638,22 @@ impl StatsClient {
         logs_home: Option<String>,
         clock: Clock,
     ) -> Result<Self, String> {
+        let client = Self::initialize(data_dir, logs_home, clock)?;
+        // Construction neither discovers logs nor starts ingestion.
+        let state = &client.state;
+        drop(
+            Ledger::open(&state.data.join("ledger.db"), state.clock.clone())
+                .map_err(|e| e.to_string())?,
+        );
+        Ok(client)
+    }
+
+    #[flutter_rust_bridge::frb(ignore)]
+    fn initialize(
+        data_dir: String,
+        logs_home: Option<String>,
+        clock: Clock,
+    ) -> Result<Self, String> {
         let data = PathBuf::from(data_dir);
         if !data.is_absolute() {
             return Err("preview directory must be absolute".into());
@@ -646,8 +672,6 @@ impl StatsClient {
         if pricing::catalog_version() != pricing::PRICE_VERSION {
             return Err("pricing catalog version mismatch".into());
         }
-        // Construction neither discovers logs nor starts ingestion.
-        drop(Ledger::open(&data.join("ledger.db"), clock.clone()).map_err(|e| e.to_string())?);
         Ok(Self {
             state: Arc::new(State {
                 log: crate::diagnostics::RuntimeLog::new(&data, Some(&home)),
@@ -661,6 +685,14 @@ impl StatsClient {
                 discovery: Mutex::new(None),
             }),
         })
+    }
+    #[flutter_rust_bridge::frb(ignore)]
+    pub(crate) fn for_cli(
+        data_dir: String,
+        logs_home: Option<String>,
+        clock: Clock,
+    ) -> Result<Self, String> {
+        Self::initialize(data_dir, logs_home, clock)
     }
     pub fn sync(&self) -> Result<StatsSync, String> {
         self.sync_triggered("manual".into())
@@ -690,12 +722,13 @@ impl StatsClient {
             "startup" => "startup",
             "timer" => "timer",
             "reread" => "reread",
+            "cli" => "cli",
             _ => "manual",
         };
         self.state
             .log
             .write("INFO", "sync", &format!("start trigger={trigger}"));
-        let result = self.sync_inner(environment, trigger == "reread");
+        let result = self.sync_inner(environment, trigger);
         if let Err(error) = &result {
             if error != "cancelled" {
                 self.state.log.write(
@@ -711,7 +744,7 @@ impl StatsClient {
     fn sync_inner(
         &self,
         environment: &ingest::Environment,
-        no_cache: bool,
+        trigger: &'static str,
     ) -> Result<StatsSync, String> {
         if self.state.closed.load(Ordering::Acquire) {
             return Err("closed".into());
@@ -734,11 +767,6 @@ impl StatsClient {
         if self.state.closed.load(Ordering::Acquire) {
             return Err("closed".into());
         }
-        let sync = if no_cache {
-            ingest::reread
-        } else {
-            ingest::sync
-        };
         let preview;
         let environment = if self.state.preview {
             preview = environment.preview();
@@ -746,13 +774,14 @@ impl StatsClient {
         } else {
             environment
         };
-        let result = sync(
+        let result = ingest::sync_triggered(
             &self.state.data,
             &self.state.home,
             environment,
             self.state.clock.clone(),
             &LocalZone::System,
             &self.state.closed,
+            trigger,
         )
         .map_err(|e| e.to_string())?;
         serde_json::from_value(result).map_err(|e| e.to_string())
@@ -950,6 +979,53 @@ impl StatsClient {
         })();
         self.state.log.ffi("health", result)
     }
+    pub fn export_usage(
+        &self,
+        request: StatsUsageExport,
+        offset_minutes: i32,
+    ) -> Result<String, String> {
+        if self.state.closed.load(Ordering::Acquire) {
+            return Err("closed".into());
+        }
+        if !output::GROUPS.contains(&request.by.as_str()) {
+            return Err("Invalid export group.".into());
+        }
+        if !matches!(
+            request.period.as_str(),
+            "today" | "week" | "month" | "all" | "custom"
+        ) || !(-1440..=1440).contains(&offset_minutes)
+            || [&request.filter.from, &request.filter.to]
+                .into_iter()
+                .flatten()
+                .any(|day| crate::cli::calendar_day(day).is_none())
+        {
+            return Err("Invalid export period.".into());
+        }
+        let mut filter = json!(request.filter);
+        service::validate_range(&filter).map_err(|e| e.to_string())?;
+        filter["offsetMinutes"] = json!(offset_minutes);
+        let scope = output::Scope {
+            period: request.period,
+            filter,
+            timezone: self.state.timezone.clone(),
+            paths: request.project_paths,
+        };
+        let clock = Clock::Fixed(self.state.clock.millis());
+        let doc = output::read(&self.state.data, clock, |ledger| {
+            output::breakdown(ledger, &scope, &request.by)
+        })
+        .map_err(|error| error.to_string())?;
+        output::export(
+            std::path::Path::new(&request.directory),
+            &request.format,
+            &request.by,
+            &scope,
+            &doc,
+        )
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(|error| error.to_string())
+    }
+
     pub fn export_diagnostics(&self, directory: String) -> Result<String, String> {
         let result = (|| {
             let ledger = self.open()?;

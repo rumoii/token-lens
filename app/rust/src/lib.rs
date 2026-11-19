@@ -7,3 +7,5 @@ mod stats;
 
 #[doc(hidden)]
 pub use stats::ingest::sync_benchmark;
+#[doc(hidden)]
+pub mod cli;

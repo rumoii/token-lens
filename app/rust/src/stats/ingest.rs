@@ -333,6 +333,7 @@ fn settle(parsed: &mut [Parsed], totals: &mut Value) -> HashMap<String, Vec<Stri
     elsewhere
 }
 
+#[cfg(test)]
 pub fn sync(
     data: &Path,
     home: &Path,
@@ -353,6 +354,7 @@ pub fn sync(
     .map(|(result, _)| result)
 }
 
+#[cfg(test)]
 pub fn reread(
     data: &Path,
     home: &Path,
@@ -371,6 +373,20 @@ pub fn reread(
         SyncOptions::new(true),
     )
     .map(|(result, _)| result)
+}
+
+pub(crate) fn sync_triggered(
+    data: &Path,
+    home: &Path,
+    environment: &Environment,
+    clock: Clock,
+    zone: &LocalZone,
+    cancel: &AtomicBool,
+    trigger: &'static str,
+) -> Result<Value> {
+    let mut options = SyncOptions::new(trigger == "reread");
+    options.trigger = Some(trigger);
+    sync_profiled(data, home, environment, clock, zone, cancel, options).map(|(result, _)| result)
 }
 
 // Rust-only entry point for the synthetic benchmark. Discovery uses no process overrides.
@@ -405,6 +421,7 @@ enum CacheUpdate {
 #[derive(Default)]
 struct SyncOptions {
     no_cache: bool,
+    trigger: Option<&'static str>,
     #[cfg(test)]
     revisions: Option<Revisions>,
     #[cfg(test)]
@@ -415,6 +432,7 @@ impl SyncOptions {
     fn new(no_cache: bool) -> Self {
         Self {
             no_cache,
+            trigger: None,
             #[cfg(test)]
             revisions: None,
             #[cfg(test)]
@@ -467,7 +485,8 @@ fn sync_profiled(
     let log = crate::diagnostics::RuntimeLog::new(data, Some(home));
     let _lock = SyncLock::acquire(data)?;
     let ledger = Ledger::open(&data.join("ledger.db"), clock)?;
-    let run = ledger.begin_run()?;
+    let run = ledger.begin_run_triggered(options.trigger)?;
+    let mut source_results = json!({});
     let result = (|| {
         let mut totals = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"repriced":0,"counts":{"read_failed":0,"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0,"cross_file_copies":0},"anomalies":[]});
         let mut phases = SyncPhases::default();
@@ -487,10 +506,14 @@ fn sync_profiled(
                 &mut totals,
                 [("read_failed", issue.unreadable_entries as i64)],
             );
+            if options.trigger.is_some() && issue.counts().into_iter().any(|(_, count)| count > 0) {
+                source_results[format!("sync_source.{}", issue.source)] = json!(2);
+            }
         }
         for (source, files) in discovered.files {
             let source_started = Instant::now();
             let source_files = files.len();
+            let anomaly_count = totals["anomalies"].as_array().unwrap().len();
             phases.files += source_files;
             let mut process = || -> Result<()> {
                 // SQLite adapters are always run. Cursor can have both SQLite and CSV inputs.
@@ -754,7 +777,19 @@ fn sync_profiled(
                 }
                 Ok(())
             };
-            process()?;
+            let processed = process();
+            if options.trigger.is_some() && (source_files > 0 || processed.is_err()) {
+                let had_anomaly = totals["anomalies"].as_array().unwrap().len() > anomaly_count;
+                let result = &mut source_results[format!("sync_source.{source}")];
+                *result = json!(if processed.is_err() {
+                    3
+                } else if had_anomaly || *result == 2 {
+                    2
+                } else {
+                    1
+                });
+            }
+            processed?;
             let discovery_ns = source_discovery.remove(&source).unwrap_or_default();
             phases.sources.insert(
                 source,
@@ -779,6 +814,11 @@ fn sync_profiled(
         totals["cachedFiles"] = json!(phases.cached_files);
         totals["skippedFiles"] = json!(phases.skipped_files);
         let start = Instant::now();
+        let counts = totals["counts"].clone();
+        totals["counts"]
+            .as_object_mut()
+            .unwrap()
+            .extend(source_results.as_object().unwrap().clone());
         ledger.finish_run(
             run,
             if totals["anomalies"].as_array().unwrap().is_empty() {
@@ -788,6 +828,7 @@ fn sync_profiled(
             },
             &totals,
         )?;
+        totals["counts"] = counts;
         phases.finish_run_ns = start.elapsed().as_nanos() as u64;
         let file_count = phases.files;
         totals["fileCount"] = json!(file_count);
@@ -801,7 +842,11 @@ fn sync_profiled(
         Ok((totals, phases))
     })();
     if let Err(error) = &result {
-        let _ = ledger.fail_run(run, &error.to_string());
+        let _ = ledger.fail_run_with_results(
+            run,
+            &error.to_string(),
+            options.trigger.map(|_| &source_results),
+        );
         log.write(
             if error.0 == "cancelled" {
                 "INFO"

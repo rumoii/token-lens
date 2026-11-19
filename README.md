@@ -26,6 +26,7 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 - **工具来源**：这台电脑上找到了哪些工具，每个工具的日志怎么记、用真实日志还是样例日志核对过、有哪些已知限制。
 - **价格**：各模型的公开价、长上下文和分时段计价，按美元或人民币显示。金额只用来比较和感知，不是你的账单；用套餐的话，实际花费通常更低。
 - **AI 热点**：20 个官方博客、更新日志和社区来源的新闻，程序开着时每 30 分钟刷新一次；已读和收藏只存在本机。
+- **导出与命令行**：明细可以导出成 CSV 或 JSON；随程序附带的 `token-lens-cli` 用 JSON 输出用量、花费和会话，给脚本和 AI 助手用。
 - **中文和英文界面**，默认跟随系统语言；深色模式；数字单位可选“万 / 亿”或“K / M / B”。
 
 ## 截图
@@ -72,6 +73,22 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 第一次打开时，Token Lens 会列出在这台电脑上找到的工具，点「开始统计」后才读取日志内容，第一遍会读完全部日志。之后每次打开都会同步一次，窗口开着时每 5 分钟同步一次，也可以随时点「同步用量」。关掉窗口程序就退出，不留后台进程，也不开机自启。
 
 重复打开时只会激活已经开着的那个窗口。
+
+### 导出和命令行
+
+「明细」页下方的「导出」把当前筛选和分组存成 CSV 或 JSON，放进“下载”文件夹。项目默认只写名字，勾选「包含完整项目路径」才写路径。
+
+`token-lens-cli` 和程序放在一起：Windows 是解压文件夹里的 `token-lens-cli.exe`，macOS 是 `Token Lens.app/Contents/MacOS/token-lens-cli`。它读同一个账本，每条命令输出一个 JSON 对象。
+
+```sh
+token-lens-cli status                          # 账本和上次同步
+token-lens-cli summary --period week --compare # 本周用量、花费，和上周比
+token-lens-cli breakdown --by model            # 按模型拆开
+token-lens-cli sessions --sort cost --limit 10 # 最贵的 10 个会话
+token-lens-cli sync                            # 同步一次
+```
+
+除了 `sync`，命令都只读账本，不联网，也不会触发同步；结果里的 `freshness` 写明数据是什么时候同步的。完整说明和退出码见 [specs/cli.md](specs/cli.md)。
 
 ## 支持的工具
 
@@ -171,6 +188,7 @@ CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>
 | [specs/stats.md](specs/stats.md) | 统计、计时与界面规则 |
 | [specs/news.md](specs/news.md) | 新闻来源与联网边界 |
 | [specs/update.md](specs/update.md) | 检查更新的请求与边界 |
+| [specs/cli.md](specs/cli.md) | 命令行与导出的输出契约 |
 | [specs/adapters.md](specs/adapters.md) | 适配器契约 |
 | [specs/log-schemas.yaml](specs/log-schemas.yaml) | 日志字段事实 |
 | [specs/pricing.md](specs/pricing.md) | 定价契约 |

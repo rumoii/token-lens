@@ -68,10 +68,12 @@ jobs:
         include:
           - os: windows-latest
             target: windows
+            rust_target: x86_64-pc-windows-msvc
             archive: windows-x64
             python: python
           - os: macos-latest
             target: macos
+            rust_target: aarch64-apple-darwin
             archive: macos
             python: python3
     runs-on: ${{ matrix.os }}
@@ -110,6 +112,11 @@ jobs:
       - name: Build release
         run: flutter build ${{ matrix.target }} --release --no-pub
 
+      - name: Build release CLI
+        run: >-
+          cargo build --manifest-path rust/Cargo.toml --locked --release
+          --bin token-lens-cli --target ${{ matrix.rust_target }} --target-dir rust/target
+
       - name: Check lockfiles
         run: git diff --exit-code HEAD -- pubspec.lock rust/Cargo.lock
 
@@ -127,6 +134,7 @@ jobs:
             throw 'Rust license generation failed.'
           }
           Copy-Item -LiteralPath '../LICENSE', '../THIRD_PARTY_NOTICES.md' -Destination $release
+          Copy-Item -LiteralPath "rust/target/x86_64-pc-windows-msvc/release/token-lens-cli.exe" -Destination $release
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Compress-Archive -Path "$release/*" -DestinationPath "dist/token-lens-$env:RELEASE_VERSION-windows-x64.zip"
 
@@ -137,6 +145,8 @@ jobs:
           stage="$(mktemp -d "$RUNNER_TEMP/token-lens-package.XXXXXX")"
           mkdir -p dist
           ditto 'build/macos/Build/Products/Release/Token Lens.app' "$stage/Token Lens.app"
+          cp rust/target/aarch64-apple-darwin/release/token-lens-cli "$stage/Token Lens.app/Contents/MacOS/"
+          codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$stage/Token Lens.app"
           cp ../LICENSE ../THIRD_PARTY_NOTICES.md "$stage/"
           dart --packages=.dart_tool/package_config.json ../scripts/generate-desktop-notices.dart \
             --rust-licenses "$stage/THIRD_PARTY_LICENSES.txt" --target aarch64-apple-darwin

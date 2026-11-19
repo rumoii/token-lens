@@ -570,6 +570,7 @@ class _StatsPageState extends State<StatsPage> {
                                               : page == 'detail'
                                               ? StatsDetail(
                                                   controller: widget.controller,
+                                                  openLink: widget.openLink,
                                                   onSessions: (p) =>
                                                       navigate('sessions', p),
                                                   query: query,

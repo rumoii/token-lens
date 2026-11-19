@@ -222,6 +222,11 @@ abstract class AppStrings {
   String exchangeRate(Object? rate, Object? updated);
   String get exportDiagnostics;
   String diagnosticsExportFailed(Object? error);
+  String get export;
+  String get exportCsv;
+  String get exportJson;
+  String get includeFullProjectPaths;
+  String exportCompleted(String name);
   String get exporting;
   String newsFetchProgress(Object? completed, Object? total);
   String get filterBySourceAndType;

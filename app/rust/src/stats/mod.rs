@@ -5,6 +5,7 @@ pub(crate) mod ingest;
 pub(crate) mod jscompat;
 pub(crate) mod ledger;
 pub(crate) mod lock;
+pub(crate) mod output;
 pub(crate) mod pricing;
 pub(crate) mod service;
 pub(crate) mod timezone;

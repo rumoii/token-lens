@@ -19,6 +19,8 @@ pub(super) struct PruneCache {
 const SUMS:&str="count(*) AS record_count,sum(input_tokens) AS input_tokens,sum(output_tokens) AS output_tokens,sum(cache_read_tokens) AS cache_read_tokens,sum(cache_write_tokens) AS cache_write_tokens,sum(cost_micros IS NULL) AS unpriced_records,sum(cost_micros) AS cost_micros";
 
 const REQUESTS: &str = "nullif(sum(kind='event'),0) AS request_count";
+const SESSION_COUNT: &str =
+    "count(DISTINCT CASE WHEN session_id IS NOT NULL THEN json_array(source,session_id) END) AS session_count";
 
 const EVENT_GROSS: &str = "coalesce(sum(CASE WHEN kind='event' THEN input_tokens END),0)+coalesce(sum(CASE WHEN kind='event' THEN output_tokens END),0)+coalesce(sum(CASE WHEN kind='event' THEN cache_read_tokens END),0)+coalesce(sum(CASE WHEN kind='event' THEN cache_write_tokens END),0) AS event_gross_tokens";
 
@@ -101,6 +103,10 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
             args.push(json!(value));
         }
     }
+    if filter["projectPaths"].is_array() {
+        clauses.push("project_key IN (SELECT value FROM json_each(?))".into());
+        args.push(json!(filter["projectPaths"].to_string()));
+    }
     Ok((clauses.join(" AND "), args))
 }
 
@@ -167,6 +173,120 @@ fn summarize_scope(records: &[Value]) -> Value {
 }
 
 impl Ledger {
+    pub(crate) fn output_projects(&self, filter: &Value) -> Result<Vec<String>> {
+        let (clause, args) = scope(self, filter)?;
+        Ok(rows(&self.db, &format!(
+            "SELECT DISTINCT project_key FROM usage_records WHERE {clause} AND project_key IS NOT NULL"
+        ), &args)?.into_iter().filter_map(|row| row["project_key"].as_str().map(str::to_owned)).collect())
+    }
+
+    pub(crate) fn output_totals(&self, filter: &Value) -> Result<Value> {
+        let (clause, args) = scope(self, filter)?;
+        Ok(shape(
+            rows(
+                &self.db,
+                &format!(
+                    "SELECT {SUMS},{REQUESTS},{SESSION_COUNT},min(observed_at) AS started_at,
+            max(coalesce(ended_at,observed_at)) AS last_seen_at,
+            CASE WHEN count(DISTINCT project_key)=1 THEN max(project_key) END AS project_key
+            FROM usage_records WHERE {clause}"
+                ),
+                &args,
+            )?
+            .remove(0),
+        ))
+    }
+
+    pub(crate) fn output_groups(&self, by: &str, filter: &Value) -> Result<Vec<Value>> {
+        let (clause, args) = scope(self, filter)?;
+        let column = match by {
+            "tool" => "source".into(),
+            "model" | "project" => dimension(by)?.into(),
+            time => {
+                let offset = filter["offsetMinutes"].as_i64().unwrap_or_default();
+                let start = bucket_expr(time, offset, "observed_at")?;
+                let end = bucket_expr(time, offset, "ended_at")?;
+                // The app leaves cumulative usage spanning buckets unallocated.
+                format!("CASE WHEN kind='event' OR {start}={end} THEN {start} END")
+            }
+        };
+        Ok(rows(
+            &self.db,
+            &format!(
+                "SELECT {column} AS bucket,{SUMS},{REQUESTS},{SESSION_COUNT}
+            FROM usage_records WHERE {clause} GROUP BY bucket ORDER BY bucket IS NULL,bucket"
+            ),
+            &args,
+        )?
+        .into_iter()
+        .map(shape)
+        .collect())
+    }
+
+    pub(crate) fn output_sessions(
+        &self,
+        filter: &Value,
+        sort: &str,
+        limit: usize,
+        after: Option<&[Value; 4]>,
+    ) -> Result<Vec<Value>> {
+        let (clause, mut args) = scope(self, filter)?;
+        let (missing, rank) = match sort {
+            "cost" => ("cost_micros IS NULL", "coalesce(cost_micros,0)"),
+            "tokens" => ("0", "coalesce(input_tokens,0)+coalesce(output_tokens,0)+coalesce(cache_read_tokens,0)+coalesce(cache_write_tokens,0)"),
+            _ => ("0", "last_seen_at"),
+        };
+        let seek = after.map_or("", |key| {
+            args.extend(key.iter().cloned());
+            // Cursor comparisons and ORDER BY use the same tuple and collation.
+            // Only the rank is descending.
+            "WHERE missing > cursor.m OR (missing=cursor.m AND (rank < cursor.r OR
+                (rank=cursor.r AND (session_id,source) > (cursor.s,cursor.t))))"
+        });
+        let cursor = if after.is_some() {
+            ", cursor AS (SELECT ? AS m,? AS r,? AS s,? AS t)"
+        } else {
+            ""
+        };
+        let join = if after.is_some() {
+            "CROSS JOIN cursor"
+        } else {
+            ""
+        };
+        args.push(json!(limit + 1));
+        Ok(rows(&self.db, &format!(
+            "WITH scoped AS (
+                SELECT source,session_id,{SUMS},{REQUESTS},min(observed_at) AS started_at,
+                max(coalesce(ended_at,observed_at)) AS last_seen_at,
+                CASE WHEN count(DISTINCT project_key)=1 THEN max(project_key) END AS project_key
+                FROM usage_records WHERE {clause} AND session_id IS NOT NULL GROUP BY source,session_id
+            ), ranked AS (SELECT *,{missing} AS missing,{rank} AS rank FROM scoped){cursor}
+            SELECT ranked.* FROM ranked {join} {seek}
+            ORDER BY missing,rank DESC,session_id,source LIMIT ?"
+        ), &args)?.into_iter().map(shape).collect())
+    }
+
+    pub(crate) fn output_source_results(&self) -> Result<HashMap<String, Value>> {
+        Ok(rows(
+            &self.db,
+            "SELECT source,result FROM (
+                SELECT substr(key,13) AS source,value AS result,
+                row_number() OVER (PARTITION BY key ORDER BY ingest_runs.id DESC) AS position
+                FROM ingest_runs, json_each(CASE WHEN json_valid(counts) THEN counts END)
+                WHERE key GLOB 'sync_source.*'
+            ) WHERE position=1",
+            &[],
+        )?
+        .into_iter()
+        .map(|row| {
+            (
+                row["source"].as_str().unwrap().to_owned(),
+                row["result"].clone(),
+            )
+        })
+        .collect())
+    }
+
     pub fn requests(
         &self,
         filter: &Value,
@@ -603,6 +723,20 @@ impl Ledger {
         rows(&self.db,&format!("SELECT source,model,provider,project_key,price_version,cost_micros,kind,observed_at,ended_at,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cache_write_5m_tokens,cache_write_1h_tokens FROM usage_records WHERE {clause} AND cost_micros IS NOT NULL"),&args)
     }
     pub fn last_run(&self) -> Result<Value> {
+        let mut row = self.output_last_run()?;
+        if let Some(counts) = row.get_mut("counts").and_then(Value::as_object_mut) {
+            let had_metadata = counts.keys().any(|key| key.starts_with("sync_trigger."));
+            counts.retain(|key, _| {
+                !key.starts_with("sync_trigger.") && !key.starts_with("sync_source.")
+            });
+            if had_metadata && counts.is_empty() {
+                row["counts"] = Value::Null;
+            }
+        }
+        Ok(row)
+    }
+
+    pub(crate) fn output_last_run(&self) -> Result<Value> {
         let Some(mut row)=rows(&self.db,"SELECT id,status,started_at,finished_at,attempted,inserted,updated,unchanged,rejected,notes,counts,skipped_files FROM ingest_runs LEFT JOIN ingest_run_files ON run_id=id ORDER BY id DESC LIMIT 1",&[])?.pop() else{return Ok(Value::Null)};
         if row["skipped_files"].as_i64().unwrap_or(0) == 0 {
             row.as_object_mut().unwrap().remove("skipped_files");
