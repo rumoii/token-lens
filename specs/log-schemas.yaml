@@ -755,6 +755,27 @@ anythingllm:
     scope: "request"
     limits: "completed；无首点；本机无样本，合成验证；非正差值、单位不明或配对歧义 NULL"
 
+antigravity:
+  description: "Google Antigravity CLI（agy）；source 为 antigravity，仅桌面版，证据 A"
+  evidence: "Windows 上同一真实会话的两轮生成与 agy JSON 自报用量逐项对照；仓库测试使用合成夹具"
+  locations:
+    win32: "%USERPROFILE%\\.gemini\\antigravity-cli\\conversations\\*.db"
+    darwin: "~/.gemini/antigravity-cli/conversations/*.db（实际客户端路径待核实）"
+    workspace: "~/.gemini/antigravity-cli/conversation_summaries.db"
+  format: "只读 SQLite；gen_metadata.data 为 protobuf，每行一次模型生成；用量块 1.4 缺失或三项计数全零时跳过"
+  key_fields:
+    identity: "antigravity:<request_id>；request_id 取 1.20 键值对。缺失时用 antigravity:<conversation_id>:<gen_metadata.idx>"
+    session_id: "会话库文件名去掉 .db，即 conversation_id"
+    project_key: "conversation_summaries 按 conversation_id 查 workspace_uris JSON 数组，取第一个 file:// URI，转本地路径；缺失为 NULL"
+    model: "gen_metadata.data 的 1.19"
+    provider: "NULL"
+    timestamp: "在 1.20 中取 last_step_index，先读该索引后首个 step_type=15 的 steps.metadata 1.1，再读 last_step_index+1 的同字段，最后读 trajectory_metadata_blob.data 的 2.1；Unix 秒转 UTC，全部缺失时拒绝"
+    usage:
+      input_tokens: "1.4.2，已扣缓存读；缺失为零"
+      output_tokens: "1.4.3，已含思考；缺失为零"
+      cache_read_tokens: "1.4.5；缺失为零"
+      cache_write_tokens: "NULL，客户端未报告"
+
 codebuddy_and_workbuddy:
   description: "CodeBuddy / WorkBuddy CLI 与桌面请求索引；第三方逆向依据，证据 B（合成）"
   upstream: "https://github.com/NextAgentX/qoder-trae-workbuddy-switch/blob/ab5afe42ef3b0e558ef279b4c9f01ede45ccc963/crates/buddy-switch-core/src/modules/token_stats.rs"

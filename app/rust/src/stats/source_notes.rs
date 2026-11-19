@@ -1,4 +1,4 @@
-// Copy of src/core/api/v1/sources.js; keep the Chinese wording exact.
+// Source evidence and user-facing notes for desktop statistics.
 pub const EVIDENCE: &str = r#"{
   "claude": "A",
   "codex": "A",
@@ -11,7 +11,8 @@ pub const EVIDENCE: &str = r#"{
   "zcode": "B",
   "codebuddy": "B",
   "commandcode": "B",
-  "anythingllm": "B"
+  "anythingllm": "B",
+  "antigravity": "A"
 }"#;
 pub const SOURCE_LIMITS: &str = r#"{
   "claude": [
@@ -354,6 +355,23 @@ pub const SOURCE_LIMITS: &str = r#"{
       "STORAGE_DIR 不覆盖 Prisma SQLite URL，仅自动发现本机桌面库",
       "服务端数据库和容器内的数据库不在自动发现范围内。",
       "affects"
+    ]
+  ],
+  "antigravity": [
+    [
+      "逐次生成记一条，输入不含读缓存",
+      "每次模型生成记一条用量。agy 记的输入已经去掉了读缓存，读缓存单独计；输出包含思考 token。",
+      "handled"
+    ],
+    [
+      "不报告写缓存",
+      "agy 的数据里没有写缓存，这一项显示为不记录。",
+      "affects"
+    ],
+    [
+      "项目取会话的工作区",
+      "项目来自 agy 记录的会话工作区；没有记录工作区的会话不归到任何项目。",
+      "handled"
     ]
   ],
   "zcode": [

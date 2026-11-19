@@ -1,4 +1,4 @@
-# 适配器契约（27 组）
+# 适配器契约（28 组）
 
 本文件回答一个适配器实现者必须知道、但日志格式本身不会告诉他的事：这条记录的**稳定身份**是什么、**时间是哪个时间**、**四类 token 谁包含谁**、**它是事件还是累计快照**、以及**哪里会错**。
 
@@ -12,7 +12,7 @@
 
 ```
 record_key           稳定身份，不含任何 token 数
-source               27 组之一
+source               28 组之一
 session_id           NULL 表示未知，不用空串冒充
 project_key          NULL 除非有可靠项目元数据
 model                NULL 表示未知
@@ -81,6 +81,13 @@ cache_write_tokens
 | 27 | `anythingllm` | `anythingllm\|<workspaceId>\|<chat.id>` | workspace_chats.createdAt，毫秒或 UTC SQL 时间 | prompt/completion 可能估算或 provider 返回；缓存两列 NULL | 事件 | 只读桌面 SQLite；include=false 仍计入；删 workspace 在应用层批量删 chats，账本保留已采集值；model/provider 只取 metrics 显式字段；项目 NULL | B |
 
 B 档里 `grok`、`hermes`、`copilot` 在本机有数据目录，但没有可对照的用量（见第四节）；其余 18 组本机无样本，只做过合成样本验证。
+
+**Antigravity（`antigravity`，仅桌面版，证据 A）**。Windows 上用 agy 自报用量对照过一个真实会话的两轮生成。仓库测试使用合成 SQLite 和 protobuf。
+
+- 每个有非零用量的 `gen_metadata` 行是一条事件。身份取 `antigravity:<request_id>`，缺请求 ID 时用 `antigravity:<conversation_id>:<idx>`。位置回退键在会话名和行索引不变的情况下可跨重复采集和追加保留。
+- 时间取生成对应的首个回复步骤的 UTC 创建时间，缺失时依次取紧接的步骤和会话创建时间。三个位置都没有可用时间时拒绝该条用量。损坏的 protobuf 单独计数并跳过。
+- 输入已扣缓存读取，缓存读单列，输出已含思考。用量块内缺失的计数字段为零，缓存写为 NULL。模型取生成元数据中的模型名，provider 为 NULL。
+- 项目取只读旁库的第一条工作区文件 URI，未记录时为 NULL。字段路径见 [log-schemas.yaml](log-schemas.yaml)。会话库和旁库均按 SQLite 来源每轮读取。
 
 Qwen 的 `thoughtsTokens` 不能一律再加到输出。核验上游 `QwenLM/qwen-code@99adce25e19dce4ea3bf90466ac84c8d6878becd`：
 

@@ -244,6 +244,24 @@ fn linked(metadata: &fs::Metadata) -> bool {
         metadata.file_type().is_symlink()
     }
 }
+
+pub(super) fn preview_allows_sqlite(home: &Path, path: &Path) -> bool {
+    let home = normalize(home);
+    let environment = Environment::default().preview();
+    let scan = Scan::new(&home, &environment);
+    scan.allowed(path).unwrap_or(false)
+        && ["-wal", "-shm", "-journal"].iter().all(|suffix| {
+            let mut name = path.as_os_str().to_owned();
+            name.push(suffix);
+            match scan.allowed(Path::new(&name)) {
+                Ok(allowed) => allowed,
+                Err(error) => error.kind() == ErrorKind::NotFound,
+            }
+        })
+}
+
+const ANTIGRAVITY_CONVERSATIONS: &str = ".gemini/antigravity-cli/conversations";
+
 fn wildcard(pattern: &str, name: &str) -> bool {
     let p = pattern.to_lowercase().into_bytes();
     let s = name.to_lowercase().into_bytes();
@@ -641,6 +659,7 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
                 .join("sessions"),
             home.join(".config/gemini/sessions"),
         ],
+        "antigravity" => vec![home.join(ANTIGRAVITY_CONVERSATIONS)],
         "opencode" => {
             let data = xdg_data(home, env).join("opencode");
             match env.get("OPENCODE_DB") {
@@ -973,6 +992,8 @@ pub(super) fn discover_profiled(
         "anythingllm",
         vec![get_anythingllm_db_path(home, env)],
     );
+    let files = glob(&mut scan, &home.join(ANTIGRAVITY_CONVERSATIONS), "*.db");
+    add(&mut scan, "antigravity", files);
     out
 }
 #[cfg(test)]
@@ -1326,6 +1347,10 @@ mod b3_tests {
                 "anythingllm",
                 "Library/Application Support/anythingllm-desktop/storage/anythingllm.db",
             ),
+            (
+                "antigravity",
+                ".gemini/antigravity-cli/conversations/fixture.db",
+            ),
         ];
         for (_, file) in paths {
             let file = home.join(file);
@@ -1338,7 +1363,7 @@ mod b3_tests {
             ..Default::default()
         };
         let found = discover_with_env(home, &env).unwrap();
-        assert_eq!(found.len(), 27);
+        assert_eq!(found.len(), super::super::adapters::PARSER_REV.len());
         for (source, file) in paths {
             assert_eq!(
                 found.iter().find(|(s, _)| s == source).unwrap().1,

@@ -1,4 +1,7 @@
 mod aider;
+mod antigravity;
+#[cfg(test)]
+pub(crate) mod antigravity_tests;
 mod anythingllm;
 mod claude;
 mod cline;
@@ -96,6 +99,7 @@ pub fn parse(
         identity,
         file,
         zone,
+        None,
         &mut ReadParsePhases::default(),
     )
 }
@@ -105,6 +109,7 @@ pub(super) fn parse_profiled(
     identity: &str,
     file: &Path,
     zone: &LocalZone,
+    preview_home: Option<&Path>,
     phases: &mut ReadParsePhases,
 ) -> Result<(Vec<Value>, Value)> {
     let mut notes = json!({"bad_lines":0,"bad_fields":0,"bad_times":0,"zero_usage":0});
@@ -134,6 +139,7 @@ pub(super) fn parse_profiled(
             "minimax" => minimax::parse(file, zone, &mut notes),
             "zcode" => zcode::parse(file, zone, &mut notes),
             "anythingllm" => anythingllm::parse(file, zone, &mut notes),
+            "antigravity" => antigravity::parse(file, preview_home, &mut notes),
             _ => unreachable!(),
         };
         phases.sqlite_ns += started.elapsed().as_nanos() as u64;
@@ -222,6 +228,7 @@ pub(super) fn sqlite_only(source: &str) -> bool {
             | "minimax"
             | "zcode"
             | "anythingllm"
+            | "antigravity"
     )
 }
 
@@ -445,6 +452,7 @@ pub const PARSER_REV: &[(&str, i64)] = &[
     ("zcode", 1),
     ("commandcode", 1),
     ("anythingllm", 1),
+    ("antigravity", 1),
 ];
 pub fn parser_rev(source: &str) -> i64 {
     PARSER_REV
@@ -717,7 +725,7 @@ mod ledger_b3_tests {
         }
     }
     #[test]
-    fn all_twenty_seven_sources_sync_and_repeat_b3() {
+    fn all_registered_sources_sync_and_repeat() {
         let dir = tempfile::tempdir().unwrap();
         let home = dir.path().join("home");
         let data = dir.path().join("data");
@@ -733,6 +741,8 @@ mod ledger_b3_tests {
             std::fs::copy(repo.join(entry["input"].as_str().unwrap()), target).unwrap();
         }
         setup_b3(&home);
+        // Keep the 27 Node fixtures and their golden comparisons separate from Rust-only fixtures.
+        let _antigravity = antigravity_tests::seed(&home);
         let env = environment(&home);
         // The same sync and service entry points are called inside StatsClient; no process environment is read.
         let sync = || {
@@ -765,7 +775,6 @@ mod ledger_b3_tests {
             .collect::<Vec<_>>();
         expected.sort();
         assert_eq!(actual, expected);
-        assert_eq!(actual.len(), 27);
         let count = summary["totals"]["record_count"].as_i64().unwrap();
         assert_eq!(first["inserted"], count);
         assert_eq!(

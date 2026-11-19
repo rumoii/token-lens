@@ -15,7 +15,7 @@
 
 </div>
 
-Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen Code 等 27 款 AI 编程工具写在本机的日志，算出每个工具、模型、项目、会话用了多少 token，按各模型的公开价估算值多少钱，还能看到每次请求要等多久才开始回复、回复得多快。不登录、不上传、没有遥测。
+Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen Code 等 28 款 AI 编程工具写在本机的日志，算出每个工具、模型、项目、会话用了多少 token，按各模型的公开价估算值多少钱，还能看到每次请求要等多久才开始回复、回复得多快。不登录、不上传、没有遥测。
 
 ## 功能
 
@@ -82,6 +82,7 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 | Qwen Code | qwen | 实测·逐字段对照 | 输入含缓存需扣减；输出并入 thoughtsTokens |
 | Pi | pi | 实测·逐字段对照 | 会话头与用量不在同一行 |
 | DeepSeek Harness (DSH) | dsh | 实测·与客户端自报对照 | 会话级累计快照，全量覆写 |
+| Antigravity CLI (agy) | antigravity | 实测·与客户端自报对照 | 每个会话一个 SQLite；输入不含读缓存，输出含思考；不报告写缓存 |
 | Grok Build CLI | grok | 有样本·待对照 | 仅 turn_completed 带用量 |
 | Hermes Agent | hermes | 有样本·待对照 | 累计；两张表结构不同 |
 | Aider | aider | 实验性·合成验证 | commit_hash 不作会话标识；只读取 ~/.aider.llm.history |

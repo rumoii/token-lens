@@ -127,7 +127,7 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 
 命中要求以下各项都与缓存一致：文件身份路径、大小、系统给出的最高精度修改时间、全部旁文件的路径和状态（含“不存在”）、该来源的 `PARSER_REV` 和 `TIMING_REV`、解析时区身份、缓存格式版本（当前为 1）。有任何一项缺失或不同就重新解析。旁文件：Grok 与 `updates.jsonl` 同级的 `summary.json`；Cline（含 Roo）与 `api_conversation_history.json` 同级的 `ui_messages.json`；CodeBuddy 桌面 JSON 主文件上两级目录的 `index.json`；OpenHands `base_state.json` 同级 `events/` 下按适配器规则匹配的事件文件（按文件名排序）。时区身份在 Windows 上取系统动态时区 ID、偏差和夏令时规则，其他平台取系统时区身份和本机时区规则文件的状态；时区变化让全部普通文件的缓存失效。
 
-SQLite 来源（hermes、cursor 数据库、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm）不缓存，每轮照常读取、settle 和写入，因为已提交数据可能只在 WAL 里。Copilot 读取 `data.db` 时邻接的 `session-store.db` 同样每轮实时读取。Cursor 的 CSV 是普通文件，参与缓存。
+SQLite 来源（hermes、cursor 数据库、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm、antigravity）不缓存，每轮照常读取、settle 和写入，因为已提交数据可能只在 WAL 里。Copilot 的 `session-store.db` 和 Antigravity 的 `conversation_summaries.db` 同样每轮实时读取。Cursor 的 CSV 是普通文件，参与缓存。
 
 按来源处理：
 

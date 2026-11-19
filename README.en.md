@@ -15,7 +15,7 @@ Local-only token usage and cost tracking for AI coding tools
 
 </div>
 
-Token Lens is a desktop app. It reads the logs that 27 AI coding tools, including Claude Code, Codex, Kimi and Qwen Code, write on your machine, and shows how many tokens each tool, model, project and session used, what that would cost at each model's list price, and how long each request waited before the reply started and how fast it streamed. No sign-in, no uploads, no telemetry.
+Token Lens is a desktop app. It reads the logs that 28 AI coding tools, including Claude Code, Codex, Kimi and Qwen Code, write on your machine, and shows how many tokens each tool, model, project and session used, what that would cost at each model's list price, and how long each request waited before the reply started and how fast it streamed. No sign-in, no uploads, no telemetry.
 
 The app and the specifications are written in Simplified Chinese.
 
@@ -84,6 +84,7 @@ Opening it again brings the existing window to the front.
 | Qwen Code | qwen | Verified field-by-field against real samples | Input includes cache and needs subtraction; output merges thoughtsTokens |
 | Pi | pi | Verified field-by-field against real samples | Session header and usage are not on the same line |
 | DeepSeek Harness (DSH) | dsh | Verified against client-reported totals | Session-level cumulative snapshots, full overwrite |
+| Antigravity CLI (agy) | antigravity | Verified against client-reported totals | One SQLite file per conversation; input excludes cache reads, output includes thinking; cache writes not reported |
 | Grok Build CLI | grok | Real samples, pending verification | Only turn_completed carries usage |
 | Hermes Agent | hermes | Real samples, pending verification | Cumulative; two tables with different structures |
 | Aider | aider | Experimental, synthetic-only | commit_hash is not used as a session identifier; reads only ~/.aider.llm.history |

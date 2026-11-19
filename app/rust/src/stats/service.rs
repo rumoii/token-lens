@@ -628,7 +628,7 @@ mod tests {
         );
         let source = sources(&ledger, "2026-01-15T12:00:00.000Z", |_| true, "UTC").unwrap();
         assert_eq!(source["sources"][0]["retention"]["reviewable"], 1);
-        assert_eq!(source["snapshot"]["known_sources"], 12);
+        assert_eq!(source["snapshot"]["known_sources"], 13);
         let prices = pricing(&ledger, "UTC").unwrap();
         assert_eq!(prices["models"][0]["local_providers"]["ollama"], 1);
         assert_eq!(prices["models"][0]["state"], "local");
@@ -656,7 +656,7 @@ mod tests {
         }
         assert_eq!(
             discovery(temp.path(), &environment),
-            json!({"supported":27,"sources":[{"source":"claude","files":1},{"source":"codex","files":1}]})
+            json!({"supported":super::super::adapters::PARSER_REV.len(),"sources":[{"source":"claude","files":1},{"source":"codex","files":1}]})
         );
     }
     fn sorted(value: Value) -> Value {

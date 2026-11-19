@@ -232,6 +232,17 @@ void main() {
     await tester.pump();
     expect(find.text('Qwen Code'), findsNothing);
   });
+  testWidgets('首次发现显示 Antigravity 和字母图标', (tester) async {
+    final gateway = OnboardingGateway()
+      ..found = const [StatsDiscoveredSource(source: 'antigravity', files: 2)];
+    await mount(tester, own(gateway));
+    expect(find.text('Antigravity'), findsOneWidget);
+    final tile = find.byWidgetPredicate(
+      (widget) => widget is ToolTile && widget.id == 'antigravity',
+    );
+    expect(find.descendant(of: tile, matching: find.text('A')), findsOneWidget);
+  });
+
   testWidgets('找到 0 个工具，重新检测 fresh=true，失败可重试', (tester) async {
     final g = OnboardingGateway()..found = [];
     await mount(tester, own(g));

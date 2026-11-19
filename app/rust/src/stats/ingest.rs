@@ -578,8 +578,14 @@ fn sync_profiled(
                         }
                     }
                     phases.parsed_files += 1;
-                    match adapters::parse_profiled(&source, &file, path, zone, &mut phases.adapter)
-                    {
+                    match adapters::parse_profiled(
+                        &source,
+                        &file,
+                        path,
+                        zone,
+                        environment.preview.then_some(home),
+                        &mut phases.adapter,
+                    ) {
                         Ok((mut records, mut notes)) => {
                             #[cfg(test)]
                             if let Some(after_parse) = options.after_parse {
@@ -594,7 +600,21 @@ fn sync_profiled(
                                     true
                                 }
                             });
-                            let notes: HashMap<String, i64> = serde_json::from_value(notes)?;
+                            let mut notes: HashMap<String, i64> = serde_json::from_value(notes)?;
+                            if let Some(rejected) = notes.remove("rejected_missing_time") {
+                                for field in ["attempted", "rejected"] {
+                                    totals[field] =
+                                        json!(totals[field].as_i64().unwrap_or(0) + rejected);
+                                }
+                                let note = format!(
+                                    "rejected: {source} — {rejected} 条用量缺少 observed_at（回复步骤、下一步和会话元数据均无可用时间）"
+                                );
+                                log.write("WARN", "sync", &note);
+                                totals["anomalies"]
+                                    .as_array_mut()
+                                    .unwrap()
+                                    .push(json!(note));
+                            }
                             merge_counts(&mut totals, notes.iter().map(|(k, v)| (k, *v)));
                             let mut update = if had_cache {
                                 CacheUpdate::Invalidate

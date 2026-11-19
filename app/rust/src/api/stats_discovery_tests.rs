@@ -130,6 +130,73 @@ fn s0a_preview_sync_ignores_inherited_paths() {
 }
 
 #[test]
+fn antigravity_s0a_preview_ignores_outside_home() {
+    use crate::stats::adapters::antigravity_tests::seed;
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("home");
+    let outside = root.path().join("outside");
+    let _outside_db = seed(&outside);
+    let env = ingest::Environment {
+        platform: "win32".into(),
+        vars: ["HOME", "USERPROFILE", "GEMINI_HOME"]
+            .into_iter()
+            .map(|key| (key.into(), outside.to_string_lossy().into_owned()))
+            .collect(),
+        ..Default::default()
+    };
+    let preview = client(&root.path().join("data"), &home);
+    fs::create_dir_all(&home).unwrap();
+    assert_eq!(
+        preview
+            .sync_with_env("manual".into(), &env)
+            .unwrap()
+            .inserted,
+        0
+    );
+    let _local_db = seed(&home);
+    let bait_uri = reqwest::Url::from_directory_path(&outside).unwrap();
+    let summaries = outside.join(".gemini/antigravity-cli/conversation_summaries.db");
+    fixture(
+        &summaries,
+        "CREATE TABLE conversation_summaries(conversation_id, workspace_uris);",
+    );
+    rusqlite::Connection::open(&summaries)
+        .unwrap()
+        .execute(
+            "INSERT INTO conversation_summaries VALUES ('synthetic', ?1)",
+            [json!([bait_uri.as_str()]).to_string()],
+        )
+        .unwrap();
+    let link = home.join(".gemini/antigravity-cli/conversation_summaries.db");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&summaries, &link).unwrap();
+    #[cfg(windows)]
+    if std::os::windows::fs::symlink_file(&summaries, &link).is_err() {
+        // Exercise the reparse-point check without requiring Developer Mode.
+        junction(&link, summaries.parent().unwrap());
+    }
+    let result = preview.sync_with_env("manual".into(), &env).unwrap();
+    assert_eq!(result.inserted, 1);
+    assert_eq!(
+        result.counts.bad_fields, 0,
+        "preview tried to open the linked database"
+    );
+    assert_eq!(records(&preview), 1);
+    let project: Option<String> = preview
+        .open()
+        .unwrap()
+        .db
+        .query_row("SELECT project_key FROM usage_records", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert!(
+        project.is_none(),
+        "preview used a workspace from the linked database"
+    );
+}
+
+#[test]
 fn s0a_preview_ignores_zcode_config_outside_home() {
     let root = tempfile::tempdir().unwrap();
     let home = root.path().join("home");
@@ -165,19 +232,21 @@ fn s0a_preview_skips_a_linked_log_directory() {
     #[cfg(unix)]
     std::os::unix::fs::symlink(&bait, &link).unwrap();
     #[cfg(windows)]
-    {
-        // Junctions require no Developer Mode and exercise non-symlink reparse points.
-        let output = std::process::Command::new("cmd")
-            .args(["/C", "mklink", "/J"])
-            .arg(&link)
-            .arg(&bait)
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{output:?}");
-    }
+    junction(&link, &bait);
     let preview = client(&root.path().join("data"), &home);
     preview.sync_isolated().unwrap();
     assert_eq!(records(&preview), 0);
+}
+
+#[cfg(windows)]
+fn junction(link: &Path, target: &Path) {
+    let output = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(link)
+        .arg(target)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
 }
 
 #[cfg(windows)]

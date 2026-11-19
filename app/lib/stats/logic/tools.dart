@@ -32,6 +32,12 @@ const tools = <String, ToolInfo>{
     letter: 'G',
     darkGlyph: false,
   ),
+  'antigravity': (
+    name: 'Antigravity',
+    logo: null,
+    letter: 'A',
+    darkGlyph: false,
+  ),
   'cursor': (name: 'Cursor', logo: 'cursor.png', letter: 'C', darkGlyph: false),
   'opencode': (
     name: 'OpenCode',

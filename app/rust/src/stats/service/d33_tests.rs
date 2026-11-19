@@ -4,6 +4,7 @@ use std::{path::Path, sync::atomic::AtomicBool};
 
 const NOW: &str = "2026-01-15T12:00:00.000Z";
 const MILLIS: i64 = 1768478400000;
+const RUST_ONLY_SOURCES: &[&str] = &["antigravity"];
 
 fn sorted_list(value: &mut Value) {
     if let Some(array) = value.as_array_mut() {
@@ -82,6 +83,11 @@ fn check_invariant(ledger: &Ledger, row: &Value, actual: &Value) {
 
 #[test]
 fn d33_queries_match_node_golden_and_conserve() {
+    let evidence: Value = serde_json::from_str(source_notes::EVIDENCE).unwrap();
+    let rust_only_evidence = RUST_ONLY_SOURCES
+        .iter()
+        .filter(|source| evidence.get(**source).is_some())
+        .count();
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/fixtures/parity/queries");
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let temp = tempfile::tempdir().unwrap();
@@ -242,11 +248,27 @@ fn d33_queries_match_node_golden_and_conserve() {
                     _ => panic!("unknown golden query: {name}"),
                 };
                 let mut actual = actual;
+                let mut expected = row["expected"].clone();
+                // The frozen Node registry cannot include Rust-only sources.
+                match name {
+                    "sources" => {
+                        let known = row["expected"]["snapshot"]["known_sources"]
+                            .as_u64()
+                            .unwrap();
+                        expected["snapshot"]["known_sources"] =
+                            json!(known + rust_only_evidence as u64);
+                    }
+                    "discovery" => {
+                        let supported = row["expected"]["supported"].as_u64().unwrap();
+                        expected["supported"] = json!(supported + RUST_ONLY_SOURCES.len() as u64);
+                    }
+                    _ => {}
+                }
                 crate::stats::timing_tests::strip_golden_timing(&mut actual);
                 check_invariant(ledger, &row, &actual);
                 assert_eq!(
                     ordered(name, actual),
-                    ordered(name, row["expected"].clone()),
+                    ordered(name, expected),
                     "line {}: {name}",
                     line_number + 1
                 );

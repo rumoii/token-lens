@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/smooth_wheel.dart';
+import 'package:token_lens_app/stats/logic/tools.dart';
 import 'package:token_lens_app/stats/sources_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats/widgets/primitives.dart';
@@ -264,10 +265,11 @@ void main() {
     expect(sourceText('有影响'), findsOneWidget);
     expect(sourceText('已处理'), findsOneWidget);
     expect(sourceText('Claude Code'), findsNothing);
-    await tester.tap(sourceText('还有 26 个支持的工具没在这台电脑上找到'));
+    final missing = sourceText('还有 ${tools.length - 1} 个支持的工具没在这台电脑上找到');
+    await tester.tap(missing);
     await tester.pumpAndSettle();
     expect(sourceText('Claude Code'), findsOneWidget);
-    await tester.tap(sourceText('还有 26 个支持的工具没在这台电脑上找到'));
+    await tester.tap(missing);
     await tester.pumpAndSettle();
     expect(sourceText('Claude Code'), findsNothing);
   });
@@ -408,6 +410,15 @@ void main() {
     expect(sourceText('A（真实样本）'), findsOneWidget);
     expect(sourceText('累计型：一个会话只有一条快照'), findsOneWidget);
   });
+  testWidgets('来源页显示 Antigravity 和字母图标', (tester) async {
+    await mount(tester, SourcesGateway()..items = [source('antigravity')]);
+    expect(sourceText('Antigravity'), findsOneWidget);
+    final tile = find.byWidgetPredicate(
+      (widget) => widget is ToolTile && widget.id == 'antigravity',
+    );
+    expect(find.descendant(of: tile, matching: find.text('A')), findsOneWidget);
+  });
+
   testWidgets('空来源和零记录不作为找到工具', (tester) async {
     await mount(
       tester,
@@ -415,7 +426,7 @@ void main() {
     );
     expect(sourceText('还没找到工具的日志'), findsOneWidget);
     expect(sourceText('用过支持的 AI 编程工具以后，点「立即同步」。'), findsOneWidget);
-    expect(sourceText('还有 27 个支持的工具没在这台电脑上找到'), findsOneWidget);
+    expect(sourceText('还有 ${tools.length} 个支持的工具没在这台电脑上找到'), findsOneWidget);
     expect(sourceText('Codex'), findsNothing);
   });
   for (final dark in [false, true]) {
