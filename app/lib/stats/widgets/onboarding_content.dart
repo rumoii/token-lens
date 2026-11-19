@@ -51,8 +51,14 @@ class _OnboardingContentState extends State<OnboardingContent> {
     final done = widget.step == OnboardingStep.done;
     final found = widget.discovery.data?.sources ?? <StatsDiscoveredSource>[];
     final supported = widget.discovery.data?.supported ?? tools.length;
-    final missing = tools.keys.where((id) => !found.any((s) => s.source == id));
-    final missingCount = math.max(0, supported - found.length);
+    final denied = {
+      for (final issue in widget.discovery.data?.discoveryIssues ?? [])
+        if (issue.permissionDenied > 0) issue.source,
+    };
+    final filesByTool = {for (final item in found) item.source: item.files};
+    final detected = {...filesByTool.keys, ...denied};
+    final missing = tools.keys.where((id) => !detected.contains(id));
+    final missingCount = math.max(0, supported - detected.length);
     final c = widget.controller;
     Widget text(
       String value,
@@ -409,12 +415,14 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                     16,
                                   ),
                                   child: text(
-                                    '这台电脑上还没找到支持的工具的日志。装好并用过其中任意一个后再回来。',
+                                    denied.isEmpty
+                                        ? '这台电脑上还没找到支持的工具的日志。装好并用过其中任意一个后再回来。'
+                                        : '有 ${denied.length} 个工具的日志目录没有权限读取，见下方。其余支持的工具没在这台电脑上找到。',
                                     13,
                                     color: p.muted,
                                   ),
-                                )
-                              else
+                                ),
+                              if (detected.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(
                                     10,
@@ -424,7 +432,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                   ),
                                   child: Column(
                                     children: [
-                                      for (final item in found.indexed)
+                                      for (final item in detected.indexed)
                                         Container(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 8,
@@ -445,10 +453,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                           ),
                                           child: Row(
                                             children: [
-                                              ToolTile(
-                                                item.$2.source,
-                                                size: 32,
-                                              ),
+                                              ToolTile(item.$2, size: 32),
                                               const SizedBox(width: 12),
                                               Expanded(
                                                 child: Column(
@@ -456,26 +461,40 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                                       CrossAxisAlignment.start,
                                                   children: [
                                                     text(
-                                                      toolOf(item.$2.source)
-                                                          .name,
+                                                      toolOf(item.$2).name,
                                                       14,
                                                       weight: FontWeight.w500,
                                                     ),
-                                                    text(
-                                                      '${toDisplayNumber(item.$2.files)} 个日志文件',
-                                                      12.5,
-                                                      color: p.muted,
-                                                    ),
+                                                    if (filesByTool[item.$2]
+                                                        case final files?)
+                                                      text(
+                                                        '${toDisplayNumber(files)} 个日志文件',
+                                                        12.5,
+                                                        color: p.muted,
+                                                      ),
+                                                    if (denied.contains(
+                                                      item.$2,
+                                                    ))
+                                                      text(
+                                                        '找到了日志目录，但没有权限读取。检查文件夹权限后点「重新检测」。',
+                                                        12.5,
+                                                        color: p['warn'],
+                                                      ),
                                                   ],
                                                 ),
                                               ),
-                                              if (counting)
+                                              if (counting &&
+                                                  filesByTool.containsKey(
+                                                    item.$2,
+                                                  ))
                                                 text(
                                                   '读取中…',
                                                   12.5,
                                                   color: p.muted,
                                                 )
-                                              else ...[
+                                              else if (filesByTool.containsKey(
+                                                item.$2,
+                                              )) ...[
                                                 Icon(
                                                   Icons.check,
                                                   size: 14,
@@ -635,6 +654,13 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                 counting ? null : widget.onStart,
                               ),
                       ),
+                      if (!counting && found.isNotEmpty && denied.isNotEmpty)
+                        Center(
+                          child: action(
+                            '重新检测',
+                            widget.discovery.loading ? null : widget.onRescan,
+                          ),
+                        ),
                       if (c.syncError != null) ...[
                         const SizedBox(height: 12),
                         Center(

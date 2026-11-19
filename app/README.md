@@ -4,7 +4,7 @@ Token Lens 的桌面应用：Flutter 界面加 Rust 核心。它包括完整的�
 
 启动打开用量总览，侧栏按「用量 / 资讯 / 设置」分组，「AI 热点」位于资讯组。第一次打开时首次引导只列出找到的工具，点「开始统计」后才读取日志；之后统计在窗口打开时采集一次，每 5 分钟采集一次，也可点「同步用量」。新闻的联网时机见下方「运行与回退」。账本是应用数据目录下的 `ledger.db`，不读取旧版数据目录变量。
 
-开发和冒烟须同时隔离账本与日志根目录：`TOKEN_LENS_PREVIEW_DATA_DIR` 指定独立的测试数据目录，`TOKEN_LENS_PREVIEW_HOME` 指定合成日志根目录（其下为 `.claude/projects/**/*.jsonl`、`.codex/sessions/**/rollout-*.jsonl[.zst]`）。未覆盖日志根目录时，发行运行读取系统用户目录的客户端日志。部分客户端的位置还来自 `APPDATA`、`LOCALAPPDATA`、`XDG_DATA_HOME` 和客户端自己的覆盖变量（如 `OPENCODE_DB`、`GEMINI_HOME`），想完全不碰真实日志，就像 `scripts/smoke-desktop.py` 那样把它们也指向临时目录或清掉，完整列表以该脚本为准。
+开发和冒烟须同时隔离账本与日志根目录：`TOKEN_LENS_PREVIEW_DATA_DIR` 指定独立的测试数据目录，`TOKEN_LENS_PREVIEW_HOME` 指定合成日志根目录。设了日志根目录，所有客户端的日志位置都从它推出（如 `.claude/projects`、Windows 的 `AppData/Roaming`、`.local/share`），继承来的 `APPDATA`、`LOCALAPPDATA`、`XDG_DATA_HOME` 和客户端自己的覆盖变量（如 `OPENCODE_DB`、`GEMINI_HOME`）一律不生效，开发运行和测试因此读不到真实日志；各变量对应的位置以 `app/rust/src/stats/discovery.rs` 的 `Environment::preview` 为准。没设日志根目录时（正式发行的正常运行），读取系统用户目录和这些变量指向的位置。调试构建缺任一预览目录都拒绝启动；`scripts/desktop-dev.py` 会自动建好这两个目录。
 
 在仓库根目录、隔离环境下运行 `node scripts/parity/generate.mjs` 重建 `app/rust/tests/golden/*.jsonl`。生成器只 import 旧版生产入口；固定 Date 为 `2026-01-15T12:00:00.000Z`，主时区为 `Asia/Shanghai`，另含 UTC 向量。只有 SQLite 默认时间和采集耗时使用明确的 volatile 占位。`cargo test --manifest-path app/rust/Cargo.toml --locked` 读取相同静态夹具，验证适配器、身份字节、写入、迁移、计价与查询。
 
@@ -27,29 +27,20 @@ flutter pub get --enforce-lockfile
 
 ## 开发与检查
 
-调试运行必须提供独立的绝对目录；未设置时显示说明并停止初始化。不要把目录指向真实 home、旧账本或已安装应用的数据目录。下面两个占位都是新建的空目录（绝对路径），合成日志根目录里可以放测试用的日志：
-
-```powershell
-$env:TOKEN_LENS_PREVIEW_DATA_DIR = '<独立的测试数据目录>'
-$env:TOKEN_LENS_PREVIEW_HOME = '<合成日志根目录>'
-flutter run -d windows
-```
-
-只设数据目录而不设 `TOKEN_LENS_PREVIEW_HOME` 时，开发版会读你真实的客户端日志；其他会影响日志发现的变量见本文开头。
-
-修改 Rust 公共接口后，在 `app/` 重新生成桥接，再检查：
+在 `app/` 用 `flutter pub get --enforce-lockfile` 准备依赖，再从仓库根目录运行。入口会为账本、日志和测试建立临时目录。调试运行用合成日志，结束后清理目录，可加 `--keep` 保留。
 
 ```sh
-flutter_rust_bridge_codegen generate
-cargo fmt --manifest-path rust/Cargo.toml -- --check
-cargo test --manifest-path rust/Cargo.toml --locked
-cargo clippy --manifest-path rust/Cargo.toml --locked --all-targets -- -D warnings
-flutter analyze
-flutter test
-flutter build windows --release
+python scripts/desktop-dev.py run
+python scripts/desktop-dev.py check
 ```
 
-macOS 使用 `flutter run -d macos` 和 `flutter build macos --release`；Windows 不能验证 macOS 构建。Flutter native-assets hook 编译并打包 Rust 动态库；测试与发行不需要额外启动 Rust 服务。测试使用合成缓存、临时目录与 loopback HTTP server，不自动请求公共来源。
+macOS 可用 `python3`。调试运行需同时设置预览数据目录与预览日志根，发现逻辑从预览日志根解析各客户端的默认位置。检查与桌面 CI 共用入口，可加 `--only rust` 或 `--only flutter`。完整检查需要两个发行目标的 Cargo 缓存。
+
+```sh
+cargo fetch --manifest-path app/rust/Cargo.toml --locked --target x86_64-pc-windows-msvc --target aarch64-apple-darwin
+```
+
+修改 Rust 公共接口后，在 `app/` 运行 `flutter_rust_bridge_codegen generate`，再执行完整检查。构建发行版用 `flutter build windows --release --no-pub` 或 `flutter build macos --release --no-pub`。Flutter native-assets hook 编译并打包 Rust 动态库；测试与发行不需要额外启动 Rust 服务。
 
 ## 运行与回退
 
@@ -80,5 +71,5 @@ Windows 单实例互斥量为 `Local\TokenLens.Desktop`，重复启动仅激活�
 
 1. 修改 `pubspec.yaml` 的 `version` 和 `rust/Cargo.toml` 的 `version`（两处必须一致，`rust/Cargo.lock` 随之更新），提交到 main。
 2. 在这个提交上打标签 `v<版本>`（例如 `v0.1.0`）并推送。
-3. `.github/workflows/release.yml` 先核对标签与 `pubspec.yaml` 的版本一致，不一致就失败；一致时在 GitHub 托管的 Windows、macOS runner 上构建，打成 `token-lens-<版本>-windows-x64.zip`（Release 目录的全部内容，含 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`THIRD_PARTY_LICENSES.txt`）和 `token-lens-<版本>-macos.zip`（顶层为 `Token Lens.app` 和这三个文本文件），各附一个 `.sha256` 校验文件，然后建草稿 Release 并上传这四个文件。同一标签的 Release 已存在时失败，不覆盖。
+3. `.github/workflows/release.yml` 先核对标签与 `pubspec.yaml` 的版本一致，不一致就失败；一致时在该标签的提交上跑完整桌面检查（调用 `desktop.yml`，Windows、macOS 都要通过），再在 GitHub 托管的 Windows、macOS runner 上构建，打成 `token-lens-<版本>-windows-x64.zip`（Release 目录的全部内容，含 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`THIRD_PARTY_LICENSES.txt`）和 `token-lens-<版本>-macos.zip`（顶层为 `Token Lens.app` 和这三个文本文件），每个 ZIP 先解到临时目录，用 `scripts/verify-desktop-zip.py` 核对程序、资源和三个许可文件都在，并对解包出来的程序跑一次合成数据冒烟；通过后各附一个 `.sha256` 校验文件，然后建草稿 Release 并上传这四个文件。同一标签的 Release 已存在时失败，不覆盖。
 4. 检查草稿里的文件和说明，再在 GitHub 上手动发布。

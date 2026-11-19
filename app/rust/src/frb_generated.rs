@@ -1919,6 +1919,20 @@ impl SseDecode for Vec<crate::api::stats::StatsDiscoveredSource> {
     }
 }
 
+impl SseDecode for Vec<crate::api::stats::StatsDiscoveryIssue> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsDiscoveryIssue>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::stats::StatsGroup> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2361,6 +2375,19 @@ impl SseDecode for Option<Vec<String>> {
     }
 }
 
+impl SseDecode for Option<Vec<crate::api::stats::StatsDiscoveryIssue>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<crate::api::stats::StatsDiscoveryIssue>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<Vec<crate::api::stats::StatsPriceTier>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2616,9 +2643,28 @@ impl SseDecode for crate::api::stats::StatsDiscovery {
         let mut var_sources =
             <Vec<crate::api::stats::StatsDiscoveredSource>>::sse_decode(deserializer);
         let mut var_supported = <i64>::sse_decode(deserializer);
+        let mut var_discoveryIssues =
+            <Option<Vec<crate::api::stats::StatsDiscoveryIssue>>>::sse_decode(deserializer);
         return crate::api::stats::StatsDiscovery {
             sources: var_sources,
             supported: var_supported,
+            discovery_issues: var_discoveryIssues,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsDiscoveryIssue {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_source = <String>::sse_decode(deserializer);
+        let mut var_permissionDenied = <i64>::sse_decode(deserializer);
+        let mut var_ioErrors = <i64>::sse_decode(deserializer);
+        let mut var_unreadableEntries = <i64>::sse_decode(deserializer);
+        return crate::api::stats::StatsDiscoveryIssue {
+            source: var_source,
+            permission_denied: var_permissionDenied,
+            io_errors: var_ioErrors,
+            unreadable_entries: var_unreadableEntries,
         };
     }
 }
@@ -3280,10 +3326,13 @@ impl SseDecode for crate::api::stats::StatsSources {
         let mut var_sources = <Vec<crate::api::stats::StatsSource>>::sse_decode(deserializer);
         let mut var_lastRun = <Option<crate::api::stats::StatsSourceRun>>::sse_decode(deserializer);
         let mut var_snapshot = <crate::api::stats::StatsSnapshot>::sse_decode(deserializer);
+        let mut var_discoveryIssues =
+            <Option<Vec<crate::api::stats::StatsDiscoveryIssue>>>::sse_decode(deserializer);
         return crate::api::stats::StatsSources {
             sources: var_sources,
             last_run: var_lastRun,
             snapshot: var_snapshot,
+            discovery_issues: var_discoveryIssues,
         };
     }
 }
@@ -3970,6 +4019,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsDiscovery {
         [
             self.sources.into_into_dart().into_dart(),
             self.supported.into_into_dart().into_dart(),
+            self.discovery_issues.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3982,6 +4032,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsDiscovery>
     for crate::api::stats::StatsDiscovery
 {
     fn into_into_dart(self) -> crate::api::stats::StatsDiscovery {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsDiscoveryIssue {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.source.into_into_dart().into_dart(),
+            self.permission_denied.into_into_dart().into_dart(),
+            self.io_errors.into_into_dart().into_dart(),
+            self.unreadable_entries.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsDiscoveryIssue
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsDiscoveryIssue>
+    for crate::api::stats::StatsDiscoveryIssue
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsDiscoveryIssue {
         self
     }
 }
@@ -4728,6 +4801,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSources {
             self.sources.into_into_dart().into_dart(),
             self.last_run.into_into_dart().into_dart(),
             self.snapshot.into_into_dart().into_dart(),
+            self.discovery_issues.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -5189,6 +5263,16 @@ impl SseEncode for Vec<crate::api::stats::StatsDiscoveredSource> {
     }
 }
 
+impl SseEncode for Vec<crate::api::stats::StatsDiscoveryIssue> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsDiscoveryIssue>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::stats::StatsGroup> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5530,6 +5614,16 @@ impl SseEncode for Option<Vec<String>> {
     }
 }
 
+impl SseEncode for Option<Vec<crate::api::stats::StatsDiscoveryIssue>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<crate::api::stats::StatsDiscoveryIssue>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<Vec<crate::api::stats::StatsPriceTier>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5693,6 +5787,20 @@ impl SseEncode for crate::api::stats::StatsDiscovery {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::stats::StatsDiscoveredSource>>::sse_encode(self.sources, serializer);
         <i64>::sse_encode(self.supported, serializer);
+        <Option<Vec<crate::api::stats::StatsDiscoveryIssue>>>::sse_encode(
+            self.discovery_issues,
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsDiscoveryIssue {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.source, serializer);
+        <i64>::sse_encode(self.permission_denied, serializer);
+        <i64>::sse_encode(self.io_errors, serializer);
+        <i64>::sse_encode(self.unreadable_entries, serializer);
     }
 }
 
@@ -6080,6 +6188,10 @@ impl SseEncode for crate::api::stats::StatsSources {
         <Vec<crate::api::stats::StatsSource>>::sse_encode(self.sources, serializer);
         <Option<crate::api::stats::StatsSourceRun>>::sse_encode(self.last_run, serializer);
         <crate::api::stats::StatsSnapshot>::sse_encode(self.snapshot, serializer);
+        <Option<Vec<crate::api::stats::StatsDiscoveryIssue>>>::sse_encode(
+            self.discovery_issues,
+            serializer,
+        );
     }
 }
 

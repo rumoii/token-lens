@@ -184,7 +184,8 @@ SQLite 来源（hermes、cursor 数据库、opencode、kilo、goose、zed、copi
 ## 数据目录与采集
 
 - 统计账本：`<预览目录>/ledger.db`，锁文件是同目录的 `sync-lock.db`。预览目录沿用新闻用的规则（`TOKEN_LENS_PREVIEW_DATA_DIR` 或应用支持目录），D3 不读旧版的数据目录变量。
-- 日志根目录：默认取系统用户目录。为了测试和对拍，可以用 `TOKEN_LENS_PREVIEW_HOME` 指向别的根目录，`APPDATA`、`LOCALAPPDATA`、`XDG_DATA_HOME` 和各客户端自己的覆盖变量按旧版规则读取。测试一律使用合成的根目录。
+- 日志根目录：默认取系统用户目录，`APPDATA`、`LOCALAPPDATA`、`XDG_DATA_HOME` 和各客户端自己的覆盖变量按旧版规则读取。为了测试和对拍，可以用 `TOKEN_LENS_PREVIEW_HOME`（FFI 的 `logsHome`）指向别的根目录；这时所有发现路径都从这个根推出，上述变量一律忽略，预览扫描也不跟随指向根外的符号链接和 Windows reparse point（`discovery.rs` 的 `Environment::preview`、`Scan::allowed`）。测试一律使用合成的根目录。
+- 发现问题：目录不存在时安静跳过；目录存在但打不开时，按来源记 `permission_denied`（拒绝访问）或 `io_errors`（其他 I/O 错误）；目录项读不了时记 `unreadable_entries`，其余目录项照常扫描。`StatsDiscovery` 和 `StatsSources` 新增可选字段 `discovery_issues`（每项含 `source` 和这三个计数）。同步把它们存进现有 `ingest_runs.counts`，键为 `discovery.<source>.<kind>`，不改表结构；旧运行记录没有这些键时读作空列表。
 - 采集时机照旧：窗口打开后采集一次，开着时每 5 分钟一次，另有手动同步；撞上锁就跳过这一次。来源页另有“重新读取全部日志”（trigger 记为 `reread`），走同一套冲突、重试和刷新路径，只是不看文件缓存。关窗就停止采集，进行中的事务回滚，已经提交的文件保留。
 - 读取客户端日志只读；外部 SQLite 不做 checkpoint，也不加 `immutable`。
 

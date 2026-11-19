@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -419,11 +419,17 @@ class StatsDiscoveredSource {
 class StatsDiscovery {
   final List<StatsDiscoveredSource> sources;
   final int supported;
+  final List<StatsDiscoveryIssue>? discoveryIssues;
 
-  const StatsDiscovery({required this.sources, required this.supported});
+  const StatsDiscovery({
+    required this.sources,
+    required this.supported,
+    this.discoveryIssues,
+  });
 
   @override
-  int get hashCode => sources.hashCode ^ supported.hashCode;
+  int get hashCode =>
+      sources.hashCode ^ supported.hashCode ^ discoveryIssues.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -431,7 +437,39 @@ class StatsDiscovery {
       other is StatsDiscovery &&
           runtimeType == other.runtimeType &&
           sources == other.sources &&
-          supported == other.supported;
+          supported == other.supported &&
+          discoveryIssues == other.discoveryIssues;
+}
+
+class StatsDiscoveryIssue {
+  final String source;
+  final int permissionDenied;
+  final int ioErrors;
+  final int unreadableEntries;
+
+  const StatsDiscoveryIssue({
+    required this.source,
+    required this.permissionDenied,
+    required this.ioErrors,
+    required this.unreadableEntries,
+  });
+
+  @override
+  int get hashCode =>
+      source.hashCode ^
+      permissionDenied.hashCode ^
+      ioErrors.hashCode ^
+      unreadableEntries.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsDiscoveryIssue &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          permissionDenied == other.permissionDenied &&
+          ioErrors == other.ioErrors &&
+          unreadableEntries == other.unreadableEntries;
 }
 
 class StatsFilter {
@@ -1662,15 +1700,21 @@ class StatsSources {
   final List<StatsSource> sources;
   final StatsSourceRun? lastRun;
   final StatsSnapshot snapshot;
+  final List<StatsDiscoveryIssue>? discoveryIssues;
 
   const StatsSources({
     required this.sources,
     this.lastRun,
     required this.snapshot,
+    this.discoveryIssues,
   });
 
   @override
-  int get hashCode => sources.hashCode ^ lastRun.hashCode ^ snapshot.hashCode;
+  int get hashCode =>
+      sources.hashCode ^
+      lastRun.hashCode ^
+      snapshot.hashCode ^
+      discoveryIssues.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1679,7 +1723,8 @@ class StatsSources {
           runtimeType == other.runtimeType &&
           sources == other.sources &&
           lastRun == other.lastRun &&
-          snapshot == other.snapshot;
+          snapshot == other.snapshot &&
+          discoveryIssues == other.discoveryIssues;
 }
 
 class StatsSpeed {

@@ -656,6 +656,7 @@ mod ledger_b3_tests {
                 .into_iter()
                 .map(|key| (key.into(), home.join(key).to_string_lossy().into_owned()))
                 .collect(),
+            ..Default::default()
         }
     }
     #[test]
@@ -835,6 +836,7 @@ mod ledger_b2_tests {
                 ),
             ]
             .into(),
+            ..Default::default()
         }
     }
     #[test]

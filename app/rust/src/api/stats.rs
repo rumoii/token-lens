@@ -450,6 +450,8 @@ pub struct StatsSources {
     pub sources: Vec<StatsSource>,
     pub last_run: Option<StatsSourceRun>,
     pub snapshot: StatsSnapshot,
+    #[serde(default)]
+    pub discovery_issues: Option<Vec<StatsDiscoveryIssue>>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsDiscoveredSource {
@@ -460,6 +462,15 @@ pub struct StatsDiscoveredSource {
 pub struct StatsDiscovery {
     pub sources: Vec<StatsDiscoveredSource>,
     pub supported: i64,
+    #[serde(default)]
+    pub discovery_issues: Option<Vec<StatsDiscoveryIssue>>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsDiscoveryIssue {
+    pub source: String,
+    pub permission_denied: i64,
+    pub io_errors: i64,
+    pub unreadable_entries: i64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsPrices {
@@ -533,6 +544,7 @@ pub struct StatsHealth {
 struct State {
     data: PathBuf,
     home: PathBuf,
+    preview: bool,
     timezone: String,
     closed: AtomicBool,
     running: AtomicBool,
@@ -617,6 +629,7 @@ impl StatsClient {
         if !data.is_absolute() {
             return Err("preview directory must be absolute".into());
         }
+        let preview = logs_home.is_some();
         let home = logs_home
             .map(PathBuf::from)
             .or_else(|| {
@@ -637,6 +650,7 @@ impl StatsClient {
                 log: crate::diagnostics::RuntimeLog::new(&data, Some(&home)),
                 data,
                 home,
+                preview,
                 timezone: timezone::system_timezone().map_err(|e| e.to_string())?,
                 closed: AtomicBool::new(false),
                 running: AtomicBool::new(false),
@@ -721,6 +735,13 @@ impl StatsClient {
             ingest::reread
         } else {
             ingest::sync
+        };
+        let preview;
+        let environment = if self.state.preview {
+            preview = environment.preview();
+            &preview
+        } else {
+            environment
         };
         let result = sync(
             &self.state.data,
@@ -895,7 +916,10 @@ impl StatsClient {
                 &self.state.timezone,
             )
             .map_err(|e| e.to_string())?;
-            serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
+            let mut sources: StatsSources =
+                serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())?;
+            sources.discovery_issues.get_or_insert_with(Vec::new);
+            Ok(sources)
         })();
         self.state.log.ffi("sources", result)
     }
@@ -926,13 +950,17 @@ impl StatsClient {
     pub fn export_diagnostics(&self, directory: String) -> Result<String, String> {
         let result = (|| {
             let ledger = self.open()?;
+            let mut environment = ingest::Environment::process();
+            if self.state.preview {
+                environment = environment.preview();
+            }
             self.state
                 .log
                 .export(
                     &ledger,
                     &PathBuf::from(directory),
                     &self.state.home,
-                    &ingest::Environment::process(),
+                    &environment,
                 )
                 .map(|p| p.to_string_lossy().into_owned())
         })();
@@ -972,8 +1000,16 @@ impl StatsClient {
                 }
             }
         }
-        let value = service::discovery(&self.state.home, environment).map_err(|e| e.to_string())?;
-        let value: StatsDiscovery = serde_json::from_value(value).map_err(|e| e.to_string())?;
+        let preview;
+        let environment = if self.state.preview {
+            preview = environment.preview();
+            &preview
+        } else {
+            environment
+        };
+        let value = service::discovery(&self.state.home, environment);
+        let mut value: StatsDiscovery = serde_json::from_value(value).map_err(|e| e.to_string())?;
+        value.discovery_issues.get_or_insert_with(Vec::new);
         *cache = Some((now, value.clone()));
         Ok(value)
     }
@@ -986,6 +1022,10 @@ impl StatsClient {
             .map_err(|e| e.to_string())
     }
 }
+
+#[cfg(test)]
+#[path = "stats_discovery_tests.rs"]
+mod discovery_tests;
 
 #[cfg(test)]
 mod tests {

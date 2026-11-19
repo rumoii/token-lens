@@ -76,7 +76,12 @@ class _TokenLensAppState extends State<TokenLensApp> {
   Future<void> _initialize() async {
     try {
       final override = Platform.environment['TOKEN_LENS_PREVIEW_DATA_DIR'];
-      if (kDebugMode && (override == null || override.trim().isEmpty)) {
+      final logsHome = Platform.environment['TOKEN_LENS_PREVIEW_HOME'];
+      if (kDebugMode &&
+          (override == null ||
+              override.trim().isEmpty ||
+              logsHome == null ||
+              logsHome.trim().isEmpty)) {
         throw StateError('preview-directory-required');
       }
       final dataDir =
@@ -84,7 +89,6 @@ class _TokenLensAppState extends State<TokenLensApp> {
           '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}data';
       await RustLib.init();
       _runtimeData = dataDir;
-      final logsHome = Platform.environment['TOKEN_LENS_PREVIEW_HOME'];
       _runtimeErrors.sink = (type, message, stack) =>
           diagnostics.writeRuntimeError(
             dataDir: dataDir,
@@ -106,7 +110,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
       try {
         final statsClient = await stats.StatsClient.newInstance(
           dataDir: dataDir,
-          logsHome: Platform.environment['TOKEN_LENS_PREVIEW_HOME'],
+          logsHome: logsHome,
         );
         statsController = StatsController(
           RustStatsGateway(statsClient),
@@ -137,7 +141,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
       final text = error.toString();
       setState(() {
         _initializationError = text.contains('preview-directory-required')
-            ? '调试运行需要设置 TOKEN_LENS_PREVIEW_DATA_DIR 为独立的绝对目录。'
+            ? '调试运行需要同时设置 TOKEN_LENS_PREVIEW_DATA_DIR 和 TOKEN_LENS_PREVIEW_HOME 为独立的绝对目录。'
             : text.contains('busy:')
             ? 'Token Lens 已在运行，当前数据目录正在使用。请回到已打开的窗口。'
             : '无法启动 Token Lens。请检查应用文件是否完整，以及数据目录是否可读写。';

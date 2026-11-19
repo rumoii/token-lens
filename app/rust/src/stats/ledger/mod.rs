@@ -745,7 +745,14 @@ impl Ledger {
                 "{{{}}}",
                 order
                     .iter()
-                    .filter_map(|key| counts.get(*key).map(|value| format!("\"{key}\":{value}")))
+                    .copied()
+                    .chain(
+                        counts
+                            .keys()
+                            .map(String::as_str)
+                            .filter(|key| key.starts_with("discovery."))
+                    )
+                    .filter_map(|key| counts.get(key).map(|value| format!("\"{key}\":{value}")))
                     .collect::<Vec<_>>()
                     .join(",")
             )

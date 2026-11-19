@@ -40,6 +40,7 @@ StatsSource source(
 
 class SourcesGateway extends FakeStatsGateway {
   List<StatsSource> items = [source('codex')];
+  List<StatsDiscoveryIssue> discoveryIssues = [];
   StatsSourceRun? run;
   String? sourcesError, monthError;
   int sourceReads = 0, monthReads = 0;
@@ -53,7 +54,12 @@ class SourcesGateway extends FakeStatsGateway {
     sourceReads++;
     if (pendingSources != null) return pendingSources!.future;
     if (sourcesError != null) throw StateError(sourcesError!);
-    return StatsSources(sources: items, lastRun: run, snapshot: demoSnapshot);
+    return StatsSources(
+      sources: items,
+      lastRun: run,
+      snapshot: demoSnapshot,
+      discoveryIssues: discoveryIssues,
+    );
   }
 
   @override
@@ -145,6 +151,31 @@ Finder sourceText(String text) => find.byWidgetPredicate(
 );
 
 void main() {
+  testWidgets('S0a 上次同步拒绝访问时显示零记录工具和权限提示', (tester) async {
+    final fake = SourcesGateway()
+      ..items = [source('claude', records: 0)]
+      ..discoveryIssues = const [
+        StatsDiscoveryIssue(
+          source: 'claude',
+          permissionDenied: 1,
+          ioErrors: 0,
+          unreadableEntries: 0,
+        ),
+      ];
+    await mount(tester, fake);
+    final card = find.byKey(const ValueKey('tool-claude'));
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(of: card, matching: find.text('没有权限读取日志目录')),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip('Token Lens 只读取日志，不会修改。请检查这个文件夹的读取权限，然后点「立即同步」。'),
+      findsOneWidget,
+    );
+    expect(find.descendant(of: card, matching: find.text('已接入')), findsNothing);
+  });
+
   testWidgets('重新读取使用 reread，且同步期间两个按钮都禁用', (tester) async {
     final fake = SourcesGateway()..syncBarrier = Completer<void>();
     await mount(tester, fake);

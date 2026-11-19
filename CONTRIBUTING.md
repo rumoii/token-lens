@@ -17,7 +17,7 @@ English contributions are welcome.
 - 大改动先开 issue 达成一致再动手。
 - 一 PR 只做一件事；混了多件事的 PR 会被要求拆分。
 - 按 [.github/pull_request_template.md](.github/pull_request_template.md) 填写。
-- 改动了桌面应用（`app/`）：环境和检查命令见 [app/README.md 的「开发与检查」](app/README.md#开发与检查)，至少跑 `cargo fmt --check`、`cargo clippy`、`cargo test`、`dart format`、`flutter analyze`、`flutter test`。开发运行必须同时设置 `TOKEN_LENS_PREVIEW_DATA_DIR` 和 `TOKEN_LENS_PREVIEW_HOME`，指向独立的临时目录，不要让开发版读到你真实的日志或账本。改了界面的话附前后截图。
+- 改动了桌面应用（`app/`）：从仓库根目录用 `python scripts/desktop-dev.py run` 启动合成数据预览，用 `python scripts/desktop-dev.py check` 运行桌面 CI 的检查。macOS 可用 `python3`，依赖准备见 [app/README.md 的「开发与检查」](app/README.md#开发与检查)。改了界面的话附前后截图。
 - 改动了旧版（`src/core/`、`dashboard/`、`desktop/`、`bin/`）：本地环境 Node >= 24.21.0，依赖用 `npm ci` 和 `npm ci --prefix dashboard` 安装；提交前跑 `npm run ci:local`（核心测试 + 仪表盘测试 + 构建 + 类型检查，在临时用户目录与显式数据目录下执行，结束后清理）；改动了 `dashboard/` 的话，在本地看板手动验证页面行为。测试约定见 [CLAUDE.md](CLAUDE.md)。
 - 自动检查：
   - `desktop.yml`：改动 `app/`、`specs/`、桌面相关脚本、第三方声明或发布流程时，在 Windows 和 macOS 上构建、测试并冒烟。

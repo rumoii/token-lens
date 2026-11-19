@@ -1816,6 +1816,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<StatsDiscoveryIssue> dco_decode_list_stats_discovery_issue(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_stats_discovery_issue)
+        .toList();
+  }
+
+  @protected
   List<StatsGroup> dco_decode_list_stats_group(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_stats_group).toList();
@@ -2057,6 +2065,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<StatsDiscoveryIssue>? dco_decode_opt_list_stats_discovery_issue(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_stats_discovery_issue(raw);
+  }
+
+  @protected
   List<StatsPriceTier>? dco_decode_opt_list_stats_price_tier(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_stats_price_tier(raw);
@@ -2236,11 +2252,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsDiscovery dco_decode_stats_discovery(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return StatsDiscovery(
       sources: dco_decode_list_stats_discovered_source(arr[0]),
       supported: dco_decode_CastedPrimitive_i_64(arr[1]),
+      discoveryIssues: dco_decode_opt_list_stats_discovery_issue(arr[2]),
+    );
+  }
+
+  @protected
+  StatsDiscoveryIssue dco_decode_stats_discovery_issue(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return StatsDiscoveryIssue(
+      source: dco_decode_String(arr[0]),
+      permissionDenied: dco_decode_CastedPrimitive_i_64(arr[1]),
+      ioErrors: dco_decode_CastedPrimitive_i_64(arr[2]),
+      unreadableEntries: dco_decode_CastedPrimitive_i_64(arr[3]),
     );
   }
 
@@ -2738,12 +2769,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSources dco_decode_stats_sources(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return StatsSources(
       sources: dco_decode_list_stats_source(arr[0]),
       lastRun: dco_decode_opt_box_autoadd_stats_source_run(arr[1]),
       snapshot: dco_decode_stats_snapshot(arr[2]),
+      discoveryIssues: dco_decode_opt_list_stats_discovery_issue(arr[3]),
     );
   }
 
@@ -3287,6 +3319,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<StatsDiscoveryIssue> sse_decode_list_stats_discovery_issue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StatsDiscoveryIssue>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_stats_discovery_issue(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<StatsGroup> sse_decode_list_stats_group(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3735,6 +3781,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<StatsDiscoveryIssue>? sse_decode_opt_list_stats_discovery_issue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_stats_discovery_issue(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   List<StatsPriceTier>? sse_decode_opt_list_stats_price_tier(
     SseDeserializer deserializer,
   ) {
@@ -3986,7 +4045,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_sources = sse_decode_list_stats_discovered_source(deserializer);
     var var_supported = sse_decode_CastedPrimitive_i_64(deserializer);
-    return StatsDiscovery(sources: var_sources, supported: var_supported);
+    var var_discoveryIssues = sse_decode_opt_list_stats_discovery_issue(
+      deserializer,
+    );
+    return StatsDiscovery(
+      sources: var_sources,
+      supported: var_supported,
+      discoveryIssues: var_discoveryIssues,
+    );
+  }
+
+  @protected
+  StatsDiscoveryIssue sse_decode_stats_discovery_issue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_source = sse_decode_String(deserializer);
+    var var_permissionDenied = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_ioErrors = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_unreadableEntries = sse_decode_CastedPrimitive_i_64(deserializer);
+    return StatsDiscoveryIssue(
+      source: var_source,
+      permissionDenied: var_permissionDenied,
+      ioErrors: var_ioErrors,
+      unreadableEntries: var_unreadableEntries,
+    );
   }
 
   @protected
@@ -4631,10 +4714,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_sources = sse_decode_list_stats_source(deserializer);
     var var_lastRun = sse_decode_opt_box_autoadd_stats_source_run(deserializer);
     var var_snapshot = sse_decode_stats_snapshot(deserializer);
+    var var_discoveryIssues = sse_decode_opt_list_stats_discovery_issue(
+      deserializer,
+    );
     return StatsSources(
       sources: var_sources,
       lastRun: var_lastRun,
       snapshot: var_snapshot,
+      discoveryIssues: var_discoveryIssues,
     );
   }
 
@@ -5238,6 +5325,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_stats_discovery_issue(
+    List<StatsDiscoveryIssue> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_stats_discovery_issue(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_stats_group(
     List<StatsGroup> self,
     SseSerializer serializer,
@@ -5648,6 +5747,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_list_stats_discovery_issue(
+    List<StatsDiscoveryIssue>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_stats_discovery_issue(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_list_stats_price_tier(
     List<StatsPriceTier>? self,
     SseSerializer serializer,
@@ -5831,6 +5943,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_stats_discovered_source(self.sources, serializer);
     sse_encode_CastedPrimitive_i_64(self.supported, serializer);
+    sse_encode_opt_list_stats_discovery_issue(self.discoveryIssues, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_discovery_issue(
+    StatsDiscoveryIssue self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.source, serializer);
+    sse_encode_CastedPrimitive_i_64(self.permissionDenied, serializer);
+    sse_encode_CastedPrimitive_i_64(self.ioErrors, serializer);
+    sse_encode_CastedPrimitive_i_64(self.unreadableEntries, serializer);
   }
 
   @protected
@@ -6243,6 +6368,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_stats_source(self.sources, serializer);
     sse_encode_opt_box_autoadd_stats_source_run(self.lastRun, serializer);
     sse_encode_stats_snapshot(self.snapshot, serializer);
+    sse_encode_opt_list_stats_discovery_issue(self.discoveryIssues, serializer);
   }
 
   @protected

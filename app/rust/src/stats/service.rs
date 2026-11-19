@@ -417,6 +417,12 @@ pub fn sources(
         json!({"source":source,"evidence":evidence[source].as_str().unwrap_or("B"),"status":if records>0 {"ok"} else {"no_data"},"first_observed_at":row["first_observed_at"],"last_observed_at":row["last_observed_at"],"records":records,"record_mode":if cumulative==0 {"event"} else if cumulative==records {"cumulative"} else {"mixed"},"retention":{"reviewable":kept,"logs_gone":records-kept},"checks":checks[source],"limits":raw,"notes":notes})
     }).collect();
     let run = ledger.last_run()?;
+    let discovery_issues: Vec<_> = super::adapters::PARSER_REV
+        .iter()
+        .filter_map(|(source, _)| {
+            super::discovery::DiscoveryIssue::from_run(source, &run["counts"])
+        })
+        .collect();
     let last_run = if run.is_null() {
         Value::Null
     } else {
@@ -436,21 +442,27 @@ pub fn sources(
     };
     let mut snapshot = snapshot(ledger, &json!({}), tz);
     snapshot["known_sources"] = json!(evidence.as_object().unwrap().len());
-    Ok(json!({"sources":sources,"last_run":last_run,"snapshot":snapshot}))
+    let mut result = json!({"sources":sources,"last_run":last_run,"snapshot":snapshot});
+    if !discovery_issues.is_empty() {
+        result["discovery_issues"] = json!(discovery_issues);
+    }
+    Ok(result)
 }
 
-pub fn discovery(
-    home: &std::path::Path,
-    environment: &super::ingest::Environment,
-) -> Result<Value> {
-    let found = super::discovery::discover_with_env(home, environment)?;
+pub fn discovery(home: &std::path::Path, environment: &super::ingest::Environment) -> Value {
+    let found = super::discovery::discover_profiled(home, environment, None);
     let mut sources: Vec<_> = found
+        .files
         .iter()
         .filter(|(_, files)| !files.is_empty())
         .map(|(source, files)| json!({"source":source,"files":files.len()}))
         .collect();
     sources.sort_by(|a, b| b["files"].as_u64().cmp(&a["files"].as_u64()));
-    Ok(json!({"sources":sources,"supported":super::adapters::PARSER_REV.len()}))
+    let mut result = json!({"sources":sources,"supported":super::adapters::PARSER_REV.len()});
+    if !found.issues.is_empty() {
+        result["discovery_issues"] = json!(found.issues);
+    }
+    result
 }
 
 fn prices_of(value: &Value) -> Value {
@@ -643,7 +655,7 @@ mod tests {
             std::fs::write(path, "").unwrap();
         }
         assert_eq!(
-            discovery(temp.path(), &environment).unwrap(),
+            discovery(temp.path(), &environment),
             json!({"supported":27,"sources":[{"source":"claude","files":1},{"source":"codex","files":1}]})
         );
     }

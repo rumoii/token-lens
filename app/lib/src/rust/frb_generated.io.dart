@@ -165,6 +165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<StatsDiscoveryIssue> dco_decode_list_stats_discovery_issue(dynamic raw);
+
+  @protected
   List<StatsGroup> dco_decode_list_stats_group(dynamic raw);
 
   @protected
@@ -268,6 +271,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String>? dco_decode_opt_list_String(dynamic raw);
 
   @protected
+  List<StatsDiscoveryIssue>? dco_decode_opt_list_stats_discovery_issue(
+    dynamic raw,
+  );
+
+  @protected
   List<StatsPriceTier>? dco_decode_opt_list_stats_price_tier(dynamic raw);
 
   @protected
@@ -308,6 +316,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsDiscovery dco_decode_stats_discovery(dynamic raw);
+
+  @protected
+  StatsDiscoveryIssue dco_decode_stats_discovery_issue(dynamic raw);
 
   @protected
   StatsFilter dco_decode_stats_filter(dynamic raw);
@@ -593,6 +604,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<StatsDiscoveryIssue> sse_decode_list_stats_discovery_issue(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<StatsGroup> sse_decode_list_stats_group(SseDeserializer deserializer);
 
   @protected
@@ -734,6 +750,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
 
   @protected
+  List<StatsDiscoveryIssue>? sse_decode_opt_list_stats_discovery_issue(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<StatsPriceTier>? sse_decode_opt_list_stats_price_tier(
     SseDeserializer deserializer,
   );
@@ -786,6 +807,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsDiscovery sse_decode_stats_discovery(SseDeserializer deserializer);
+
+  @protected
+  StatsDiscoveryIssue sse_decode_stats_discovery_issue(
+    SseDeserializer deserializer,
+  );
 
   @protected
   StatsFilter sse_decode_stats_filter(SseDeserializer deserializer);
@@ -1133,6 +1159,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_stats_discovery_issue(
+    List<StatsDiscoveryIssue> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_stats_group(
     List<StatsGroup> self,
     SseSerializer serializer,
@@ -1310,6 +1342,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_list_stats_discovery_issue(
+    List<StatsDiscoveryIssue>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_list_stats_price_tier(
     List<StatsPriceTier>? self,
     SseSerializer serializer,
@@ -1378,6 +1416,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_stats_discovery(
     StatsDiscovery self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_discovery_issue(
+    StatsDiscoveryIssue self,
     SseSerializer serializer,
   );
 

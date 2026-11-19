@@ -22,6 +22,7 @@ class OnboardingGateway extends FakeStatsGateway {
     StatsDiscoveredSource(source: 'codex', files: 2),
     StatsDiscoveredSource(source: 'claude', files: 3),
   ];
+  List<StatsDiscoveryIssue> discoveryIssues = [];
   bool discoveryFails = false, statusFails = false;
   String status = 'ok';
   List<String> anomalies = [];
@@ -37,7 +38,11 @@ class OnboardingGateway extends FakeStatsGateway {
     scans.add(fresh);
     if (discoveryFails) throw StateError('fixture discovery offline');
     return discoveryBarrier == null
-        ? StatsDiscovery(sources: found, supported: 27)
+        ? StatsDiscovery(
+            sources: found,
+            supported: 27,
+            discoveryIssues: discoveryIssues,
+          )
         : discoveryBarrier!.future;
   }
 
@@ -119,6 +124,33 @@ Future<void> click(WidgetTester tester, String text) async {
 }
 
 void main() {
+  testWidgets('S0a 无日志可读时显示拒绝访问，并在重新检测后清除', (tester) async {
+    final g = OnboardingGateway()
+      ..found = []
+      ..discoveryIssues = const [
+        StatsDiscoveryIssue(
+          source: 'claude',
+          permissionDenied: 1,
+          ioErrors: 0,
+          unreadableEntries: 0,
+        ),
+      ];
+    await mount(tester, own(g));
+    const row = '找到了日志目录，但没有权限读取。检查文件夹权限后点「重新检测」。';
+    expect(find.text(row), findsOneWidget);
+    expect(
+      find.text('有 1 个工具的日志目录没有权限读取，见下方。其余支持的工具没在这台电脑上找到。'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('这台电脑上还没找到支持的工具'), findsNothing);
+    g.found = const [StatsDiscoveredSource(source: 'claude', files: 1)];
+    g.discoveryIssues = [];
+    await click(tester, '重新检测');
+    expect(g.scans.last, isTrue);
+    expect(find.text(row), findsNothing);
+    expect(find.text('在这台电脑上找到 1 个工具'), findsOneWidget);
+  });
+
   testWidgets('Mark48 与引导按钮使用旧版局部尺寸', (tester) async {
     await mount(tester, own(OnboardingGateway()));
     expect(find.byKey(const Key('onboarding-mark')), findsOneWidget);

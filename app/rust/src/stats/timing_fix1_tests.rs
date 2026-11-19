@@ -847,6 +847,7 @@ fn fix2_owner_change_does_not_fill_earlier_original_from_later_copy() {
         vars: ["APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME"]
             .map(|key| (key.into(), home.join(key).to_string_lossy().into_owned()))
             .into(),
+        ..Default::default()
     };
     let sync = || {
         super::ingest::sync(

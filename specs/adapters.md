@@ -8,7 +8,7 @@
 
 ## 一、通用契约
 
-每个适配器导出 `parse<X>(filePath) → AsyncIterable<Record>`，yield 的字段固定：
+桌面版的适配器在 `app/rust/src/stats/adapters/`，每个来源一个文件，由 `mod.rs` 按来源分派。旧版 `src/core/adapters/` 的 `parse<X>(filePath) → AsyncIterable<Record>` 产出同样的字段；旧版已冻结，新来源只写进桌面版。每条记录的字段固定：
 
 ```
 record_key           稳定身份，不含任何 token 数

@@ -1,12 +1,20 @@
 name: Desktop checks
 
 on:
+  workflow_call:
+    inputs:
+      checks_only:
+        type: boolean
+        default: false
   pull_request:
     paths:
       - 'app/**'
       - 'specs/**'
       - '.github/workflows/desktop.yml'
       - 'scripts/smoke-desktop.py'
+      - 'scripts/desktop-dev.py'
+      - 'scripts/desktop_env.py'
+      - 'scripts/verify-desktop-zip.py'
       - 'scripts/generate-desktop-notices.dart'
       - 'scripts/licenses/**'
       - 'THIRD_PARTY_NOTICES.md'
@@ -18,6 +26,9 @@ on:
       - 'specs/**'
       - '.github/workflows/desktop.yml'
       - 'scripts/smoke-desktop.py'
+      - 'scripts/desktop-dev.py'
+      - 'scripts/desktop_env.py'
+      - 'scripts/verify-desktop-zip.py'
       - 'scripts/generate-desktop-notices.dart'
       - 'scripts/licenses/**'
       - 'THIRD_PARTY_NOTICES.md'
@@ -59,16 +70,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
-
-      - name: Set isolated runner environment
-        run: |
-          printf '%s\n' \
-            "TEMP=$RUNNER_TEMP" \
-            "TMP=$RUNNER_TEMP" \
-            "TMPDIR=$RUNNER_TEMP" \
-            "TOKEN_LENS_PREVIEW_DATA_DIR=$RUNNER_TEMP/token-lens-preview-data" \
-            "TOKEN_LENS_PREVIEW_HOME=$RUNNER_TEMP/token-lens-preview-home" >> "$GITHUB_ENV"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -81,42 +84,34 @@ jobs:
         with:
           toolchain: '1.98.0'
           components: rustfmt, clippy
+          targets: x86_64-pc-windows-msvc, aarch64-apple-darwin
 
       - name: Resolve locked Flutter dependencies
         run: flutter pub get --enforce-lockfile
 
-      - name: Prepare isolated test directories
+      - name: Prepare locked Cargo dependencies
         run: |
-          ${{ matrix.python }} - <<'PY'
-          import os
-          from pathlib import Path
+          cargo fetch --manifest-path rust/Cargo.toml --locked \
+            --target x86_64-pc-windows-msvc --target aarch64-apple-darwin
 
-          for variable in ['TOKEN_LENS_PREVIEW_DATA_DIR', 'TOKEN_LENS_PREVIEW_HOME']:
-              Path(os.environ[variable]).mkdir(parents=True, exist_ok=True)
-          PY
-
-      - name: Check Rust
-        run: |
-          cargo fmt --manifest-path rust/Cargo.toml -- --check
-          cargo clippy --manifest-path rust/Cargo.toml --locked --all-targets -- -D warnings
-          cargo test --manifest-path rust/Cargo.toml --locked
-
-      - name: Check Flutter
-        run: |
-          flutter analyze --no-pub
-          flutter test --no-pub
+      - name: Run desktop checks
+        run: ${{ matrix.python }} ../scripts/desktop-dev.py check
 
       - name: Build release
+        if: ${{ !inputs.checks_only }}
         run: flutter build ${{ matrix.target }} --release --no-pub
 
       - name: Generate Rust license texts
+        if: ${{ !inputs.checks_only }}
         run: >-
           dart --packages=.dart_tool/package_config.json ../scripts/generate-desktop-notices.dart
           --rust-licenses "$RUNNER_TEMP/THIRD_PARTY_LICENSES.txt" --target ${{ matrix.rust_target }}
 
       - name: Check lockfiles
-        run: git diff --exit-code -- pubspec.lock rust/Cargo.lock
+        if: ${{ !inputs.checks_only }}
+        run: git diff --exit-code HEAD -- pubspec.lock rust/Cargo.lock
 
       - name: Smoke test desktop ingestion
+        if: ${{ !inputs.checks_only }}
         timeout-minutes: 3
         run: ${{ matrix.python }} ../scripts/smoke-desktop.py "${{ matrix.executable }}"

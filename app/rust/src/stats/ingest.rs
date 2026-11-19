@@ -474,9 +474,21 @@ fn sync_profiled(
         let mut source_discovery = BTreeMap::new();
         let start = Instant::now();
         let discovered =
-            discovery::discover_profiled(home, environment, Some(&mut source_discovery))?;
+            discovery::discover_profiled(home, environment, Some(&mut source_discovery));
         phases.discovery_ns = start.elapsed().as_nanos() as u64;
-        for (source, files) in discovered {
+        for issue in discovered.issues {
+            let counts = issue
+                .counts()
+                .into_iter()
+                .filter(|(_, count)| *count > 0)
+                .map(|(kind, count)| (format!("discovery.{}.{kind}", issue.source), count as i64));
+            merge_counts(&mut totals, counts);
+            merge_counts(
+                &mut totals,
+                [("read_failed", issue.unreadable_entries as i64)],
+            );
+        }
+        for (source, files) in discovered.files {
             let source_started = Instant::now();
             let source_files = files.len();
             phases.files += source_files;

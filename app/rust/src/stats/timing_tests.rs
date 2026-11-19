@@ -618,6 +618,7 @@ fn e4_codex_cross_file_timing_follows_usage_owner_and_repeat_is_idempotent() {
         vars: ["APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME"]
             .map(|key| (key.into(), home.join(key).to_string_lossy().into_owned()))
             .into(),
+        ..Default::default()
     };
     for pass in 0..2 {
         let result = super::ingest::sync(

@@ -98,7 +98,15 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
             return byTokens != 0 ? byTokens : b.records.compareTo(a.records);
           });
     final found = list.map((item) => item.source).toSet();
-    final missing = tools.keys.where((id) => !found.contains(id)).toList();
+    final issues = sources.data?.discoveryIssues ?? <StatsDiscoveryIssue>[];
+    final denied = {
+      for (final issue in issues)
+        if (issue.permissionDenied > 0) issue.source,
+    };
+    final deniedOnly = denied.difference(found);
+    final missing = tools.keys
+        .where((id) => !found.contains(id) && !denied.contains(id))
+        .toList();
     return Padding(
       // PageScroll in shared.jsx reserves pr-1 inside the page.
       padding: const EdgeInsets.only(right: 4),
@@ -125,6 +133,14 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
           SourcesSyncStatus(
             controller: c,
             run: sources.data?.lastRun,
+            discoveryFailures: issues.fold(
+              0,
+              (count, issue) =>
+                  count +
+                  issue.permissionDenied +
+                  issue.ioErrors +
+                  issue.unreadableEntries,
+            ),
             result: identical(receiptBeforeSync, c.lastSync)
                 ? null
                 : c.lastSync,
@@ -136,7 +152,7 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
             builder: (_) => ResourceBlock(
               resource: sources,
               rows: 5,
-              builder: (_) => list.isEmpty
+              builder: (_) => list.isEmpty && deniedOnly.isEmpty
                   ? const LensCard(
                       padding: EdgeInsets.all(16),
                       child: EmptyState(
@@ -162,6 +178,9 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
                                 child: SourcesToolCard(
                                   key: ValueKey('tool-${item.source}'),
                                   item: item,
+                                  permissionDenied: denied.contains(
+                                    item.source,
+                                  ),
                                   monthTokens: monthBy[item.source] ?? 0,
                                   controller: c,
                                   onDetail: () => widget.onDetail({
@@ -169,6 +188,12 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
                                     'dim': 'model',
                                   }),
                                 ),
+                              ),
+                            for (final id in deniedOnly)
+                              SizedBox(
+                                key: ValueKey('tool-$id'),
+                                width: width,
+                                child: SourcesUnreadableToolCard(source: id),
                               ),
                           ],
                         );

@@ -1,5 +1,8 @@
 use super::Result;
-use std::collections::{BTreeMap, HashMap};
+use serde::Serialize;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs::{self, DirEntry, FileType};
+use std::io::{self, ErrorKind};
 use std::path::{Component, Path, PathBuf};
 use std::time::Instant;
 
@@ -7,6 +10,7 @@ use std::time::Instant;
 pub struct Environment {
     pub platform: String,
     pub vars: HashMap<String, String>,
+    pub preview: bool,
 }
 impl Environment {
     pub fn process() -> Self {
@@ -20,6 +24,14 @@ impl Environment {
             }
             .into(),
             vars: std::env::vars().collect(),
+            preview: false,
+        }
+    }
+    pub fn preview(&self) -> Self {
+        Self {
+            platform: self.platform.clone(),
+            preview: true,
+            ..Self::default()
         }
     }
     fn get(&self, key: &str) -> Option<&str> {
@@ -52,12 +64,185 @@ fn normalize(path: &Path) -> PathBuf {
     }
     out
 }
-fn entries(root: &Path) -> Vec<std::fs::DirEntry> {
-    let mut list = std::fs::read_dir(root)
-        .map(|r| r.filter_map(|e| e.ok()).collect::<Vec<_>>())
-        .unwrap_or_default();
-    list.sort_by_key(|e| e.file_name());
-    list
+#[derive(Default, Serialize)]
+pub(crate) struct DiscoveryIssue {
+    pub source: String,
+    pub permission_denied: usize,
+    pub io_errors: usize,
+    pub unreadable_entries: usize,
+}
+
+impl DiscoveryIssue {
+    pub fn counts(&self) -> [(&'static str, usize); 3] {
+        [
+            ("permission_denied", self.permission_denied),
+            ("io_errors", self.io_errors),
+            ("unreadable_entries", self.unreadable_entries),
+        ]
+    }
+
+    pub fn from_run(source: &str, counts: &serde_json::Value) -> Option<Self> {
+        let count = |kind| {
+            counts[format!("discovery.{source}.{kind}")]
+                .as_u64()
+                .unwrap_or(0) as usize
+        };
+        let issue = Self {
+            source: source.into(),
+            permission_denied: count("permission_denied"),
+            io_errors: count("io_errors"),
+            unreadable_entries: count("unreadable_entries"),
+        };
+        issue.counts().iter().any(|(_, n)| *n != 0).then_some(issue)
+    }
+}
+
+struct Scan<'a> {
+    preview: Option<&'a Path>,
+    issue: DiscoveryIssue,
+    failed_dirs: HashSet<PathBuf>,
+    checked_dirs: HashSet<PathBuf>,
+    failed_entries: HashSet<PathBuf>,
+}
+
+impl<'a> Scan<'a> {
+    fn new(home: &'a Path, env: &Environment) -> Self {
+        Self {
+            preview: env.preview.then_some(home),
+            issue: DiscoveryIssue::default(),
+            failed_dirs: HashSet::new(),
+            checked_dirs: HashSet::new(),
+            failed_entries: HashSet::new(),
+        }
+    }
+
+    fn allowed(&self, path: &Path) -> io::Result<bool> {
+        let Some(home) = self.preview else {
+            return Ok(true);
+        };
+        let Ok(relative) = path.strip_prefix(home) else {
+            return Ok(false);
+        };
+        let mut current = home.to_path_buf();
+        if linked(&fs::symlink_metadata(&current)?) {
+            return Ok(false);
+        }
+        for part in relative.components() {
+            let Component::Normal(name) = part else {
+                return Ok(false);
+            };
+            current.push(name);
+            if linked(&fs::symlink_metadata(&current)?) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn dir_error(&mut self, path: &Path, error: io::Error) {
+        if error.kind() == ErrorKind::NotFound || !self.failed_dirs.insert(normalize(path)) {
+            return;
+        }
+        match error.kind() {
+            ErrorKind::PermissionDenied => self.issue.permission_denied += 1,
+            _ => self.issue.io_errors += 1,
+        }
+    }
+
+    fn read_dir<T>(&mut self, root: &Path, read: impl FnOnce(&Path) -> io::Result<T>) -> Option<T> {
+        match self
+            .allowed(root)
+            .and_then(|allowed| allowed.then(|| read(root)).transpose())
+        {
+            Ok(entries) => entries,
+            Err(error) => {
+                self.dir_error(root, error);
+                None
+            }
+        }
+    }
+
+    fn entries(&mut self, root: &Path) -> Vec<DirEntry> {
+        self.checked_dirs.insert(normalize(root));
+        let entries = self.read_dir(root, |path| fs::read_dir(path));
+        let mut list = self.read_entries(entries.into_iter().flatten());
+        list.sort_by_key(|entry| entry.file_name());
+        list
+    }
+
+    fn read_entries<T>(&mut self, entries: impl Iterator<Item = io::Result<T>>) -> Vec<T> {
+        entries
+            .filter_map(|entry| match entry {
+                Ok(entry) => Some(entry),
+                Err(_) => {
+                    self.issue.unreadable_entries += 1;
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn entry_type(&mut self, entry: &DirEntry) -> Option<FileType> {
+        match entry.file_type() {
+            Ok(kind) => Some(kind),
+            Err(_) => {
+                self.entry_error(&entry.path());
+                None
+            }
+        }
+    }
+
+    fn entry_error(&mut self, path: &Path) {
+        if self.failed_entries.insert(normalize(path)) {
+            self.issue.unreadable_entries += 1;
+        }
+    }
+
+    fn file(&mut self, path: &Path) -> bool {
+        // A fixed filename can be stat'ed on systems that deny listing its parent.
+        if let Some(parent) = path.parent() {
+            if self.checked_dirs.insert(normalize(parent)) {
+                self.read_dir(parent, |path| fs::read_dir(path));
+            }
+        }
+        match self
+            .allowed(path)
+            .and_then(|allowed| allowed.then(|| fs::metadata(path)).transpose())
+        {
+            Ok(metadata) => metadata.is_some_and(|metadata| metadata.is_file()),
+            Err(error) => {
+                if error.kind() != ErrorKind::NotFound
+                    && !path
+                        .parent()
+                        .is_some_and(|parent| self.failed_dirs.contains(&normalize(parent)))
+                {
+                    self.entry_error(path);
+                }
+                false
+            }
+        }
+    }
+
+    fn take_issue(&mut self, source: &str) -> DiscoveryIssue {
+        self.failed_dirs.clear();
+        self.checked_dirs.clear();
+        self.failed_entries.clear();
+        let mut issue = std::mem::take(&mut self.issue);
+        issue.source = source.into();
+        issue
+    }
+}
+
+fn linked(metadata: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        metadata.file_attributes() & 0x400 != 0
+    }
+    #[cfg(not(windows))]
+    {
+        metadata.file_type().is_symlink()
+    }
 }
 fn wildcard(pattern: &str, name: &str) -> bool {
     let p = pattern.to_lowercase().into_bytes();
@@ -84,54 +269,60 @@ fn wildcard(pattern: &str, name: &str) -> bool {
     }
     i == p.len()
 }
-fn glob(root: &Path, pattern: &str) -> Vec<PathBuf> {
+fn glob(scan: &mut Scan<'_>, root: &Path, pattern: &str) -> Vec<PathBuf> {
     if let Some(start) = pattern.find('{') {
         let end = start + pattern[start..].find('}').unwrap();
         let mut out = Vec::new();
         for choice in pattern[start + 1..end].split(',') {
             out.extend(glob(
+                scan,
                 root,
                 &format!("{}{choice}{}", &pattern[..start], &pattern[end + 1..]),
             ));
         }
         return out;
     }
-    fn walk(root: &Path, parts: &[&str], out: &mut Vec<PathBuf>) {
+    fn walk(scan: &mut Scan<'_>, root: &Path, parts: &[&str], out: &mut Vec<PathBuf>) {
         if parts.is_empty() {
-            if root.is_file() {
+            if scan.file(root) {
                 out.push(normalize(root));
             }
             return;
         }
         let part = parts[0];
         if part == "**" {
-            walk(root, &parts[1..], out);
-            for entry in entries(root) {
+            walk(scan, root, &parts[1..], out);
+            for entry in scan.entries(root) {
                 if !entry.file_name().to_string_lossy().starts_with('.')
-                    && entry.file_type().is_ok_and(|k| k.is_dir())
+                    && scan.entry_type(&entry).is_some_and(|k| k.is_dir())
                 {
-                    walk(&entry.path(), parts, out);
+                    walk(scan, &entry.path(), parts, out);
                 }
             }
         } else if part.contains(['*', '?']) {
-            for entry in entries(root) {
+            for entry in scan.entries(root) {
                 let name = entry.file_name();
                 let name = name.to_string_lossy();
                 if name.starts_with('.') && !part.starts_with('.') {
                     continue;
                 }
                 if wildcard(part, &name)
-                    && (parts.len() == 1 || entry.file_type().is_ok_and(|k| k.is_dir()))
+                    && (parts.len() == 1 || scan.entry_type(&entry).is_some_and(|k| k.is_dir()))
                 {
-                    walk(&entry.path(), &parts[1..], out);
+                    walk(scan, &entry.path(), &parts[1..], out);
                 }
             }
         } else {
-            walk(&root.join(part), &parts[1..], out);
+            walk(scan, &root.join(part), &parts[1..], out);
         }
     }
     let mut out = Vec::new();
-    walk(root, &pattern.split('/').collect::<Vec<_>>(), &mut out);
+    walk(
+        scan,
+        root,
+        &pattern.split('/').collect::<Vec<_>>(),
+        &mut out,
+    );
     out
 }
 fn global_bases(home: &Path, env: &Environment, ides: &[&str]) -> Vec<PathBuf> {
@@ -144,43 +335,49 @@ fn global_bases(home: &Path, env: &Environment, ides: &[&str]) -> Vec<PathBuf> {
         .map(|ide| base.join(ide).join("User/globalStorage"))
         .collect()
 }
-fn openhands(root: Option<PathBuf>) -> Vec<PathBuf> {
+fn openhands(scan: &mut Scan<'_>, root: Option<PathBuf>) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut pending = root.into_iter().collect::<Vec<_>>();
     while let Some(root) = pending.pop() {
-        for entry in entries(&root) {
-            if !entry.file_type().is_ok_and(|k| k.is_dir()) {
+        for entry in scan.entries(&root) {
+            if !scan.entry_type(&entry).is_some_and(|k| k.is_dir()) {
                 continue;
             }
             let dir = entry.path();
             let state = dir.join("base_state.json");
-            if state.is_file() {
+            if scan.file(&state) {
                 out.push(normalize(&state));
             }
             let sub = dir.join("subagents");
-            if std::fs::symlink_metadata(&sub).is_ok_and(|m| m.is_dir()) {
-                pending.push(sub);
+            let metadata = scan
+                .allowed(&sub)
+                .and_then(|allowed| allowed.then(|| fs::symlink_metadata(&sub)).transpose());
+            match metadata {
+                Ok(Some(metadata)) if metadata.is_dir() => pending.push(sub),
+                Err(error) => scan.dir_error(&sub, error),
+                _ => {}
             }
         }
     }
     out
 }
-fn codebuddy(home: &Path, env: &Environment) -> Vec<PathBuf> {
-    fn walk(root: &Path, desktop: bool, out: &mut Vec<PathBuf>) {
-        for entry in entries(root) {
+fn codebuddy(scan: &mut Scan<'_>, home: &Path, env: &Environment) -> Vec<PathBuf> {
+    fn walk(scan: &mut Scan<'_>, root: &Path, desktop: bool, out: &mut Vec<PathBuf>) {
+        for entry in scan.entries(root) {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             let path = entry.path();
-            if entry.file_type().is_ok_and(|k| k.is_dir()) {
+            let kind = scan.entry_type(&entry);
+            if kind.is_some_and(|k| k.is_dir()) {
                 let ignored = if desktop {
                     &["messages", "check-point", "backups", "Public"][..]
                 } else {
                     &["subagents"][..]
                 };
                 if !ignored.contains(&name.as_ref()) {
-                    walk(&path, desktop, out);
+                    walk(scan, &path, desktop, out);
                 }
-            } else if entry.file_type().is_ok_and(|k| k.is_file())
+            } else if kind.is_some_and(|k| k.is_file())
                 && if desktop {
                     name == "index.json"
                         && root
@@ -198,14 +395,14 @@ fn codebuddy(home: &Path, env: &Environment) -> Vec<PathBuf> {
     }
     let mut out = Vec::new();
     for name in [".codebuddy", ".workbuddy", ".workbuddy-ai"] {
-        walk(&home.join(name).join("projects"), false, &mut out);
+        walk(scan, &home.join(name).join("projects"), false, &mut out);
     }
     let base = match env.platform.as_str() {
         "win32" => env.absolute("LOCALAPPDATA", home.join("AppData/Local")),
         "darwin" => home.join("Library/Application Support"),
         _ => home.join(".local/share"),
     };
-    walk(&base.join("CodeBuddyExtension/Data"), true, &mut out);
+    walk(scan, &base.join("CodeBuddyExtension/Data"), true, &mut out);
     out
 }
 fn get_hermes_db_path(home: &Path, env: &Environment) -> PathBuf {
@@ -222,7 +419,7 @@ fn get_cursor_state_db_path(home: &Path, env: &Environment) -> PathBuf {
 fn xdg_data(home: &Path, env: &Environment) -> PathBuf {
     env.absolute("XDG_DATA_HOME", home.join(".local/share"))
 }
-fn get_opencode_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
+fn get_opencode_db_paths(scan: &mut Scan<'_>, home: &Path, env: &Environment) -> Vec<PathBuf> {
     let data = normalize(&xdg_data(home, env).join("opencode"));
     if let Some(value) = env.get("OPENCODE_DB") {
         if value == ":memory:" {
@@ -236,7 +433,7 @@ fn get_opencode_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
         }];
     }
     let mut files = vec![data.join("opencode.db")];
-    files.extend(glob(home, ".opencode/opencode.db"));
+    files.extend(glob(scan, home, ".opencode/opencode.db"));
     files
 }
 fn get_kilo_db_path(home: &Path, env: &Environment) -> Option<PathBuf> {
@@ -254,7 +451,7 @@ fn get_kilo_db_path(home: &Path, env: &Environment) -> Option<PathBuf> {
         }))
     })
 }
-fn get_mimocode_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
+fn get_mimocode_db_paths(scan: &mut Scan<'_>, home: &Path, env: &Environment) -> Vec<PathBuf> {
     let home_override = env.get("MIMOCODE_HOME").unwrap_or("");
     if !home_override.is_empty() && !Path::new(home_override).is_absolute() {
         return Vec::new();
@@ -275,7 +472,7 @@ fn get_mimocode_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
             normalize(&data.join(value))
         }];
     }
-    let mut files = glob(&data, "mimocode.db");
+    let mut files = glob(scan, &data, "mimocode.db");
     if matches!(
         env.get("MIMOCODE_DISABLE_CHANNEL_DB")
             .unwrap_or("")
@@ -283,7 +480,7 @@ fn get_mimocode_db_paths(home: &Path, env: &Environment) -> Vec<PathBuf> {
             .as_str(),
         "false" | "0"
     ) {
-        files.extend(glob(&data, "mimocode-*.db"));
+        files.extend(glob(scan, &data, "mimocode-*.db"));
     }
     files
 }
@@ -317,16 +514,24 @@ fn get_anythingllm_db_path(home: &Path, env: &Environment) -> PathBuf {
     };
     normalize(&base.join("anythingllm-desktop/storage/anythingllm.db"))
 }
-fn get_zcode_files(home: &Path, env: &Environment) -> Vec<PathBuf> {
+fn get_zcode_files(scan: &mut Scan<'_>, home: &Path, env: &Environment) -> Vec<PathBuf> {
     use serde_json::Value;
-    fn read_json(path: &Path) -> Value {
-        std::fs::read(path)
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or(Value::Null)
+    fn read_json(scan: &mut Scan<'_>, path: &Path) -> Value {
+        if !scan.file(path) {
+            return Value::Null;
+        }
+        match fs::read(path) {
+            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+            Err(error) => {
+                if error.kind() != ErrorKind::NotFound {
+                    scan.entry_error(path);
+                }
+                Value::Null
+            }
+        }
     }
     let mut bases = vec![home.to_path_buf()];
-    let settings = read_json(&home.join(".zcode/v2/setting.json"));
+    let settings = read_json(scan, &home.join(".zcode/v2/setting.json"));
     for value in [
         env.get("ZCODE_DATA_BASE_DIR"),
         settings["dataBaseDir"].as_str(),
@@ -335,18 +540,24 @@ fn get_zcode_files(home: &Path, env: &Environment) -> Vec<PathBuf> {
     .flatten()
     {
         let value = super::jscompat::trim(value);
+        let path = Path::new(value);
         if Path::new(value).is_absolute()
+            && (!env.preview || normalize(path).starts_with(home))
             && !bases
                 .iter()
                 .any(|p| p.as_os_str() == std::ffi::OsStr::new(value))
         {
-            bases.push(PathBuf::from(value));
+            bases.push(if env.preview {
+                normalize(path)
+            } else {
+                path.into()
+            });
         }
     }
     let mut files = Vec::new();
     for base in bases {
         files.push(normalize(&base.join(".zcode/cli/db/db.sqlite")));
-        let config = read_json(&base.join(".zcode/cli/config.json"));
+        let config = read_json(scan, &base.join(".zcode/cli/config.json"));
         for value in [
             config["storage"]["sessionDbPath"].as_str(),
             env.get("ZCODE_SESSION_DB_PATH"),
@@ -363,11 +574,25 @@ fn get_zcode_files(home: &Path, env: &Environment) -> Vec<PathBuf> {
             }
         }
     }
+    if env.preview {
+        files = files
+            .into_iter()
+            .map(|path| normalize(&path))
+            .filter(|path| path.starts_with(home))
+            .collect();
+    }
     files
 }
 
 /// Metadata for the same configured roots used by discovery. This never walks directories.
 pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<PathBuf> {
+    let normalized;
+    let home = if env.preview {
+        normalized = normalize(home);
+        normalized.as_path()
+    } else {
+        home
+    };
     let roaming = || env.absolute("APPDATA", home.join("AppData/Roaming"));
     let local = || env.absolute("LOCALAPPDATA", home.join("AppData/Local"));
     let parents = |paths: Vec<PathBuf>| {
@@ -525,7 +750,7 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
                 base.join("CodeBuddyExtension/Data"),
             ]
         }
-        "zcode" => parents(get_zcode_files(home, env)),
+        "zcode" => parents(get_zcode_files(&mut Scan::new(home, env), home, env)),
         "commandcode" => vec![home.join(".commandcode/projects")],
         "anythingllm" => parents(vec![get_anythingllm_db_path(home, env)]),
         _ => vec![],
@@ -536,22 +761,31 @@ pub(crate) fn scan_roots(home: &Path, env: &Environment, source: &str) -> Vec<Pa
 }
 
 pub fn discover_with_env(home: &Path, env: &Environment) -> Result<Vec<(String, Vec<PathBuf>)>> {
-    discover_profiled(home, env, None)
+    Ok(discover_profiled(home, env, None).files)
+}
+
+pub(super) struct Discovery {
+    pub files: Vec<(String, Vec<PathBuf>)>,
+    pub issues: Vec<DiscoveryIssue>,
 }
 
 pub(super) fn discover_profiled(
     home: &Path,
     env: &Environment,
     mut source_ns: Option<&mut BTreeMap<String, u64>>,
-) -> Result<Vec<(String, Vec<PathBuf>)>> {
+) -> Discovery {
     let home = normalize(home);
     let home = home.as_path();
-    let mut out = Vec::new();
+    let mut out = Discovery {
+        files: Vec::new(),
+        issues: Vec::new(),
+    };
+    let mut scan = Scan::new(home, env);
     let mut started = source_ns.is_some().then(Instant::now);
-    let mut add = |source: &str, files: Vec<PathBuf>| {
+    let mut add = |scan: &mut Scan<'_>, source: &str, files: Vec<PathBuf>| {
         let mut unique = Vec::new();
         // Approved difference from Node's ineffective nodir option: only ordinary files enter discovery.
-        for file in files.into_iter().filter(|file| file.is_file()) {
+        for file in files.into_iter().filter(|file| scan.file(file)) {
             if !unique
                 .iter()
                 .any(|p: &PathBuf| p.as_os_str() == file.as_os_str())
@@ -559,7 +793,11 @@ pub(super) fn discover_profiled(
                 unique.push(file);
             }
         }
-        out.push((source.into(), unique));
+        out.files.push((source.into(), unique));
+        let issue = scan.take_issue(source);
+        if issue.counts().iter().any(|(_, count)| *count > 0) {
+            out.issues.push(issue);
+        }
         if let (Some(start), Some(times)) = (started, source_ns.as_deref_mut()) {
             let now = Instant::now();
             times.insert(source.into(), now.duration_since(start).as_nanos() as u64);
@@ -575,9 +813,10 @@ pub(super) fn discover_profiled(
         ("aider", "", ".aider.llm.history"),
         ("pi", ".pi/agent/sessions", "**/*.jsonl"),
     ] {
-        add(source, glob(&home.join(root), pattern));
+        let files = glob(&mut scan, &home.join(root), pattern);
+        add(&mut scan, source, files);
     }
-    add("hermes", vec![get_hermes_db_path(home, env)]);
+    add(&mut scan, "hermes", vec![get_hermes_db_path(home, env)]);
     let mut files = Vec::new();
     for base in global_bases(
         home,
@@ -586,26 +825,34 @@ pub(super) fn discover_profiled(
     ) {
         for ext in ["saoudrizwan.claude-dev", "rooveterinaryinc.roo-cline"] {
             files.extend(glob(
+                &mut scan,
                 &base.join(ext).join("tasks"),
                 "*/api_conversation_history.json",
             ));
         }
     }
-    add("cline", files);
+    add(&mut scan, "cline", files);
     let mut files = glob(
+        &mut scan,
         &env.absolute("GEMINI_HOME", home.join(".gemini")),
         "sessions/**/*.{json,jsonl}",
     );
     files.extend(glob(
+        &mut scan,
         &home.join(".config/gemini"),
         "sessions/**/*.{json,jsonl}",
     ));
-    add("gemini", files);
+    add(&mut scan, "gemini", files);
     let mut files = vec![get_cursor_state_db_path(home, env)];
-    files.extend(glob(home, "*cursor*.csv"));
-    add("cursor", files);
-    add("opencode", get_opencode_db_paths(home, env));
-    add("kilo", get_kilo_db_path(home, env).into_iter().collect());
+    files.extend(glob(&mut scan, home, "*cursor*.csv"));
+    add(&mut scan, "cursor", files);
+    let files = get_opencode_db_paths(&mut scan, home, env);
+    add(&mut scan, "opencode", files);
+    add(
+        &mut scan,
+        "kilo",
+        get_kilo_db_path(home, env).into_iter().collect(),
+    );
     let root = if let Some(s) = env.get("OPENHANDS_CONVERSATIONS_DIR") {
         Path::new(s).is_absolute().then(|| PathBuf::from(s))
     } else if let Some(s) = env.get("OPENHANDS_PERSISTENCE_DIR") {
@@ -615,95 +862,118 @@ pub(super) fn discover_profiled(
     } else {
         Some(home.join(".openhands/conversations"))
     };
-    add("openhands", openhands(root));
+    let files = openhands(&mut scan, root);
+    add(&mut scan, "openhands", files);
     let mut files = get_goose_db_paths(home, env);
     files.extend(glob(
+        &mut scan,
         &env.absolute("GOOSE_PATH_ROOT", home.join(".goose")),
         "data/sessions/sessions.db",
     ));
-    add("goose", files);
+    add(&mut scan, "goose", files);
     let mut files = vec![get_zed_db_path(home, env)];
-    files.extend(glob(home, ".local/share/zed/threads/threads.db"));
-    add("zed", files);
-    add("continue", glob(&home.join(".continue/sessions"), "*.json"));
-    let mut files = glob(home, "*trae*.{json,jsonl}");
+    files.extend(glob(&mut scan, home, ".local/share/zed/threads/threads.db"));
+    add(&mut scan, "zed", files);
+    let files = glob(&mut scan, &home.join(".continue/sessions"), "*.json");
+    add(&mut scan, "continue", files);
+    let mut files = glob(&mut scan, home, "*trae*.{json,jsonl}");
     for base in global_bases(home, env, &["TRAE SOLO", "Trae CN", "TRAE SOLO CN", "trae"]) {
-        files.extend(glob(&base, "**/*trae*.{json,jsonl}"));
+        files.extend(glob(&mut scan, &base, "**/*trae*.{json,jsonl}"));
     }
-    add("trae", files);
-    add(
-        "copilot",
-        glob(
-            &env.absolute("COPILOT_HOME", home.join(".copilot")),
-            "{session-store.db,data.db}",
-        ),
+    add(&mut scan, "trae", files);
+    let files = glob(
+        &mut scan,
+        &env.absolute("COPILOT_HOME", home.join(".copilot")),
+        "{session-store.db,data.db}",
     );
-    add(
-        "openclaw",
-        glob(
-            &env.absolute(
-                "OPENCLAW_HOME",
-                env.absolute("OPENCLAW_STATE_DIR", home.join(".openclaw")),
-            ),
-            "agents/*/{sessions,session-sqlite-import-archive}/*.jsonl*",
+    add(&mut scan, "copilot", files);
+    let files = glob(
+        &mut scan,
+        &env.absolute(
+            "OPENCLAW_HOME",
+            env.absolute("OPENCLAW_STATE_DIR", home.join(".openclaw")),
         ),
+        "agents/*/{sessions,session-sqlite-import-archive}/*.jsonl*",
     );
-    let mut files = get_mimocode_db_paths(home, env);
+    add(&mut scan, "openclaw", files);
+    let mut files = get_mimocode_db_paths(&mut scan, home, env);
     files.extend(glob(
+        &mut scan,
         &env.absolute("APPDATA", home.join("AppData/Roaming")),
         "Xiaomi MiMo/mimocode/mimocode.db",
     ));
-    add("mimo", files);
-    let mut files = glob(&home.join(".kimi-code"), "sessions/*/*/agents/*/wire.jsonl");
+    add(&mut scan, "mimo", files);
+    let mut files = glob(
+        &mut scan,
+        &home.join(".kimi-code"),
+        "sessions/*/*/agents/*/wire.jsonl",
+    );
     let share = env
         .get("KIMI_SHARE_DIR")
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| home.join(".kimi"));
     if share.is_absolute() {
-        files.extend(glob(&share, "{sessions,logs}/**/*.{json,jsonl}"));
+        files.extend(glob(&mut scan, &share, "{sessions,logs}/**/*.{json,jsonl}"));
     }
     for base in [
         env.absolute("APPDATA", home.join("AppData/Roaming")),
         env.absolute("LOCALAPPDATA", home.join("AppData/Local")),
     ] {
-        files.extend(glob(&base, "{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}"));
+        files.extend(glob(
+            &mut scan,
+            &base,
+            "{kimi,Kimi}/{sessions,logs}/**/*.{json,jsonl}",
+        ));
     }
     files.extend(glob(
+        &mut scan,
         &home.join(".config/kimi"),
         "{sessions,logs}/**/*.{json,jsonl}",
     ));
-    add("kimi", files);
+    add(&mut scan, "kimi", files);
     let value = env.get("MINIMAX_DATA_DIR").unwrap_or("");
     let files = if value.is_empty() {
-        let mut files = glob(&home.join(".minimax"), "v2/sqlite/runtime-state.sqlite");
+        let mut files = glob(
+            &mut scan,
+            &home.join(".minimax"),
+            "v2/sqlite/runtime-state.sqlite",
+        );
         // Node glob processes matched directories using a LIFO work list.
         files.extend(
-            glob(home, ".minimax-*/v2/sqlite/runtime-state.sqlite")
+            glob(&mut scan, home, ".minimax-*/v2/sqlite/runtime-state.sqlite")
                 .into_iter()
                 .rev(),
         );
         files
     } else if Path::new(value).is_absolute() {
-        glob(Path::new(value), "v2/sqlite/runtime-state.sqlite")
+        glob(
+            &mut scan,
+            Path::new(value),
+            "v2/sqlite/runtime-state.sqlite",
+        )
     } else {
         Vec::new()
     };
-    add("minimax", files);
-    add("codebuddy", codebuddy(home, env));
-    add("zcode", get_zcode_files(home, env));
+    add(&mut scan, "minimax", files);
+    let files = codebuddy(&mut scan, home, env);
+    add(&mut scan, "codebuddy", files);
+    let files = get_zcode_files(&mut scan, home, env);
+    add(&mut scan, "zcode", files);
+    let files = glob(&mut scan, &home.join(".commandcode/projects"), "*/*.jsonl")
+        .into_iter()
+        .filter(|p| {
+            let s = p.to_string_lossy();
+            !s.ends_with(".checkpoints.jsonl") && !s.ends_with(".prompts.jsonl")
+        })
+        .collect();
+    add(&mut scan, "commandcode", files);
     add(
-        "commandcode",
-        glob(&home.join(".commandcode/projects"), "*/*.jsonl")
-            .into_iter()
-            .filter(|p| {
-                let s = p.to_string_lossy();
-                !s.ends_with(".checkpoints.jsonl") && !s.ends_with(".prompts.jsonl")
-            })
-            .collect(),
+        &mut scan,
+        "anythingllm",
+        vec![get_anythingllm_db_path(home, env)],
     );
-    add("anythingllm", vec![get_anythingllm_db_path(home, env)]);
-    Ok(out)
+    out
 }
 #[cfg(test)]
 pub fn discover(home: &Path) -> Result<Vec<(String, Vec<PathBuf>)>> {
@@ -712,8 +982,54 @@ pub fn discover(home: &Path) -> Result<Vec<(String, Vec<PathBuf>)>> {
         &Environment {
             platform: if cfg!(windows) { "win32" } else { "darwin" }.into(),
             vars: HashMap::new(),
+            ..Default::default()
         },
     )
+}
+
+#[cfg(test)]
+#[test]
+fn s0a_classifies_directory_io_and_partial_iteration() {
+    let home = tempfile::tempdir().unwrap();
+    let root = home.path();
+    let mut scan = Scan::new(root, &Environment::default());
+    assert!(scan
+        .read_dir(&root.join("absent"), |_| Err::<(), _>(
+            ErrorKind::NotFound.into()
+        ))
+        .is_none());
+    assert!(scan
+        .read_dir(&root.join("io"), |_| Err::<(), _>(ErrorKind::Other.into()))
+        .is_none());
+    assert!(scan
+        .read_dir(&root.join("io"), |_| Err::<(), _>(ErrorKind::Other.into()))
+        .is_none());
+    assert!(scan
+        .read_dir(&root.join("denied"), |_| Err::<(), _>(
+            ErrorKind::PermissionDenied.into()
+        ))
+        .is_none());
+    assert_eq!(
+        scan.read_entries([Ok("a"), Err(ErrorKind::Other.into()), Ok("b")].into_iter()),
+        vec!["a", "b"]
+    );
+    let issue = scan.take_issue("claude");
+    assert_eq!(
+        (
+            issue.permission_denied,
+            issue.io_errors,
+            issue.unreadable_entries
+        ),
+        (1, 1, 1)
+    );
+    assert_eq!(
+        scan.take_issue("codex").counts(),
+        [
+            ("permission_denied", 0),
+            ("io_errors", 0),
+            ("unreadable_entries", 0)
+        ]
+    );
 }
 #[cfg(all(test, windows))]
 mod tests {
@@ -769,6 +1085,7 @@ mod b2_tests {
             let env = Environment {
                 platform: "win32".into(),
                 vars,
+                ..Default::default()
             };
             let found = discover_with_env(home, &env).unwrap();
             for (source, expected) in row["expected"].as_object().unwrap() {
@@ -815,6 +1132,7 @@ mod platform_tests {
         let mut env = Environment {
             platform: "darwin".into(),
             vars: HashMap::new(),
+            ..Default::default()
         };
         let found = discover_with_env(home, &env).unwrap();
         for source in [
@@ -944,6 +1262,7 @@ mod b3_tests {
                         )
                     })
                     .collect(),
+                ..Default::default()
             };
             let found = discover_with_env(home, &env).unwrap();
             for (source, expected) in row["expected"].as_object().unwrap() {
@@ -1016,6 +1335,7 @@ mod b3_tests {
         let env = Environment {
             platform: "darwin".into(),
             vars: HashMap::new(),
+            ..Default::default()
         };
         let found = discover_with_env(home, &env).unwrap();
         assert_eq!(found.len(), 27);
@@ -1037,6 +1357,7 @@ mod b3_tests {
         let mut env = Environment {
             platform: "win32".into(),
             vars: HashMap::new(),
+            ..Default::default()
         };
         for (source, key) in [
             ("opencode", "OPENCODE_DB"),

@@ -7,8 +7,12 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import time
+
+sys.dont_write_bytecode = True
+from desktop_env import isolated_environment, seed_preferences_and_news
 
 
 SESSION = "token-lens-desktop-smoke"
@@ -37,37 +41,11 @@ def ingestion_result(database, empty_home):
 def smoke(executable, timeout, empty_home):
     with tempfile.TemporaryDirectory(prefix="token-lens-smoke-", dir=os.environ.get("RUNNER_TEMP")) as temporary:
         root = Path(temporary).resolve()
-        environment = os.environ.copy()
-        # Remove every client override used by Rust discovery before assigning the synthetic roots.
-        for key in [
-            "OPENCODE_DB", "KILO_DB", "MIMOCODE_HOME", "MIMOCODE_DB",
-            "MIMOCODE_DISABLE_CHANNEL_DB", "ZCODE_DATA_BASE_DIR", "ZCODE_SESSION_DB_PATH",
-            "ZCODE_SESSION_DB", "GEMINI_HOME", "OPENHANDS_CONVERSATIONS_DIR",
-            "OPENHANDS_PERSISTENCE_DIR", "GOOSE_PATH_ROOT", "COPILOT_HOME",
-            "OPENCLAW_HOME", "OPENCLAW_STATE_DIR", "KIMI_SHARE_DIR", "MINIMAX_DATA_DIR",
-            "TOKEN_LENS_DATA_DIR", "DB_PATH",
-        ]:
-            environment.pop(key, None)
-        for variable, child in {
-            "TOKEN_LENS_PREVIEW_DATA_DIR": "data",
-            "TOKEN_LENS_PREVIEW_HOME": "home",
-            "HOME": "home",
-            "USERPROFILE": "home",
-            "APPDATA": "roaming",
-            "LOCALAPPDATA": "local",
-            "XDG_DATA_HOME": "xdg",
-        }.items():
-            directory = root / child
-            directory.mkdir(exist_ok=True)
-            environment[variable] = str(directory)
-        data = root / "data"
-        # Smoke doesn't click through onboarding, so opt into startup sync and disable update requests.
-        (data / "ui-preferences.json").write_text(json.dumps({
-            "onboarded": True,
-            "autoCheckUpdates": False,
-        }), encoding="utf-8")
+        environment = isolated_environment(root)
+        data = Path(environment["TOKEN_LENS_PREVIEW_DATA_DIR"])
+        seed_preferences_and_news(data)
         if not empty_home:
-            log = root / "home/.claude/projects/smoke/usage.jsonl"
+            log = Path(environment["TOKEN_LENS_PREVIEW_HOME"]) / ".claude/projects/smoke/usage.jsonl"
             log.parent.mkdir(parents=True)
             log.write_text(json.dumps({
                 "sessionId": SESSION,
@@ -81,12 +59,6 @@ def smoke(executable, timeout, empty_home):
                     },
                 },
             }) + "\n", encoding="utf-8")
-        # A fresh successful cache keeps this ingestion check offline at startup.
-        (data / "news-cache.json").write_text(json.dumps({
-            "version": 2,
-            "disabled": [],
-            "sources": {"openai": {"items": [], "last_success_ms": int(time.time() * 1000)}},
-        }), encoding="utf-8")
         process = subprocess.Popen([str(executable)], cwd=executable.parent, env=environment)
         started = time.monotonic()
         missing = "successful empty-home sync absent" if empty_home else "synthetic usage record absent"

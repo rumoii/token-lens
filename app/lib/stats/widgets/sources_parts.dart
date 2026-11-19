@@ -144,22 +144,25 @@ class SourcesSyncStatus extends StatelessWidget {
     required this.controller,
     this.run,
     this.result,
+    this.discoveryFailures = 0,
   });
   final StatsController controller;
   final StatsSourceRun? run;
   final StatsSync? result;
+  final int discoveryFailures;
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context), c = controller;
     final result = this.result;
+    final failures = (run?.anomalyCount ?? 0) + discoveryFailures;
     final problem = run == null
         ? '还没有同步过'
         : run!.status == 'running'
         ? '正在同步…'
+        : failures > 0
+        ? '上次同步有 $failures 处没读成功，其余已经更新'
         : run!.status == 'ok'
         ? null
-        : run!.anomalyCount > 0
-        ? '上次同步有 ${run!.anomalyCount} 处没读成功，其余已经更新'
         : '上次同步没有完成';
     final syncing =
         c.busy || c.phase == StatsSyncPhase.idle && run?.status == 'running';
@@ -343,15 +346,60 @@ class SourcesSyncStatus extends StatelessWidget {
   }
 }
 
+class SourcesUnreadableToolCard extends StatelessWidget {
+  const SourcesUnreadableToolCard({super.key, required this.source});
+
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    return LensCard(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+      child: Row(
+        children: [
+          ToolTile(source, size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  toolOf(source).name,
+                  style: _sourceText(p, 15, null, FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                const _SourcePermissionStatus(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourcePermissionStatus extends StatelessWidget {
+  const _SourcePermissionStatus();
+
+  @override
+  Widget build(BuildContext context) => const Tooltip(
+    message: 'Token Lens 只读取日志，不会修改。请检查这个文件夹的读取权限，然后点「立即同步」。',
+    child: _Pill('没有权限读取日志目录', tone: 'warn'),
+  );
+}
+
 class SourcesToolCard extends StatelessWidget {
   const SourcesToolCard({
     super.key,
     required this.item,
+    this.permissionDenied = false,
     required this.monthTokens,
     required this.controller,
     required this.onDetail,
   });
   final StatsSource item;
+  final bool permissionDenied;
   final int monthTokens;
   final StatsController controller;
   final VoidCallback onDetail;
@@ -480,35 +528,37 @@ class SourcesToolCard extends StatelessWidget {
           stack([
             field(
               '状态',
-              Wrap(
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Tooltip(
-                        message: real
-                            ? '拿真实使用的日志逐条对过，数字可靠。'
-                            : '格式按公开资料和样例确认，大概率没问题；对不上的话可以反馈。',
-                        child: _Pill(
-                          real ? '用真实日志核对过' : '只用样例日志核对过',
-                          tone: real ? 'ok' : null,
-                          check: real,
+              permissionDenied
+                  ? const _SourcePermissionStatus()
+                  : Wrap(
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Tooltip(
+                              message: real
+                                  ? '拿真实使用的日志逐条对过，数字可靠。'
+                                  : '格式按公开资料和样例确认，大概率没问题；对不上的话可以反馈。',
+                              child: _Pill(
+                                real ? '用真实日志核对过' : '只用样例日志核对过',
+                                tone: real ? 'ok' : null,
+                                check: real,
+                              ),
+                            ),
+                            if (status.isNotEmpty) text(' · ', muted: true),
+                          ],
                         ),
-                      ),
-                      if (status.isNotEmpty) text(' · ', muted: true),
-                    ],
-                  ),
-                  for (var i = 0; i < status.length; i++)
-                    Text(
-                      '${status[i]}${i < status.length - 1 ? ' · ' : ''}',
-                      maxLines: 1,
-                      softWrap: false,
-                      style: _sourceText(p, 12.5, p.muted),
+                        for (var i = 0; i < status.length; i++)
+                          Text(
+                            '${status[i]}${i < status.length - 1 ? ' · ' : ''}',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: _sourceText(p, 12.5, p.muted),
+                          ),
+                      ],
                     ),
-                ],
-              ),
             ),
             if (item.recordMode != 'event')
               field(

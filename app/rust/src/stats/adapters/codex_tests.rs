@@ -58,6 +58,7 @@ fn sync(root: &Path) -> Value {
         vars: ["APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME"]
             .map(|key| (key.into(), home.join(key).to_string_lossy().into_owned()))
             .into(),
+        ..Default::default()
     };
     let result = ingest::sync(
         &root.join("data"),

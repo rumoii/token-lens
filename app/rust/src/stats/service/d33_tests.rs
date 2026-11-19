@@ -106,6 +106,7 @@ fn d33_queries_match_node_golden_and_conserve() {
                 )
             })
             .collect(),
+        ..Default::default()
     };
     let mut ledger: Option<Ledger> = None;
     let mut compared = 0;
@@ -237,7 +238,7 @@ fn d33_queries_match_node_golden_and_conserve() {
                     )
                     .unwrap(),
                     "pricing" => pricing(ledger, tz).unwrap(),
-                    "discovery" => discovery(&home, &environment).unwrap(),
+                    "discovery" => discovery(&home, &environment),
                     _ => panic!("unknown golden query: {name}"),
                 };
                 let mut actual = actual;
