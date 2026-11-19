@@ -75,35 +75,15 @@ class _StatsHomeState extends State<StatsHome> {
   }
 
   Widget delta(int value, StatsPeriod period) {
-    final badge = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-      decoration: BoxDecoration(
-        color: value >= 0 ? p['clay-wash'] : p.okWash,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            value >= 0 ? Icons.arrow_upward : Icons.arrow_downward,
-            size: 12,
-            color: p[value >= 0 ? 'clay-ink' : 'ok'],
-          ),
-          Text(
-            percentage(value.abs() / 100),
-            style: p.text(
-              12.5,
-              p[value >= 0 ? 'clay-ink' : 'ok'],
-              FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+    final badge = LensBadge(
+      percentage(value.abs() / 100),
+      tone: value >= 0 ? 'clay' : 'ok',
+      icon: value >= 0 ? Icons.arrow_upward : Icons.arrow_downward,
     );
     if (period.compare(c.clock()) == null) return badge;
     return LensFocusOutline(
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(4),
         onTap: () => openComparison(period),
         child: badge,
       ),
@@ -149,14 +129,8 @@ class _StatsHomeState extends State<StatsHome> {
     );
   }
 
-  Widget link(String label, VoidCallback onTap) => LensButton(
-    label: label,
-    icon: Icons.arrow_forward,
-    trailingIcon: true,
-    size: 'link',
-    variant: 'ghost',
-    onPressed: onTap,
-  );
+  Widget link(String label, VoidCallback onTap) =>
+      LensTextLink(label: label, onTap: onTap, arrow: true);
   Widget secHead(String title, String sub, {Widget? action}) => Padding(
     padding: const EdgeInsets.fromLTRB(18, 16, 18, 0) * c.preferences.spacing,
     child: Row(
@@ -188,9 +162,7 @@ class _StatsHomeState extends State<StatsHome> {
           ),
         ),
       );
-  Widget controls() => Wrap(
-    spacing: 10,
-    runSpacing: 10,
+  Widget controls() => LensHeaderControls(
     children: [
       LensSegmented(
         options: {
@@ -217,56 +189,37 @@ class _StatsHomeState extends State<StatsHome> {
         : hour < 11
         ? context.strings.goodMorning
         : hour < 13
-        ? context.strings.goodAfternoon
+        ? context.strings.noonGreeting(hour)
         : hour < 18
         ? context.strings.goodAfternoon2
         : context.strings.goodEvening;
-    final title = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        StatsSyncTitle(
-          controller: c,
-          title: Text(
-            greet,
-            style: p
-                .serif(narrow ? 26 : 30, weight: FontWeight.w500)
-                .copyWith(height: 1.25, letterSpacing: -.3),
-          ),
+    return LensPageHeader(
+      title: StatsSyncTitle(
+        controller: c,
+        title: Text(
+          greet,
+          style: p
+              .serif(narrow ? 26 : 30, weight: FontWeight.w500)
+              .copyWith(height: 1.25, letterSpacing: -.3),
         ),
-        if (c.firstSyncRunning)
-          Text(
-            context.strings.progressFirstHint,
-            style: p.text(13, p.secondary),
+      ),
+      controls: controls(),
+      description: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (c.firstSyncRunning)
+            Text(
+              context.strings.progressFirstHint,
+              style: p.text(13, p.secondary),
+            ),
+          if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
+            StatsHiddenNotice(controller: c, onManage: widget.onManageHidden!),
+          DefaultTextStyle(
+            style: p.text(15, p.secondary).copyWith(height: 1.7),
+            child: summary,
           ),
-        if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
-          StatsHiddenNotice(controller: c, onManage: widget.onManageHidden!),
-        const SizedBox(height: 6),
-        DefaultTextStyle(
-          style: p.text(15, p.secondary).copyWith(height: 1.7),
-          child: summary,
-        ),
-      ],
-    );
-    return LayoutBuilder(
-      builder: (context, box) {
-        if (box.maxWidth >= 420 + 24 + 316) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: title),
-              const SizedBox(width: 24),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: box.maxWidth - 420 - 24),
-                child: Align(alignment: Alignment.topRight, child: controls()),
-              ),
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [title, const SizedBox(height: 12), controls()],
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -377,7 +330,12 @@ class _StatsHomeState extends State<StatsHome> {
       children: [
         ToolTile(id, size: 16),
         const SizedBox(width: 4),
-        Text(toolOf(id).name, style: p.text(15, null, FontWeight.w700)),
+        Flexible(
+          child: Text(
+            toolOf(id).name,
+            style: p.text(15, null, FontWeight.w700),
+          ),
+        ),
       ],
     );
     final emptyLedger =
@@ -716,19 +674,11 @@ class _StatsHomeState extends State<StatsHome> {
         if (allUnpriced || hasUnpriced)
           Tooltip(
             message: context.strings.recordsWithoutPricesAreExcludedFromCost,
-            child: Semantics(
-              link: true,
-              child: LensFocusOutline(
-                child: InkWell(
-                  onTap: widget.onSettings,
-                  child: Text(
-                    pricingNote,
-                    style: p
-                        .text(12.5, p.secondary)
-                        .copyWith(decoration: TextDecoration.underline),
-                  ),
-                ),
-              ),
+            child: LensTextLink(
+              label: pricingNote,
+              fontSize: 12.5,
+              onTap: widget.onSettings,
+              wrap: true,
             ),
           )
         else

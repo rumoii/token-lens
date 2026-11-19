@@ -21,6 +21,7 @@ import 'stats_controller.dart';
 import 'stats_gateway.dart';
 import 'stats/preferences.dart';
 import 'stats/theme/palette.dart';
+import 'stats/widgets/primitives.dart';
 import 'stats/widgets/interface_scale.dart';
 import 'window_theme.dart';
 import 'runtime_errors.dart';
@@ -275,10 +276,10 @@ class _TokenLensAppState extends State<TokenLensApp>
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 20),
-                              OutlinedButton(
+                              LensButton(
                                 onPressed: () => ServicesBinding.instance
                                     .exitApplication(AppExitType.required),
-                                child: Text(strings.close),
+                                label: strings.close,
                               ),
                             ],
                           ),

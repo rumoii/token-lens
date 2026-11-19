@@ -124,7 +124,7 @@ Future<void> pickSort(WidgetTester tester, String label) async {
   await tester.ensureVisible(picker);
   await tester.tap(picker, kind: PointerDeviceKind.mouse);
   await tester.pumpAndSettle();
-  final popup = find.byType(ListView).last;
+  final popup = find.byType(LensMenu);
   final option = find.descendant(of: popup, matching: find.text(label));
   await tester.scrollUntilVisible(
     option,

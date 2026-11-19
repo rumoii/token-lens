@@ -140,7 +140,8 @@ final class EnglishStrings extends AppStrings {
       'The biggest drop was $project (−$n tokens).';
 
   @override
-  String compareWith(String previous) => 'Compare with $previous';
+  String compareWith(String previous) =>
+      'Compare with ${_lowerInitial(previous)}';
 
   @override
   String get comparisonPreviousColumn => 'Previous';
@@ -1005,7 +1006,8 @@ final class EnglishStrings extends AppStrings {
   String get githubStars => 'GitHub stars';
 
   @override
-  String get goodAfternoon => 'Good afternoon';
+  String noonGreeting(int hour) =>
+      hour < 12 ? 'Good morning' : 'Good afternoon';
 
   @override
   String get goodAfternoon2 => 'Good afternoon';
@@ -1937,7 +1939,10 @@ final class EnglishStrings extends AppStrings {
   String get sort => 'Sort';
 
   @override
-  String sortBy0(Object? value) => 'Sort by $value';
+  String sortBy0(Object? value) => 'Sort by ${_lowerInitial('$value')}';
+
+  String _lowerInitial(String value) =>
+      value.isEmpty ? value : value[0].toLowerCase() + value.substring(1);
 
   @override
   String sortedBy0HighestFirstItemsWithout(Object? unit) =>

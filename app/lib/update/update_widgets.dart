@@ -204,7 +204,6 @@ class SettingsUpdate extends StatelessWidget {
                     LensButton(
                       label: context.strings.openDownloadPage,
                       variant: 'primary',
-                      size: 'settings',
                       icon: Icons.open_in_new,
                       onPressed: () async {
                         try {
@@ -214,43 +213,27 @@ class SettingsUpdate extends StatelessWidget {
                         }
                       },
                     ),
-                  LensFocusOutline(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 40),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: const StadiumBorder(),
-                      ),
-                      onPressed:
-                          controller.checking ||
-                              controller.currentVersion == null
-                          ? null
-                          : () => unawaited(controller.check()),
-                      child: Text(
-                        controller.checking
-                            ? context.strings.checking
-                            : [
-                                UpdateKind.offline,
-                                UpdateKind.limited,
-                                UpdateKind.invalid,
-                              ].contains(kind)
-                            ? context.strings.retry
-                            : context.strings.checkForUpdates,
-                      ),
-                    ),
+                  LensButton(
+                    key: const Key('update-check-button'),
+                    onPressed:
+                        controller.checking || controller.currentVersion == null
+                        ? null
+                        : () => unawaited(controller.check()),
+                    label: controller.checking
+                        ? context.strings.checking
+                        : [
+                            UpdateKind.offline,
+                            UpdateKind.limited,
+                            UpdateKind.invalid,
+                          ].contains(kind)
+                        ? context.strings.retry
+                        : context.strings.checkForUpdates,
                   ),
                   if (available && prefs.updateIgnoredVersion != latest)
-                    LensFocusOutline(
-                      child: TextButton(
-                        onPressed: () => unawaited(controller.ignoreVersion()),
-                        style: TextButton.styleFrom(
-                          foregroundColor: p['clay-ink'],
-                          textStyle: p
-                              .text(12.5)
-                              .copyWith(decoration: TextDecoration.underline),
-                        ),
-                        child: Text(context.strings.dismissThisVersion),
-                      ),
+                    LensTextLink(
+                      label: context.strings.dismissThisVersion,
+                      tone: 'clay',
+                      onTap: () => unawaited(controller.ignoreVersion()),
                     ),
                 ],
               ),
@@ -264,18 +247,13 @@ class SettingsUpdate extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Semantics(
-                    label: context.strings.checkAutomaticallyOnceADay,
-                    child: Transform.translate(
-                      // Align the painted square while keeping its compact tap target.
-                      offset: const Offset(-(40 - Checkbox.width) / 2, 0),
-                      child: Checkbox(
-                        value: prefs.autoCheckUpdates,
-                        activeColor: p['clay'],
-                        visualDensity: VisualDensity.compact,
-                        onChanged: (value) =>
-                            unawaited(controller.setAutomatic(value ?? false)),
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, right: 12),
+                    child: LensCheckbox(
+                      value: prefs.autoCheckUpdates,
+                      label: context.strings.checkAutomaticallyOnceADay,
+                      onChanged: (value) =>
+                          unawaited(controller.setAutomatic(value)),
                     ),
                   ),
                   Expanded(
@@ -370,26 +348,14 @@ class UpdateHint extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.all(4),
-                child: LensFocusOutline(
-                  radius: 6,
-                  inset: true,
-                  child: IconButton(
-                    key: const Key('update-hint-dismiss'),
-                    tooltip: context.strings.dismissThisVersion,
-                    onPressed: () => unawaited(controller.ignoreVersion()),
-                    padding: EdgeInsets.zero,
-                    style: IconButton.styleFrom(
-                      fixedSize: const Size.square(28),
-                      minimumSize: const Size.square(28),
-                      maximumSize: const Size.square(28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    constraints: const BoxConstraints.tightFor(
-                      width: 28,
-                      height: 28,
-                    ),
-                    icon: Icon(Icons.close, size: 14, color: p['clay-ink']),
-                  ),
+                child: LensIconButton(
+                  key: const Key('update-hint-dismiss'),
+                  tooltip: context.strings.dismissThisVersion,
+                  onPressed: () => unawaited(controller.ignoreVersion()),
+                  color: p['clay-ink'],
+                  icon: Icons.close,
+                  size: 'xs',
+                  insetFocus: true,
                 ),
               ),
               const SizedBox(width: 4),

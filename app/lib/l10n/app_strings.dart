@@ -388,7 +388,7 @@ abstract class AppStrings {
   String get generalNoLabel;
   String get getANoticeWhenANewVersion;
   String get githubStars;
-  String get goodAfternoon;
+  String noonGreeting(int hour);
   String get goodAfternoon2;
   String get goodEvening;
   String get goodMorning;

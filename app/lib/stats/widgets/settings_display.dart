@@ -269,7 +269,7 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
               if (prefs.uiScale != 1)
                 LensButton(
                   label: s.resetInterfaceScale,
-                  size: 'link',
+                  size: 'xs',
                   variant: 'ghost',
                   onPressed: () => unawaited(
                     c.setPreferences(c.preferences.copyWith(uiScale: 1)),
@@ -330,7 +330,7 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
                       : context.strings.updating,
                   icon: Icons.refresh,
                   variant: 'ghost',
-                  size: 'link',
+                  size: 'xs',
                   spinning: _operation != null,
                   onPressed: _operation == null
                       ? () => unawaited(_refresh())

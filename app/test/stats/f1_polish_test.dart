@@ -370,8 +370,8 @@ void main() {
         .widget<CustomPaint>(ring.first)
         .foregroundPainter;
     expect(painter.color, const LensPalette(false)['clay']);
-    expect(painter.strokeWidth, 2);
-    expect(painter.offset, 2);
+    expect(painter.strokeWidth, 1.5);
+    expect(painter.offset, 0);
     await tester.tap(find.text('用量总览'), kind: PointerDeviceKind.mouse);
     await tester.pumpAndSettle();
     expect(ring, findsNothing);
@@ -553,11 +553,11 @@ void main() {
       page: 'sessions',
       query: 'source=claude&session=polish',
     );
-    final containers = tester.widgetList<Container>(
-      find.ancestor(of: find.byTooltip('关闭'), matching: find.byType(Container)),
-    );
-    final buttonBox = containers.firstWhere(
-      (c) => c.constraints?.maxWidth == 30,
+    final buttonBox = tester.widget<AnimatedContainer>(
+      find.descendant(
+        of: find.byTooltip('关闭'),
+        matching: find.byType(AnimatedContainer),
+      ),
     );
     expect((buttonBox.decoration as BoxDecoration).border, isNull);
   });

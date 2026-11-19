@@ -212,6 +212,7 @@ class _StatsDetailState extends State<StatsDetail> {
   bool exporting = false, projectPaths = false;
   bool trendCost = false;
   final exportFocus = FocusNode();
+  final exportAnchor = GlobalKey();
   String? exportedPath;
   Object? exportError;
   StatsController get c => widget.controller;
@@ -312,52 +313,47 @@ class _StatsDetailState extends State<StatsDetail> {
 
   Widget exportMenu(StatsUsageExporter exporter, String? by) {
     final strings = context.strings;
-    return MenuAnchor(
-      childFocusNode: exportFocus,
-      reservedPadding: const EdgeInsets.all(12),
-      alignmentOffset: const Offset(0, 4),
-      style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(p.surface),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        side: WidgetStatePropertyAll(BorderSide(color: p['line-strong'])),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        elevation: const WidgetStatePropertyAll(4),
-      ),
-      menuChildren: [
-        MenuItemButton(
-          onPressed: by == null ? null : () => exportUsage(exporter, by, 'csv'),
-          child: Text(strings.exportCsv),
-        ),
-        MenuItemButton(
-          onPressed: by == null
-              ? null
-              : () => exportUsage(exporter, by, 'json'),
-          child: Text(strings.exportJson),
-        ),
-        CheckboxMenuButton(
-          value: projectPaths,
-          closeOnActivate: false,
-          onChanged: (value) => setState(() => projectPaths = value ?? false),
-          child: Text(strings.includeFullProjectPaths),
-        ),
-      ],
-      builder: (context, menu, child) => LensButton(
-        label: strings.export,
-        size: 'sm',
-        variant: 'ghost',
-        focusNode: exportFocus,
-        onPressed: by == null || exporting
-            ? null
-            : () {
-                if (menu.isOpen) {
-                  menu.close();
-                } else {
-                  menu.open();
-                }
-              },
-      ),
+    return LensButton(
+      key: exportAnchor,
+      label: strings.export,
+      size: 'sm',
+      variant: 'ghost',
+      focusNode: exportFocus,
+      onPressed: by == null || exporting
+          ? null
+          : () async {
+              exportFocus.requestFocus();
+              final format = await LensMenu.show<String>(
+                context,
+                anchor: exportAnchor.currentContext!,
+                width: 250,
+                builder: (context) => StatefulBuilder(
+                  builder: (context, updateMenu) => LensMenu(
+                    entries: [
+                      LensMenuEntry(
+                        Text(strings.exportCsv),
+                        onPressed: () => Navigator.pop(context, 'csv'),
+                      ),
+                      LensMenuEntry(
+                        Text(strings.exportJson),
+                        onPressed: () => Navigator.pop(context, 'json'),
+                      ),
+                      LensMenuEntry(
+                        Text(strings.includeFullProjectPaths),
+                        checked: projectPaths,
+                        onPressed: () {
+                          setState(() => projectPaths = !projectPaths);
+                          updateMenu(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              if (mounted && format != null) {
+                await exportUsage(exporter, by, format);
+              }
+            },
     );
   }
 
@@ -558,6 +554,15 @@ class _StatsDetailState extends State<StatsDetail> {
     final selected =
         bucketRange(detail['bucket']!, period.range(c.clock())) != null ||
         detail['bucket']!.contains('T');
+    String? value(String field) =>
+        detail[field]!.isEmpty ? null : detail[field];
+    final tool = value('tool');
+    final model = value('model');
+    final project = value('project');
+    final missing = detail['missing'];
+    final missingLabel = missing == null
+        ? null
+        : comparisonGroupName(missing, null, const [], context.strings);
     final tags = [
       for (final k in ['tool', 'model', 'project', 'bucket'])
         if (detail[k]!.isNotEmpty && (k != 'bucket' || selected)) k,
@@ -569,6 +574,10 @@ class _StatsDetailState extends State<StatsDetail> {
       children: [
         FilterPick(
           label: context.strings.tool,
+          selected: tool,
+          selectedLabel: tool == null ? null : toolOf(tool).name,
+          selectedTool: tool,
+          onClear: tool == null ? null : () => setFilter('tool', ''),
           options: [
             for (final t in ts)
               FilterOption(
@@ -583,6 +592,13 @@ class _StatsDetailState extends State<StatsDetail> {
         ),
         FilterPick(
           label: context.strings.model,
+          selected: model,
+          selectedLabel: missing == 'model' ? missingLabel : model,
+          onClear: missing == 'model'
+              ? () => go({...detail, 'missing': ''})
+              : model == null
+              ? null
+              : () => setFilter('model', ''),
           options: [
             for (final m in ms)
               FilterOption(
@@ -597,6 +613,15 @@ class _StatsDetailState extends State<StatsDetail> {
         ),
         FilterPick(
           label: context.strings.project,
+          selected: project,
+          selectedLabel: missing == 'project'
+              ? missingLabel
+              : projectName(project) ?? project,
+          onClear: missing == 'project'
+              ? () => go({...detail, 'missing': ''})
+              : project == null
+              ? null
+              : () => setFilter('project', ''),
           options: [
             for (final g in ps)
               FilterOption(
@@ -610,38 +635,17 @@ class _StatsDetailState extends State<StatsDetail> {
           onPick: (v) => setFilter('project', v),
           unitSystem: c.unitSystem,
         ),
-        for (final k in tags)
-          FilterTag(
-            label: {
-              'tool': context.strings.tool,
-              'model': context.strings.model,
-              'project': context.strings.project,
-              'bucket': context.strings.time,
-            }[k]!,
-            value: k == 'bucket'
-                ? bucketText(detail[k]!, c.clock(), context.strings)
-                : k == 'tool'
-                ? toolOf(detail[k]!).name
-                : k == 'project'
-                ? projectName(detail[k]) ?? detail[k]!
-                : detail[k]!,
-            tool: k == 'tool' ? detail[k] : null,
-            onRemove: () => setFilter(k, ''),
-          ),
-        if (detail['missing'] case final field?)
-          FilterTag(
-            label: field == 'project'
-                ? context.strings.project
-                : context.strings.model,
-            value: comparisonGroupName(field, null, const [], context.strings),
-            onRemove: () => go({...detail, 'missing': ''}),
+        if (tags.contains('bucket'))
+          LensFilterTrigger(
+            label: context.strings.time,
+            value: bucketText(detail['bucket']!, c.clock(), context.strings),
+            onPressed: null,
+            onClear: () => setFilter('bucket', ''),
           ),
         if (tags.isNotEmpty || detail['missing'] != null)
-          LensButton(
+          LensTextLink(
             label: context.strings.clearFilters,
-            size: 'link',
-            variant: 'ghost',
-            onPressed: () => go({
+            onTap: () => go({
               'dim': detail['dim']!,
               if (detail['compare'] == '1') 'compare': '1',
             }),
@@ -1381,6 +1385,8 @@ class _StatsDetailState extends State<StatsDetail> {
                 key: const Key('detail-sort'),
                 searchable: false,
                 label: context.strings.sortBy0(sortOptions[selectedSort]),
+                selected: selectedSort,
+                size: 'sm',
                 options: [
                   for (final option in sortOptions.entries)
                     FilterOption(option.key, option.value),
@@ -1391,34 +1397,16 @@ class _StatsDetailState extends State<StatsDetail> {
                 }),
               ),
               const SizedBox(width: 8),
-              Container(
-                height: 30,
-                decoration: BoxDecoration(
-                  color: p.surface,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: p.smallShadow,
-                ),
-                child: LensFocusOutline(
-                  child: IconButton(
-                    tooltip: sortDir < 0
-                        ? context.strings.highestFirst
-                        : context.strings.lowestFirst,
-                    onPressed: () => setState(() {
-                      sortKey = selectedSort;
-                      sortDir = -sortDir;
-                    }),
-                    padding: const EdgeInsets.all(6),
-                    constraints: const BoxConstraints(
-                      minWidth: 30,
-                      minHeight: 30,
-                    ),
-                    icon: Icon(
-                      sortDir < 0 ? Icons.south : Icons.north,
-                      size: 16,
-                      color: p.secondary,
-                    ),
-                  ),
-                ),
+              LensSortDirection(
+                ascending: sortDir >= 0,
+                size: 'sm',
+                tooltip: sortDir < 0
+                    ? context.strings.highestFirst
+                    : context.strings.lowestFirst,
+                onPressed: () => setState(() {
+                  sortKey = selectedSort;
+                  sortDir = -sortDir;
+                }),
               ),
             ],
           ),
@@ -1548,9 +1536,7 @@ class _StatsDetailState extends State<StatsDetail> {
 
   @override
   Widget build(BuildContext context) {
-    final controls = Wrap(
-      spacing: 10,
-      runSpacing: 10,
+    final controls = LensHeaderControls(
       children: [
         LensSegmented(
           options: {
@@ -1612,58 +1598,36 @@ class _StatsDetailState extends State<StatsDetail> {
       children: [
         if (c.fullSyncRunning || c.syncReceipt != null)
           StatsSyncBanner(controller: c, onSources: widget.onSources),
-        LayoutBuilder(
-          builder: (context, box) {
-            final title = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                StatsSyncTitle(
+        LensPageHeader(
+          title: StatsSyncTitle(
+            controller: c,
+            title: Text(
+              context.strings.breakdown,
+              style: p
+                  .serif(narrow ? 24 : 28, weight: FontWeight.w500)
+                  .copyWith(height: 1.25),
+            ),
+          ),
+          controls: controls,
+          spacing: 4,
+          description: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
+                StatsHiddenNotice(
                   controller: c,
-                  title: Text(
-                    context.strings.breakdown,
-                    style: p
-                        .serif(narrow ? 24 : 28, weight: FontWeight.w500)
-                        .copyWith(height: 1.25),
-                  ),
+                  onManage: widget.onManageHidden!,
                 ),
-                if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
-                  StatsHiddenNotice(
-                    controller: c,
-                    onManage: widget.onManageHidden!,
-                  ),
-                const SizedBox(height: 4),
-                Text(
-                  context.strings.breakdownDescription(switch (period.period) {
-                    'all' => context.strings.periodAllTime,
-                    'custom' => context.strings.selectedPeriodInSentence,
-                    _ => period.inSentence(context.strings),
-                  }),
-                  style: p.text(14, p.secondary),
-                ),
-              ],
-            );
-            return box.maxWidth >= 760
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: title),
-                      const SizedBox(width: 24),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: box.maxWidth - 420 - 24,
-                        ),
-                        child: Align(
-                          alignment: Alignment.topRight,
-                          child: controls,
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [title, const SizedBox(height: 12), controls],
-                  );
-          },
+              Text(
+                context.strings.breakdownDescription(switch (period.period) {
+                  'all' => context.strings.periodAllTime,
+                  'custom' => context.strings.selectedPeriodInSentence,
+                  _ => period.inSentence(context.strings),
+                }),
+                style: p.text(14, p.secondary),
+              ),
+            ],
+          ),
         ),
         ResourceBlock(resource: options, rows: 1, builder: filters),
         LensCard(
@@ -1698,11 +1662,10 @@ class _StatsDetailState extends State<StatsDetail> {
                         children: [
                           SizedBox(
                             height: 30,
-                            child: Switch(
+                            child: LensSwitch(
                               key: const Key('detail-compare'),
+                              label: compareLabel,
                               value: comparing,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
                               onChanged: prior == null ? null : setCompare,
                             ),
                           ),

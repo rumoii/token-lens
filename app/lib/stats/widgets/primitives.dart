@@ -11,7 +11,11 @@ import 'package:flutter/services.dart';
 import '../theme/palette.dart';
 import '../logic/tools.dart';
 import '../logic/format.dart';
+import '../../smooth_wheel.dart';
 import 'motion.dart';
+
+part 'primitives_controls.dart';
+part 'primitives_menu.dart';
 
 final _inputModality = _LensInputModality();
 
@@ -60,10 +64,12 @@ class LensFocusOutline extends StatefulWidget {
     required this.child,
     this.radius = 8,
     this.inset = false,
+    this.error = false,
   });
   final Widget child;
   final double radius;
   final bool inset;
+  final bool error;
   @override
   State<LensFocusOutline> createState() => _LensFocusOutlineState();
 }
@@ -87,45 +93,83 @@ class _LensFocusOutlineState extends State<LensFocusOutline> {
   }
 
   @override
-  Widget build(BuildContext context) => Focus(
-    canRequestFocus: false,
-    skipTraversal: true,
-    includeSemantics: false,
-    onFocusChange: (value) => setState(() => focused = value),
-    child: CustomPaint(
-      foregroundPainter: focused && _inputModality.keyboard
-          ? LensFocusRing(
-              LensPalette.of(context)['clay'],
-              widget.radius,
-              inset: widget.inset,
-            )
-          : null,
-      child: widget.child,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final palette = LensPalette.of(context);
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      includeSemantics: false,
+      onFocusChange: (value) => setState(() => focused = value),
+      child: CustomPaint(
+        foregroundPainter: focused && _inputModality.keyboard
+            ? LensFocusRing(
+                palette[widget.error ? 'danger' : 'clay'],
+                widget.radius,
+                inset: widget.inset,
+                isolation: palette['surface-1'],
+              )
+            : null,
+        child: widget.child,
+      ),
+    );
+  }
 }
 
 class LensFocusRing extends CustomPainter {
-  const LensFocusRing(this.color, this.radius, {this.inset = false});
+  const LensFocusRing(
+    this.color,
+    this.radius, {
+    required this.isolation,
+    this.inset = false,
+  });
   final Color color;
+  final Color isolation;
   final double radius;
   final bool inset;
-  double get strokeWidth => 2;
-  double get offset => inset ? -strokeWidth : 2;
+  double get isolationWidth => 1;
+  double get strokeWidth => 1.5;
+  double get haloWidth => 6;
+  double get offset => inset ? -strokeWidth : 0;
   @override
-  void paint(Canvas canvas, Size size) => canvas.drawRRect(
-    RRect.fromRectAndRadius(
-      (Offset.zero & size).inflate(offset + strokeWidth / 2),
-      Radius.circular(inset ? radius : radius + offset),
-    ),
-    Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth,
-  );
+  void paint(Canvas canvas, Size size) {
+    RRect ring(double expansion) => RRect.fromRectAndRadius(
+      (Offset.zero & size).inflate(expansion),
+      Radius.circular(math.max(0, radius + expansion)),
+    );
+    final stroke = ring(offset + strokeWidth / 2);
+    canvas.drawRRect(
+      stroke,
+      Paint()
+        ..color = color.withValues(alpha: .25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth + 2
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.outer,
+          haloWidth * .57735 + .5,
+        ),
+    );
+    canvas.drawRRect(
+      ring(offset - isolationWidth / 2),
+      Paint()
+        ..color = isolation
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isolationWidth,
+    );
+    canvas.drawRRect(
+      stroke,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+  }
+
   @override
   bool shouldRepaint(LensFocusRing old) =>
-      old.color != color || old.radius != radius || old.inset != inset;
+      old.color != color ||
+      old.isolation != isolation ||
+      old.radius != radius ||
+      old.inset != inset;
 }
 
 class LensCard extends StatefulWidget {
@@ -251,98 +295,86 @@ class LensButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
-    final h =
-        const {
-          'xs': 24.0,
-          'sm': 28.0,
-          'md': 32.0,
-          'lg': 40.0,
-          'settings': 40.0,
-          'link': 24.0,
-          'sidebar': 30.0,
-        }[size] ??
-        32;
+    final h = _controlHeight(size);
+    final radius = _controlRadius(size);
     return Semantics(
       button: true,
       label: label,
       enabled: onPressed != null,
-      child: LensPressFeedback(
-        builder: (states) => LensFocusOutline(
-          radius: size == 'settings' ? h / 2 : 8,
-          child: TextButton(
-            statesController: states,
-            focusNode: focusNode,
-            onPressed: onPressed,
-            style: ButtonStyle(
-              minimumSize: WidgetStatePropertyAll(Size(0, h)),
-              padding: WidgetStatePropertyAll(
-                EdgeInsets.symmetric(
-                  horizontal: size == 'link'
-                      ? 6
-                      : size == 'xs' || size == 'sidebar'
-                      ? 8
-                      : 12,
+      child: Opacity(
+        opacity: onPressed == null ? LensTokens.disabledOpacity : 1,
+        child: LensPressFeedback(
+          builder: (states) => LensFocusOutline(
+            radius: radius,
+            child: TextButton(
+              statesController: states,
+              focusNode: focusNode,
+              onPressed: onPressed,
+              style: ButtonStyle(
+                minimumSize: WidgetStatePropertyAll(Size(0, h)),
+                padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(
+                    horizontal: switch (size) {
+                      'xs' || 'sidebar' => 8,
+                      'sm' => 10,
+                      'lg' => 20,
+                      _ => 14,
+                    },
+                  ),
+                ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(radius),
+                  ),
+                ),
+                textStyle: WidgetStatePropertyAll(
+                  p.text(
+                    switch (size) {
+                      'sm' => 12.5,
+                      'sidebar' => 12,
+                      'xs' => 11.5,
+                      'lg' => 14.5,
+                      _ => 13,
+                    },
+                    null,
+                    FontWeight.w500,
+                  ),
+                ),
+                animationDuration: _hoverDuration(context),
+                backgroundColor: WidgetStateProperty.resolveWith(
+                  (states) => _controlFill(p, variant, states),
+                ),
+                foregroundColor: WidgetStatePropertyAll(
+                  variant == 'primary' ? Colors.white : p.secondary,
+                ),
+                overlayColor: const WidgetStatePropertyAll(
+                  LensPalette.transparent,
                 ),
               ),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: WidgetStatePropertyAll(
-                size == 'settings'
-                    ? const StadiumBorder()
-                    : RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-              ),
-              textStyle: WidgetStatePropertyAll(
-                p.text(
-                  size == 'link'
-                      ? 12.5
-                      : size == 'sidebar'
-                      ? 12
-                      : size == 'xs'
-                      ? 11
-                      : size == 'sm'
-                      ? 12
-                      : 14,
-                  null,
-                  FontWeight.w500,
+              child: ExcludeSemantics(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null && !trailingIcon) ...[
+                      spinning
+                          ? LensLoop(
+                              duration: const Duration(seconds: 1),
+                              builder: (context, v) => Transform.rotate(
+                                angle: v * math.pi * 2,
+                                child: Icon(icon, size: 14),
+                              ),
+                            )
+                          : Icon(icon, size: 14),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(label),
+                    if (icon != null && trailingIcon) ...[
+                      const SizedBox(width: 4),
+                      Icon(icon, size: 12),
+                    ],
+                  ],
                 ),
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith(
-                (states) => variant == 'primary'
-                    ? p['clay']
-                    : states.contains(WidgetState.hovered)
-                    ? p['fill-active']
-                    : variant == 'ghost'
-                    ? LensPalette.transparent
-                    : p['fill-hover'],
-              ),
-              foregroundColor: WidgetStatePropertyAll(
-                variant == 'primary' ? p['text-inverse'] : p.secondary,
-              ),
-              overlayColor: WidgetStatePropertyAll(p['fill-hover']),
-            ),
-            child: ExcludeSemantics(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (icon != null && !trailingIcon) ...[
-                    spinning
-                        ? LensLoop(
-                            duration: const Duration(seconds: 1),
-                            builder: (context, v) => Transform.rotate(
-                              angle: v * math.pi * 2,
-                              child: Icon(icon, size: 14),
-                            ),
-                          )
-                        : Icon(icon, size: 14),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(label),
-                  if (icon != null && trailingIcon) ...[
-                    const SizedBox(width: 4),
-                    Icon(icon, size: 12),
-                  ],
-                ],
               ),
             ),
           ),
@@ -353,13 +385,14 @@ class LensButton extends StatelessWidget {
 }
 
 class LensBadge extends StatelessWidget {
-  const LensBadge(this.label, {super.key, this.tone = 'neutral'});
+  const LensBadge(this.label, {super.key, this.tone = 'neutral', this.icon});
   final String label, tone;
+  final IconData? icon;
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
     final color = tone == 'clay'
-        ? p['clay']
+        ? p['clay-ink']
         : ['ok', 'warn', 'danger'].contains(tone)
         ? p[tone]
         : p.secondary;
@@ -367,10 +400,32 @@ class LensBadge extends StatelessWidget {
       height: 20,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: tone == 'clay' ? p['clay-wash'] : p['fill-hover'],
+        color: switch (tone) {
+          'clay' => p['clay-wash'],
+          'ok' => p.okWash,
+          'warn' => p.warnWash,
+          'danger' => p.dangerWash,
+          _ => p['fill-hover'],
+        },
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: p.text(11, color, FontWeight.w500)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: p.text(11, color, FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -384,12 +439,16 @@ class LensSegmented extends StatefulWidget {
     required this.label,
     this.small = false,
     this.menu,
+    this.anchors = const {},
+    this.focusNodes = const {},
   });
   final Map<String, String> options;
   final String value, label;
   final ValueChanged<String> onChanged;
   final bool small;
   final ({String option, Key anchor})? menu;
+  final Map<String, Key> anchors;
+  final Map<String, FocusNode> focusNodes;
   @override
   State<LensSegmented> createState() => _LensSegmentedState();
 }
@@ -483,9 +542,7 @@ class _LensSegmentedState extends State<LensSegmented>
             height: height,
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
-              color: (p.dark ? Colors.white : Colors.black).withValues(
-                alpha: p.dark ? .08 : .06,
-              ),
+              color: p['segment-track'],
               borderRadius: BorderRadius.circular(999),
             ),
             child: Stack(
@@ -510,9 +567,7 @@ class _LensSegmentedState extends State<LensSegmented>
                         ),
                         height: height - 4,
                         decoration: BoxDecoration(
-                          color: p.dark
-                              ? const Color(0xff2c2c2a)
-                              : Colors.white,
+                          color: p['segment-thumb'],
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
                             color: (p.dark ? Colors.white : Colors.black)
@@ -542,7 +597,10 @@ class _LensSegmentedState extends State<LensSegmented>
                         button: true,
                         child: LensFocusOutline(
                           child: InkWell(
-                            key: e.key == menu?.option ? menu?.anchor : null,
+                            key:
+                                widget.anchors[e.key] ??
+                                (e.key == menu?.option ? menu?.anchor : null),
+                            focusNode: widget.focusNodes[e.key],
                             onTap: () => widget.onChanged(e.key),
                             borderRadius: BorderRadius.circular(999),
                             child: SizedBox(
@@ -1033,9 +1091,22 @@ class _ScrollFadeState extends State<ScrollFade> {
 }
 
 class LensTextLink extends StatefulWidget {
-  const LensTextLink({super.key, required this.label, required this.onTap});
+  const LensTextLink({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.arrow = false,
+    this.trailingIcon,
+    this.tone = 'neutral',
+    this.fontSize = 12,
+    this.wrap = false,
+  });
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool arrow, wrap;
+  final String tone;
+  final double fontSize;
+  final IconData? trailingIcon;
   @override
   State<LensTextLink> createState() => _LensTextLinkState();
 }
@@ -1045,7 +1116,15 @@ class _LensTextLinkState extends State<LensTextLink> {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
-    final style = p.text(12, hovered ? p.ink : p.muted).copyWith(height: 1.4);
+    final icon =
+        widget.trailingIcon ?? (widget.arrow ? Icons.arrow_forward : null);
+    final color = switch (widget.tone) {
+      'warn' => p['warn'],
+      'clay' => p['clay-ink'],
+      _ => hovered ? p.ink : p.muted,
+    };
+    final style = p.text(widget.fontSize, color).copyWith(height: 1.4);
+    final underlineColor = hovered ? color : p['line-strong'];
     final metrics = TextPainter(
       text: TextSpan(
         text: widget.label,
@@ -1061,16 +1140,52 @@ class _LensTextLinkState extends State<LensTextLink> {
     metrics.dispose();
     return Semantics(
       link: true,
-      child: LensFocusOutline(
-        child: InkWell(
-          onTap: widget.onTap,
-          onHover: (value) => setState(() => hovered = value),
-          child: CustomPaint(
-            foregroundPainter: LensLinkUnderline(
-              color: p['line-strong'],
-              baseline: baseline,
+      enabled: widget.onTap != null,
+      child: Opacity(
+        opacity: widget.onTap == null ? LensTokens.disabledOpacity : 1,
+        child: LensPressFeedback(
+          builder: (states) => LensFocusOutline(
+            child: InkWell(
+              statesController: states,
+              onTap: widget.onTap,
+              onHover: (value) => setState(() => hovered = value),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: widget.wrap
+                        ? Text(
+                            widget.label,
+                            style: style.copyWith(
+                              decoration: TextDecoration.underline,
+                              decorationColor: underlineColor,
+                            ),
+                          )
+                        : CustomPaint(
+                            foregroundPainter: LensLinkUnderline(
+                              color: underlineColor,
+                              baseline: baseline,
+                            ),
+                            child: Text(
+                              widget.label,
+                              maxLines: 1,
+                              style: style,
+                            ),
+                          ),
+                  ),
+                  if (icon != null) ...[
+                    const SizedBox(width: 5),
+                    AnimatedSlide(
+                      offset: hovered ? const Offset(2 / 12, 0) : Offset.zero,
+                      duration: _hoverDuration(context),
+                      curve: _hoverCurve,
+                      child: Icon(icon, size: 12, color: color),
+                    ),
+                    const SizedBox(width: 2),
+                  ],
+                ],
+              ),
             ),
-            child: Text(widget.label, maxLines: 1, style: style),
           ),
         ),
       ),

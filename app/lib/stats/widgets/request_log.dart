@@ -385,6 +385,8 @@ class _RequestLogState extends State<RequestLog> {
         searchable: false,
         key: const Key('request-sort-menu'),
         label: context.strings.sortBy0(requestSortNames(context.strings)[sort]),
+        selected: sort,
+        size: 'sm',
         onPick: order,
         options: [
           for (final e in requestSortNames(context.strings).entries)
@@ -392,28 +394,13 @@ class _RequestLogState extends State<RequestLog> {
         ],
       ),
       const SizedBox(width: 8),
-      Container(
-        height: 30,
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: p.smallShadow,
-        ),
-        child: LensFocusOutline(
-          child: IconButton(
-            tooltip: descending
-                ? context.strings.highestFirst
-                : context.strings.lowestFirst,
-            onPressed: () => order(sort),
-            padding: const EdgeInsets.all(6),
-            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-            icon: Icon(
-              descending ? Icons.south : Icons.north,
-              size: 16,
-              color: p.secondary,
-            ),
-          ),
-        ),
+      LensSortDirection(
+        ascending: !descending,
+        size: 'sm',
+        tooltip: descending
+            ? context.strings.highestFirst
+            : context.strings.lowestFirst,
+        onPressed: () => order(sort),
       ),
     ],
   );
@@ -428,33 +415,16 @@ class _RequestLogState extends State<RequestLog> {
           children: [
             if (!session)
               Expanded(
-                child: Row(
-                  children: [
-                    Semantics(
-                      label: context.strings.timedOnly,
-                      child: Checkbox(
-                        value: timedOnly,
-                        onChanged: (value) {
-                          timedOnly = value ?? false;
-                          load();
-                        },
-                        visualDensity: VisualDensity.compact,
-                        activeColor: p['clay'],
-                      ),
-                    ),
-                    Flexible(
-                      child: InkWell(
-                        onTap: () {
-                          timedOnly = !timedOnly;
-                          load();
-                        },
-                        child: Text(
-                          context.strings.timedOnly,
-                          style: p.text(12.5),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: LensCheckbox(
+                    value: timedOnly,
+                    onChanged: (value) {
+                      timedOnly = value;
+                      load();
+                    },
+                    child: Text(context.strings.timedOnly, style: p.text(12.5)),
+                  ),
                 ),
               )
             else

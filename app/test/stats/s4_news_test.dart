@@ -7,6 +7,7 @@ import 'package:token_lens_app/news_controller.dart';
 import 'package:token_lens_app/news_gateway.dart';
 import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats_controller.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
 import '../news_controller_schedule_test.dart' show ManualTimer, period;
 import '../support/fake_news_gateway.dart';
@@ -128,7 +129,7 @@ void main() {
     expect(c.phase, StatsSyncPhase.error);
     expect(fixture.timers.single.isActive, isTrue);
 
-    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.byType(LensCheckbox));
     await tester.pumpAndSettle();
     gateway.syncFailure = null;
     await onboarding.click(tester, '重试');
@@ -161,7 +162,7 @@ void main() {
         expect(fixture.gateway.refreshCalls, 0);
         expect(fixture.timers, isEmpty);
         if (localOnly) {
-          await tester.tap(find.byType(Checkbox));
+          await tester.tap(find.byType(LensCheckbox));
           await tester.pumpAndSettle();
         }
         await tester.runAsync(() async {

@@ -21,106 +21,86 @@ class PeriodControl extends StatefulWidget {
 }
 
 class _PeriodControlState extends State<PeriodControl> {
-  final anchor = GlobalKey();
+  final customAnchor = GlobalKey();
   final moreAnchor = GlobalKey();
+  final customFocus = FocusNode();
+  final moreFocus = FocusNode();
+
+  @override
+  void dispose() {
+    customFocus.dispose();
+    moreFocus.dispose();
+    super.dispose();
+  }
 
   Future<void> more() async {
-    final box = moreAnchor.currentContext!.findRenderObject() as RenderBox;
-    final overlay = Navigator.of(context, rootNavigator: true).overlay!;
-    final bounds = overlay.context.findRenderObject() as RenderBox;
-    final offset = box.localToGlobal(Offset.zero, ancestor: bounds);
+    moreFocus.requestFocus();
     final strings = context.strings;
     final palette = LensPalette.of(context);
-    final picked = await showMenu<String>(
-      context: context,
-      useRootNavigator: true,
-      color: palette['surface-3'],
-      surfaceTintColor: Colors.transparent,
-      elevation: 2,
-      shadowColor: palette.ink.withValues(alpha: .16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: palette['line-soft']),
-      ),
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(
-          offset.dx,
-          offset.dy + box.size.height + 4,
-          box.size.width,
-          0,
-        ),
-        Offset.zero & bounds.size,
-      ),
-      constraints: const BoxConstraints(minWidth: 272, maxWidth: 290),
-      items: [
-        for (final id in StatsPeriod.shortcuts)
-          PopupMenuItem(
-            value: id,
-            height: 38,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    StatsPeriod(id).labelFor(strings),
-                    style: palette.text(13),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  flex: 2,
-                  child: Text(
-                    strings.vs0(
-                      StatsPeriod(id).compare(widget.now, strings)!.label,
+    final got = await LensMenu.show<String>(
+      context,
+      anchor: moreAnchor.currentContext!,
+      width: 290,
+      builder: (context) => LensMenu(
+        rowHeight: 38,
+        entries: [
+          for (final id in StatsPeriod.shortcuts)
+            LensMenuEntry(
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      StatsPeriod(id).labelFor(strings),
+                      style: palette.text(13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: palette.text(11, palette.muted),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Flexible(
+                    flex: 2,
+                    child: Text(
+                      strings.vs0(
+                        StatsPeriod(id).compare(widget.now, strings)!.label,
+                      ),
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: palette.text(11, palette.muted),
+                    ),
+                  ),
+                ],
+              ),
+              selected: id == widget.period.period,
+              onPressed: () => Navigator.pop(context, id),
             ),
-          ),
-      ],
+        ],
+      ),
     );
-    if (picked != null && mounted) widget.onChanged(StatsPeriod(picked));
+    if (got != null && mounted) widget.onChanged(StatsPeriod(got));
   }
 
   Future<void> custom() async {
-    final box = anchor.currentContext!.findRenderObject() as RenderBox;
-    final overlay = Navigator.of(context, rootNavigator: true).overlay!;
-    final at = box.localToGlobal(
-      Offset(0, box.size.height),
-      ancestor: overlay.context.findRenderObject(),
-    );
-    final screen = MediaQuery.sizeOf(context);
-    final range = widget.period.range(widget.now);
-    final selected = await showDialog<StatsPeriod>(
-      context: context,
-      barrierColor: LensPalette.transparent,
-      builder: (context) => Stack(
-        children: [
-          Positioned(
-            left: (at.dx + box.size.width - 256).clamp(8, screen.width - 264),
-            top: at.dy.clamp(8, screen.height - 270) + 6,
-            width: 256,
-            child: CustomRangePopover(range: range),
-          ),
-        ],
-      ),
+    customFocus.requestFocus();
+    final selected = await LensMenu.show<StatsPeriod>(
+      context,
+      anchor: customAnchor.currentContext!,
+      alignRight: true,
+      width: 264,
+      builder: (_) =>
+          CustomRangePopover(range: widget.period.range(widget.now)),
     );
     if (selected != null && mounted) widget.onChanged(selected);
   }
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    key: anchor,
     child: LensSegmented(
       label: context.strings.period,
       value: widget.period.isShortcut ? 'more' : widget.period.period,
       menu: (option: 'more', anchor: moreAnchor),
+      anchors: {'custom': customAnchor},
+      focusNodes: {'more': moreFocus, 'custom': customFocus},
       options: {
         'today': context.strings.today,
         'week': context.strings.thisWeek2,
@@ -175,32 +155,21 @@ class _CustomRangePopoverState extends State<CustomRangePopover> {
       children: [
         Text(label, style: p.text(11, p.muted, FontWeight.w500)),
         const SizedBox(height: 4),
-        SizedBox(
-          height: 32,
-          child: TextField(
-            key: Key('range-$label'),
-            controller: controller,
-            style: p.text(12),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: p['surface-1'],
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-              hintText: 'YYYY-MM-DD',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            keyboardType: TextInputType.datetime,
-          ),
+        LensInput(
+          key: Key('range-$label'),
+          size: 'sm',
+          controller: controller,
+          hint: 'YYYY-MM-DD',
+          label: label,
+          error: error != null,
+          autofocus: identical(controller, from),
+          keyboardType: TextInputType.datetime,
         ),
       ],
     );
-    return Material(
-      color: LensPalette.transparent,
-      child: LensCard(
-        radius: 12,
-        padding: const EdgeInsets.all(12),
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

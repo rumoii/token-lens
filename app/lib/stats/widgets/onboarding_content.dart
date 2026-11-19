@@ -85,52 +85,13 @@ class _OnboardingContentState extends State<OnboardingContent> {
       String label,
       VoidCallback? onPressed, {
       bool arrow = false,
-    }) => Opacity(
-      opacity: onPressed == null ? .45 : 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: p.smallShadow,
-        ),
-        child: LensFocusOutline(
-          child: TextButton(
-            onPressed: onPressed,
-            style:
-                TextButton.styleFrom(
-                  fixedSize: const Size.fromHeight(44),
-                  minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  backgroundColor: p['clay'],
-                  foregroundColor: p['text-inverse'],
-                  disabledBackgroundColor: p['clay'],
-                  disabledForegroundColor: p['text-inverse'],
-                  textStyle: p
-                      .text(16, null, FontWeight.w500)
-                      .copyWith(height: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ).copyWith(
-                  backgroundColor: WidgetStateProperty.resolveWith(
-                    (states) => states.contains(WidgetState.hovered)
-                        ? p['clay-hover']
-                        : p['clay'],
-                  ),
-                ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label),
-                if (arrow) ...[
-                  const SizedBox(width: 6),
-                  const Icon(Icons.arrow_forward, size: 14),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
+    }) => LensButton(
+      label: label,
+      variant: 'primary',
+      size: label == context.strings.scanAgain ? 'md' : 'lg',
+      onPressed: onPressed,
+      icon: arrow ? Icons.arrow_forward : null,
+      trailingIcon: arrow,
     );
     final title = Text(
       done ? context.strings.usageIsReady : context.strings.welcomeToTokenLens,
@@ -566,43 +527,20 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                       ),
                                     ),
                                   ),
-                                  child: Semantics(
-                                    button: true,
+                                  child: LensDisclosure(
                                     expanded: moreOpen,
-                                    child: LensFocusOutline(
-                                      child: InkWell(
-                                        onTap: () => setState(
-                                          () => moreOpen = !moreOpen,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 18,
-                                            vertical: 12,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                moreOpen
-                                                    ? Icons.expand_more
-                                                    : Icons.chevron_right,
-                                                size: 14,
-                                                color: p.secondary,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Flexible(
-                                                child: text(
-                                                  context.strings
-                                                      .supportedToolsMissing(
-                                                        missingCount,
-                                                      ),
-                                                  13,
-                                                  color: p.secondary,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                    onPressed: () =>
+                                        setState(() => moreOpen = !moreOpen),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 12,
+                                    ),
+                                    child: text(
+                                      context.strings.supportedToolsMissing(
+                                        missingCount,
                                       ),
+                                      13,
+                                      color: p.secondary,
                                     ),
                                   ),
                                 ),
@@ -681,26 +619,34 @@ class _OnboardingContentState extends State<OnboardingContent> {
                       if (!counting) ...[
                         const SizedBox(height: 12),
                         LensCard(
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: CheckboxListTile(
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
+                          child: LensCheckbox(
+                            value: widget.localOnly,
+                            onChanged: widget.onLocalOnlyChanged,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 4,
+                            ),
+                            child: Container(
+                              constraints: const BoxConstraints(minHeight: 72),
+                              alignment: AlignmentDirectional.centerStart,
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 20,
                               ),
-                              value: widget.localOnly,
-                              onChanged: (value) =>
-                                  widget.onLocalOnlyChanged(value ?? false),
-                              title: text(
-                                context.strings.localStatisticsOnly,
-                                14,
-                                weight: FontWeight.w500,
-                              ),
-                              subtitle: text(
-                                context.strings.localStatisticsOnlyHint,
-                                12.5,
-                                color: p.muted,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  text(
+                                    context.strings.localStatisticsOnly,
+                                    14,
+                                    weight: FontWeight.w500,
+                                  ),
+                                  text(
+                                    context.strings.localStatisticsOnlyHint,
+                                    12.5,
+                                    color: p.muted,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -733,11 +679,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                       if (counting && c.firstSyncRunning) ...[
                         const SizedBox(height: 8),
                         Center(
-                          child: LensButton(
+                          child: LensTextLink(
                             label: context.strings.viewUsage,
-                            size: 'link',
-                            variant: 'ghost',
-                            onPressed: widget.onEnter,
+                            onTap: widget.onEnter,
                           ),
                         ),
                       ],

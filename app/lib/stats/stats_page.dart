@@ -238,13 +238,10 @@ class _StatsPageState extends State<StatsPage> {
                     if (drawer) ...[
                       FocusTraversalOrder(
                         order: const NumericFocusOrder(2),
-                        child: LensFocusOutline(
-                          child: IconButton(
-                            tooltip: context.strings.closeNavigationMenu,
-                            onPressed: () =>
-                                scaffold.currentState?.closeDrawer(),
-                            icon: const Icon(Icons.close, size: 18),
-                          ),
+                        child: LensIconButton(
+                          tooltip: context.strings.closeNavigationMenu,
+                          onPressed: () => scaffold.currentState?.closeDrawer(),
+                          icon: Icons.close,
                         ),
                       ),
                     ],
@@ -423,52 +420,14 @@ class _StatsPageState extends State<StatsPage> {
                           onPressed: c.busy ? null : () => unawaited(c.sync()),
                         ),
                         const Spacer(),
-                        for (final item in [
-                          (
-                            'light',
-                            context.strings.light,
-                            Icons.light_mode_outlined,
-                          ),
-                          (
-                            'dark',
-                            context.strings.dark,
-                            Icons.dark_mode_outlined,
-                          ),
-                        ])
-                          Semantics(
-                            button: true,
-                            selected: c.preferences.appearance == item.$1,
-                            child: Tooltip(
-                              message: context.strings.themeShortcut(item.$2),
-                              child: LensFocusOutline(
-                                child: InkWell(
-                                  onTap: () => unawaited(
-                                    c.setPreferences(
-                                      c.preferences.copyWith(
-                                        appearance: item.$1,
-                                      ),
-                                    ),
-                                  ),
-                                  onLongPress: () => unawaited(
-                                    c.setPreferences(
-                                      c.preferences.copyWith(
-                                        appearance: 'system',
-                                      ),
-                                    ),
-                                  ),
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(6),
-                                    child: Icon(
-                                      item.$3,
-                                      size: 15,
-                                      color: p.secondary,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                        LensThemeToggle(
+                          value: c.preferences.appearance,
+                          onChanged: (value) => unawaited(
+                            c.setPreferences(
+                              c.preferences.copyWith(appearance: value),
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -541,20 +500,12 @@ class _StatsPageState extends State<StatsPage> {
                               ),
                               child: Row(
                                 children: [
-                                  LensFocusOutline(
-                                    child: IconButton(
-                                      tooltip:
-                                          context.strings.openNavigationMenu,
-                                      onPressed: () =>
-                                          scaffold.currentState!.openDrawer(),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      icon: Icon(
-                                        Icons.menu,
-                                        size: 22,
-                                        color: p.ink,
-                                      ),
-                                    ),
+                                  LensIconButton(
+                                    tooltip: context.strings.openNavigationMenu,
+                                    onPressed: () =>
+                                        scaffold.currentState!.openDrawer(),
+                                    icon: Icons.menu,
+                                    color: p.ink,
                                   ),
                                   const SizedBox(width: 12),
                                   const BrandMark(),

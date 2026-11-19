@@ -9,6 +9,7 @@ import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
 import 'fake_gateway.dart';
 import 'language_test.dart' show expectEnglish;
@@ -243,7 +244,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(hermes, findsOneWidget);
         expect(
-          find.descendant(of: hermes, matching: find.byType(Switch)),
+          find.descendant(of: hermes, matching: find.byType(LensSwitch)),
           findsNothing,
         );
 
@@ -285,7 +286,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           tester
-              .widget<ChoiceChip>(
+              .widget<LensChip>(
                 find.byKey(const ValueKey('source-filter-hidden')),
               )
               .selected,

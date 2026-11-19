@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats/logic/period.dart';
 import 'package:token_lens_app/stats/sessions_page.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
-import 'package:token_lens_app/stats/widgets/filters.dart';
 import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/stats/widgets/session_usage.dart';
 import 'package:token_lens_app/stats_gateway.dart';
@@ -244,7 +243,7 @@ void main() {
       reduced: true,
     );
     final tag = find.byWidgetPredicate(
-      (w) => w is FilterTag && w.label == '模型' && w.value == 'm',
+      (w) => w is LensFilterTrigger && w.label == '模型' && w.value == 'm',
     );
     expect(tag, findsOneWidget);
     await tester.tap(

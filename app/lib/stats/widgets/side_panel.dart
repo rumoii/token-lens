@@ -207,25 +207,12 @@ class _LensPanelState extends State<_LensPanel> {
                           const SizedBox(width: 12),
                           Focus(
                             canRequestFocus: false,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              height: 30,
-                              width: 30,
-                              child: LensFocusOutline(
-                                child: IconButton(
-                                  autofocus: true,
-                                  tooltip: context.strings.close,
-                                  padding: EdgeInsets.zero,
-                                  onPressed: () => Navigator.pop(context),
-                                  icon: Icon(
-                                    Icons.close,
-                                    size: 16,
-                                    color: p.muted,
-                                  ),
-                                ),
-                              ),
+                            child: LensIconButton(
+                              autofocus: true,
+                              tooltip: context.strings.close,
+                              onPressed: () => Navigator.pop(context),
+                              icon: Icons.close,
+                              size: 'sm',
                             ),
                           ),
                         ],

@@ -161,15 +161,15 @@ void main() {
     final button = tester.widget<TextButton>(
       find.widgetWithText(TextButton, '开始统计'),
     );
-    expect(tester.getSize(find.widgetWithText(TextButton, '开始统计')).height, 44);
+    expect(tester.getSize(find.widgetWithText(TextButton, '开始统计')).height, 40);
     expect(
       button.style!.padding!.resolve({}),
-      const EdgeInsets.symmetric(horizontal: 22),
+      const EdgeInsets.symmetric(horizontal: 20),
     );
-    expect(button.style!.textStyle!.resolve({})!.fontSize, 16);
+    expect(button.style!.textStyle!.resolve({})!.fontSize, 14.5);
     expect(
       (button.style!.shape!.resolve({}) as RoundedRectangleBorder).borderRadius,
-      BorderRadius.circular(12),
+      BorderRadius.circular(10),
     );
   });
   testWidgets('gate 未引导且全量 0 条显示引导，无应用外壳', (tester) async {

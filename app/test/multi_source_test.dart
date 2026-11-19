@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/news_controller.dart';
 import 'package:token_lens_app/news_gateway.dart';
 import 'package:token_lens_app/news_page.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
 import 'support/fake_news_gateway.dart';
 
@@ -203,11 +204,10 @@ void main() {
       await _openSourceActions(tester, 'hn-ai');
       expect(
         tester
-            .widget<PopupMenuItem<String>>(
-              find.byKey(const Key('refresh-hn-ai')),
-            )
-            .enabled,
-        isFalse,
+            .widget<LensMenuRow>(find.byKey(const Key('refresh-hn-ai')))
+            .entry
+            .onPressed,
+        isNull,
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();

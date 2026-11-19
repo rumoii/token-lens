@@ -7,6 +7,7 @@ import 'package:token_lens_app/news_controller.dart';
 import 'package:token_lens_app/news_gateway.dart';
 import 'package:token_lens_app/news_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
 import 'support/fake_news_gateway.dart';
 
@@ -106,7 +107,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byKey(const Key('filter-tag-openai')),
-          matching: find.byType(IconButton),
+          matching: find.byType(LensIconButton),
         ),
       );
       await tester.pumpAndSettle();
@@ -152,9 +153,11 @@ void main() {
     for (final category in SourceCategory.values) {
       expect(find.byKey(Key('status-group-${category.name}')), findsOneWidget);
     }
-    expect(find.byType(Switch), findsNWidgets(16));
+    expect(find.byType(LensSwitch), findsNWidgets(16));
     expect(
-      tester.widget<Switch>(find.byKey(const Key('enabled-hf-spaces'))).value,
+      tester
+          .widget<LensSwitch>(find.byKey(const Key('enabled-hf-spaces')))
+          .value,
       isFalse,
     );
     expect(

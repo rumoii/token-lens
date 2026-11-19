@@ -247,11 +247,24 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
 
   Widget searchField() {
     final strings = context.strings;
+    final hintWidth = TextPainter.computeWidth(
+      text: TextSpan(
+        text: strings.sessionSearch,
+        style: DefaultTextStyle.of(context).style.merge(p.text(13)),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    );
     return SizedBox(
-      width: strings.isChinese ? 250 : 295,
-      height: 34,
-      child: TextField(
+      width: math.max(
+        strings.isChinese ? 250 : 295,
+        hintWidth.ceilToDouble() + 76,
+      ),
+      child: LensInput(
+        search: true,
         controller: search,
+        hint: strings.sessionSearch,
+        clearLabel: strings.clearSessionSearch,
         onChanged: (_) {
           searchDelay?.cancel();
           searchDelay = Timer(const Duration(milliseconds: 250), () {
@@ -259,35 +272,10 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
           });
           changed();
         },
-        style: p.text(13),
-        decoration: InputDecoration(
-          hintText: strings.sessionSearch,
-          hintStyle: p.text(13, p.muted),
-          isDense: true,
-          filled: true,
-          fillColor: p.surface,
-          prefixIcon: const Icon(Icons.search, size: 17),
-          prefixIconConstraints: const BoxConstraints(minWidth: 30),
-          suffixIcon: search.text.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: strings.clearSessionSearch,
-                  iconSize: 15,
-                  padding: EdgeInsets.zero,
-                  onPressed: () {
-                    searchDelay?.cancel();
-                    search.clear();
-                    filter('q', '');
-                  },
-                  icon: const Icon(Icons.close),
-                ),
-          suffixIconConstraints: const BoxConstraints.tightFor(width: 30),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 6,
-            vertical: 8,
-          ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        ),
+        onClear: () {
+          searchDelay?.cancel();
+          filter('q', '');
+        },
       ),
     );
   }
@@ -389,6 +377,10 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       searchField(),
       FilterPick(
         label: context.strings.tool,
+        selected: q['tool'],
+        selectedLabel: q['tool'] == null ? null : toolOf(q['tool']!).name,
+        selectedTool: q['tool'],
+        onClear: q['tool'] == null ? null : () => filter('tool', ''),
         options: [
           for (final s in sources.data?.sources ?? <StatsSource>[])
             if (s.records > 0 && !c.isHidden(s.source))
@@ -398,6 +390,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       ),
       FilterPick(
         label: context.strings.project,
+        selected: q['project'],
+        selectedLabel: projectName(q['project']) ?? q['project'],
+        onClear: q['project'] == null ? null : () => filter('project', ''),
         options: [
           for (final g
               in (projects.data?.groups ?? <StatsGroup>[])
@@ -419,6 +414,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       ),
       FilterPick(
         label: context.strings.model,
+        selected: q['model'],
+        selectedLabel: q['model'],
+        onClear: q['model'] == null ? null : () => filter('model', ''),
         options: [
           for (final g in models.data?.groups ?? <StatsGroup>[])
             if (g.key?.isNotEmpty == true) FilterOption(g.key!, g.key!),
@@ -428,6 +426,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       FilterPick(
         key: const Key('sessions-sort'),
         label: sortLabels(context.strings)[sort]!,
+        selected: sort,
         searchable: false,
         options: [
           for (final entry in sortLabels(context.strings).entries)
@@ -435,36 +434,10 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ],
         onPick: orderBy,
       ),
-      LensFocusOutline(
-        child: IconButton(
-          tooltip: dir == 'asc'
-              ? context.strings.sortAscending
-              : context.strings.sortDescending,
-          iconSize: 16,
-          visualDensity: VisualDensity.compact,
-          onPressed: () => orderBy(sort, reverseCurrent: true),
-          icon: Icon(dir == 'asc' ? Icons.arrow_upward : Icons.arrow_downward),
-        ),
+      LensSortDirection(
+        ascending: dir == 'asc',
+        onPressed: () => orderBy(sort, reverseCurrent: true),
       ),
-      if (q['tool']?.isNotEmpty == true)
-        FilterTag(
-          label: context.strings.tool,
-          value: toolOf(q['tool']!).name,
-          tool: q['tool'],
-          onRemove: () => filter('tool', ''),
-        ),
-      if (q['project']?.isNotEmpty == true)
-        FilterTag(
-          label: context.strings.project,
-          value: projectName(q['project']) ?? q['project']!,
-          onRemove: () => filter('project', ''),
-        ),
-      if (q['model']?.isNotEmpty == true)
-        FilterTag(
-          label: context.strings.model,
-          value: q['model']!,
-          onRemove: () => filter('model', ''),
-        ),
     ],
   );
   Widget list() {
@@ -549,17 +522,21 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       if (!scoped)
         requests(r.requestCount, lifetimeCount: r.cumulative.requestCount),
     ];
-    final preferred = [
-      for (final label in labels) textWidth(label, p.text(12)),
-    ];
-    preferred[1] = math.max(
-      preferred[1],
-      textWidth(context.strings.sessionSortRecent, p.text(12)),
-    );
+    TextStyle valueStyle(int column) {
+      final emphasis = column == (scoped ? 2 : 3);
+      return p.text(
+        13,
+        emphasis ? null : p.secondary,
+        emphasis ? FontWeight.w600 : FontWeight.w400,
+      );
+    }
+
+    // Reserve room for complete body values before giving headers extra space.
+    final minimum = List.filled(labels.length, 22.0);
     for (final r in items) {
       final texts = values(r);
-      for (var i = 0; i < preferred.length; i++) {
-        var width = textWidth(texts[i], p.text(13));
+      for (var i = 0; i < minimum.length; i++) {
+        var width = textWidth(texts[i], valueStyle(i));
         if (i == 1) {
           width = math.max(width, textWidth(recentText(r), p.text(12)));
         }
@@ -576,30 +553,43 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             width += 132;
           }
         }
-        preferred[i] = math.max(preferred[i], width);
+        minimum[i] = math.max(minimum[i], width.ceilToDouble());
       }
     }
-    for (var i = 0; i < preferred.length; i++) {
-      preferred[i] += 20;
-    }
-    // Match table auto layout: share available width by each column's widest content.
-    final total = preferred.reduce((a, b) => a + b);
-    var tableWidth = 0.0;
+    minimum[0] = math.min(188, minimum[0]);
+    final preferred = [
+      for (final (column, label) in labels.indexed)
+        math.max(
+          minimum[column],
+          textWidth(label, p.text(12)) + (columns[column] == sort ? 10 : 0),
+        ),
+    ];
+    preferred[1] = math.max(
+      preferred[1],
+      textWidth(context.strings.sessionSortRecent, p.text(12)) +
+          (sort == 'recent' ? 10 : 0),
+    );
+    final minimumTotal = minimum.reduce((a, b) => a + b);
+    final preferredTotal = preferred.reduce((a, b) => a + b);
+    var columnWidths = minimum;
+    var cellInset = 10.0;
     Widget cell(Widget child, int column, {bool right = true}) => SizedBox(
-      width: column == 0
-          ? math.min(208, tableWidth * preferred.first / total)
-          : (tableWidth - math.min(208, tableWidth * preferred.first / total)) *
-                preferred[column] /
-                (total - preferred.first),
+      width: columnWidths[column] + 2 * cellInset,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: EdgeInsets.symmetric(horizontal: cellInset),
         child: Align(
           alignment: right ? Alignment.centerRight : Alignment.centerLeft,
           child: child,
         ),
       ),
     );
+    Widget singleLine(Widget child, {bool right = true}) => FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: right ? Alignment.centerRight : Alignment.centerLeft,
+      child: child,
+    );
     Widget row(StatsSessionItem r) {
+      final texts = values(r);
       final title =
           projectName(
             r.projectKey,
@@ -644,6 +634,8 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                 ),
                 Text(
                   toolOf(r.source).name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: p.text(12, p.muted).copyWith(height: 1.4),
                 ),
               ],
@@ -756,11 +748,17 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  startText(r, c.clock(), context.strings),
-                                  style: p.text(13, p.secondary),
+                                singleLine(
+                                  Text(texts[1], style: valueStyle(1)),
+                                  right: false,
                                 ),
-                                Text(recentText(r), style: p.text(12, p.muted)),
+                                singleLine(
+                                  Text(
+                                    recentText(r),
+                                    style: p.text(12, p.muted),
+                                  ),
+                                  right: false,
+                                ),
                               ],
                             ),
                             1,
@@ -768,20 +766,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                           ),
                           for (var i = 2; i < labels.length; i++)
                             cell(
-                              i == (scoped ? 6 : 4)
-                                  ? money(r.costMicros)
-                                  : Text(
-                                      values(r)[i],
-                                      style: p.text(
-                                        13,
-                                        (scoped && i == 2 || !scoped && i == 3)
-                                            ? null
-                                            : p.secondary,
-                                        (scoped && i == 2 || !scoped && i == 3)
-                                            ? FontWeight.w600
-                                            : FontWeight.w400,
-                                      ),
-                                    ),
+                              singleLine(
+                                i == (scoped ? 6 : 4)
+                                    ? money(r.costMicros)
+                                    : Text(texts[i], style: valueStyle(i)),
+                              ),
                               i,
                             ),
                         ],
@@ -797,8 +786,6 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       final selected = key != null && key == sort;
       final text = Text(
         title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
         style: p.text(12, selected ? p.ink : p.muted).copyWith(height: 1.4),
       );
       if (key == null) return text;
@@ -889,7 +876,33 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: LayoutBuilder(
               builder: (context, box) {
-                tableWidth = math.max(total, box.maxWidth);
+                final tableWidth = MediaQuery.sizeOf(context).width >= 1024
+                    ? box.maxWidth
+                    : math.max(
+                        preferredTotal + 20 * labels.length,
+                        box.maxWidth,
+                      );
+                cellInset = ((tableWidth - minimumTotal) / (2 * labels.length))
+                    .clamp(4, 10);
+                final available = tableWidth - 2 * cellInset * labels.length;
+                final spare = available - minimumTotal;
+                final firstSpare = spare <= 0
+                    ? 0.0
+                    : math.min(
+                        spare * preferred.first / preferredTotal,
+                        208 - 2 * cellInset - minimum.first,
+                      );
+                columnWidths = [
+                  for (final (column, required) in minimum.indexed)
+                    spare < 0
+                        ? required * available / minimumTotal
+                        : required +
+                              (column == 0
+                                  ? firstSpare
+                                  : (spare - firstSpare) *
+                                        preferred[column] /
+                                        (preferredTotal - preferred.first)),
+                ];
                 return SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: SizedBox(width: tableWidth, child: content()),
@@ -1702,29 +1715,13 @@ class _SessionDetailState extends State<SessionDetail> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            LensFocusOutline(
-              child: InkWell(
-                onTap: () => setState(() => technical = !technical),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        technical ? Icons.expand_more : Icons.chevron_right,
-                        size: 14,
-                        color: p.secondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        context.strings.technicalDetails,
-                        style: p.text(13, p.secondary),
-                      ),
-                    ],
-                  ),
-                ),
+            LensDisclosure(
+              expanded: technical,
+              onPressed: () => setState(() => technical = !technical),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Text(
+                context.strings.technicalDetails,
+                style: p.text(13, p.secondary),
               ),
             ),
             if (technical)

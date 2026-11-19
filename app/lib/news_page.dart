@@ -56,6 +56,7 @@ class _NewsPageState extends State<NewsPage> {
   final _headerKey = GlobalKey();
   final _stuck = ValueNotifier(false);
   final _filterButtonFocus = FocusNode();
+  final _filterAnchor = GlobalKey();
   final _manageFocus = FocusNode();
 
   @override
@@ -267,7 +268,8 @@ class _NewsPageState extends State<NewsPage> {
                     ? null
                     : controller.cancelRefresh,
               )
-            : _IconAction(
+            : LensIconButton(
+                tonal: true,
                 key: const Key('refresh-news'),
                 tooltip: context.strings.refreshNow,
                 icon: Icons.refresh_rounded,
@@ -338,22 +340,12 @@ class _NewsPageState extends State<NewsPage> {
           Text(text, style: style),
           if (failed > 0 && !snapshot.refreshing) ...[
             Text('·', style: style),
-            Semantics(
-              button: true,
-              child: InkWell(
-                key: const Key('failed-sources'),
-                onTap: _manageSources,
-                borderRadius: BorderRadius.circular(4),
-                child: Text(
-                  context.strings.sourcesNotUpdated(failed),
-                  style: p
-                      .text(13, p['warn'])
-                      .copyWith(
-                        decoration: TextDecoration.underline,
-                        decorationColor: p['warn'],
-                      ),
-                ),
-              ),
+            LensTextLink(
+              key: const Key('failed-sources'),
+              label: context.strings.sourcesNotUpdated(failed),
+              onTap: _manageSources,
+              tone: 'warn',
+              fontSize: 13,
             ),
           ],
         ],
@@ -506,14 +498,15 @@ class _NewsPageState extends State<NewsPage> {
       runSpacing: 4,
       children: [
         for (final category in [null, ...SourceCategory.values])
-          _Chip(
+          LensChip(
             key: Key('category-${category?.name ?? 'all'}'),
+            size: 'sm',
             label: category == null
                 ? context.strings.all
                 : _categoryName(category, context.strings),
             count: controller.categoryCount(category),
             selected: controller.category == category,
-            onTap: () => controller.setCategory(category),
+            onPressed: () => controller.setCategory(category),
           ),
       ],
     );
@@ -621,50 +614,19 @@ class _NewsPageState extends State<NewsPage> {
   }
 
   Widget _searchField(LensPalette p) => SizedBox(
-    width: 200,
-    child: TextField(
+    width: 205,
+    child: LensInput(
       key: const Key('news-search'),
       controller: _search,
       focusNode: _searchFocus,
+      size: 'sm',
+      search: true,
+      hint: context.strings.searchTitlesAndSummaries,
       onChanged: widget.controller.setQuery,
-      style: p.text(12.5),
-      cursorColor: p['clay'],
-      decoration: InputDecoration(
-        hintText: context.strings.searchTitlesAndSummaries,
-        hintStyle: p.text(12.5, p.muted),
-        isDense: true,
-        filled: true,
-        fillColor: (p.dark ? Colors.white : Colors.black).withValues(
-          alpha: p.dark ? .08 : .06,
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 7),
-        prefixIcon: Icon(Icons.search_rounded, size: 15, color: p.muted),
-        prefixIconConstraints: const BoxConstraints(minWidth: 32),
-        suffixIcon: _search.text.isEmpty
-            ? ExcludeSemantics(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Text('/', style: p.text(12, p.faint)),
-                ),
-              )
-            : IconButton(
-                tooltip: context.strings.clearSearch,
-                padding: EdgeInsets.zero,
-                iconSize: 14,
-                onPressed: () {
-                  _search.clear();
-                  widget.controller.setQuery('');
-                },
-                icon: Icon(Icons.close_rounded, color: p.muted),
-              ),
-        suffixIconConstraints: const BoxConstraints(minWidth: 28),
-        border: OutlineInputBorder(
-          borderSide: BorderSide.none,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: p['clay'], width: 1.5),
-          borderRadius: BorderRadius.circular(999),
+      hintAccessory: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.only(right: 10),
+          child: Text('/', style: p.text(12, p.faint)),
         ),
       ),
     ),
@@ -672,129 +634,102 @@ class _NewsPageState extends State<NewsPage> {
 
   Widget _filterMenu(LensPalette p, bool filtered) {
     final controller = widget.controller;
-    final counts = <String, int>{};
-    for (final item in controller.snapshot.items) {
-      for (final id in {item.sourceId, ...item.alsoIn}) {
-        counts[id] = (counts[id] ?? 0) + 1;
-      }
-    }
-    final itemStyle = MenuItemButton.styleFrom(
-      foregroundColor: p.ink,
-      minimumSize: const Size(0, 34),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-      textStyle: p.text(13),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    );
-    Widget group(String key, String label) => Padding(
-      key: Key(key),
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
-      child: Text(label, style: p.text(12, p.muted, FontWeight.w500)),
-    );
-    return CheckboxTheme(
-      data: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? p.ink
-              : LensPalette.transparent,
-        ),
-        checkColor: WidgetStatePropertyAll(p['surface-1']),
-        side: BorderSide(color: p['line-strong'], width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      ),
-      child: MenuAnchor(
-        childFocusNode: _filterButtonFocus,
-        crossAxisUnconstrained: false,
-        alignmentOffset: const Offset(0, 6),
-        onClose: () {
-          if (mounted) _filterButtonFocus.requestFocus();
-        },
-        style: MenuStyle(
-          elevation: const WidgetStatePropertyAll(8),
-          shadowColor: WidgetStatePropertyAll(
-            Colors.black.withValues(alpha: p.dark ? .6 : .2),
-          ),
-          backgroundColor: WidgetStatePropertyAll(p['surface-3']),
-          surfaceTintColor: const WidgetStatePropertyAll(
-            LensPalette.transparent,
-          ),
-          minimumSize: const WidgetStatePropertyAll(Size(260, 0)),
-          maximumSize: const WidgetStatePropertyAll(Size(320, 480)),
-          padding: const WidgetStatePropertyAll(EdgeInsets.all(6)),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: p['line']),
-            ),
-          ),
-        ),
-        menuChildren: [
-          group('filter-group-kind', context.strings.type),
-          for (final kind in _kindNames(context.strings).keys)
-            CheckboxMenuButton(
-              key: Key('kind-filter-$kind'),
-              value: controller.kindIds.contains(kind),
-              closeOnActivate: false,
-              style: itemStyle,
-              onChanged: (_) => controller.toggleKindFilter(kind),
-              child: Text(_kindNames(context.strings)[kind]!),
-            ),
-          for (final category in SourceCategory.values) ...[
-            group(
-              'filter-group-${category.name}',
-              _categoryName(category, context.strings),
-            ),
-            for (final source in controller.snapshot.sources.where(
-              (source) => source.category == category && source.enabled,
-            ))
-              CheckboxMenuButton(
-                key: Key('filter-${source.id}'),
-                value: controller.sourceIds.contains(source.id),
-                closeOnActivate: false,
-                style: itemStyle,
-                trailingIcon: Text(
-                  '${counts[source.id] ?? 0}',
-                  style: p.text(12, p.faint),
-                ),
-                onChanged: (_) => controller.toggleSourceFilter(source.id),
-                child: Text(
-                  source.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-        ],
-        builder: (context, menu, child) => Stack(
-          clipBehavior: Clip.none,
-          children: [
-            _IconAction(
-              key: const Key('news-filter'),
-              tooltip: context.strings.filterBySourceAndType,
-              icon: Icons.filter_list_rounded,
-              focusNode: _filterButtonFocus,
-              ghost: true,
-              onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-            ),
-            if (filtered)
-              Positioned(
-                top: 4,
-                right: 4,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: p['clay'],
-                      shape: BoxShape.circle,
-                    ),
+    final strings = context.strings;
+    final kinds = _kindNames(strings);
+    Future<void> open() async {
+      _filterButtonFocus.requestFocus();
+      await LensMenu.show<void>(
+        context,
+        anchor: _filterAnchor.currentContext!,
+        width: 278,
+        maxHeight: 560,
+        builder: (context) => ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) {
+            final counts = <String, int>{};
+            for (final item in controller.snapshot.items) {
+              for (final id in {item.sourceId, ...item.alsoIn}) {
+                counts[id] = (counts[id] ?? 0) + 1;
+              }
+            }
+            LensMenuEntry group(String key, String label) => LensMenuEntry(
+              key: Key(key),
+              Text(label, style: p.text(12, p.muted, FontWeight.w500)),
+            );
+            return LensMenu(
+              entries: [
+                group('filter-group-kind', strings.type),
+                for (final kind in kinds.keys)
+                  LensMenuEntry(
+                    key: Key('kind-filter-$kind'),
+                    Text(kinds[kind]!),
+                    checked: controller.kindIds.contains(kind),
+                    onPressed: () => controller.toggleKindFilter(kind),
                   ),
+                for (final category in SourceCategory.values) ...[
+                  group(
+                    'filter-group-${category.name}',
+                    _categoryName(category, strings),
+                  ),
+                  for (final source in controller.snapshot.sources.where(
+                    (source) => source.category == category && source.enabled,
+                  ))
+                    LensMenuEntry(
+                      key: Key('filter-${source.id}'),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              source.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '${counts[source.id] ?? 0}',
+                            style: p.text(12, p.faint),
+                          ),
+                        ],
+                      ),
+                      checked: controller.sourceIds.contains(source.id),
+                      onPressed: () => controller.toggleSourceFilter(source.id),
+                    ),
+                ],
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    return Stack(
+      key: _filterAnchor,
+      clipBehavior: Clip.none,
+      children: [
+        LensIconButton(
+          key: const Key('news-filter'),
+          tooltip: strings.filterBySourceAndType,
+          icon: Icons.filter_list_rounded,
+          focusNode: _filterButtonFocus,
+          onPressed: open,
+          size: 'sm',
+        ),
+        if (filtered)
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IgnorePointer(
+              child: Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: p['clay'],
+                  shape: BoxShape.circle,
                 ),
               ),
-          ],
-        ),
-      ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1001,122 +936,6 @@ class _NewsPageState extends State<NewsPage> {
               ),
       ),
     };
-  }
-}
-
-class _IconAction extends StatelessWidget {
-  const _IconAction({
-    super.key,
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-    this.focusNode,
-    this.ghost = false,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final FocusNode? focusNode;
-  final bool ghost;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = LensPalette.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: Semantics(
-        button: true,
-        label: tooltip,
-        enabled: onPressed != null,
-        excludeSemantics: true,
-        child: LensPressFeedback(
-          builder: (states) => TextButton(
-            statesController: states,
-            focusNode: focusNode,
-            onPressed: onPressed,
-            style: ButtonStyle(
-              fixedSize: const WidgetStatePropertyAll(Size(32, 32)),
-              minimumSize: const WidgetStatePropertyAll(Size(32, 32)),
-              padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: WidgetStatePropertyAll(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.hovered)
-                    ? p['fill-active']
-                    : ghost
-                    ? LensPalette.transparent
-                    : p['fill-hover'],
-              ),
-              foregroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.disabled)
-                    ? p.faint
-                    : p.secondary,
-              ),
-              overlayColor: WidgetStatePropertyAll(p['fill-hover']),
-            ),
-            child: Icon(icon, size: 16),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    super.key,
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final int count;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = LensPalette.of(context);
-    final color = selected ? p['surface-1'] : p.secondary;
-    return Semantics(
-      selected: selected,
-      button: true,
-      child: Material(
-        color: selected ? p.ink : LensPalette.transparent,
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
-          hoverColor: p['fill-hover'],
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: p.text(
-                    13,
-                    color,
-                    selected ? FontWeight.w500 : FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$count',
-                  style: p.text(11.5, color.withValues(alpha: .6)),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -1508,24 +1327,15 @@ class _RowTool extends StatelessWidget {
     final p = LensPalette.of(context);
     return AnimatedOpacity(
       opacity: visible ? 1 : 0,
-      duration: LensTokens.fast,
-      child: SizedBox(
-        width: 28,
-        height: 28,
-        child: IconButton(
-          tooltip: tooltip,
-          padding: EdgeInsets.zero,
-          iconSize: 16,
-          onPressed: onPressed,
-          style: IconButton.styleFrom(
-            foregroundColor: color ?? p.faint,
-            hoverColor: p['fill-active'],
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          icon: Icon(icon),
-        ),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : LensTokens.fast,
+      child: LensIconButton(
+        tooltip: tooltip,
+        icon: icon,
+        onPressed: onPressed,
+        color: color ?? p.faint,
+        size: 'xs',
       ),
     );
   }
@@ -1703,77 +1513,61 @@ class _SourceRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 2),
-          PopupMenuButton<String>(
-            key: Key('source-row-${source.id}'),
-            tooltip: context.strings.moreActionsFor0(source.name),
-            color: p['surface-3'],
-            surfaceTintColor: LensPalette.transparent,
-            position: PopupMenuPosition.under,
-            iconSize: 16,
-            icon: Icon(Icons.more_horiz_rounded, color: p.muted),
-            style: IconButton.styleFrom(
-              minimumSize: const Size(28, 28),
-              fixedSize: const Size(28, 28),
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            onSelected: (action) {
-              if (action == 'refresh') onRefresh();
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                enabled: false,
-                child: Text(
-                  source.lastSuccessMs == null
-                      ? context.strings.noSuccessfulRefreshYet
-                      : context.strings.lastSuccessfulRefresh0(
-                          _fullTime(source.lastSuccessMs!, context.strings),
+          Builder(
+            builder: (anchor) => LensIconButton(
+              key: Key('source-row-${source.id}'),
+              tooltip: context.strings.moreActionsFor0(source.name),
+              icon: Icons.more_horiz_rounded,
+              size: 'xs',
+              onPressed: () async {
+                final strings = context.strings;
+                final action = await LensMenu.show<bool>(
+                  context,
+                  anchor: anchor,
+                  alignRight: true,
+                  width: 296,
+                  builder: (context) => LensMenu(
+                    rowHeight: 42,
+                    entries: [
+                      LensMenuEntry(
+                        Text(
+                          source.lastSuccessMs == null
+                              ? strings.noSuccessfulRefreshYet
+                              : strings.lastSuccessfulRefresh0(
+                                  _fullTime(source.lastSuccessMs!, strings),
+                                ),
+                          style: p.text(12, p.muted),
                         ),
-                  style: p.text(12, p.muted),
-                ),
-              ),
-              if (source.error != null)
-                PopupMenuItem<String>(
-                  enabled: false,
-                  child: Text(
-                    _errorCopy(source.error!, context.strings),
-                    key: Key('error-${source.id}'),
-                    style: p.text(12, p['danger']),
+                      ),
+                      if (source.error != null)
+                        LensMenuEntry(
+                          Text(
+                            _errorCopy(source.error!, strings),
+                            key: Key('error-${source.id}'),
+                            style: p.text(12, p['danger']),
+                          ),
+                        ),
+                      LensMenuEntry(
+                        key: Key('refresh-${source.id}'),
+                        Text(strings.refreshThisSource, style: p.text(13)),
+                        onPressed: source.enabled && !busy
+                            ? () => Navigator.pop(context, true)
+                            : null,
+                      ),
+                    ],
                   ),
-                ),
-              PopupMenuItem<String>(
-                key: Key('refresh-${source.id}'),
-                value: 'refresh',
-                enabled: source.enabled && !busy,
-                child: Text(
-                  context.strings.refreshThisSource,
-                  style: p.text(13, source.enabled && !busy ? p.ink : p.faint),
-                ),
-              ),
-            ],
+                );
+                if (context.mounted && action == true) onRefresh();
+              },
+            ),
           ),
           const SizedBox(width: 4),
-          Semantics(
+          LensSwitch(
+            key: Key('enabled-${source.id}'),
             label:
                 '${source.enabled ? context.strings.disable : context.strings.enable} ${source.name}',
-            child: SizedBox(
-              width: 36,
-              height: 22,
-              child: FittedBox(
-                child: Switch(
-                  key: Key('enabled-${source.id}'),
-                  value: source.enabled,
-                  onChanged: busy ? null : onToggle,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  activeTrackColor: p['ok'],
-                  inactiveTrackColor: p['line-strong'],
-                  thumbColor: const WidgetStatePropertyAll(Colors.white),
-                  trackOutlineColor: const WidgetStatePropertyAll(
-                    LensPalette.transparent,
-                  ),
-                ),
-              ),
-            ),
+            value: source.enabled,
+            onChanged: busy ? null : onToggle,
           ),
         ],
       ),

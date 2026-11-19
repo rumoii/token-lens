@@ -317,20 +317,14 @@ class _SettingsPricesState extends State<SettingsPrices> {
               style: p.text(12.5, p.muted),
             ),
             if (model.sourceUrl != null)
-              Semantics(
-                link: true,
-                child: LensButton(
-                  label: context.strings.officialPricingPage,
-                  icon: Icons.open_in_new,
-                  trailingIcon: true,
-                  size: 'link',
-                  variant: 'ghost',
-                  onPressed: widget.openLink == null
-                      ? null
-                      : () => unawaited(
-                          widget.openLink!(Uri.parse(model.sourceUrl!)),
-                        ),
-                ),
+              LensTextLink(
+                label: context.strings.officialPricingPage,
+                trailingIcon: Icons.open_in_new,
+                onTap: widget.openLink == null
+                    ? null
+                    : () => unawaited(
+                        widget.openLink!(Uri.parse(model.sourceUrl!)),
+                      ),
               ),
           ],
         ),

@@ -23,6 +23,7 @@ class StatsSyncTitle extends StatelessWidget {
     if (!active && !c.recentlySynced) return title;
     final source = c.progress?.source;
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(child: title),
         const SizedBox(width: 9),
@@ -129,12 +130,10 @@ class StatsSyncBanner extends StatelessWidget {
               variant: 'ghost',
               onPressed: onSources,
             ),
-          LensFocusOutline(
-            child: IconButton(
-              tooltip: s.progressDismiss,
-              icon: const Icon(Icons.close, size: 17),
-              onPressed: () => c.dismissSyncReceipt(receipt.id),
-            ),
+          LensIconButton(
+            tooltip: s.progressDismiss,
+            icon: Icons.close,
+            onPressed: () => c.dismissSyncReceipt(receipt.id),
           ),
         ],
       ),
@@ -163,12 +162,7 @@ class StatsHiddenNotice extends StatelessWidget {
           '${s.hiddenToolsNotice(controller.hiddenTools.length)} ·',
           style: p.text(12, p.muted),
         ),
-        LensButton(
-          label: s.hiddenToolsManage,
-          size: 'link',
-          variant: 'ghost',
-          onPressed: onManage,
-        ),
+        LensTextLink(label: s.hiddenToolsManage, onTap: onManage),
       ],
     );
   }

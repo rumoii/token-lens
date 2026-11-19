@@ -54,40 +54,13 @@ class _SourcesTechState extends State<SourcesTech> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
+          LensDisclosure(
             expanded: open,
-            child: LensFocusOutline(
-              child: TextButton(
-                onPressed: () => setState(() => open = !open),
-                style: TextButton.styleFrom(
-                  foregroundColor: p.secondary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    AnimatedRotation(
-                      turns: open ? .25 : 0,
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : LensTokens.fast,
-                      child: const Icon(Icons.chevron_right, size: 14),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      widget.title ?? context.strings.technicalDetails,
-                      style: _sourceText(p, 13, p.secondary),
-                    ),
-                  ],
-                ),
-              ),
+            onPressed: () => setState(() => open = !open),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Text(
+              widget.title ?? context.strings.technicalDetails,
+              style: _sourceText(p, 13, p.secondary),
             ),
           ),
           if (open)
@@ -98,50 +71,6 @@ class _SourcesTechState extends State<SourcesTech> {
                 child: widget.child,
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill(this.label, {this.tone, this.check = false});
-  final String label;
-  final String? tone;
-  final bool check;
-  @override
-  Widget build(BuildContext context) {
-    final p = LensPalette.of(context);
-    final color = tone == null ? p.secondary : p[tone!];
-    return Container(
-      height: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(LensTokens.radii['pill']!),
-        color: tone == null
-            ? p['fill-hover']
-            : color.withValues(alpha: tone == 'ok' ? .12 : .14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (check) ...[
-            Icon(Icons.check, size: 12, color: color),
-            const SizedBox(width: 4),
-          ],
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _sourceText(
-                p,
-                11.5,
-                color,
-                FontWeight.w500,
-              ).copyWith(height: 20 / 11.5),
-            ),
-          ),
         ],
       ),
     );
@@ -246,47 +175,33 @@ class SourcesSyncStatus extends StatelessWidget {
                   ),
                 ],
               ),
-              Opacity(
-                opacity: syncing ? .6 : 1,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Tooltip(
-                      message:
-                          context.strings.rereadAllLogsWithoutUsingThePrevious,
-                      child: SizedBox(
-                        height: 34,
-                        child: LensButton(
-                          label: rereading
-                              ? context.strings.rereading
-                              : context.strings.rereadAllLogs,
-                          onPressed: syncing
-                              ? null
-                              : () => unawaited(c.rereadLogs()),
-                        ),
-                      ),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Tooltip(
+                    message:
+                        context.strings.rereadAllLogsWithoutUsingThePrevious,
+                    child: LensButton(
+                      label: rereading
+                          ? context.strings.rereading
+                          : context.strings.rereadAllLogs,
+                      onPressed: syncing
+                          ? null
+                          : () => unawaited(c.rereadLogs()),
                     ),
-                    SizedBox(
-                      height: 34,
-                      child: Theme(
-                        // The old sync action uses text-white in both schemes.
-                        data: Theme.of(context)
-                            .copyWith(brightness: Brightness.light),
-                        child: LensButton(
-                          label: syncing && !rereading
-                              ? context.strings.syncing2
-                              : context.strings.syncNow,
-                          variant: 'primary',
-                          icon: Icons.refresh,
-                          spinning: syncing && !rereading,
-                          onPressed: syncing ? null : () => unawaited(c.sync()),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  LensButton(
+                    label: syncing && !rereading
+                        ? context.strings.syncing2
+                        : context.strings.syncNow,
+                    variant: 'primary',
+                    icon: Icons.refresh,
+                    spinning: syncing && !rereading,
+                    onPressed: syncing ? null : () => unawaited(c.sync()),
+                  ),
+                ],
               ),
             ],
           ),
@@ -424,7 +339,7 @@ class _SourcePermissionStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Tooltip(
     message: context.strings.tokenLensOnlyReadsLogFilesCheck,
-    child: _Pill(context.strings.cannotReadLogDirectory, tone: 'warn'),
+    child: LensBadge(context.strings.cannotReadLogDirectory, tone: 'warn'),
   );
 }
 
@@ -525,7 +440,7 @@ class SourcesToolCard extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 1),
-          child: _Pill(label, tone: tone),
+          child: LensBadge(label, tone: tone ?? 'neutral'),
         ),
         const SizedBox(width: 8),
         Expanded(child: text(value, balance: true)),
@@ -554,10 +469,10 @@ class SourcesToolCard extends StatelessWidget {
                           toolOf(item.source).name,
                           style: _sourceText(p, 15, null, FontWeight.w600),
                         ),
-                        _Pill(
+                        LensBadge(
                           context.strings.supported,
                           tone: 'ok',
-                          check: true,
+                          icon: Icons.check,
                         ),
                       ],
                     ),
@@ -601,16 +516,10 @@ class SourcesToolCard extends StatelessWidget {
                   ]),
                 ),
                 const SizedBox(width: 12),
-                Semantics(
-                  link: true,
-                  child: LensButton(
-                    label: context.strings.sourceViewUsage,
-                    size: 'link',
-                    variant: 'ghost',
-                    icon: Icons.arrow_forward,
-                    trailingIcon: true,
-                    onPressed: onDetail,
-                  ),
+                LensTextLink(
+                  label: context.strings.sourceViewUsage,
+                  arrow: true,
+                  onTap: onDetail,
                 ),
               ],
             ),
@@ -637,12 +546,12 @@ class SourcesToolCard extends StatelessWidget {
                                     : context
                                           .strings
                                           .checkedAgainstPublicReferencesAndSamplesReport,
-                                child: _Pill(
+                                child: LensBadge(
                                   real
                                       ? context.strings.verifiedWithRealLogs
                                       : context.strings.checkedWithSampleLogs,
-                                  tone: real ? 'ok' : null,
-                                  check: real,
+                                  tone: real ? 'ok' : 'neutral',
+                                  icon: real ? Icons.check : null,
                                 ),
                               ),
                             ),
@@ -765,41 +674,13 @@ class _SourcesMissingToolsState extends State<SourcesMissingTools> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
+          LensDisclosure(
             expanded: open,
-            child: LensFocusOutline(
-              child: TextButton(
-                onPressed: () => setState(() => open = !open),
-                style: TextButton.styleFrom(
-                  foregroundColor: p.secondary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Row(
-                  children: [
-                    AnimatedRotation(
-                      turns: open ? .25 : 0,
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : LensTokens.fast,
-                      child: const Icon(Icons.chevron_right, size: 14),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        context.strings.supportedToolsMissing(
-                          widget.ids.length,
-                        ),
-                        style: _sourceText(p, 13.5, p.secondary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            onPressed: () => setState(() => open = !open),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Text(
+              context.strings.supportedToolsMissing(widget.ids.length),
+              style: _sourceText(p, 13.5, p.secondary),
             ),
           ),
           if (open) ...[

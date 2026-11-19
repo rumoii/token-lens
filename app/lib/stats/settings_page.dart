@@ -197,25 +197,29 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                 context.strings.networkAndUpdates,
                 style: p.text(15, null, FontWeight.w600),
               ),
-              Material(
-                type: MaterialType.transparency,
-                child: SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    context.strings.aiNews,
-                    style: p.text(14, null, FontWeight.w500),
-                  ),
-                  subtitle: Text(
-                    context.strings.newsPreferenceHint,
-                    style: p.text(12.5, p.muted),
-                  ),
-                  value: widget.controller.preferences.newsEnabled,
-                  onChanged: (enabled) => unawaited(
-                    widget.controller.setPreferences(
-                      widget.controller.preferences.copyWith(
-                        newsEnabled: enabled,
-                      ),
+              LensSwitch(
+                value: widget.controller.preferences.newsEnabled,
+                onChanged: (enabled) => unawaited(
+                  widget.controller.setPreferences(
+                    widget.controller.preferences.copyWith(
+                      newsEnabled: enabled,
                     ),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.strings.aiNews,
+                        style: p.text(14, null, FontWeight.w500),
+                      ),
+                      Text(
+                        context.strings.newsPreferenceHint,
+                        style: p.text(12.5, p.muted),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -284,15 +288,11 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                       style: p.text(12.5, p.muted),
                     ),
                     const SizedBox(height: 14),
-                    LensFocusOutline(
-                      child: OutlinedButton(
-                        onPressed: exporting ? null : exportDiagnostics,
-                        child: Text(
-                          exporting
-                              ? context.strings.exporting
-                              : context.strings.exportDiagnostics,
-                        ),
-                      ),
+                    LensButton(
+                      onPressed: exporting ? null : exportDiagnostics,
+                      label: exporting
+                          ? context.strings.exporting
+                          : context.strings.exportDiagnostics,
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -309,11 +309,9 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      LensFocusOutline(
-                        child: OutlinedButton(
-                          onPressed: openExportFolder,
-                          child: Text(context.strings.openContainingFolder),
-                        ),
+                      LensButton(
+                        onPressed: openExportFolder,
+                        label: context.strings.openContainingFolder,
                       ),
                     ],
                     if (exportError != null) ...[
@@ -329,42 +327,16 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                   ],
                 ),
               ),
-              Semantics(
+              LensDisclosure(
                 expanded: aboutOpen,
-                button: true,
-                child: LensFocusOutline(
-                  child: InkWell(
-                    onTap: () => setState(() => aboutOpen = !aboutOpen),
-                    borderRadius: BorderRadius.circular(14),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          AnimatedRotation(
-                            turns: aboutOpen ? .25 : 0,
-                            duration: MediaQuery.disableAnimationsOf(context)
-                                ? Duration.zero
-                                : const Duration(milliseconds: 140),
-                            child: Icon(
-                              Icons.chevron_right,
-                              size: 14,
-                              color: p.secondary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              context.strings.aboutThisInstallationOfTokenLens,
-                              style: p.text(13.5, p.secondary),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                onPressed: () => setState(() => aboutOpen = !aboutOpen),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 14,
+                ),
+                child: Text(
+                  context.strings.aboutThisInstallationOfTokenLens,
+                  style: p.text(13.5, p.secondary),
                 ),
               ),
               if (aboutOpen)

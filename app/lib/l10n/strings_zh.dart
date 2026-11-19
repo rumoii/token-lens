@@ -949,7 +949,7 @@ final class ChineseStrings extends AppStrings {
   String get githubStars => 'GitHub 星数';
 
   @override
-  String get goodAfternoon => '中午好';
+  String noonGreeting(int hour) => '中午好';
 
   @override
   String get goodAfternoon2 => '下午好';

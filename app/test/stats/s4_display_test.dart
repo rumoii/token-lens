@@ -11,6 +11,7 @@ import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats/widgets/interface_scale.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats/widgets/charts.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
 import '../support/fake_news_gateway.dart';
 import 'fake_gateway.dart';
@@ -268,7 +269,7 @@ void main() {
       await language.navigate(tester, 'news');
       expect(find.byKey(const Key('home-hero')), findsOneWidget);
       await language.navigate(tester, 'settings');
-      final toggle = find.byType(SwitchListTile);
+      final toggle = find.byType(LensSwitch);
       await tester.ensureVisible(toggle);
       await tester.pumpAndSettle();
       await tester.tap(toggle);
@@ -281,7 +282,10 @@ void main() {
   testWidgets('S4 first-run local-only checkbox defaults off', (tester) async {
     await language.mount(tester, 1440, 'en', onboarded: false);
     expect(find.text('Local statistics only, no AI news'), findsOneWidget);
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+    expect(
+      tester.widget<LensCheckbox>(find.byType(LensCheckbox)).value,
+      isFalse,
+    );
   });
 
   testWidgets('S4 default overview places Monday in the first row', (

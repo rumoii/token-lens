@@ -5,6 +5,7 @@ import 'package:token_lens_app/stats/logic/period.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/widgets/charts.dart';
 import 'package:token_lens_app/stats_gateway.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
 import 'f1_polish_test.dart' show PolishGateway, mountPolish;
 
@@ -141,7 +142,7 @@ void main() {
       query: 'period=all&dim=project',
     );
     final toggle = find.byKey(const Key('detail-compare'));
-    expect(tester.widget<Switch>(toggle).onChanged, isNull);
+    expect(tester.widget<LensSwitch>(toggle).onChanged, isNull);
     final state = tester.state(find.byType(StatsPage)) as dynamic;
     state.navigate('detail', {'period': 'lastMonth', 'dim': 'project'});
     await tester.pumpAndSettle();

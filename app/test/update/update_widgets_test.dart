@@ -177,7 +177,9 @@ void main() {
       await mount(t);
       expect(find.text('正在检查…'), findsNWidgets(2));
       expect(
-        t.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+        t
+            .widget<LensButton>(find.byKey(const Key('update-check-button')))
+            .onPressed,
         isNull,
       );
       c.checking = false;
@@ -185,7 +187,9 @@ void main() {
       await mount(t);
       expect(find.text('你现在用的是 —'), findsOneWidget);
       expect(
-        t.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+        t
+            .widget<LensButton>(find.byKey(const Key('update-check-button')))
+            .onPressed,
         isNull,
       );
     },
@@ -217,11 +221,11 @@ void main() {
                 matching: find.byType(TextButton),
               )
               .first;
-          final outlined = find.byType(OutlinedButton);
+          final outlined = find.byKey(const Key('update-check-button'));
           final ignore = find
               .ancestor(
                 of: find.text('这个版本不再提示'),
-                matching: find.byType(TextButton),
+                matching: find.byType(LensTextLink),
               )
               .first;
           final primaryRect = t.getRect(primary),
@@ -231,9 +235,9 @@ void main() {
           expect(primaryRect.center.dy, closeTo(outlinedRect.center.dy, 1));
           expect(ignoreRect.center.dy, closeTo(outlinedRect.center.dy, 1));
           final shape = t.widget<TextButton>(primary).style!.shape!.resolve({});
-          expect(shape, isA<StadiumBorder>());
-          final checkbox = t.getRect(find.byType(Checkbox));
-          final visibleLeft = checkbox.center.dx - Checkbox.width / 2;
+          expect(shape, isA<RoundedRectangleBorder>());
+          final checkbox = t.getRect(find.byType(LensCheckbox));
+          final visibleLeft = checkbox.center.dx - 16 / 2;
           final titleLeft = t.getTopLeft(find.text('更新')).dx;
           expect(visibleLeft, closeTo(titleLeft, 1));
           final dot = find.byWidgetPredicate(
@@ -251,7 +255,7 @@ void main() {
           final close = find.byKey(const Key('update-hint-dismiss'));
           expect(
             FocusManager.instance.primaryFocus!.context!
-                .findAncestorWidgetOfExactType<IconButton>()
+                .findAncestorWidgetOfExactType<LensIconButton>()
                 ?.key,
             const Key('update-hint-dismiss'),
           );
@@ -276,7 +280,7 @@ void main() {
           expect(painted.bottom, lessThanOrEqualTo(hint.bottom));
           final outline = t.widget<LensFocusOutline>(
             find
-                .ancestor(of: close, matching: find.byType(LensFocusOutline))
+                .descendant(of: close, matching: find.byType(LensFocusOutline))
                 .first,
           );
           expect(outline.radius, 6);
@@ -303,8 +307,8 @@ void main() {
             final card = t.getRect(find.byKey(const Key('update-card')));
             for (final finder in [
               find.byType(Text),
-              find.byType(OutlinedButton),
-              find.byType(Checkbox),
+              find.byKey(const Key('update-check-button')),
+              find.byType(LensCheckbox),
             ]) {
               for (final element in finder.evaluate()) {
                 final rect = t.getRect(find.byWidget(element.widget));
@@ -359,7 +363,7 @@ void main() {
       await t.pump();
       expect(
         FocusManager.instance.primaryFocus!.context!
-            .findAncestorWidgetOfExactType<IconButton>(),
+            .findAncestorWidgetOfExactType<LensIconButton>(),
         isNotNull,
       );
       await t.sendKeyEvent(LogicalKeyboardKey.enter);

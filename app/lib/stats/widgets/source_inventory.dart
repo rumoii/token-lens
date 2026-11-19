@@ -38,6 +38,7 @@ class SourceInventory extends StatefulWidget {
 
 class _SourceInventoryState extends State<SourceInventory> {
   String filter = 'all', search = '';
+  final searchText = TextEditingController();
   bool missingExpanded = false;
   final expanded = <String>{};
   StatsController get c => widget.controller;
@@ -52,6 +53,12 @@ class _SourceInventoryState extends State<SourceInventory> {
   void didUpdateWidget(SourceInventory oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.query != widget.query) readFilter();
+  }
+
+  @override
+  void dispose() {
+    searchText.dispose();
+    super.dispose();
   }
 
   void readFilter() {
@@ -93,25 +100,15 @@ class _SourceInventoryState extends State<SourceInventory> {
           : context.strings.inventoryPathMissing,
   };
 
-  Widget badge(String label, String tone) {
-    final p = LensPalette.of(context);
-    final color = switch (tone) {
-      'found' => p['ok'],
-      'permission_denied' => p['warn'],
-      'io_error' => p['danger'],
-      _ => p.muted,
-    };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        child: Text(label, style: p.text(12, color, FontWeight.w500)),
-      ),
-    );
-  }
+  Widget badge(String label, String tone) => LensBadge(
+    label,
+    tone: switch (tone) {
+      'found' => 'ok',
+      'permission_denied' => 'warn',
+      'io_error' => 'danger',
+      _ => 'neutral',
+    },
+  );
 
   void feedback(String message) {
     ScaffoldMessenger.of(context)
@@ -138,29 +135,25 @@ class _SourceInventoryState extends State<SourceInventory> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        LensFocusOutline(
-          child: IconButton(
-            iconSize: 17,
-            tooltip: context.strings.inventoryOpen,
-            icon: const Icon(Icons.folder_open_outlined),
-            onPressed: dir?.exists == true && open != null
-                ? () => unawaited(openDirectory(dir!, open))
-                : null,
-          ),
+        LensIconButton(
+          size: 'xs',
+          tooltip: context.strings.inventoryOpen,
+          icon: Icons.folder_open_outlined,
+          onPressed: dir?.exists == true && open != null
+              ? () => unawaited(openDirectory(dir!, open))
+              : null,
         ),
-        LensFocusOutline(
-          child: IconButton(
-            iconSize: 17,
-            tooltip: context.strings.inventoryCopy,
-            icon: const Icon(Icons.copy_outlined),
-            onPressed: dir == null
-                ? null
-                : () async {
-                    await Clipboard.setData(ClipboardData(text: dir.path));
-                    if (!mounted) return;
-                    feedback(context.strings.inventoryCopied);
-                  },
-          ),
+        LensIconButton(
+          size: 'xs',
+          tooltip: context.strings.inventoryCopy,
+          icon: Icons.copy_outlined,
+          onPressed: dir == null
+              ? null
+              : () async {
+                  await Clipboard.setData(ClipboardData(text: dir.path));
+                  if (!mounted) return;
+                  feedback(context.strings.inventoryCopied);
+                },
         ),
       ],
     );
@@ -204,11 +197,7 @@ class _SourceInventoryState extends State<SourceInventory> {
     final tokens = widget.month[id] ?? 0;
     final identity = Row(
       children: [
-        Icon(
-          open ? Icons.expand_more : Icons.chevron_right,
-          color: p.muted,
-          size: 17,
-        ),
+        LensDisclosureArrow(expanded: open),
         const SizedBox(width: 5),
         ToolTile(id, size: 29),
         const SizedBox(width: 8),
@@ -248,16 +237,11 @@ class _SourceInventoryState extends State<SourceInventory> {
     final switcher = tool.status == 'found' || (known?.records ?? 0) > 0
         ? Tooltip(
             message: s.inventoryShowInStats,
-            child: Semantics(
+            child: LensSwitch(
+              key: ValueKey('show-$id'),
               label: '${s.inventoryShowInStats} · ${toolOf(id).name}',
-              child: Transform.scale(
-                scale: .75,
-                child: Switch(
-                  key: ValueKey('show-$id'),
-                  value: !hidden,
-                  onChanged: (value) => unawaited(c.setToolVisible(id, value)),
-                ),
-              ),
+              value: !hidden,
+              onChanged: (value) => unawaited(c.setToolVisible(id, value)),
             ),
           )
         : const SizedBox.shrink();
@@ -275,53 +259,53 @@ class _SourceInventoryState extends State<SourceInventory> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LensFocusOutline(
-            child: InkWell(
-              onTap: () => setState(() {
-                if (open) {
-                  expanded.remove(id);
-                } else {
-                  expanded.add(id);
-                }
-              }),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 12 * c.preferences.spacing,
-                  vertical: 5 * c.preferences.spacing,
-                ),
-                child: wide
-                    ? columns(
-                        identity,
-                        status,
-                        folder,
-                        Text(toDisplayNumber(count), style: p.text(12)),
-                        Text(last, style: p.text(12, p.muted)),
-                        rowActions,
-                        switcher,
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: identity),
-                              status,
-                              switcher,
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Expanded(child: folder),
-                              rowActions,
-                            ],
-                          ),
-                          Text(
-                            '${s.inventoryFiles} ${toDisplayNumber(count)} · ${s.inventoryLastUsed} $last',
-                            style: p.text(12, p.muted),
-                          ),
-                        ],
-                      ),
+          LensDisclosure(
+            expanded: open,
+            showArrow: false,
+            onPressed: () => setState(() {
+              if (open) {
+                expanded.remove(id);
+              } else {
+                expanded.add(id);
+              }
+            }),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 12 * c.preferences.spacing,
+                vertical: 5 * c.preferences.spacing,
               ),
+              child: wide
+                  ? columns(
+                      identity,
+                      status,
+                      folder,
+                      Text(toDisplayNumber(count), style: p.text(12)),
+                      Text(last, style: p.text(12, p.muted)),
+                      rowActions,
+                      switcher,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: identity),
+                            status,
+                            switcher,
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Expanded(child: folder),
+                            rowActions,
+                          ],
+                        ),
+                        Text(
+                          '${s.inventoryFiles} ${toDisplayNumber(count)} · ${s.inventoryLastUsed} $last',
+                          style: p.text(12, p.muted),
+                        ),
+                      ],
+                    ),
             ),
           ),
           if (open)
@@ -363,13 +347,10 @@ class _SourceInventoryState extends State<SourceInventory> {
                     ),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: LensButton(
+                    child: LensTextLink(
                       label: s.inventoryViewUsage,
-                      size: 'link',
-                      variant: 'ghost',
-                      icon: Icons.arrow_forward,
-                      trailingIcon: true,
-                      onPressed: showUsage,
+                      arrow: true,
+                      onTap: showUsage,
                     ),
                   ),
                 ],
@@ -415,27 +396,26 @@ class _SourceInventoryState extends State<SourceInventory> {
           runSpacing: 6,
           children: [
             for (final name in ['all', 'found', 'issues', 'hidden', 'missing'])
-              LensFocusOutline(
-                child: ChoiceChip(
-                  key: ValueKey('source-filter-$name'),
-                  label: Text(
-                    '${groupLabel(name)}  ${entries.where((tool) => matches(tool, name)).length}',
-                  ),
-                  selected: filter == name,
-                  showCheckmark: false,
-                  onSelected: (_) => setState(() => filter = name),
-                ),
+              LensChip(
+                key: ValueKey('source-filter-$name'),
+                label: groupLabel(name),
+                count: entries.where((tool) => matches(tool, name)).length,
+                selected: filter == name,
+                onPressed: () => setState(() => filter = name),
               ),
           ],
         ),
-        TextField(
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.search, size: 19),
-            hintText: s.inventorySearch,
-            isDense: true,
-            border: const OutlineInputBorder(),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: 360,
+            child: LensInput(
+              controller: searchText,
+              search: true,
+              hint: s.inventorySearch,
+              onChanged: (value) => setState(() => search = value),
+            ),
           ),
-          onChanged: (value) => setState(() => search = value),
         ),
         Text(s.inventoryVisibility, style: p.text(12, p.secondary)),
         LayoutBuilder(
@@ -466,46 +446,31 @@ class _SourceInventoryState extends State<SourceInventory> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          LensFocusOutline(
-                            child: InkWell(
+                          if (section.key == 'missing')
+                            LensDisclosure(
                               key: ValueKey('source-group-${section.key}'),
-                              onTap: section.key == 'missing'
-                                  ? () => setState(() {
-                                      missingExpanded = !missingExpanded;
-                                    })
-                                  : null,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  8,
-                                  12,
-                                  8,
-                                ),
-                                child: Row(
-                                  children: [
-                                    if (section.key == 'missing')
-                                      Icon(
-                                        missingExpanded ||
-                                                filter != 'all' ||
-                                                needle.isNotEmpty
-                                            ? Icons.expand_more
-                                            : Icons.chevron_right,
-                                        color: p.muted,
-                                        size: 17,
-                                      ),
-                                    Text(
-                                      '${groupLabel(section.key)}  ${section.value.length}',
-                                      style: p.text(
-                                        13,
-                                        p.secondary,
-                                        FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              expanded:
+                                  missingExpanded ||
+                                  filter != 'all' ||
+                                  needle.isNotEmpty,
+                              onPressed: () => setState(
+                                () => missingExpanded = !missingExpanded,
+                              ),
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                              child: Text(
+                                '${groupLabel(section.key)}  ${section.value.length}',
+                                style: p.text(13, p.secondary, FontWeight.w600),
+                              ),
+                            )
+                          else
+                            Padding(
+                              key: ValueKey('source-group-${section.key}'),
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                              child: Text(
+                                '${groupLabel(section.key)}  ${section.value.length}',
+                                style: p.text(13, p.secondary, FontWeight.w600),
                               ),
                             ),
-                          ),
                           if (section.key != 'missing' ||
                               missingExpanded ||
                               filter != 'all' ||

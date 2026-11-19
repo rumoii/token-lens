@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/news_controller.dart';
 import 'package:token_lens_app/news_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 
 import 'stats/demo_visual_support.dart';
 import 'support/fake_news_gateway.dart';
@@ -53,7 +54,12 @@ void main() {
         await tester.tap(find.byKey(const Key('news-filter')));
         await tester.pumpAndSettle();
         // Six item kinds plus the fourteen enabled sources.
-        expect(find.byType(CheckboxMenuButton), findsNWidgets(20));
+        expect(
+          find.byWidgetPredicate(
+            (w) => w is LensMenuRow && w.entry.checked != null,
+          ),
+          findsNWidgets(20),
+        );
         if (output != null) {
           await capture(tester, boundary, '$output/D26D-$name-filter.png');
         }
