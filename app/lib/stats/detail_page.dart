@@ -452,11 +452,13 @@ class _StatsDetailState extends State<StatsDetail> {
   }
 
   Widget strip(StatsSummary? data) {
+    final totals = data?.totals;
+    final unpriced = totals?.unpricedRecords ?? 0;
     final cells = [
       (
         '用量',
         token(
-          data?.totals.grossTokens,
+          totals?.grossTokens,
           style: p.serif(22, weight: FontWeight.w600).copyWith(height: 1.5),
         ),
         'token',
@@ -464,10 +466,14 @@ class _StatsDetailState extends State<StatsDetail> {
       (
         '约值',
         money(
-          data?.totals.costMicros,
+          totals?.costMicros,
           style: p.serif(22, weight: FontWeight.w600).copyWith(height: 1.5),
         ),
-        '按公开价估算',
+        totals != null && totals.recordCount > 0 && totals.costMicros == null
+            ? '还没有价格'
+            : unpriced > 0
+            ? '按公开价估算 · ${toDisplayNumber(unpriced)} 条未计价'
+            : '按公开价估算',
       ),
       (
         '会话',

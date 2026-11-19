@@ -14,6 +14,9 @@ import '../theme/palette.dart';
 import 'primitives.dart';
 import 'motion.dart';
 
+const _trendDateSize = 11.0;
+const _trendDateTop = 192.0;
+
 List<({double fraction, String label})> trendAxisTicks(
   List<TrendBucket> buckets,
   String unitSystem,
@@ -97,8 +100,14 @@ class _TrendChartState extends State<TrendChart> {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    final height =
+        210.0 +
+        math
+            .max(0, (textScaler.scale(_trendDateSize) - _trendDateSize) * 1.55)
+            .ceil();
     return SizedBox(
-      height: 210,
+      height: height,
       child: LayoutBuilder(
         builder: (context, box) {
           final tip = hot == null || hot! >= widget.buckets.length
@@ -160,7 +169,7 @@ class _TrendChartState extends State<TrendChart> {
                     pick();
                   },
                   child: SizedBox(
-                    height: 210,
+                    height: height,
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -183,6 +192,7 @@ class _TrendChartState extends State<TrendChart> {
                                   hot,
                                   ms,
                                   LensPalette.hairline(context),
+                                  textScaler,
                                 ),
                               ),
                             ),
@@ -313,25 +323,20 @@ String _tipLabel(String key, String granularity, DateTime now) {
 }
 
 class _TrendPainter extends CustomPainter {
-  _TrendPainter(this.w, this.p, this.hot, this.elapsed, this.lineWidth);
+  _TrendPainter(
+    this.w,
+    this.p,
+    this.hot,
+    this.elapsed,
+    this.lineWidth,
+    this.textScaler,
+  );
   final double lineWidth;
   final double elapsed;
   final TrendChart w;
   final LensPalette p;
   final int? hot;
-  void label(
-    Canvas c,
-    String text,
-    Offset at, {
-    Color? color,
-    bool right = false,
-  }) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: p.text(11, color ?? p.faint)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(c, at - Offset(right ? tp.width : 0, 0));
-  }
+  final TextScaler textScaler;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -340,6 +345,7 @@ class _TrendPainter extends CustomPainter {
     );
     const top = 8.0, h = 180.0, left = 44.0;
     final width = size.width - left;
+    final ticks = trendAxisTicks(w.buckets, w.unitSystem);
     for (final f in [0.0, .5, 1.0]) {
       final y = top + h * (1 - f);
       canvas.drawLine(
@@ -349,15 +355,22 @@ class _TrendPainter extends CustomPainter {
           ..color = p['line-soft']
           ..strokeWidth = lineWidth,
       );
-      for (final tick in trendAxisTicks(w.buckets, w.unitSystem)) {
+      for (final tick in ticks) {
         if (tick.fraction == f) {
-          label(canvas, tick.label, Offset(40, y - 8), right: true);
+          final label = TextPainter(
+            text: TextSpan(text: tick.label, style: p.text(11, p.muted)),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          label.paint(canvas, Offset(40 - label.width, y - 8));
+          label.dispose();
         }
       }
     }
     if (w.buckets.isEmpty) return;
     final count = w.buckets.length, gap = count > 20 ? 3.0 : 8.0;
     final slot = (width + gap) / count;
+    const labelGap = 6.0;
+    var labelRight = left - labelGap;
     for (var i = 0; i < count; i++) {
       final bucket = w.buckets[i];
       final column = trendColumn(i, count, width);
@@ -421,14 +434,21 @@ class _TrendPainter extends CustomPainter {
           text = '${d.month}/${d.day}';
         }
       }
-      final tp = TextPainter(
-        text: TextSpan(text: text, style: p.text(11, p.faint)),
+      if (text.isEmpty) continue;
+      final label = TextPainter(
+        text: TextSpan(text: text, style: p.text(_trendDateSize, p.muted)),
         textDirection: TextDirection.ltr,
+        textScaler: textScaler,
       )..layout();
-      tp.paint(
-        canvas,
-        Offset(left + i * slot + (slot - gap - tp.width) / 2, 192),
-      );
+      if (label.width <= width) {
+        final labelLeft = (left + i * slot + (slot - gap - label.width) / 2)
+            .clamp(left, size.width - label.width);
+        if (labelLeft >= labelRight + labelGap) {
+          label.paint(canvas, Offset(labelLeft, _trendDateTop));
+          labelRight = labelLeft + label.width;
+        }
+      }
+      label.dispose();
     }
     final nonzero = w.buckets.where((b) => b.total > 0).toList();
     if (nonzero.isNotEmpty) {
@@ -464,6 +484,7 @@ class _TrendPainter extends CustomPainter {
         Paint()..color = p.surface,
       );
       averageLabel.paint(canvas, background.topLeft + const Offset(4, 0));
+      averageLabel.dispose();
     }
   }
 
@@ -651,10 +672,11 @@ class _HeatPainter extends CustomPainter {
       );
       if (d.day <= 7) {
         final tp = TextPainter(
-          text: TextSpan(text: '${d.month}月', style: p.text(11, p.faint)),
+          text: TextSpan(text: '${d.month}月', style: p.text(11, p.muted)),
           textDirection: TextDirection.ltr,
         )..layout();
         tp.paint(canvas, Offset(w * (cell + 3), 0));
+        tp.dispose();
       }
     }
     for (var i = 0; i < days.length; i++) {

@@ -24,10 +24,11 @@ class StatsHome extends StatefulWidget {
     required this.onDetail,
     required this.onSessions,
     required this.onSources,
+    required this.onSettings,
   });
   final StatsController controller;
   final ValueChanged<Map<String, String>> onDetail, onSessions;
-  final VoidCallback onSources;
+  final VoidCallback onSources, onSettings;
   @override
   State<StatsHome> createState() => _StatsHomeState();
 }
@@ -469,6 +470,11 @@ class _StatsHomeState extends State<StatsHome> {
     String comparison,
   ) {
     final total = data.summary.totals, by = {for (final g in rank) g.id: g};
+    final allUnpriced = total.costUsd == null && total.recordCount > 0;
+    final hasUnpriced = total.unpricedRecords > 0;
+    final pricingNote = allUnpriced
+        ? '这段时间用到的模型都还没有价格'
+        : '按公开标准价估算，另有 ${toDisplayNumber(total.unpricedRecords)} 条记录没有价格';
     final value = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -519,6 +525,16 @@ class _StatsHomeState extends State<StatsHome> {
             key: const Key('home-conversion'),
             style: p.text(13, p.muted),
           ),
+        if (cmp != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              delta(cmp),
+              const SizedBox(width: 8),
+              Text('比$comparison', style: p.text(12.5, p.muted)),
+            ],
+          ),
+        ],
         const SizedBox(height: 8),
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -529,17 +545,27 @@ class _StatsHomeState extends State<StatsHome> {
             money(total.costUsd, style: p.serif(22), animate: true),
           ],
         ),
-        SizedBox(height: cmp == null ? 10 : 12),
-        if (cmp == null)
-          Text('按公开标准价估算，不是账单', style: p.text(12.5, p.muted))
+        const SizedBox(height: 10),
+        if (allUnpriced || hasUnpriced)
+          Tooltip(
+            message: '没有价格的记录不计入金额。到「价格与设置」里查看是哪些模型。',
+            child: Semantics(
+              link: true,
+              child: LensFocusOutline(
+                child: InkWell(
+                  onTap: widget.onSettings,
+                  child: Text(
+                    pricingNote,
+                    style: p
+                        .text(12.5, p.secondary)
+                        .copyWith(decoration: TextDecoration.underline),
+                  ),
+                ),
+              ),
+            ),
+          )
         else
-          Row(
-            children: [
-              delta(cmp),
-              const SizedBox(width: 8),
-              Text('比$comparison', style: p.text(12.5, p.muted)),
-            ],
-          ),
+          Text('按公开标准价估算，不是账单', style: p.text(12.5, p.muted)),
       ],
     );
     String percent(int n) {

@@ -543,6 +543,8 @@ class _StatsPageState extends State<StatsPage> {
                                                       navigate('sessions', p),
                                                   onSources: () =>
                                                       navigate('sources'),
+                                                  onSettings: () =>
+                                                      navigate('settings'),
                                                 )
                                               : page == 'detail'
                                               ? StatsDetail(
