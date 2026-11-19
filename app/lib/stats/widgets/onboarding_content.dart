@@ -24,6 +24,8 @@ class OnboardingContent extends StatefulWidget {
     required this.discovery,
     required this.completed,
     required this.onStart,
+    required this.localOnly,
+    required this.onLocalOnlyChanged,
     required this.onRescan,
     required this.onEnter,
   });
@@ -32,6 +34,8 @@ class OnboardingContent extends StatefulWidget {
   final LensResource<StatsDiscovery> discovery;
   final LensResource<StatsSummary> completed;
   final VoidCallback onStart, onRescan, onEnter;
+  final bool localOnly;
+  final ValueChanged<bool> onLocalOnlyChanged;
   @override
   State<OnboardingContent> createState() => _OnboardingContentState();
 }
@@ -674,6 +678,34 @@ class _OnboardingContentState extends State<OnboardingContent> {
                           ),
                         ),
                       ),
+                      if (!counting) ...[
+                        const SizedBox(height: 12),
+                        LensCard(
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: CheckboxListTile(
+                              controlAffinity: ListTileControlAffinity.leading,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              value: widget.localOnly,
+                              onChanged: (value) =>
+                                  widget.onLocalOnlyChanged(value ?? false),
+                              title: text(
+                                context.strings.localStatisticsOnly,
+                                14,
+                                weight: FontWeight.w500,
+                              ),
+                              subtitle: text(
+                                context.strings.localStatisticsOnlyHint,
+                                12.5,
+                                color: p.muted,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       if (counting && c.phase == StatsSyncPhase.conflict) ...[
                         statusText(

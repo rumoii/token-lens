@@ -85,7 +85,8 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   String _scope = '';
   StatsPeriod get period => q.containsKey('period')
       ? StatsPeriod.parse(widget.query)
-      : c.preferences.period;
+            .withWeekStart(c.preferences.weekStartsOn)
+      : c.period;
   bool get scoped =>
       period.period != 'all' ||
       ['tool', 'project', 'model'].any((key) => q[key]?.isNotEmpty == true);
@@ -516,9 +517,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
               child: Container(
                 padding: EdgeInsets.fromLTRB(
                   narrow ? 10 : 0,
-                  narrow ? 12 : 10,
+                  (narrow ? 12 : 10) * c.preferences.spacing,
                   narrow ? 10 : 0,
-                  narrow ? 12 : 9,
+                  (narrow ? 12 : 9) * c.preferences.spacing,
                 ),
                 decoration: BoxDecoration(
                   border: Border(
@@ -765,7 +766,8 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ),
         SizedBox(height: narrow ? 12 : 16),
         LensCard(
-          padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
+          padding:
+              const EdgeInsets.fromLTRB(0, 8, 0, 16) * c.preferences.spacing,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -872,7 +874,8 @@ class _SessionDetailState extends State<SessionDetail> {
     }
   }
 
-  StatsPeriod get period => widget.period ?? c.preferences.period;
+  StatsPeriod get period =>
+      (widget.period ?? c.period).withWeekStart(c.preferences.weekStartsOn);
   String get periodLabel => sessionUsageLabel(
     period,
     widget.filter ?? const StatsFilter(),
@@ -966,7 +969,8 @@ class _SessionDetailState extends State<SessionDetail> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding:
+              const EdgeInsets.fromLTRB(16, 12, 16, 16) * c.preferences.spacing,
           child: body,
         ),
       ],

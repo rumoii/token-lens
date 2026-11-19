@@ -532,7 +532,9 @@ class SourcesToolCard extends StatelessWidget {
       ],
     );
     return LensCard(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+      padding:
+          const EdgeInsets.fromLTRB(18, 16, 18, 14) *
+          controller.preferences.spacing,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -39,7 +39,11 @@ class _FilterPickState extends State<FilterPick> {
   final anchor = GlobalKey();
   Future<void> open() async {
     final box = anchor.currentContext!.findRenderObject() as RenderBox;
-    final at = box.localToGlobal(Offset(0, box.size.height));
+    final overlay = Navigator.of(context, rootNavigator: true).overlay!;
+    final at = box.localToGlobal(
+      Offset(0, box.size.height),
+      ancestor: overlay.context.findRenderObject(),
+    );
     final size = MediaQuery.sizeOf(context);
     final value = await showDialog<String>(
       context: context,

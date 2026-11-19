@@ -165,6 +165,66 @@ final class ChineseStrings extends AppStrings {
   String get afterSyncingYouLlSeeHowMany => '同步之后，这里会显示每个 AI 编程工具用了多少 token。';
 
   @override
+  String get appearanceAndInterface => '外观与界面';
+
+  @override
+  String get numbersAndTime => '数字与时间';
+
+  @override
+  String get networkAndUpdates => '联网与更新';
+
+  @override
+  String get interfaceDensity => '界面密度';
+
+  @override
+  String get densityHint => '紧凑模式收紧卡片和表格的留白，一屏看更多行';
+
+  @override
+  String get comfortableDensity => '舒适';
+
+  @override
+  String get compactDensity => '紧凑';
+
+  @override
+  String get interfaceScale => '界面缩放';
+
+  @override
+  String get interfaceScaleHint => '在系统显示缩放的基础上再放大或缩小';
+
+  @override
+  String get resetInterfaceScale => '恢复 100%';
+
+  @override
+  String get defaultPeriod => '默认时段';
+
+  @override
+  String get defaultPeriodHint => '打开应用时总览和明细停在哪个时段';
+
+  @override
+  String get lastUsedPeriod => '上次用的';
+
+  @override
+  String get weekStartsOn => '每周从哪天开始';
+
+  @override
+  String get weekStartsOnHint => '影响“本周”的范围、热力图和周对比';
+
+  @override
+  String get monday => '周一';
+
+  @override
+  String get sunday => '周日';
+
+  @override
+  String get newsPreferenceHint => '在侧栏显示，程序开着时每 30 分钟刷新一次。关掉后不再联网获取新闻。';
+
+  @override
+  String get localStatisticsOnly => '只用本地统计，不刷 AI 热点';
+
+  @override
+  String get localStatisticsOnlyHint => '不显示「AI 热点」，也不联网获取新闻。之后可以在「价格与设置」里打开。';
+
+  @override
   String get aiNews => 'AI 热点';
 
   @override

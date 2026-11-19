@@ -100,7 +100,7 @@ class _StatsHomeState extends State<StatsHome> {
     onPressed: onTap,
   );
   Widget secHead(String title, String sub, {Widget? action}) => Padding(
-    padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+    padding: const EdgeInsets.fromLTRB(18, 16, 18, 0) * c.preferences.spacing,
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -146,7 +146,7 @@ class _StatsHomeState extends State<StatsHome> {
         label: context.strings.view2,
       ),
       PeriodControl(
-        period: c.preferences.period,
+        period: c.period,
         now: c.clock(),
         onChanged: (v) => unawaited(c.setPeriod(v)),
       ),
@@ -798,7 +798,8 @@ class _StatsHomeState extends State<StatsHome> {
     );
     return LensCard(
       key: const Key('home-hero'),
-      padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
+      padding:
+          const EdgeInsets.fromLTRB(18, 22, 18, 20) * c.preferences.spacing,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 155),
         child: large && MediaQuery.sizeOf(context).width >= 1200
@@ -873,7 +874,9 @@ class _StatsHomeState extends State<StatsHome> {
       child: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+            padding:
+                const EdgeInsets.fromLTRB(18, 16, 18, 14) *
+                c.preferences.spacing,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1218,7 +1221,9 @@ class _StatsHomeState extends State<StatsHome> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            padding:
+                const EdgeInsets.fromLTRB(18, 14, 18, 18) *
+                c.preferences.spacing,
             child: Column(
               children: [
                 Align(
@@ -1311,7 +1316,8 @@ class _StatsHomeState extends State<StatsHome> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+          padding:
+              const EdgeInsets.fromLTRB(18, 14, 18, 18) * c.preferences.spacing,
           child: Column(
             children: [
               for (final model in models)
@@ -1322,7 +1328,9 @@ class _StatsHomeState extends State<StatsHome> {
                         ? null
                         : () => widget.onDetail({'model': model.name}),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 6) *
+                          c.preferences.spacing,
                       child: Column(
                         children: [
                           Row(
@@ -1504,11 +1512,14 @@ class _StatsHomeState extends State<StatsHome> {
             context.strings.eachSquareIsADayDarkerSquares,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            padding:
+                const EdgeInsets.fromLTRB(18, 14, 18, 18) *
+                c.preferences.spacing,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Heatmap(
+                  weekStartsOn: c.preferences.weekStartsOn,
                   values: map,
                   now: c.clock(),
                   narrow: narrow,
@@ -1647,7 +1658,8 @@ class _StatsHomeState extends State<StatsHome> {
               : context.strings.sortedByUsageInThisPeriod,
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+          padding:
+              const EdgeInsets.fromLTRB(18, 8, 18, 18) * c.preferences.spacing,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1659,7 +1671,9 @@ class _StatsHomeState extends State<StatsHome> {
                     'session': item.sessionId,
                   }),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 9) *
+                        c.preferences.spacing,
                     child: LayoutBuilder(
                       builder: (context, box) {
                         final stacked = box.maxWidth < 330;

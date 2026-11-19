@@ -48,6 +48,8 @@ class _StatsPageState extends State<StatsPage> {
   final _sidebarScroll = SmoothWheelController();
   final _updateCard = GlobalKey();
   String page = 'home', query = '';
+  bool get newsVisible =>
+      widget.news != null && widget.controller.preferences.newsEnabled;
   Map<String, (String, IconData)> get nav {
     final strings = context.strings;
     return {
@@ -70,6 +72,7 @@ class _StatsPageState extends State<StatsPage> {
 
   void navigate(String target, [Map<String, String> params = const {}]) {
     scaffold.currentState?.closeDrawer();
+    if (target == 'news' && !newsVisible) target = 'home';
     params = widget.controller.visibleQuery({...params});
     setState(() {
       page = target;
@@ -77,7 +80,7 @@ class _StatsPageState extends State<StatsPage> {
           ? detailSearch(
               params.containsKey('period')
                   ? StatsPeriod.parse(Uri(queryParameters: params).query)
-                  : widget.controller.preferences.period,
+                  : widget.controller.period,
               params,
             )
           : Uri(queryParameters: params).query;
@@ -159,8 +162,10 @@ class _StatsPageState extends State<StatsPage> {
             onTap: onTap,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              height: 36 * c.preferences.spacing,
+              padding: EdgeInsets.symmetric(
+                horizontal: 12 * c.preferences.spacing,
+              ),
               decoration: BoxDecoration(
                 color: active ? p['fill-hover'] : null,
                 borderRadius: BorderRadius.circular(8),
@@ -256,7 +261,7 @@ class _StatsPageState extends State<StatsPage> {
                                     context.strings.usage,
                                     ['home', 'detail', 'sessions', 'sources'],
                                   ),
-                                  if (widget.news != null)
+                                  if (newsVisible)
                                     (context.strings.news, ['news']),
                                   (context.strings.settings, ['settings']),
                                 ]) ...[
@@ -470,6 +475,10 @@ class _StatsPageState extends State<StatsPage> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.controller,
     builder: (context, _) {
+      if (page == 'news' && !newsVisible) {
+        page = 'home';
+        query = '';
+      }
       if (query.isNotEmpty && widget.controller.hiddenTools.isNotEmpty) {
         final params = Uri.splitQueryString(query);
         final count = params.length;

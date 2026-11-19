@@ -45,7 +45,13 @@ String updateAttemptTime(
 }
 
 class SettingsUpdate extends StatelessWidget {
-  const SettingsUpdate({super.key, required this.controller, this.openLink});
+  const SettingsUpdate({
+    super.key,
+    required this.controller,
+    this.openLink,
+    this.networkHeader,
+  });
+  final Widget? networkHeader;
   final UpdateController controller;
   final Future<bool> Function(Uri)? openLink;
   @override
@@ -136,6 +142,15 @@ class SettingsUpdate extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (networkHeader case final header?) ...[
+                header,
+                Divider(
+                  height: 1,
+                  thickness: LensPalette.hairline(context),
+                  color: p['line-soft'],
+                ),
+                const SizedBox(height: 12),
+              ],
               Text(
                 context.strings.updates,
                 style: p.text(15, null, FontWeight.w600),

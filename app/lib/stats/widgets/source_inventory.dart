@@ -285,9 +285,9 @@ class _SourceInventoryState extends State<SourceInventory> {
                 }
               }),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 5,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 12 * c.preferences.spacing,
+                  vertical: 5 * c.preferences.spacing,
                 ),
                 child: wide
                     ? columns(

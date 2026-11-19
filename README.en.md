@@ -28,9 +28,10 @@ The app and the specifications are written in Simplified Chinese.
 - **Tools**: every supported tool, the folders where Token Lens looks for its logs, and whether they were found, missing or not readable; how each one logs usage, whether it was checked against real or sample logs, and its known limitations. Tools you do not want to see can be hidden; hiding only affects display, and usage is still recorded.
 - **Sync status**: syncing, first-sync progress, and failed or partial syncs show at the top of the data pages.
 - **Pricing**: list prices per model, including long-context and time-of-day pricing, shown in USD or CNY. Amounts are for comparison only and are not your bill; on a subscription plan you usually pay less.
-- **AI news**: 20 official blogs, changelogs and community sources, refreshed every 30 minutes while the app is open; read and starred state stays on this computer.
+- **AI news**: 20 official blogs, changelogs and community sources, refreshed every 30 minutes while the app is open; read and starred state stays on this computer. If you do not want it, tick "Local statistics only" during first-run setup or turn it off later in Settings; the app then stops fetching news.
 - **Export and CLI**: export the breakdown as CSV or JSON; the bundled `token-lens-cli` prints usage, cost and sessions as JSON for scripts and AI agents.
 - **Chinese and English interface**, following the system language by default; dark mode; number units in 万 / 亿 or K / M / B.
+- **Display settings**: a compact mode that fits more rows; interface scale from 90% to 125% on top of the system scaling; the period the app opens on; weeks starting on Monday or Sunday.
 
 ## Screenshots
 
@@ -132,7 +133,7 @@ Verified = checked against real logs (field by field by hand, against the client
 
 - **Reads local logs only**: Token Lens reads and parses the tools' logs on this computer and extracts only usage metadata (the four token kinds, model, time, session, project path). Prompts, replies, code and credentials in those logs are never written to the ledger or sent anywhere, and the tools' files are never modified.
 - **Data stays on this computer**: usage, preferences and the news cache live in a `data` folder under the system's application support directory: `%APPDATA%\Token Lens\Token Lens\data` on Windows, `~/Library/Application Support/io.github.rumoii.token-lens/data` on macOS. Delete that folder to remove everything.
-- **Only three things use the network**: AI news refreshes its sources on the schedule above; clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [specs/news.md](specs/news.md); the update check is described in [specs/update.md](specs/update.md).
+- **Only three things use the network**: AI news, while it is on, refreshes its sources on the schedule above; clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [specs/news.md](specs/news.md); the update check is described in [specs/update.md](specs/update.md).
 - No accounts, uploads, telemetry or third-party analytics. See the [privacy policy](PRIVACY.md) for details.
 
 ## How it works

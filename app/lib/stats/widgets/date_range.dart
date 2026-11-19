@@ -24,7 +24,11 @@ class _PeriodControlState extends State<PeriodControl> {
   final anchor = GlobalKey();
   Future<void> custom() async {
     final box = anchor.currentContext!.findRenderObject() as RenderBox;
-    final at = box.localToGlobal(Offset(0, box.size.height));
+    final overlay = Navigator.of(context, rootNavigator: true).overlay!;
+    final at = box.localToGlobal(
+      Offset(0, box.size.height),
+      ancestor: overlay.context.findRenderObject(),
+    );
     final screen = MediaQuery.sizeOf(context);
     final range = widget.period.range(widget.now);
     final selected = await showDialog<StatsPeriod>(

@@ -21,6 +21,7 @@ import 'stats_controller.dart';
 import 'stats_gateway.dart';
 import 'stats/preferences.dart';
 import 'stats/theme/palette.dart';
+import 'stats/widgets/interface_scale.dart';
 import 'window_theme.dart';
 import 'runtime_errors.dart';
 import 'src/rust/api/diagnostics.dart' as diagnostics;
@@ -111,7 +112,10 @@ class _TokenLensAppState extends State<TokenLensApp>
       if (!mounted || _closing) return;
       setState(() => _preferences = preferences);
       final client = await native.NewsClient.newInstance(dataDir: dataDir);
-      final controller = NewsController(RustNewsGateway(client));
+      final controller = NewsController(
+        RustNewsGateway(client),
+        enabled: preferences.newsEnabled,
+      );
       StatsController? statsController;
       try {
         final statsClient = await stats.StatsClient.newInstance(
@@ -122,6 +126,7 @@ class _TokenLensAppState extends State<TokenLensApp>
           RustStatsGateway(statsClient),
           store: preferenceStore,
           preferences: _preferences,
+          news: controller,
           systemLanguage: () => PlatformDispatcher.instance.locale.languageCode,
         );
       } catch (error, stack) {
@@ -139,7 +144,7 @@ class _TokenLensAppState extends State<TokenLensApp>
         _controller = controller;
         _statsController = statsController;
       });
-      unawaited(controller.start());
+      if (statsController == null) unawaited(controller.start());
       statsController?.addListener(_statsChanged);
       if (statsController != null) unawaited(statsController.start());
     } catch (error, stack) {
@@ -219,8 +224,10 @@ class _TokenLensAppState extends State<TokenLensApp>
       themeMode: themeMode,
       child: MaterialApp(
         title: 'Token Lens',
-        builder: (_, child) =>
-            AppLanguageScope(strings: strings, child: child!),
+        builder: (_, child) => LensInterfaceScale(
+          scale: prefs.uiScale,
+          child: AppLanguageScope(strings: strings, child: child!),
+        ),
         debugShowCheckedModeBanner: false,
         themeAnimationDuration:
             WidgetsBinding
@@ -241,6 +248,7 @@ class _TokenLensAppState extends State<TokenLensApp>
                     ? strings.cannotOpenTheUsageLedgerCheckThat
                     : null,
                 news: NewsPage(controller: _controller!, openLink: _openLink),
+                newsEnabled: prefs.newsEnabled,
                 newsListenable: _controller,
                 newsUnread: () => _controller?.totalUnread ?? 0,
               )

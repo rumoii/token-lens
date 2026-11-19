@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../stats_controller.dart';
 import '../logic/exchange_rate.dart';
 import '../logic/format.dart';
+import '../preferences.dart';
 import '../theme/palette.dart';
 import 'primitives.dart';
 
@@ -93,7 +94,8 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
     builder: (context, _) {
       final p = LensPalette.of(context), c = widget.controller;
       final prefs = c.preferences;
-      final narrow = MediaQuery.sizeOf(context).width < 768;
+      final s = context.strings;
+      final spacing = prefs.spacing;
       Widget segment(
         String title,
         Map<String, String> options,
@@ -122,28 +124,46 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
                   ),
                 ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: EdgeInsets.symmetric(
+          horizontal: 18 * spacing,
+          vertical: 7 * spacing,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: narrow ? double.infinity : 140,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: p.text(14, null, FontWeight.w500)),
-                      if (hint.isNotEmpty)
-                        Text(hint, style: p.text(12.5, p.muted)),
-                    ],
-                  ),
-                ),
-                ...controls,
-              ],
+            LayoutBuilder(
+              builder: (context, bounds) {
+                final description = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: p.text(14, null, FontWeight.w500)),
+                    if (hint.isNotEmpty)
+                      Text(hint, style: p.text(12.5, p.muted)),
+                  ],
+                );
+                final actions = Wrap(
+                  spacing: 10,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: controls,
+                );
+                return bounds.maxWidth < 530
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          description,
+                          const SizedBox(height: 6),
+                          actions,
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(flex: 2, child: description),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 3, child: actions),
+                        ],
+                      );
+              },
             ),
             if (note != null) ...[
               const SizedBox(height: 8),
@@ -165,138 +185,197 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
                 date.minute.toString().padLeft(2, '0'),
               );
             })();
-      return LensCard(
+      Widget card(String title, List<Widget> rows) => LensCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
-              child: Text(
-                context.strings.display,
-                style: p.text(15, null, FontWeight.w600),
+              padding: EdgeInsets.fromLTRB(
+                18 * spacing,
+                12 * spacing,
+                18 * spacing,
+                2,
               ),
+              child: Text(title, style: p.text(15, null, FontWeight.w600)),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  row(
-                    context.strings.appearance,
-                    context.strings.lightDarkOrSystemTheme,
-                    [
-                      segment(
-                        context.strings.appearance,
-                        {
-                          'light': context.strings.light,
-                          'dark': context.strings.dark,
-                          'system': context.strings.followSystem,
-                        },
-                        prefs.appearance,
-                        (value) => unawaited(
-                          c.setPreferences(
-                            c.preferences.copyWith(appearance: value),
-                          ),
-                        ),
-                      ),
-                    ],
-                    first: true,
-                  ),
-                  row(context.strings.interfaceLanguage, '', [
-                    segment(
-                      context.strings.interfaceLanguage,
-                      {
-                        'system': context.strings.followSystem,
-                        'zh': context.strings.chineseLanguage,
-                        'en': context.strings.englishLanguage,
-                      },
-                      prefs.language,
-                      (language) => unawaited(
-                        c.setPreferences(
-                          c.preferences.copyWith(language: language),
-                        ),
-                      ),
-                    ),
-                  ]),
-                  row(
-                    context.strings.numberUnits,
-                    context.strings.howLargeNumbersAreShortened,
-                    [
-                      segment(
-                        context.strings.numberUnits,
-                        {
-                          'chinese': context.strings.chineseNumberUnits,
-                          'english': 'K / M / B',
-                        },
-                        c.unitSystem,
-                        (value) => unawaited(
-                          c.setPreferences(
-                            c.preferences.copyWith(unitSystem: value),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        context.strings.example0(
-                          c.unitSystem == 'chinese'
-                              ? context.strings.chineseNumberExample
-                              : context.strings.englishNumberExample,
-                        ),
-                        style: p.text(12.5, p.muted),
-                      ),
-                    ],
-                  ),
-                  row(
-                    context.strings.currency,
-                    context.strings.currencyUsedToDisplayCosts,
-                    [
-                      segment(
-                        context.strings.currency,
-                        {
-                          'USD': context.strings.usd,
-                          'CNY': context.strings.cny,
-                        },
-                        prefs.currency,
-                        (value) => unawaited(
-                          c.setPreferences(
-                            c.preferences.copyWith(currency: value),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        context.strings.exchangeRate(
-                          rateFor(prefs.rates, 'CNY').toStringAsFixed(2),
-                          when,
-                        ),
-                        style: p.text(12.5, p.muted),
-                      ),
-                      LensButton(
-                        label: _operation == null
-                            ? context.strings.updateRate
-                            : context.strings.updating,
-                        icon: Icons.refresh,
-                        variant: 'ghost',
-                        size: 'link',
-                        spinning: _operation != null,
-                        onPressed: _operation == null
-                            ? () => unawaited(_refresh())
-                            : null,
-                      ),
-                      if (_error != null)
-                        Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            context.strings.exchangeRateUpdateFailed(_error),
-                            style: p.text(12, p['danger']),
-                          ),
-                        ),
-                    ],
-                    note: context.strings.displayOnlyLedgerAmountsStayTheSame,
-                  ),
-                ],
-              ),
-            ),
+            ...rows,
           ],
         ),
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          card(s.appearanceAndInterface, [
+            row(
+              context.strings.appearance,
+              context.strings.lightDarkOrSystemTheme,
+              [
+                segment(
+                  context.strings.appearance,
+                  {
+                    'light': context.strings.light,
+                    'dark': context.strings.dark,
+                    'system': context.strings.followSystem,
+                  },
+                  prefs.appearance,
+                  (value) => unawaited(
+                    c.setPreferences(c.preferences.copyWith(appearance: value)),
+                  ),
+                ),
+              ],
+              first: true,
+            ),
+            row(context.strings.interfaceLanguage, '', [
+              segment(
+                context.strings.interfaceLanguage,
+                {
+                  'system': context.strings.followSystem,
+                  'zh': context.strings.chineseLanguage,
+                  'en': context.strings.englishLanguage,
+                },
+                prefs.language,
+                (language) => unawaited(
+                  c.setPreferences(c.preferences.copyWith(language: language)),
+                ),
+              ),
+            ]),
+            row(s.interfaceDensity, s.densityHint, [
+              segment(
+                s.interfaceDensity,
+                {
+                  'comfortable': s.comfortableDensity,
+                  'compact': s.compactDensity,
+                },
+                prefs.density,
+                (value) => unawaited(
+                  c.setPreferences(c.preferences.copyWith(density: value)),
+                ),
+              ),
+            ]),
+            row(s.interfaceScale, s.interfaceScaleHint, [
+              segment(
+                s.interfaceScale,
+                {
+                  for (final scale in UiPreferences.interfaceScales)
+                    '$scale': '${(scale * 100).round()}%',
+                },
+                '${prefs.uiScale}',
+                (value) => unawaited(
+                  c.setPreferences(
+                    c.preferences.copyWith(uiScale: double.parse(value)),
+                  ),
+                ),
+              ),
+              if (prefs.uiScale != 1)
+                LensButton(
+                  label: s.resetInterfaceScale,
+                  size: 'link',
+                  variant: 'ghost',
+                  onPressed: () => unawaited(
+                    c.setPreferences(c.preferences.copyWith(uiScale: 1)),
+                  ),
+                ),
+            ]),
+          ]),
+          SizedBox(height: MediaQuery.sizeOf(context).width < 768 ? 12 : 16),
+          card(s.numbersAndTime, [
+            row(
+              context.strings.numberUnits,
+              context.strings.howLargeNumbersAreShortened,
+              [
+                segment(
+                  context.strings.numberUnits,
+                  {
+                    'chinese': context.strings.chineseNumberUnits,
+                    'english': 'K / M / B',
+                  },
+                  c.unitSystem,
+                  (value) => unawaited(
+                    c.setPreferences(c.preferences.copyWith(unitSystem: value)),
+                  ),
+                ),
+                Text(
+                  context.strings.example0(
+                    c.unitSystem == 'chinese'
+                        ? context.strings.chineseNumberExample
+                        : context.strings.englishNumberExample,
+                  ),
+                  style: p.text(12.5, p.muted),
+                ),
+              ],
+              first: true,
+            ),
+            row(
+              context.strings.currency,
+              context.strings.currencyUsedToDisplayCosts,
+              [
+                segment(
+                  context.strings.currency,
+                  {'USD': context.strings.usd, 'CNY': context.strings.cny},
+                  prefs.currency,
+                  (value) => unawaited(
+                    c.setPreferences(c.preferences.copyWith(currency: value)),
+                  ),
+                ),
+                Text(
+                  context.strings.exchangeRate(
+                    rateFor(prefs.rates, 'CNY').toStringAsFixed(2),
+                    when,
+                  ),
+                  style: p.text(12.5, p.muted),
+                ),
+                LensButton(
+                  label: _operation == null
+                      ? context.strings.updateRate
+                      : context.strings.updating,
+                  icon: Icons.refresh,
+                  variant: 'ghost',
+                  size: 'link',
+                  spinning: _operation != null,
+                  onPressed: _operation == null
+                      ? () => unawaited(_refresh())
+                      : null,
+                ),
+                if (_error != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      context.strings.exchangeRateUpdateFailed(_error),
+                      style: p.text(12, p['danger']),
+                    ),
+                  ),
+              ],
+              note: context.strings.displayOnlyLedgerAmountsStayTheSame,
+            ),
+            row(s.defaultPeriod, s.defaultPeriodHint, [
+              segment(
+                s.defaultPeriod,
+                {
+                  'last': s.lastUsedPeriod,
+                  'today': s.today,
+                  'week': s.thisWeek2,
+                  'month': s.thisMonth2,
+                },
+                prefs.defaultPeriod,
+                (value) => unawaited(
+                  c.setPreferences(
+                    c.preferences.copyWith(defaultPeriod: value),
+                  ),
+                ),
+              ),
+            ]),
+            row(s.weekStartsOn, s.weekStartsOnHint, [
+              segment(
+                s.weekStartsOn,
+                {'monday': s.monday, 'sunday': s.sunday},
+                prefs.weekStart,
+                (value) => unawaited(
+                  c.setPreferences(c.preferences.copyWith(weekStart: value)),
+                ),
+              ),
+            ]),
+          ]),
+        ],
       );
     },
   );

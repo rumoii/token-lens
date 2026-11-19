@@ -32,6 +32,7 @@ class NewsController extends ChangeNotifier {
     DateTime Function()? now,
     Timer Function(Duration, void Function(Timer))? periodicTimer,
     Timer Function(Duration, void Function())? timer,
+    this._enabled = true,
   }) : _now = now ?? DateTime.now,
        _periodicTimer = periodicTimer ?? Timer.periodic,
        _oneShotTimer = timer ?? Timer.new;
@@ -49,16 +50,41 @@ class NewsController extends ChangeNotifier {
   DateTime? _nextRetryAt;
   int _firstFailures = 0;
   bool _started = false;
+  bool _enabled;
+  int _scheduleGeneration = 0;
   bool _skipRateLimited = false;
   DateTime? _lastRefreshStarted;
   NewsView _view = NewsView.all;
   String? _hotTab;
 
-  Future<void> start() async {
-    if (_started || _closed) return;
-    _started = true;
-    await load();
+  Future<void> setEnabled(bool enabled) async {
     if (_closed) return;
+    if (_enabled == enabled) {
+      if (enabled) await start();
+      return;
+    }
+    _enabled = enabled;
+    if (enabled) {
+      await start();
+    } else {
+      ++_scheduleGeneration;
+      _started = false;
+      _timer?.cancel();
+      _timer = null;
+      _cancelRetry();
+      await cancelRefresh();
+    }
+  }
+
+  Future<void> start() async {
+    if (_started || _closed || !_enabled) return;
+    _started = true;
+    final generation = ++_scheduleGeneration;
+    bool active() => !_closed && _enabled && generation == _scheduleGeneration;
+    if (_cancelTask case final cancellation?) await cancellation;
+    if (!active()) return;
+    await load();
+    if (!active()) return;
     final enabled = _snapshot.sources.where((source) => source.enabled);
     final cutoff = _now().subtract(_refreshInterval).millisecondsSinceEpoch;
     if (enabled.isNotEmpty &&
@@ -68,9 +94,11 @@ class NewsController extends ChangeNotifier {
         )) {
       await refresh();
     }
-    if (_closed) return;
-    _timer = _periodicTimer(_refreshInterval, (_) {
-      if (_closed || _busy || _updatingSourceId != null) return;
+    if (!active()) return;
+    _timer = _periodicTimer(_refreshInterval, (timer) {
+      if (!active() || timer != _timer || _busy || _updatingSourceId != null) {
+        return;
+      }
       if (_lastRefreshStarted != null &&
           _now().difference(_lastRefreshStarted!) < _refreshInterval) {
         return;
@@ -441,7 +469,9 @@ class NewsController extends ChangeNotifier {
   }
 
   Future<void> refresh({List<String>? sourceIds}) {
-    if (_closed || _busy || _updatingSourceId != null) return Future.value();
+    if (_closed || !_enabled || _busy || _updatingSourceId != null) {
+      return Future.value();
+    }
     _busy = true;
     _refreshSources = {};
     _lastRefreshStarted = _now();
@@ -565,6 +595,7 @@ class NewsController extends ChangeNotifier {
   }
 
   void _scheduleFirstRetry() {
+    if (!_enabled) return;
     if (_resetRetryOnSuccess()) return;
     final enabled = _snapshot.sources.where((s) => s.enabled);
     _cancelRetry();

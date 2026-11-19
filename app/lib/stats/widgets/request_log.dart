@@ -330,7 +330,9 @@ class _RequestLogState extends State<RequestLog> {
   ]);
   Widget row(StatsRequest r, StatsRequestSlow? slow, bool small) {
     final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 10) *
+          c.preferences.spacing,
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: p['line'])),
       ),

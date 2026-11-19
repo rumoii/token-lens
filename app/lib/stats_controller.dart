@@ -9,6 +9,7 @@ import 'stats_gateway.dart';
 import 'stats/logic/period.dart';
 import 'stats/logic/tools.dart';
 import 'stats/preferences.dart';
+import 'news_controller.dart';
 import 'update/update_check.dart';
 import 'update/update_controller.dart';
 
@@ -51,12 +52,17 @@ class StatsController extends ChangeNotifier {
   StatsController(
     this.gateway, {
     this.store,
-    this.preferences = const UiPreferences(),
+    UiPreferences preferences = const UiPreferences(),
+    this.news,
     DateTime Function()? clock,
     String Function()? systemLanguage,
     this.updateRequest = requestUpdate,
     this.updateTimer = Timer.new,
-  }) : clock = clock ?? DateTime.now,
+  }) : preferences = preferences,
+       _period = preferences.defaultPeriod == 'last'
+           ? preferences.period
+           : StatsPeriod(preferences.defaultPeriod),
+       clock = clock ?? DateTime.now,
        _systemLanguage = systemLanguage ?? _defaultLanguage;
 
   static String _defaultLanguage() => 'zh';
@@ -88,6 +94,17 @@ class StatsController extends ChangeNotifier {
     },
   );
   UiPreferences preferences;
+  StatsPeriod _period;
+  StatsPeriod get period => _period.withWeekStart(preferences.weekStartsOn);
+  final NewsController? news;
+  bool _newsReady = false;
+
+  void _applyNewsPreference() {
+    if (news case final controller?) {
+      unawaited(controller.setEnabled(_newsReady && preferences.newsEnabled));
+    }
+  }
+
   StatsHomeData? overview;
   StatsSync? lastSync;
   String Function(AppStrings)? _error, _syncError;
@@ -285,13 +302,35 @@ class StatsController extends ChangeNotifier {
       health().then<void>((_) {}, onError: (Object _, StackTrace _) {}),
     );
     final onboarding = onboardingRequired();
+    _applyNewsPreference();
+    if (news != null) {
+      if (preferences.newsEnabled) unawaited(news!.load());
+      unawaited(
+        onboarding.then((required) {
+          if (required || _closed) return;
+          _newsReady = true;
+          _applyNewsPreference();
+        }),
+      );
+    }
     await load();
     if (await onboarding || _closed) return;
     _startSyncTimer();
     await sync(trigger: 'startup');
   }
 
-  Future<void> startOnboardingSync() {
+  Future<void> startOnboardingSync({bool? localOnly}) async {
+    if (_closed) return;
+    final enableNews = localOnly == null ? preferences.newsEnabled : !localOnly;
+    if (enableNews != preferences.newsEnabled) {
+      preferences = preferences.copyWith(newsEnabled: enableNews);
+      if (!enableNews) _applyNewsPreference();
+      // Publish the new choice with the new sync phase, after persisting it.
+      await store?.write(preferences);
+      if (_closed) return;
+    }
+    _newsReady = true;
+    _applyNewsPreference();
     _startSyncTimer();
     return syncErrorKind == StatsSyncErrorKind.status ? retryStatus() : sync();
   }
@@ -304,11 +343,24 @@ class StatsController extends ChangeNotifier {
     );
   }
 
-  Future<void> setPreferences(UiPreferences value) async {
+  Future<void> setPreferences(UiPreferences value) => _savePreferences(value);
+
+  Future<void> _savePreferences(
+    UiPreferences value, {
+    StatsPeriod? selected,
+  }) async {
     if (_closed) return;
     final beforeHidden = hiddenScope;
-    final periodChanged = value.period.query != preferences.period.query;
+    final oldPeriod = period;
+    if (selected != null || value.period.query != preferences.period.query) {
+      _period = selected ?? value.period;
+    }
+    final newsChanged = value.newsEnabled != preferences.newsEnabled;
     preferences = value;
+    if (newsChanged) _applyNewsPreference();
+    final periodChanged =
+        period.query != oldPeriod.query ||
+        period.weekStartsOn != oldPeriod.weekStartsOn;
     final visibilityChanged = beforeHidden != hiddenScope;
     if (visibilityChanged) overview = null;
     _notify();
@@ -318,10 +370,10 @@ class StatsController extends ChangeNotifier {
   }
 
   Future<void> setPeriod(StatsPeriod period) =>
-      setPreferences(preferences.copyWith(period: period));
+      _savePreferences(preferences.copyWith(period: period), selected: period);
   Future<void> load() {
     if (_closed) return Future.value();
-    final work = _read(++_generation, preferences.period);
+    final work = _read(++_generation, period);
     _reads.add(work);
     unawaited(work.whenComplete(() => _reads.remove(work)));
     return work;

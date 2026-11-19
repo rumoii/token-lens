@@ -54,6 +54,7 @@ class _OnboardingPageState extends State<_OnboardingPage> {
   late final completed = LensResource<StatsSummary>(changed);
   OnboardingStep step = OnboardingStep.discover;
   bool fresh = false;
+  late bool localOnly = !c.preferences.newsEnabled;
   StatsController get c => widget.controller;
 
   void changed() {
@@ -85,7 +86,9 @@ class _OnboardingPageState extends State<_OnboardingPage> {
 
   void start() {
     setState(() => step = OnboardingStep.counting);
-    unawaited(c.startOnboardingSync().then((_) => observe()));
+    unawaited(
+      c.startOnboardingSync(localOnly: localOnly).then((_) => observe()),
+    );
   }
 
   @override
@@ -103,6 +106,8 @@ class _OnboardingPageState extends State<_OnboardingPage> {
     discovery: discovery,
     completed: completed,
     onStart: start,
+    localOnly: localOnly,
+    onLocalOnlyChanged: (value) => setState(() => localOnly = value),
     onRescan: () {
       fresh = true;
       unawaited(discovery.reload());

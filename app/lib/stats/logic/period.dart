@@ -5,10 +5,17 @@ typedef PeriodAxis = ({String granularity, String? from, String? to});
 typedef PeriodComparison = ({String from, String to, String label});
 
 class StatsPeriod {
-  const StatsPeriod([this.period = 'week', this.from, this.to]);
+  const StatsPeriod([
+    this.period = 'week',
+    this.from,
+    this.to,
+    this.weekStartsOn = DateTime.monday,
+  ]);
   final String period;
   final String? from;
   final String? to;
+  final int weekStartsOn;
+  StatsPeriod withWeekStart(int start) => StatsPeriod(period, from, to, start);
   static const values = ['today', 'week', 'month', 'all', 'custom'];
   static StatsPeriod parse(String text) {
     final params = Uri.splitQueryString(
@@ -46,7 +53,11 @@ class StatsPeriod {
     'today' => (from: dayKey(today), to: dayKey(today)),
     'week' => (
       from: dayKey(
-        DateTime(today.year, today.month, today.day - today.weekday + 1),
+        DateTime(
+          today.year,
+          today.month,
+          today.day - weekdayIndex(today, weekStartsOn),
+        ),
       ),
       to: dayKey(today),
     ),
@@ -70,7 +81,11 @@ class StatsPeriod {
     if (period == 'week') {
       return (
         from: dayKey(
-          DateTime(today.year, today.month, today.day - today.weekday - 6),
+          DateTime(
+            today.year,
+            today.month,
+            today.day - weekdayIndex(today, weekStartsOn) - 7,
+          ),
         ),
         to: dayKey(DateTime(today.year, today.month, today.day - 7)),
         label: strings.lastWeek,
@@ -109,7 +124,7 @@ class StatsPeriod {
 
   int elapsedDays(DateTime today, [String? firstSeen]) {
     if (period == 'today') return 1;
-    if (period == 'week') return today.weekday;
+    if (period == 'week') return weekdayIndex(today, weekStartsOn) + 1;
     if (period == 'month') return today.day;
     final first = DateTime.tryParse(
       period == 'custom' && from != null ? from! : firstSeen ?? '',
@@ -127,7 +142,11 @@ class StatsPeriod {
         granularity: 'day',
         from: range(today).from,
         to: dayKey(
-          DateTime(today.year, today.month, today.day - today.weekday + 7),
+          DateTime(
+            today.year,
+            today.month,
+            today.day - weekdayIndex(today, weekStartsOn) + 6,
+          ),
         ),
       );
     }
@@ -152,6 +171,9 @@ class StatsPeriod {
     return (granularity: granularity, from: r.from, to: r.to);
   }
 }
+
+int weekdayIndex(DateTime date, int weekStartsOn) =>
+    (date.weekday - weekStartsOn) % 7;
 
 int _days(DateTime a, DateTime b) =>
     ((DateTime(

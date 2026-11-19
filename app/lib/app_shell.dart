@@ -12,6 +12,7 @@ class AppShell extends StatelessWidget {
     this.openLink,
     this.newsListenable,
     this.newsUnread,
+    this.newsEnabled = true,
   });
 
   final StatsController? statsController;
@@ -20,6 +21,7 @@ class AppShell extends StatelessWidget {
   final Future<bool> Function(Uri)? openLink;
   final Listenable? newsListenable;
   final int Function()? newsUnread;
+  final bool newsEnabled;
 
   @override
   Widget build(BuildContext context) => statsController != null
@@ -40,7 +42,7 @@ class AppShell extends StatelessWidget {
                     leading: const Icon(Icons.info_outline),
                     actions: const [SizedBox.shrink()],
                   ),
-                Expanded(child: news),
+                if (newsEnabled) Expanded(child: news),
               ],
             ),
           ),

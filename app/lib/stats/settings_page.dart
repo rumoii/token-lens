@@ -1,5 +1,6 @@
 import '../l10n/app_strings.dart';
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -185,6 +186,43 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
         gap(),
         SettingsDisplay(controller: widget.controller),
         gap(),
+        SettingsUpdate(
+          key: widget.updateCardKey,
+          controller: widget.controller.updates,
+          openLink: widget.openLink,
+          networkHeader: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                context.strings.networkAndUpdates,
+                style: p.text(15, null, FontWeight.w600),
+              ),
+              Material(
+                type: MaterialType.transparency,
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    context.strings.aiNews,
+                    style: p.text(14, null, FontWeight.w500),
+                  ),
+                  subtitle: Text(
+                    context.strings.newsPreferenceHint,
+                    style: p.text(12.5, p.muted),
+                  ),
+                  value: widget.controller.preferences.newsEnabled,
+                  onChanged: (enabled) => unawaited(
+                    widget.controller.setPreferences(
+                      widget.controller.preferences.copyWith(
+                        newsEnabled: enabled,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        gap(),
         LensCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -225,12 +263,6 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
               ),
             ],
           ),
-        ),
-        gap(),
-        SettingsUpdate(
-          key: widget.updateCardKey,
-          controller: widget.controller.updates,
-          openLink: widget.openLink,
         ),
         gap(),
         LensCard(

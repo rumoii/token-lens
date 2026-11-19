@@ -176,6 +176,72 @@ final class EnglishStrings extends AppStrings {
       'After syncing, you\'ll see how many tokens each AI coding tool used.';
 
   @override
+  String get appearanceAndInterface => 'Appearance';
+
+  @override
+  String get numbersAndTime => 'Numbers and time';
+
+  @override
+  String get networkAndUpdates => 'Network and updates';
+
+  @override
+  String get interfaceDensity => 'Density';
+
+  @override
+  String get densityHint =>
+      'Compact mode tightens card and table spacing so more rows fit';
+
+  @override
+  String get comfortableDensity => 'Comfortable';
+
+  @override
+  String get compactDensity => 'Compact';
+
+  @override
+  String get interfaceScale => 'Interface scale';
+
+  @override
+  String get interfaceScaleHint =>
+      'Scales the interface on top of the system display scaling';
+
+  @override
+  String get resetInterfaceScale => 'Reset to 100%';
+
+  @override
+  String get defaultPeriod => 'Default period';
+
+  @override
+  String get defaultPeriodHint =>
+      'The period the overview and breakdown open on';
+
+  @override
+  String get lastUsedPeriod => 'Last used';
+
+  @override
+  String get weekStartsOn => 'Week starts on';
+
+  @override
+  String get weekStartsOnHint =>
+      'Affects This week, the heatmap and week comparisons';
+
+  @override
+  String get monday => 'Monday';
+
+  @override
+  String get sunday => 'Sunday';
+
+  @override
+  String get newsPreferenceHint =>
+      'Shown in the sidebar and refreshed every 30 minutes while the app is open. Turn this off to stop fetching news.';
+
+  @override
+  String get localStatisticsOnly => 'Local statistics only, no AI news';
+
+  @override
+  String get localStatisticsOnlyHint =>
+      'Hides AI news and stops fetching news. You can turn it on later in Pricing & settings.';
+
+  @override
   String get aiNews => 'AI news';
 
   @override
@@ -243,7 +309,7 @@ final class EnglishStrings extends AppStrings {
       'Records disappeared from a log. Their previous usage still counts: $subject';
 
   @override
-  String get appearance => 'Appearance';
+  String get appearance => 'Theme';
 
   @override
   String get apply => 'Apply';

@@ -218,7 +218,8 @@ class _StatsDetailState extends State<StatsDetail> {
     return query;
   }
 
-  StatsPeriod get period => StatsPeriod.parse(widget.query);
+  StatsPeriod get period =>
+      StatsPeriod.parse(widget.query).withWeekStart(c.preferences.weekStartsOn);
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   void changed() {
@@ -387,7 +388,7 @@ class _StatsDetailState extends State<StatsDetail> {
         ? filter
         : c.visibleFilter(detailFilter(detail, picked));
     final pk =
-        '${current.query}|${filter.source}|${filter.model}|${filter.project}|${c.ledgerVersion}|$scope';
+        '${current.query}|$range|${filter.source}|${filter.model}|${filter.project}|${c.ledgerVersion}|$scope';
     final sk =
         '$pk|${picked != null || detail['bucket']!.contains('T') ? detail['bucket'] : ''}';
     Future<PeriodAxis> axis() async => current.axis(
@@ -397,7 +398,7 @@ class _StatsDetailState extends State<StatsDetail> {
           : null,
     );
     options.read(
-      '${current.query}|${c.ledgerVersion}|$scope',
+      '${current.query}|$range|${c.ledgerVersion}|$scope',
       () => Future.wait([
         c.gateway.breakdown('source_model', base),
         c.gateway.breakdown('project', base),
@@ -461,7 +462,7 @@ class _StatsDetailState extends State<StatsDetail> {
     style: style ?? p.text(13),
   );
   Widget head(String title, String sub, {Widget? action}) => Padding(
-    padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+    padding: const EdgeInsets.fromLTRB(18, 16, 18, 0) * c.preferences.spacing,
     child: Wrap(
       alignment: WrapAlignment.spaceBetween,
       spacing: 12,
@@ -646,7 +647,9 @@ class _StatsDetailState extends State<StatsDetail> {
           FractionallySizedBox(
             widthFactor: 1 / columns,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 14) *
+                  c.preferences.spacing,
               decoration: BoxDecoration(
                 border: Border(
                   left: i % columns > 0
@@ -668,7 +671,9 @@ class _StatsDetailState extends State<StatsDetail> {
                 children: [
                   Row(
                     children: [
-                      Text(cells[i].$1, style: p.text(12.5, p.muted)),
+                      Flexible(
+                        child: Text(cells[i].$1, style: p.text(12.5, p.muted)),
+                      ),
                       if (i == 3) ...[
                         const SizedBox(width: 6),
                         Tooltip(
@@ -742,7 +747,8 @@ class _StatsDetailState extends State<StatsDetail> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+          padding:
+              const EdgeInsets.fromLTRB(18, 14, 18, 18) * c.preferences.spacing,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -980,7 +986,7 @@ class _StatsDetailState extends State<StatsDetail> {
                 child: Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: compact ? 12 : 10,
+                    vertical: (compact ? 12 : 10) * c.preferences.spacing,
                   ),
                   decoration: BoxDecoration(
                     border: Border(
@@ -1519,7 +1525,9 @@ class _StatsDetailState extends State<StatsDetail> {
                 ),
               if (dim == 'request')
                 Padding(
-                  padding: const EdgeInsets.only(top: 12, bottom: 18),
+                  padding:
+                      const EdgeInsets.only(top: 12, bottom: 18) *
+                      c.preferences.spacing,
                   child: RequestLog(
                     controller: c,
                     identity:

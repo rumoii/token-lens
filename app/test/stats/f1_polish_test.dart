@@ -617,7 +617,7 @@ void main() {
       'F1-31 display prices diagnostics and about share final card at $width',
       (tester) async {
         await mountPolish(tester, width: width, page: 'settings');
-        final display = tester.getTopLeft(find.text('显示'));
+        final display = tester.getTopLeft(find.text('外观与界面'));
         final price = tester.getTopLeft(find.text('价格').first);
         final diagnostics = find.text('诊断与关于');
         expect(diagnostics, findsOneWidget);
@@ -708,14 +708,14 @@ void main() {
       final start = DateTime(
         demoNow.year,
         demoNow.month,
-        demoNow.day - (narrow ? demoNow.weekday % 7 + 133 : 364),
+        demoNow.day - (narrow ? demoNow.weekday - DateTime.monday + 133 : 364),
       );
       final index = DateTime.utc(
         2026,
         10,
         11,
       ).difference(DateTime.utc(start.year, start.month, start.day)).inDays;
-      final blanks = start.weekday % 7;
+      final blanks = start.weekday - DateTime.monday;
       final weeks =
           ((blanks +
                       DateTime.utc(demoNow.year, demoNow.month, demoNow.day)

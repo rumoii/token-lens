@@ -528,7 +528,9 @@ class Heatmap extends StatefulWidget {
     required this.now,
     required this.narrow,
     this.unitSystem = 'chinese',
+    this.weekStartsOn = DateTime.monday,
   });
+  final int weekStartsOn;
   final Map<String, int> values;
   final DateTime now;
   final bool narrow;
@@ -540,12 +542,25 @@ class Heatmap extends StatefulWidget {
 class _HeatmapState extends State<Heatmap> {
   int? hot;
   @override
+  void didUpdateWidget(Heatmap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.now != widget.now ||
+        oldWidget.narrow != widget.narrow ||
+        oldWidget.weekStartsOn != widget.weekStartsOn) {
+      hot = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context), today = widget.now;
     final start = DateTime(
       today.year,
       today.month,
-      today.day - (widget.narrow ? today.weekday % 7 + 133 : 364),
+      today.day -
+          (widget.narrow
+              ? weekdayIndex(today, widget.weekStartsOn) + 133
+              : 364),
     );
     final days = <DateTime>[];
     for (
@@ -555,7 +570,7 @@ class _HeatmapState extends State<Heatmap> {
     ) {
       days.add(d);
     }
-    final blanks = start.weekday % 7,
+    final blanks = weekdayIndex(start, widget.weekStartsOn),
         weeks = ((blanks + days.length) / 7).ceil();
     return LayoutBuilder(
       builder: (context, box) {

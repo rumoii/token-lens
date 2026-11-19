@@ -22,6 +22,11 @@ class UiPreferences {
     this.updateResult,
     this.updateIgnoredVersion,
     this.hiddenTools = const [],
+    this.density = 'comfortable',
+    this.uiScale = 1.0,
+    this.defaultPeriod = 'last',
+    this.weekStart = 'monday',
+    this.newsEnabled = true,
   }); // Null keeps the language default implicit.
 
   final String appearance, tokenMode, currency, language;
@@ -46,6 +51,13 @@ class UiPreferences {
   final UpdateResult? updateResult;
   final String? updateIgnoredVersion;
   final List<String> hiddenTools;
+  final String density, defaultPeriod, weekStart;
+  final double uiScale;
+  final bool newsEnabled;
+  double get spacing => density == 'compact' ? .75 : 1;
+  int get weekStartsOn =>
+      weekStart == 'sunday' ? DateTime.sunday : DateTime.monday;
+  static const interfaceScales = [0.9, 1.0, 1.1, 1.25];
   static const _unchanged = Object();
 
   static Map<String, num> _rates(Object? value) {
@@ -78,6 +90,11 @@ class UiPreferences {
     Object? updateResult = _unchanged,
     Object? updateIgnoredVersion = _unchanged,
     List<String>? hiddenTools,
+    String? density,
+    double? uiScale,
+    String? defaultPeriod,
+    String? weekStart,
+    bool? newsEnabled,
   }) => UiPreferences(
     appearance: appearance ?? this.appearance,
     tokenMode: tokenMode ?? this.tokenMode,
@@ -92,6 +109,11 @@ class UiPreferences {
         ? this.ratesFetchedAt
         : _fetchedAt(ratesFetchedAt),
     autoCheckUpdates: autoCheckUpdates ?? this.autoCheckUpdates,
+    density: density ?? this.density,
+    uiScale: uiScale ?? this.uiScale,
+    defaultPeriod: defaultPeriod ?? this.defaultPeriod,
+    weekStart: weekStart ?? this.weekStart,
+    newsEnabled: newsEnabled ?? this.newsEnabled,
     updateLastAttemptMs: identical(updateLastAttemptMs, _unchanged)
         ? this.updateLastAttemptMs
         : _fetchedAt(updateLastAttemptMs),
@@ -153,6 +175,16 @@ class UiPreferences {
         language: _language(value['language']),
         currency: normalizeCurrency(value['currency']),
         period: period,
+        density: value['density'] == 'compact' ? 'compact' : 'comfortable',
+        uiScale: interfaceScales.contains(value['uiScale'])
+            ? (value['uiScale'] as num).toDouble()
+            : 1.0,
+        defaultPeriod:
+            ['today', 'week', 'month'].contains(value['defaultPeriod'])
+            ? value['defaultPeriod'] as String
+            : 'last',
+        weekStart: value['weekStart'] == 'sunday' ? 'sunday' : 'monday',
+        newsEnabled: value['newsEnabled'] is bool ? value['newsEnabled'] : true,
         onboarded: value['onboarded'] is bool ? value['onboarded'] : false,
         rates: _rates(value['rates']),
         rateSource: _rateSource(value['rateSource']),
@@ -183,6 +215,11 @@ class UiPreferences {
     'language': _language(language),
     'currency': normalizeCurrency(currency),
     'period': {'period': period.period, 'from': period.from, 'to': period.to},
+    'density': density,
+    'uiScale': uiScale,
+    'defaultPeriod': defaultPeriod,
+    'weekStart': weekStart,
+    'newsEnabled': newsEnabled,
     'onboarded': onboarded,
     'rates': _rates(rates),
     'rateSource': _rateSource(rateSource),
