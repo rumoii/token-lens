@@ -16,7 +16,23 @@ class StatsPeriod {
   final String? to;
   final int weekStartsOn;
   StatsPeriod withWeekStart(int start) => StatsPeriod(period, from, to, start);
-  static const values = ['today', 'week', 'month', 'all', 'custom'];
+  static const shortcuts = [
+    'yesterday',
+    'lastWeek',
+    'lastMonth',
+    'last7',
+    'last30',
+  ];
+  static const values = [
+    'today',
+    'week',
+    'month',
+    'all',
+    'custom',
+    ...shortcuts,
+  ];
+  bool get isShortcut => shortcuts.contains(period);
+  bool get weekdays => period == 'week' || period == 'lastWeek';
   static StatsPeriod parse(String text) {
     final params = Uri.splitQueryString(
       text.startsWith('?') ? text.substring(1) : text,
@@ -47,8 +63,44 @@ class StatsPeriod {
         'month': strings.thisMonth,
         'all': strings.all,
         'custom': strings.custom,
+        'yesterday': strings.yesterday,
+        'lastWeek': strings.lastWeek,
+        'lastMonth': strings.lastMonth,
+        'last7': strings.lastSevenDays,
+        'last30': strings.lastThirtyDays,
       }[period] ??
       strings.thisWeek;
+  String inSentence(AppStrings strings) => switch (period) {
+    'last7' => strings.lastSevenDaysInSentence,
+    'last30' => strings.lastThirtyDaysInSentence,
+    _ =>
+      strings.isChinese ? labelFor(strings) : labelFor(strings).toLowerCase(),
+  };
+
+  DayRange _shortcutRange(DateTime today, {required bool previous}) {
+    final weekStart = -weekdayIndex(today, weekStartsOn);
+    String day(int offset) =>
+        dayKey(DateTime(today.year, today.month, today.day + offset));
+    final days = period == 'last7' ? 7 : 30;
+    final end = previous ? -days : 0;
+    final month = today.month - (previous ? 2 : 1);
+    return switch (period) {
+      'yesterday' => (
+        from: day(previous ? -2 : -1),
+        to: day(previous ? -2 : -1),
+      ),
+      'lastWeek' => (
+        from: day(weekStart - (previous ? 14 : 7)),
+        to: day(weekStart - (previous ? 8 : 1)),
+      ),
+      'lastMonth' => (
+        from: dayKey(DateTime(today.year, month, 1)),
+        to: dayKey(DateTime(today.year, month + 1, 0)),
+      ),
+      _ => (from: day(end - days + 1), to: day(end)),
+    };
+  }
+
   DayRange range(DateTime today) => switch (period) {
     'today' => (from: dayKey(today), to: dayKey(today)),
     'week' => (
@@ -66,6 +118,7 @@ class StatsPeriod {
       to: dayKey(today),
     ),
     'custom' when from != null && to != null => (from: from, to: to),
+    _ when isShortcut => _shortcutRange(today, previous: false),
     _ => (from: null, to: null),
   };
   PeriodComparison? compare(
@@ -105,12 +158,23 @@ class StatsPeriod {
         label: strings.lastMonth,
       );
     }
+    if (isShortcut) {
+      final range = _shortcutRange(today, previous: true);
+      final label = switch (period) {
+        'yesterday' => strings.dayBeforeYesterday,
+        'lastWeek' => strings.weekBeforeLast,
+        'lastMonth' => strings.monthBeforeLast,
+        'last7' => strings.previousSevenDays,
+        _ => strings.previousThirtyDays,
+      };
+      return (from: range.from!, to: range.to!, label: label);
+    }
     return null;
   }
 
   String get granularity {
-    if (period == 'today') return 'hour';
-    if (period == 'week' || period == 'month') return 'day';
+    if (period == 'today' || period == 'yesterday') return 'hour';
+    if (period == 'week' || period == 'month' || isShortcut) return 'day';
     if (period == 'custom' && from != null && to != null) {
       final days = _days(DateTime.parse(from!), DateTime.parse(to!));
       return days <= 1
@@ -126,6 +190,7 @@ class StatsPeriod {
     if (period == 'today') return 1;
     if (period == 'week') return weekdayIndex(today, weekStartsOn) + 1;
     if (period == 'month') return today.day;
+    if (isShortcut) return rangeDays(range(today));
     final first = DateTime.tryParse(
       period == 'custom' && from != null ? from! : firstSeen ?? '',
     )?.toLocal();
@@ -171,6 +236,9 @@ class StatsPeriod {
     return (granularity: granularity, from: r.from, to: r.to);
   }
 }
+
+int rangeDays(DayRange range) =>
+    _days(DateTime.parse(range.from!), DateTime.parse(range.to!));
 
 int weekdayIndex(DateTime date, int weekStartsOn) =>
     (date.weekday - weekStartsOn) % 7;

@@ -5,6 +5,9 @@ use std::collections::HashMap;
 #[cfg(test)]
 #[path = "service/d33_tests.rs"]
 mod d33_tests;
+#[cfg(test)]
+#[path = "service/s5_tests.rs"]
+mod s5_tests;
 #[path = "source_notes.rs"]
 mod source_notes;
 
@@ -18,6 +21,9 @@ fn filter(params: &Value, offset: i32) -> Result<Value> {
             .map_or(Value::Null, |s| json!(s));
     }
     add_exclusions(&mut result, params);
+    if let Some(field @ ("project" | "model")) = params["missing"].as_str() {
+        result["missing"] = json!(field);
+    }
     Ok(result)
 }
 
@@ -270,8 +276,14 @@ pub fn matrix(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Result<
 
 pub fn sessions(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Result<Value> {
     let filter = filter(params, offset)?;
+    let mut session_filter = filter.clone();
+    for key in ["q", "sort", "dir"] {
+        if let Some(value) = params.get(key) {
+            session_filter[key] = value.clone();
+        }
+    }
     let cursor = super::jscompat::decode_cursor(params["cursor"].as_str());
-    let (items, next) = ledger.sessions(params["limit"].as_i64(), cursor, &filter)?;
+    let (items, next) = ledger.sessions(params["limit"].as_i64(), cursor, &session_filter)?;
     let items: Vec<_> = items
         .iter()
         .map(|row| {
@@ -327,6 +339,50 @@ pub fn requests(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resul
     }
     result["snapshot"] = snapshot(ledger, &filter, tz);
     Ok(result)
+}
+
+pub fn comparison(
+    ledger: &Ledger,
+    by: &str,
+    current: &Value,
+    previous: &Value,
+    offset: i32,
+) -> Result<Value> {
+    comparison_with(ledger, by, current, previous, offset, || {})
+}
+
+fn comparison_with(
+    ledger: &Ledger,
+    by: &str,
+    current: &Value,
+    previous: &Value,
+    offset: i32,
+    after_current: impl FnOnce(),
+) -> Result<Value> {
+    let _snapshot = ledger.db.unchecked_transaction()?;
+    let read = |params: &Value| -> Result<Value> {
+        let filter = filter(params, offset)?;
+        let format = |row: &Value| {
+            let mut totals = totals_shape(row);
+            totals["cost_micros"] = row["cost_micros"].clone();
+            totals
+        };
+        let totals = format(&ledger.totals(&filter)?);
+        let groups: Vec<_> = ledger
+            .breakdown(by, &filter)?
+            .iter()
+            .map(|row| {
+                let mut group = format(row);
+                group["key"] = row["bucket"].clone();
+                group
+            })
+            .collect();
+        Ok(json!({"totals":totals,"groups":groups}))
+    };
+    let current = read(current)?;
+    after_current();
+    let previous = read(previous)?;
+    Ok(json!({"by":by,"current":current,"previous":previous}))
 }
 
 pub fn session_detail(

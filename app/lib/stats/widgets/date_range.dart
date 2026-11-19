@@ -22,6 +22,72 @@ class PeriodControl extends StatefulWidget {
 
 class _PeriodControlState extends State<PeriodControl> {
   final anchor = GlobalKey();
+  final moreAnchor = GlobalKey();
+
+  Future<void> more() async {
+    final box = moreAnchor.currentContext!.findRenderObject() as RenderBox;
+    final overlay = Navigator.of(context, rootNavigator: true).overlay!;
+    final bounds = overlay.context.findRenderObject() as RenderBox;
+    final offset = box.localToGlobal(Offset.zero, ancestor: bounds);
+    final strings = context.strings;
+    final palette = LensPalette.of(context);
+    final picked = await showMenu<String>(
+      context: context,
+      useRootNavigator: true,
+      color: palette['surface-3'],
+      surfaceTintColor: Colors.transparent,
+      elevation: 2,
+      shadowColor: palette.ink.withValues(alpha: .16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: palette['line-soft']),
+      ),
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(
+          offset.dx,
+          offset.dy + box.size.height + 4,
+          box.size.width,
+          0,
+        ),
+        Offset.zero & bounds.size,
+      ),
+      constraints: const BoxConstraints(minWidth: 272, maxWidth: 290),
+      items: [
+        for (final id in StatsPeriod.shortcuts)
+          PopupMenuItem(
+            value: id,
+            height: 38,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    StatsPeriod(id).labelFor(strings),
+                    style: palette.text(13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 2,
+                  child: Text(
+                    strings.vs0(
+                      StatsPeriod(id).compare(widget.now, strings)!.label,
+                    ),
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: palette.text(11, palette.muted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (picked != null && mounted) widget.onChanged(StatsPeriod(picked));
+  }
+
   Future<void> custom() async {
     final box = anchor.currentContext!.findRenderObject() as RenderBox;
     final overlay = Navigator.of(context, rootNavigator: true).overlay!;
@@ -53,17 +119,23 @@ class _PeriodControlState extends State<PeriodControl> {
     key: anchor,
     child: LensSegmented(
       label: context.strings.period,
-      value: widget.period.period,
+      value: widget.period.isShortcut ? 'more' : widget.period.period,
+      menu: (option: 'more', anchor: moreAnchor),
       options: {
         'today': context.strings.today,
         'week': context.strings.thisWeek2,
         'month': context.strings.thisMonth2,
         'all': context.strings.all,
+        'more': widget.period.isShortcut
+            ? widget.period.labelFor(context.strings)
+            : context.strings.morePeriods,
         'custom': context.strings.custom,
       },
       onChanged: (v) {
         if (v == 'custom') {
           custom();
+        } else if (v == 'more') {
+          more();
         } else {
           widget.onChanged(StatsPeriod(v));
         }

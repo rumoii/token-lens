@@ -21,9 +21,9 @@ The app and the specifications are written in Simplified Chinese.
 
 ## Features
 
-- **Overview**: tokens and estimated cost for today, this week, this month or any range, compared with the same time yesterday; hourly or daily trend charts; a year-long activity heatmap.
-- **Breakdown**: split by time, tool, model or project, with stacked filters; every row shows the four token kinds: input, output, cache read and cache write.
-- **Sessions**: what each session used, how it spread across days, and which models it called.
+- **Overview**: tokens and estimated cost for today, this week, this month, yesterday, last week, last month, the last 7 or 30 days, or any range, compared with the previous period; open the comparison to see which projects, tools or models went up or down; hourly or daily trend charts in tokens or cost; a year-long activity heatmap.
+- **Breakdown**: split by time, tool, model or project, with stacked filters that can be searched when the list is long; every row shows the four token kinds: input, output, cache read and cache write, and can show the previous period and the change alongside.
+- **Sessions**: what each session used, how it spread across days, and which models it called; search by project, session ID, tool or model, and sort by usage, cost, start time, last activity or requests.
 - **Request timing**: time to first token, output speed, and average speed including the wait. Only tools whose logs record timestamps have it; gaps say why.
 - **Tools**: every supported tool, the folders where Token Lens looks for its logs, and whether they were found, missing or not readable; how each one logs usage, whether it was checked against real or sample logs, and its known limitations. Tools you do not want to see can be hidden; hiding only affects display, and usage is still recorded.
 - **Sync status**: syncing, first-sync progress, and failed or partial syncs show at the top of the data pages.

@@ -6,6 +6,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../stats_controller.dart';
+import '../stats_gateway.dart';
+import 'logic/comparison.dart';
+import 'logic/detail_query.dart';
 import 'logic/period.dart';
 import 'logic/format.dart';
 import 'logic/home_data.dart';
@@ -19,6 +22,8 @@ import 'widgets/session_usage.dart';
 import 'widgets/charts.dart';
 import 'widgets/date_range.dart';
 import 'widgets/motion.dart';
+import 'widgets/side_panel.dart';
+import 'widgets/comparison_panel.dart';
 
 class StatsHome extends StatefulWidget {
   const StatsHome({
@@ -29,17 +34,20 @@ class StatsHome extends StatefulWidget {
     required this.onSources,
     required this.onSettings,
     this.onManageHidden,
+    this.sidebarWidth = 0,
   });
   final StatsController controller;
   final ValueChanged<Map<String, String>> onDetail, onSessions;
   final VoidCallback onSources, onSettings;
   final VoidCallback? onManageHidden;
+  final double sidebarWidth;
   @override
   State<StatsHome> createState() => _StatsHomeState();
 }
 
 class _StatsHomeState extends State<StatsHome> {
   String? highlight;
+  bool trendCost = false;
   StatsController get c => widget.controller;
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
@@ -66,31 +74,81 @@ class _StatsHomeState extends State<StatsHome> {
         : render(value);
   }
 
-  Widget delta(int value) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-    decoration: BoxDecoration(
-      color: value >= 0 ? p['clay-wash'] : p.okWash,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          value >= 0 ? Icons.arrow_upward : Icons.arrow_downward,
-          size: 12,
-          color: p[value >= 0 ? 'clay-ink' : 'ok'],
-        ),
-        Text(
-          percentage(value.abs() / 100),
-          style: p.text(
-            12.5,
-            p[value >= 0 ? 'clay-ink' : 'ok'],
-            FontWeight.w500,
+  Widget delta(int value, StatsPeriod period) {
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+      decoration: BoxDecoration(
+        color: value >= 0 ? p['clay-wash'] : p.okWash,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            value >= 0 ? Icons.arrow_upward : Icons.arrow_downward,
+            size: 12,
+            color: p[value >= 0 ? 'clay-ink' : 'ok'],
+          ),
+          Text(
+            percentage(value.abs() / 100),
+            style: p.text(
+              12.5,
+              p[value >= 0 ? 'clay-ink' : 'ok'],
+              FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (period.compare(c.clock()) == null) return badge;
+    return LensFocusOutline(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => openComparison(period),
+        child: badge,
+      ),
+    );
+  }
+
+  void openComparison(StatsPeriod period) {
+    final gateway = c.gateway;
+    final previous = period.compare(c.clock(), context.strings);
+    if (previous == null || gateway is! StatsComparisonGateway) return;
+    final current = period.range(c.clock());
+    final prior = (from: previous.from, to: previous.to);
+    final title = context.strings.whatChangedFromPrevious;
+    unawaited(
+      showLensPanel(
+        context,
+        title: title,
+        hint: comparisonSubtitle(current, prior, context.strings),
+        icon: Icon(Icons.compare_arrows, size: 24, color: p['clay']),
+        label: title,
+        width: 500,
+        sidebarInset: widget.sidebarWidth,
+        body: Builder(
+          builder: (panelContext) => ComparisonPanel(
+            controller: c,
+            gateway: gateway as StatsComparisonGateway,
+            current: current,
+            previous: prior,
+            onPick: (filter, value) {
+              Navigator.of(panelContext).pop();
+              widget.onDetail({
+                ...Uri.splitQueryString(period.query),
+                if (value != null && value.isNotEmpty)
+                  filter: value
+                else
+                  'missing': filter,
+                'dim': nextDim(filter),
+              });
+            },
           ),
         ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
+
   Widget link(String label, VoidCallback onTap) => LensButton(
     label: label,
     icon: Icons.arrow_forward,
@@ -294,7 +352,13 @@ class _StatsHomeState extends State<StatsHome> {
     final buckets = buildBuckets(data.matrix.rows, data.axis, now);
     var comparison = compare?.label ?? '';
     int? cmp;
-    if (period.period == 'today' && data.previousHours != null) {
+    final compared = data.comparison;
+    if (compared != null) {
+      cmp = deltaOf(
+        compared.current.totals.grossTokens,
+        compared.previous.totals.grossTokens,
+      );
+    } else if (period.period == 'today' && data.previousHours != null) {
       comparison = context.strings.theSameTimeYesterday;
       final cutoff =
           '${compare!.from}T${now.hour.toString().padLeft(2, '0')}:00:00';
@@ -322,7 +386,7 @@ class _StatsHomeState extends State<StatsHome> {
     final strings = context.strings;
     final periodLabel = period.period == 'custom'
         ? strings.selectedPeriodInSentence
-        : period.labelFor(strings);
+        : period.inSentence(strings);
     String inSentence(String value) =>
         strings.isChinese ? value : value.toLowerCase();
     InlineSpan toolSpan(String id) => strings.isChinese
@@ -427,6 +491,10 @@ class _StatsHomeState extends State<StatsHome> {
           ),
         );
       }
+      if (projectChangeSentence(compared, strings, unitSystem: c.unitSystem)
+          case final text?) {
+        summary.add(TextSpan(text: strings.isChinese ? text : ' $text'));
+      }
     }
     final yearMap = {
       for (final point in data.year.points)
@@ -471,8 +539,10 @@ class _StatsHomeState extends State<StatsHome> {
               hint: emptyLedger
                   ? context.strings.tokenLensReadsAiCodingToolLogs
                   : context.strings.usageAppearsHereAfterTheToolWrites,
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
+              action: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
                 children: [
                   LensButton(
                     label: emptyLedger
@@ -485,7 +555,6 @@ class _StatsHomeState extends State<StatsHome> {
                             c.setPeriod(const StatsPeriod('month')),
                           ),
                   ),
-                  const SizedBox(width: 8),
                   LensButton(
                     label: emptyLedger
                         ? context.strings.viewToolSources
@@ -496,6 +565,11 @@ class _StatsHomeState extends State<StatsHome> {
                         : () =>
                               unawaited(c.setPeriod(const StatsPeriod('all'))),
                   ),
+                  if (compare != null && !emptyLedger)
+                    LensTextLink(
+                      label: strings.seeWhatChanged,
+                      onTap: () => openComparison(period),
+                    ),
                 ],
               ),
             ),
@@ -605,15 +679,22 @@ class _StatsHomeState extends State<StatsHome> {
             key: const Key('home-conversion'),
             style: p.text(13, p.muted),
           ),
-        if (cmp != null) ...[
+        if (comparison.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              delta(cmp),
-              const SizedBox(width: 8),
-              Text(
-                context.strings.vs0(comparison),
-                style: p.text(12.5, p.muted),
+              if (cmp != null) delta(cmp, data.period),
+              if (cmp != null)
+                Text(
+                  context.strings.vs0(comparison),
+                  style: p.text(12.5, p.muted),
+                ),
+              LensTextLink(
+                label: context.strings.seeWhatChanged,
+                onTap: () => openComparison(data.period),
               ),
             ],
           ),
@@ -986,7 +1067,7 @@ class _StatsHomeState extends State<StatsHome> {
           context.strings.thisHour,
           token(current, style: numStyle),
           hint([
-            if (change != null) delta(change),
+            if (change != null) delta(change, period),
             Text(
               context.strings.thisHourSoFar(
                 now.hour,
@@ -1017,7 +1098,7 @@ class _StatsHomeState extends State<StatsHome> {
             builder: (n) => token(n, style: numStyle),
           ),
           hint([
-            if (change != null) delta(change),
+            if (change != null) delta(change, period),
             Text(context.strings.onDaysWithUsage, style: p.text(12, p.muted)),
           ]),
           spark: keys.length < 2
@@ -1039,7 +1120,7 @@ class _StatsHomeState extends State<StatsHome> {
           builder: (n) => Text('${n.round()}', style: numStyle),
         ),
         hint([
-          if (sessionDelta != null) delta(sessionDelta),
+          if (sessionDelta != null) delta(sessionDelta, period),
           Text(
             context.strings.average0PerSession(
               nt(totals.grossTokens / math.max(1, sessions)),
@@ -1192,10 +1273,13 @@ class _StatsHomeState extends State<StatsHome> {
         );
   Widget trend(
     StatsHomeData data,
-    List<TrendBucket> buckets,
+    List<TrendBucket> usageBuckets,
     List<String> order,
     Map<String, int> slots,
   ) {
+    final buckets = trendCost
+        ? buildBuckets(data.matrix.rows, data.axis, c.clock(), cost: true)
+        : usageBuckets;
     final granularity = data.axis.granularity,
         unit = data.axis.granularity == 'hour'
             ? context.strings.hour
@@ -1215,9 +1299,16 @@ class _StatsHomeState extends State<StatsHome> {
                   ? ''
                   : context.strings.selectABarForThat0S(unit),
             ),
-            action: link(
-              context.strings.viewBreakdown,
-              () => widget.onDetail({}),
+            action: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                TrendMetricControl(
+                  key: const Key('trend-metric'),
+                  cost: trendCost,
+                  onChanged: (value) => setState(() => trendCost = value),
+                ),
+                link(context.strings.viewBreakdown, () => widget.onDetail({})),
+              ],
             ),
           ),
           Padding(
@@ -1265,7 +1356,8 @@ class _StatsHomeState extends State<StatsHome> {
                   slots: slots,
                   granularity: granularity,
                   now: c.clock(),
-                  weekdays: data.period.period == 'week',
+                  weekdays: data.period.weekdays,
+                  costMode: trendCost,
                   highlight: highlight,
                   onPick: granularity == 'hour'
                       ? null
@@ -1275,6 +1367,14 @@ class _StatsHomeState extends State<StatsHome> {
                   currency: c.preferences.currency,
                   rate: rateFor(c.preferences.rates, c.preferences.currency),
                 ),
+                if (trendCost && data.summary.totals.unpricedRecords > 0)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      context.strings.trendUnpricedNote,
+                      style: p.text(12, p.muted),
+                    ),
+                  ),
                 if (unallocated > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),

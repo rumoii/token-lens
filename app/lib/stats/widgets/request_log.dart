@@ -382,6 +382,7 @@ class _RequestLogState extends State<RequestLog> {
   Widget compactSort() => Row(
     children: [
       FilterPick(
+        searchable: false,
         key: const Key('request-sort-menu'),
         label: context.strings.sortBy0(requestSortNames(context.strings)[sort]),
         onPick: order,

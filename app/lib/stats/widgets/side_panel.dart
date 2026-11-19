@@ -18,6 +18,8 @@ Future<void> showLensPanel(
   required Widget body,
   String? label,
   ValueNotifier<PanelHeading>? heading,
+  double width = 460,
+  double sidebarInset = 0,
 }) {
   final strings = context.strings;
   final panelLabel = label ?? strings.sessionDetails;
@@ -27,6 +29,7 @@ Future<void> showLensPanel(
     _LensPanelRoute(
       reduced: reduced,
       barrierLabel: strings.closePanel(panelLabel),
+      sidebarInset: narrow ? 0 : sidebarInset,
       pageBuilder: (context, _, _) => heading == null
           ? _LensPanel(
               label: label ?? context.strings.sessionDetails,
@@ -35,6 +38,7 @@ Future<void> showLensPanel(
               icon: icon,
               body: body,
               narrow: narrow,
+              width: width,
             )
           : ValueListenableBuilder<PanelHeading>(
               valueListenable: heading,
@@ -46,6 +50,7 @@ Future<void> showLensPanel(
                 icon: icon,
                 body: body,
                 narrow: narrow,
+                width: width,
               ),
             ),
       transitionBuilder: (context, animation, _, child) => AnimatedBuilder(
@@ -73,6 +78,7 @@ class _LensPanelRoute extends RawDialogRoute<void> {
     required super.transitionBuilder,
     required bool reduced,
     required String barrierLabel,
+    required this.sidebarInset,
   }) : super(
          barrierDismissible: true,
          barrierLabel: barrierLabel,
@@ -82,6 +88,22 @@ class _LensPanelRoute extends RawDialogRoute<void> {
              ? Duration.zero
              : const Duration(milliseconds: 260),
        );
+  final double sidebarInset;
+  @override
+  Widget buildModalBarrier() => sidebarInset == 0
+      ? super.buildModalBarrier()
+      : Row(
+          children: [
+            SizedBox(
+              width: sidebarInset,
+              child: ModalBarrier(
+                dismissible: true,
+                barrierSemanticsDismissible: false,
+              ),
+            ),
+            Expanded(child: super.buildModalBarrier()),
+          ],
+        );
   @override
   Curve get barrierCurve =>
       const Interval(0, 160 / 260, curve: LensTokens.ease);
@@ -97,11 +119,13 @@ class _LensPanel extends StatefulWidget {
     required this.icon,
     required this.body,
     required this.narrow,
+    required this.width,
     this.titleTooltip,
   });
   final String label, title, hint;
   final Widget icon, body;
   final bool narrow;
+  final double width;
   final String? titleTooltip;
   @override
   State<_LensPanel> createState() => _LensPanelState();
@@ -125,7 +149,7 @@ class _LensPanelState extends State<_LensPanel> {
           left: widget.narrow ? 0 : null,
           top: widget.narrow ? 56 : 0,
           bottom: 0,
-          width: widget.narrow ? null : 460,
+          width: widget.narrow ? null : widget.width,
           child: Semantics(
             label: widget.label,
             scopesRoute: true,

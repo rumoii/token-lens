@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `for_cli`, `initialize`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -17,6 +17,13 @@ abstract class StatsClient implements RustOpaqueInterface {
   Future<StatsBreakdown> breakdown({
     required String by,
     required StatsFilter filter,
+    required int offsetMinutes,
+  });
+
+  Future<StatsComparison> comparison({
+    required String by,
+    required StatsFilter current,
+    required StatsFilter previous,
     required int offsetMinutes,
   });
 
@@ -56,6 +63,12 @@ abstract class StatsClient implements RustOpaqueInterface {
   );
 
   Future<StatsPricing> pricing();
+
+  Future<StatsSessions> querySessions({
+    required StatsFilter filter,
+    required StatsSessionQuery query,
+    required int offsetMinutes,
+  });
 
   Future<StatsRequests> requests({
     required StatsFilter filter,
@@ -286,6 +299,48 @@ class StatsBucket {
           recordCount == other.recordCount &&
           requestCount == other.requestCount &&
           eventGrossTokens == other.eventGrossTokens;
+}
+
+class StatsComparison {
+  final String by;
+  final StatsComparisonSide current;
+  final StatsComparisonSide previous;
+
+  const StatsComparison({
+    required this.by,
+    required this.current,
+    required this.previous,
+  });
+
+  @override
+  int get hashCode => by.hashCode ^ current.hashCode ^ previous.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsComparison &&
+          runtimeType == other.runtimeType &&
+          by == other.by &&
+          current == other.current &&
+          previous == other.previous;
+}
+
+class StatsComparisonSide {
+  final StatsTotals totals;
+  final List<StatsGroup> groups;
+
+  const StatsComparisonSide({required this.totals, required this.groups});
+
+  @override
+  int get hashCode => totals.hashCode ^ groups.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsComparisonSide &&
+          runtimeType == other.runtimeType &&
+          totals == other.totals &&
+          groups == other.groups;
 }
 
 class StatsCostParts {
@@ -523,6 +578,7 @@ class StatsFilter {
   final String? model;
   final String? project;
   final List<String>? excludeSources;
+  final String? missing;
 
   const StatsFilter({
     this.from,
@@ -531,6 +587,7 @@ class StatsFilter {
     this.model,
     this.project,
     this.excludeSources,
+    this.missing,
   });
 
   static Future<StatsFilter> default_() =>
@@ -543,7 +600,8 @@ class StatsFilter {
       source.hashCode ^
       model.hashCode ^
       project.hashCode ^
-      excludeSources.hashCode;
+      excludeSources.hashCode ^
+      missing.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -555,7 +613,8 @@ class StatsFilter {
           source == other.source &&
           model == other.model &&
           project == other.project &&
-          excludeSources == other.excludeSources;
+          excludeSources == other.excludeSources &&
+          missing == other.missing;
 }
 
 class StatsGroup {
@@ -1457,6 +1516,41 @@ class StatsSessionModel {
           unpricedRecords == other.unpricedRecords &&
           recordCount == other.recordCount &&
           eventGrossTokens == other.eventGrossTokens;
+}
+
+class StatsSessionQuery {
+  final String? q;
+  final String? sort;
+  final String? dir;
+  final int? limit;
+  final String? cursor;
+
+  const StatsSessionQuery({
+    this.q,
+    this.sort,
+    this.dir,
+    this.limit,
+    this.cursor,
+  });
+
+  @override
+  int get hashCode =>
+      q.hashCode ^
+      sort.hashCode ^
+      dir.hashCode ^
+      limit.hashCode ^
+      cursor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsSessionQuery &&
+          runtimeType == other.runtimeType &&
+          q == other.q &&
+          sort == other.sort &&
+          dir == other.dir &&
+          limit == other.limit &&
+          cursor == other.cursor;
 }
 
 class StatsSessionSummary {

@@ -2,7 +2,7 @@ use super::{rows, Ledger};
 use crate::stats::{Error, Result};
 use chrono::{Duration, NaiveDate};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 #[path = "requests_tests.rs"]
@@ -113,6 +113,11 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
     if filter["projectPaths"].is_array() {
         clauses.push("project_key IN (SELECT value FROM json_each(?))".into());
         args.push(json!(filter["projectPaths"].to_string()));
+    }
+    match filter["missing"].as_str() {
+        Some("project") => clauses.push("(project_key IS NULL OR project_key='')".into()),
+        Some("model") => clauses.push("(model IS NULL OR model='')".into()),
+        _ => {}
     }
     Ok((clauses.join(" AND "), args))
 }
@@ -509,6 +514,10 @@ fn session_sql(clause: &str, order: &str) -> String {
         FROM page AS scoped JOIN lifetime USING(source,session_id) ORDER BY {order}")
 }
 
+const SESSION_TOKENS: &str = "coalesce(scoped.input_tokens,0)+coalesce(scoped.output_tokens,0)+coalesce(scoped.cache_read_tokens,0)+coalesce(scoped.cache_write_tokens,0)";
+const SESSION_START: &str = "(SELECT min(sort.observed_at) FROM usage_records sort INDEXED BY idx_usage_session WHERE sort.source=scoped.source AND sort.session_id=scoped.session_id AND +sort.active=1)";
+const SESSION_RECENT: &str = "(SELECT max(coalesce(sort.ended_at,sort.observed_at)) FROM usage_records sort INDEXED BY idx_usage_session WHERE sort.source=scoped.source AND sort.session_id=scoped.session_id AND +sort.active=1)";
+
 impl Ledger {
     pub fn timeseries(&self, granularity: &str, filter: &Value) -> Result<Value> {
         self.time_buckets(granularity, None, filter)
@@ -567,24 +576,84 @@ impl Ledger {
         filter: &Value,
     ) -> Result<(Vec<Value>, Option<u64>)> {
         let limit = limit.filter(|n| *n != 0).unwrap_or(50).clamp(1, 200);
-        let (clause, mut args) = scope(self, filter)?;
-        let order = if filter["from"].as_str().is_some_and(|v| !v.is_empty())
+        let search = filter["q"].as_str().unwrap_or("").trim().to_lowercase();
+        let _snapshot = if search.is_empty() {
+            None
+        } else {
+            Some(self.db.unchecked_transaction()?)
+        };
+        let (mut clause, mut args) = scope(self, filter)?;
+        if !search.is_empty() {
+            let candidates = rows(
+                &self.db,
+                &format!("WITH candidates AS MATERIALIZED (
+                    SELECT DISTINCT source,session_id FROM usage_records WHERE {clause} AND session_id IS NOT NULL
+                ) SELECT DISTINCT u.source,u.session_id,u.project_key,u.model
+                  FROM candidates CROSS JOIN usage_records u INDEXED BY idx_usage_session
+                  ON u.source=candidates.source AND u.session_id=candidates.session_id WHERE +u.active=1"),
+                &args,
+            )?;
+            let paths: HashSet<_> = candidates
+                .iter()
+                .filter_map(|row| row["project_key"].as_str())
+                .collect();
+            let projects = crate::stats::output::project_names(paths);
+            let matches: HashSet<_> = candidates
+                .iter()
+                .filter_map(|row| {
+                    let source = row["source"].as_str()?;
+                    let session = row["session_id"].as_str()?;
+                    let name = crate::stats::output::tool_name(source);
+                    let project = row["project_key"].as_str().unwrap_or("");
+                    let label = projects.get(project).map_or("", String::as_str);
+                    let model = row["model"].as_str().unwrap_or("");
+                    [session, name, project, label, model]
+                        .iter()
+                        .any(|value| value.to_lowercase().contains(&search))
+                        .then_some((source, session))
+                })
+                .collect();
+            if matches.is_empty() {
+                return Ok((Vec::new(), None));
+            }
+            clause.push_str(" AND (source,session_id) IN (SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?))");
+            args.push(json!(json!(matches).to_string()));
+        }
+        let sort = match filter["sort"].as_str() {
+            Some("tokens") => Some(SESSION_TOKENS),
+            Some("cost") => Some("scoped.cost_micros"),
+            Some("started") => Some(SESSION_START),
+            Some("recent") => Some(SESSION_RECENT),
+            Some("requests") => Some("coalesce(scoped.request_count,0)"),
+            _ => None,
+        };
+        let (column, direction) = if let Some(column) = sort {
+            (
+                column,
+                if filter["dir"] == "asc" {
+                    "ASC"
+                } else {
+                    "DESC"
+                },
+            )
+        } else if filter["from"].as_str().is_some_and(|v| !v.is_empty())
             || filter["to"].as_str().is_some_and(|v| !v.is_empty())
         {
-            "coalesce(scoped.input_tokens,0)+coalesce(scoped.output_tokens,0)+coalesce(scoped.cache_read_tokens,0)+coalesce(scoped.cache_write_tokens,0) DESC,session_id ASC,source ASC"
+            (SESSION_TOKENS, "DESC")
         } else if ["model", "project"]
             .iter()
             .any(|key| filter[*key].as_str().is_some_and(|v| !v.is_empty()))
         {
             // Project/model filters limit the period sums, not the lifetime activity order.
-            "(SELECT max(coalesce(sort.ended_at,sort.observed_at)) FROM usage_records sort INDEXED BY idx_usage_session WHERE sort.source=scoped.source AND sort.session_id=scoped.session_id AND +sort.active=1) DESC,session_id ASC,source ASC"
+            (SESSION_RECENT, "DESC")
         } else {
-            "scoped.last_seen_at DESC,session_id ASC,source ASC"
+            ("scoped.last_seen_at", "DESC")
         };
+        let order = format!("{column} {direction} NULLS LAST,session_id ASC,source ASC");
         args.extend([json!(limit + 1), json!(offset)]);
         // Membership and period sums use exactly the totals scope. Lifetime metadata and
         // sums include all active rows of those (source, session_id) identities.
-        let mut items = rows(&self.db, &session_sql(&clause, order), &args)?;
+        let mut items = rows(&self.db, &session_sql(&clause, &order), &args)?;
         let next = (items.len() > limit as usize).then(|| offset + limit as u64);
         items.truncate(limit as usize);
         for row in &mut items {

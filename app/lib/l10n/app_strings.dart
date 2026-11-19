@@ -37,6 +37,56 @@ extension AppStringsContext on BuildContext {
 }
 
 abstract class AppStrings {
+  String get morePeriods;
+  String get lastSevenDays;
+  String get lastThirtyDays;
+  String get lastSevenDaysInSentence;
+  String get lastThirtyDaysInSentence;
+  String get dayBeforeYesterday;
+  String get weekBeforeLast;
+  String get monthBeforeLast;
+  String get previousSevenDays;
+  String get previousThirtyDays;
+  String comparisonDates(String current, int n, String previous, int m);
+  String comparisonDateRanges(String current, String previous);
+  String get sessionSearch;
+  String noMatchingSessions(String q);
+  String get clearSessionSearch;
+  String get sessionSortUsage;
+  String get sessionSortCost;
+  String get sessionSortStarted;
+  String get sessionSortRecent;
+  String get sessionSortRequests;
+  String get sortDescending;
+  String get sortAscending;
+  String sortedSessions(String period, String sort);
+  String get sessionSortUsageInSentence;
+  String get sessionSortCostInSentence;
+  String get sessionSortStartedInSentence;
+  String get sessionSortRecentInSentence;
+  String get sessionSortRequestsInSentence;
+  String get filterSearch;
+  String get noMatchingOptions;
+  String get seeWhatChanged;
+  String get whatChangedFromPrevious;
+  String get comparisonCurrent;
+  String get comparisonPrevious;
+  String get comparisonChange;
+  String get sortedBySizeOfChange;
+  String get comparisonNew;
+  String get comparisonUnused;
+  String showMoreComparisonRows(int n);
+  String get noUsageInEitherPeriod;
+  String get partlyUnpriced;
+  String get comparisonUnpricedNote;
+  String biggestIncrease(String project, String n);
+  String biggestDrop(String project, String n);
+  String compareWith(String previous);
+  String get comparisonPreviousColumn;
+  String get noComparisonPeriod;
+  String get trendTokens;
+  String get trendCost;
+  String get trendUnpricedNote;
   String inventoryIntro(int total, int found);
 
   String get inventoryFound;

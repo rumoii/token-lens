@@ -22,6 +22,8 @@ pub struct StatsFilter {
     pub project: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_sources: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub missing: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -357,6 +359,25 @@ pub struct StatsSessions {
     pub items: Vec<StatsSessionItem>,
     pub next_cursor: Option<String>,
     pub snapshot: StatsSnapshot,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsSessionQuery {
+    pub q: Option<String>,
+    pub sort: Option<String>,
+    pub dir: Option<String>,
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsComparisonSide {
+    pub totals: StatsTotals,
+    pub groups: Vec<StatsGroup>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsComparison {
+    pub by: String,
+    pub current: StatsComparisonSide,
+    pub previous: StatsComparisonSide,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSessionSummary {
@@ -963,16 +984,59 @@ impl StatsClient {
         filter: StatsFilter,
         offset_minutes: i32,
     ) -> Result<StatsSessions, String> {
+        self.query_sessions(
+            filter,
+            StatsSessionQuery {
+                q: None,
+                sort: None,
+                dir: None,
+                limit,
+                cursor,
+            },
+            offset_minutes,
+        )
+    }
+
+    pub fn query_sessions(
+        &self,
+        filter: StatsFilter,
+        query: StatsSessionQuery,
+        offset_minutes: i32,
+    ) -> Result<StatsSessions, String> {
         let result = (|| {
             let ledger = self.open()?;
             let mut params = serde_json::to_value(filter).unwrap();
-            params["limit"] = json!(limit);
-            params["cursor"] = json!(cursor);
+            let options = serde_json::to_value(query).unwrap();
+            params
+                .as_object_mut()
+                .unwrap()
+                .extend(options.as_object().unwrap().clone());
             let value = service::sessions(&ledger, &params, offset_minutes, &self.state.timezone)
                 .map_err(|e| e.to_string())?;
             serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
         })();
         self.state.log.ffi("sessions", result)
+    }
+    pub fn comparison(
+        &self,
+        by: String,
+        current: StatsFilter,
+        previous: StatsFilter,
+        offset_minutes: i32,
+    ) -> Result<StatsComparison, String> {
+        let result = (|| {
+            let ledger = self.open()?;
+            let value = service::comparison(
+                &ledger,
+                &by,
+                &serde_json::to_value(current).unwrap(),
+                &serde_json::to_value(previous).unwrap(),
+                offset_minutes,
+            )
+            .map_err(|e| e.to_string())?;
+            serde_json::from_value(value).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("comparison", result)
     }
     pub fn session_detail(
         &self,
@@ -1067,7 +1131,16 @@ impl StatsClient {
         }
         if !matches!(
             request.period.as_str(),
-            "today" | "week" | "month" | "all" | "custom"
+            "today"
+                | "week"
+                | "month"
+                | "all"
+                | "custom"
+                | "yesterday"
+                | "lastWeek"
+                | "lastMonth"
+                | "last7"
+                | "last30"
         ) || !(-1440..=1440).contains(&offset_minutes)
             || [&request.filter.from, &request.filter.to]
                 .into_iter()

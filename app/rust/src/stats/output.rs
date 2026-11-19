@@ -51,7 +51,9 @@ fn project_parts(path: &str) -> impl DoubleEndedIterator<Item = &str> {
     path.split(['/', '\\']).filter(|part| !part.is_empty())
 }
 
-fn project_names<'a>(projects: impl IntoIterator<Item = &'a str>) -> HashMap<&'a str, String> {
+pub(super) fn project_names<'a>(
+    projects: impl IntoIterator<Item = &'a str>,
+) -> HashMap<&'a str, String> {
     let mut basenames: HashMap<&str, Vec<&str>> = HashMap::new();
     for path in projects {
         if let Some(name) = project_parts(path).next_back() {
@@ -259,7 +261,7 @@ pub(crate) fn sources(ledger: &Ledger, timezone: &str) -> Result<Value> {
     ))
 }
 
-fn tool_name(id: &str) -> &str {
+pub(super) fn tool_name(id: &str) -> &str {
     match id {
         "claude" => "Claude Code",
         "codex" => "Codex",

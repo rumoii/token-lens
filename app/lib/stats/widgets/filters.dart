@@ -27,10 +27,12 @@ class FilterPick extends StatefulWidget {
     required this.options,
     required this.onPick,
     this.unitSystem = 'chinese',
+    this.searchable = true,
   });
   final String label, unitSystem;
   final List<FilterOption> options;
   final ValueChanged<String> onPick;
+  final bool searchable;
   @override
   State<FilterPick> createState() => _FilterPickState();
 }
@@ -58,6 +60,7 @@ class _FilterPickState extends State<FilterPick> {
             child: _FilterPopup(
               options: widget.options,
               unitSystem: widget.unitSystem,
+              searchable: widget.searchable && widget.options.length > 8,
             ),
           ),
         ],
@@ -104,19 +107,27 @@ class _FilterPickState extends State<FilterPick> {
 }
 
 class _FilterPopup extends StatefulWidget {
-  const _FilterPopup({required this.options, required this.unitSystem});
+  const _FilterPopup({
+    required this.options,
+    required this.unitSystem,
+    required this.searchable,
+  });
   final List<FilterOption> options;
   final String unitSystem;
+  final bool searchable;
   @override
   State<_FilterPopup> createState() => _FilterPopupState();
 }
 
 class _FilterPopupState extends State<_FilterPopup> {
   final scroll = SmoothWheelController();
+  final searchFocus = FocusNode();
   late final nodes = List.generate(widget.options.length, (_) => FocusNode());
+  String query = '';
   @override
   void dispose() {
     scroll.dispose();
+    searchFocus.dispose();
     for (final node in nodes) {
       node.dispose();
     }
@@ -126,10 +137,18 @@ class _FilterPopupState extends State<_FilterPopup> {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
+    final visible = [
+      for (final (index, option) in widget.options.indexed)
+        if (option.label.toLowerCase().contains(query)) index,
+    ];
     return Material(
       color: p['surface-3'],
-      borderRadius: BorderRadius.circular(12),
-      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: p['line-soft']),
+      ),
+      elevation: 2,
+      shadowColor: p.ink.withValues(alpha: .16),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 300),
         child: Focus(
@@ -139,70 +158,133 @@ class _FilterPopupState extends State<_FilterPopup> {
               Navigator.pop(context);
               return KeyEventResult.handled;
             }
-            if ([
-              LogicalKeyboardKey.arrowDown,
-              LogicalKeyboardKey.arrowUp,
-            ].contains(event.logicalKey)) {
-              final at = nodes.indexWhere((n) => n.hasFocus);
-              final index =
-                  (at +
-                      (event.logicalKey == LogicalKeyboardKey.arrowDown
-                          ? 1
-                          : nodes.length - 1)) %
-                  nodes.length;
-              nodes[index].requestFocus();
+            if (event.logicalKey == LogicalKeyboardKey.enter &&
+                searchFocus.hasFocus &&
+                visible.isNotEmpty) {
+              Navigator.pop(context, widget.options[visible.first].value);
+              return KeyEventResult.handled;
+            }
+            if (visible.isNotEmpty &&
+                [
+                  LogicalKeyboardKey.arrowDown,
+                  LogicalKeyboardKey.arrowUp,
+                ].contains(event.logicalKey)) {
+              final at = visible.indexWhere((index) => nodes[index].hasFocus);
+              final forward = event.logicalKey == LogicalKeyboardKey.arrowDown;
+              final selected = at < 0
+                  ? (forward ? 0 : visible.length - 1)
+                  : (at + (forward ? 1 : -1)) % visible.length;
+              final node = nodes[visible[selected]];
+              if (node.context == null) {
+                final offset = (selected * 34.0).clamp(
+                  0.0,
+                  scroll.position.maxScrollExtent,
+                );
+                scroll.jumpTo(offset);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) node.requestFocus();
+                });
+              } else {
+                node.requestFocus();
+              }
               return KeyEventResult.handled;
             }
             return KeyEventResult.ignored;
           },
-          child: ListView.builder(
-            controller: scroll,
-            shrinkWrap: true,
-            padding: const EdgeInsets.all(6),
-            itemCount: widget.options.length,
-            itemBuilder: (context, i) {
-              final o = widget.options[i];
-              return LensFocusOutline(
-                child: TextButton(
-                  focusNode: nodes[i],
-                  autofocus: i == 0,
-                  onPressed: () => Navigator.pop(context, o.value),
-                  style: TextButton.styleFrom(
-                    foregroundColor: p.ink,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(0, 34),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.searchable)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: TextField(
+                    autofocus: true,
+                    focusNode: searchFocus,
+                    style: p.text(13),
+                    decoration: InputDecoration(
+                      hintText: context.strings.filterSearch,
+                      isDense: true,
+                      border: const OutlineInputBorder(),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      if (o.tool != null) ...[
-                        ToolTile(o.tool!, size: 16),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
-                        child: Tooltip(
-                          message: o.tooltip ?? o.label,
-                          child: Text(
-                            o.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: p.text(13),
-                          ),
-                        ),
-                      ),
-                      if (o.tokens != null)
-                        TokenText(
-                          o.tokens,
-                          unitSystem: widget.unitSystem,
-                          style: p.text(12, p.muted).copyWith(height: 1.4),
-                        ),
-                    ],
+                    onChanged: (value) {
+                      if (scroll.hasClients) scroll.jumpTo(0);
+                      setState(() => query = value.trim().toLowerCase());
+                    },
+                    onSubmitted: (_) {
+                      if (visible.isNotEmpty) {
+                        Navigator.pop(
+                          context,
+                          widget.options[visible.first].value,
+                        );
+                      }
+                    },
                   ),
                 ),
-              );
-            },
+              if (visible.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Text(
+                    context.strings.noMatchingOptions,
+                    style: p.text(12, p.muted),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    controller: scroll,
+                    shrinkWrap: true,
+                    itemExtent: 34,
+                    padding: const EdgeInsets.all(6),
+                    itemCount: visible.length,
+                    itemBuilder: (context, i) {
+                      final index = visible[i];
+                      final o = widget.options[index];
+                      return LensFocusOutline(
+                        child: TextButton(
+                          focusNode: nodes[index],
+                          autofocus: !widget.searchable && i == 0,
+                          onPressed: () => Navigator.pop(context, o.value),
+                          style: TextButton.styleFrom(
+                            foregroundColor: p.ink,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 34),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              if (o.tool != null) ...[
+                                ToolTile(o.tool!, size: 16),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: Tooltip(
+                                  message: o.tooltip ?? o.label,
+                                  child: Text(
+                                    o.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: p.text(13),
+                                  ),
+                                ),
+                              ),
+                              if (o.tokens != null)
+                                TokenText(
+                                  o.tokens,
+                                  unitSystem: widget.unitSystem,
+                                  style: p
+                                      .text(12, p.muted)
+                                      .copyWith(height: 1.4),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
           ),
         ),
       ),

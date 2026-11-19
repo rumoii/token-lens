@@ -30,12 +30,14 @@ class StatsHomeData {
     this.previous,
     this.previousDays,
     this.previousHours,
+    this.comparison,
   });
   final StatsPeriod period;
   final StatsSummary summary;
   final StatsTimeseries days, year;
   final StatsTimeseries? previousDays, previousHours;
   final StatsSummary? previous;
+  final StatsComparison? comparison;
   final StatsBreakdown pairs, yearTools, sidebar;
   final StatsMatrix matrix;
   final PeriodAxis axis;
@@ -138,6 +140,7 @@ class StatsController extends ChangeNotifier {
       source: filter.source,
       model: filter.model,
       project: filter.project,
+      missing: filter.missing,
       excludeSources: hidden,
     );
   }
@@ -396,6 +399,7 @@ class StatsController extends ChangeNotifier {
     final prevFilter = visibleFilter(
       StatsFilter(from: compare?.from, to: compare?.to),
     );
+    final stats = gateway;
     const emptySnapshot = StatsSnapshot(
       generatedAt: '',
       priceVersion: '',
@@ -484,6 +488,18 @@ class StatsController extends ChangeNotifier {
           )
         else
           Future.value(null),
+        if (compare != null && stats is StatsComparisonGateway)
+          resource<StatsComparison?>(
+            'comparison',
+            (stats as StatsComparisonGateway).comparison(
+              'project',
+              filter,
+              prevFilter,
+            ),
+            null,
+          )
+        else
+          Future.value(null),
       ]);
       if (_closed || ticket != _generation) return;
       final summary = results[0] as StatsSummary;
@@ -510,6 +526,7 @@ class StatsController extends ChangeNotifier {
             : null,
         matrix: matrix,
         axis: axis,
+        comparison: results[11] as StatsComparison?,
       );
       error = null;
       resourceErrors

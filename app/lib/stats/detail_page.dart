@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../stats_controller.dart';
 import '../stats_gateway.dart';
 import 'logic/detail_query.dart';
+import 'logic/comparison.dart';
 import 'logic/period.dart';
 import 'logic/display.dart';
 export 'logic/display.dart' show projectName;
@@ -200,13 +201,16 @@ class StatsDetail extends StatefulWidget {
 class _StatsDetailState extends State<StatsDetail> {
   late final options = LensResource<List<StatsBreakdown>>(changed);
   late final summary = LensResource<StatsSummary>(changed);
+  late final trendCoverage = LensResource<StatsSummary>(changed);
   late final trend = LensResource<({PeriodAxis axis, StatsMatrix data})>(
     changed,
   );
   late final table = LensResource<({String kind, Object data})>(changed);
+  late final comparison = LensResource<StatsComparison>(changed);
   String? sortKey;
   int sortDir = -1;
   bool exporting = false, projectPaths = false;
+  bool trendCost = false;
   final exportFocus = FocusNode();
   String? exportedPath;
   Object? exportError;
@@ -220,6 +224,15 @@ class _StatsDetailState extends State<StatsDetail> {
 
   StatsPeriod get period =>
       StatsPeriod.parse(widget.query).withWeekStart(c.preferences.weekStartsOn);
+  static const comparisonGroups = {
+    'tool': 'source',
+    'model': 'model',
+    'project': 'project',
+  };
+  bool get comparing =>
+      d['compare'] == '1' &&
+      comparisonGroups.containsKey(d['dim']) &&
+      period.compare(c.clock()) != null;
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   void changed() {
@@ -233,6 +246,7 @@ class _StatsDetailState extends State<StatsDetail> {
         source: detail['tool']!.isEmpty ? null : detail['tool'],
         model: detail['model']!.isEmpty ? null : detail['model'],
         project: detail['project']!.isEmpty ? null : detail['project'],
+        missing: detail['missing'],
       );
 
   Future<void> exportUsage(
@@ -369,8 +383,10 @@ class _StatsDetailState extends State<StatsDetail> {
     c.removeListener(refresh);
     options.dispose();
     summary.dispose();
+    trendCoverage.dispose();
     trend.dispose();
     table.dispose();
+    comparison.dispose();
     exportFocus.dispose();
     super.dispose();
   }
@@ -388,7 +404,7 @@ class _StatsDetailState extends State<StatsDetail> {
         ? filter
         : c.visibleFilter(detailFilter(detail, picked));
     final pk =
-        '${current.query}|$range|${filter.source}|${filter.model}|${filter.project}|${c.ledgerVersion}|$scope';
+        '${current.query}|$range|${filter.source}|${filter.model}|${filter.project}|${filter.missing}|${c.ledgerVersion}|$scope';
     final sk =
         '$pk|${picked != null || detail['bucket']!.contains('T') ? detail['bucket'] : ''}';
     Future<PeriodAxis> axis() async => current.axis(
@@ -406,6 +422,13 @@ class _StatsDetailState extends State<StatsDetail> {
       retainData: retainData,
     );
     summary.read(sk, () => c.gateway.summary(scoped), retainData: retainData);
+    if (trendCost && picked != null) {
+      trendCoverage.read(
+        pk,
+        () => c.gateway.summary(filter),
+        retainData: false,
+      );
+    }
     trend.read(pk, () async {
       final a = await axis();
       return (
@@ -413,6 +436,26 @@ class _StatsDetailState extends State<StatsDetail> {
         data: await c.gateway.matrix(a.granularity, 'source', filter),
       );
     }, retainData: retainData);
+    final prior = current.compare(now);
+    final dimension = comparisonGroups[detail['dim']];
+    final gateway = c.gateway;
+    if (detail['compare'] == '1' &&
+        prior != null &&
+        dimension != null &&
+        gateway is StatsComparisonGateway) {
+      final previous = c.visibleFilter(
+        detailFilter(detail, (from: prior.from, to: prior.to)),
+      );
+      comparison.read(
+        (sk, dimension, prior.from, prior.to, detail['missing']),
+        () => (gateway as StatsComparisonGateway).comparison(
+          dimension,
+          scoped,
+          previous,
+        ),
+        retainData: false,
+      );
+    }
     if (detail['dim'] == 'request') return;
     table.read('$sk|${detail['dim']}', () async {
       if (detail['dim'] == 'date') {
@@ -444,6 +487,7 @@ class _StatsDetailState extends State<StatsDetail> {
   void setFilter(String key, String value) => go({
     ...d,
     key: value,
+    if (d['missing'] == key) 'missing': '',
     'dim': d['dim'] == 'request'
         ? 'request'
         : value.isNotEmpty
@@ -584,12 +628,23 @@ class _StatsDetailState extends State<StatsDetail> {
             tool: k == 'tool' ? detail[k] : null,
             onRemove: () => setFilter(k, ''),
           ),
-        if (tags.isNotEmpty)
+        if (detail['missing'] case final field?)
+          FilterTag(
+            label: field == 'project'
+                ? context.strings.project
+                : context.strings.model,
+            value: comparisonGroupName(field, null, const [], context.strings),
+            onRemove: () => go({...detail, 'missing': ''}),
+          ),
+        if (tags.isNotEmpty || detail['missing'] != null)
           LensButton(
             label: context.strings.clearFilters,
             size: 'link',
             variant: 'ghost',
-            onPressed: () => go({'dim': detail['dim']!}),
+            onPressed: () => go({
+              'dim': detail['dim']!,
+              if (detail['compare'] == '1') 'compare': '1',
+            }),
           ),
       ],
     );
@@ -713,7 +768,12 @@ class _StatsDetailState extends State<StatsDetail> {
 
   Widget trendContent(({PeriodAxis axis, StatsMatrix data})? value) {
     if (value == null) return const SizedBox();
-    final buckets = buildBuckets(value.data.rows, value.axis, c.clock());
+    final buckets = buildBuckets(
+      value.data.rows,
+      value.axis,
+      c.clock(),
+      cost: trendCost,
+    );
     final sequence = sourceSequence(
           c.overview?.sources.sources
                   .where((s) => !c.isHidden(s.source))
@@ -735,7 +795,7 @@ class _StatsDetailState extends State<StatsDetail> {
       'month': context.strings.month,
     }[value.axis.granularity]!;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         head(
           context.strings.trend,
@@ -744,6 +804,14 @@ class _StatsDetailState extends State<StatsDetail> {
             value.axis.granularity != 'hour'
                 ? context.strings.selectABarToFilterToThat(unit)
                 : '',
+          ),
+          action: TrendMetricControl(
+            key: const Key('trend-metric'),
+            cost: trendCost,
+            onChanged: (value) {
+              setState(() => trendCost = value);
+              refresh();
+            },
           ),
         ),
         Padding(
@@ -783,7 +851,8 @@ class _StatsDetailState extends State<StatsDetail> {
                 slots: slots,
                 granularity: value.axis.granularity,
                 now: c.clock(),
-                weekdays: period.period == 'week',
+                weekdays: period.weekdays,
+                costMode: trendCost,
                 selected: d['bucket']!.isEmpty ? null : d['bucket'],
                 onPick: value.axis.granularity == 'hour'
                     ? null
@@ -792,6 +861,20 @@ class _StatsDetailState extends State<StatsDetail> {
                 currency: c.preferences.currency,
                 rate: rateFor(c.preferences.rates, c.preferences.currency),
               ),
+              if (trendCost &&
+                  (value.data.rows.any((row) => row.unpricedRecords > 0) ||
+                      ((bucketRange(d['bucket']!, period.range(c.clock())) !=
+                                          null
+                                      ? trendCoverage.data
+                                      : summary.data)
+                                  ?.totals
+                                  .unpricedRecords ??
+                              0) >
+                          0))
+                Text(
+                  context.strings.trendUnpricedNote,
+                  style: p.text(12, p.muted),
+                ),
               if ((value.data.unallocated?.grossTokens ?? 0) > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -870,13 +953,58 @@ class _StatsDetailState extends State<StatsDetail> {
         : dim == 'tool'
         ? 26
         : 16;
-    final rows = detailRows(
+    var rows = detailRows(
       dim,
       data,
       detail,
       now: c.clock(),
       strings: context.strings,
     );
+    final compared = comparing && snapshot?.kind == d['dim'] && comparison.fresh
+        ? comparison.data
+        : null;
+    final changes = <String, GroupChange>{};
+    if (compared != null) {
+      final groups = groupChanges(compared);
+      final existing = {for (final row in rows) row.id: row};
+      final peers = groups.map((group) => group.key);
+      rows = [
+        for (final group in groups)
+          (() {
+            final id = group.key ?? '—';
+            changes[id] = group;
+            final row = existing[id], g = group.current;
+            final key = group.key;
+            return DetailRow(
+              id: id,
+              name: comparisonGroupName(
+                compared.by,
+                key,
+                peers,
+                context.strings,
+              ),
+              tokens: g?.grossTokens ?? 0,
+              kinds: [
+                g?.inputTokens,
+                g?.outputTokens,
+                g?.cacheReadTokens,
+                g?.cacheWriteTokens,
+              ],
+              requestCount: g?.requestCount,
+              eventGrossTokens: g?.eventGrossTokens,
+              costMicros: g?.costMicros,
+              timing: row?.timing,
+              sub: row?.sub,
+              tools: row?.tools ?? (dim == 'tool' && key != null ? [key] : []),
+              drill:
+                  row?.drill ??
+                  (detail[dim]!.isEmpty && key != null && key.isNotEmpty
+                      ? (dim, key)
+                      : null),
+            );
+          })(),
+      ];
+    }
     final showTiming = dim == 'tool' || dim == 'model';
     Widget timingStrip(DetailRow r, {bool turn = false}) => TimingStrip(
       timing: r.timing,
@@ -893,6 +1021,10 @@ class _StatsDetailState extends State<StatsDetail> {
         'project': context.strings.project,
       }[dim]!,
       'v': context.strings.usage,
+      if (compared != null) ...{
+        'previous': context.strings.comparisonPreviousColumn,
+        'delta': context.strings.comparisonChange,
+      },
       'cost': context.strings.estCost,
       'share': context.strings.share,
       for (var i = 0; i < 4; i++)
@@ -905,8 +1037,12 @@ class _StatsDetailState extends State<StatsDetail> {
       'requests': context.strings.requests,
       'average': context.strings.avgPerRequest,
     };
-    final selectedSort = sortKey ?? (dim == 'date' ? 'name' : 'v');
+    final selectedSort = sortOptions.containsKey(sortKey)
+        ? sortKey!
+        : (dim == 'date' ? 'name' : 'v');
     num value(DetailRow r) => switch (selectedSort) {
+      'previous' => changes[r.id]?.previous?.grossTokens ?? 0,
+      'delta' => changes[r.id]?.delta() ?? 0,
       'cost' => r.costMicros ?? -1,
       'requests' => r.requestCount ?? -1,
       'average' =>
@@ -935,20 +1071,42 @@ class _StatsDetailState extends State<StatsDetail> {
       if (r.drill != null) setFilter(r.drill!.$1, r.drill!.$2);
     }
 
-    Widget requests(DetailRow r, {bool label = false}) => Text(
-      r.requestCount == null
-          ? context.strings.notLogged
-          : '${toDisplayNumber(r.requestCount)}${label ? context.strings.requestCountSuffix(r.requestCount!) : ''}',
-      style: p.text(13, p.secondary),
-    );
-    Widget average(DetailRow r) => r.requestCount == null
-        ? Text(context.strings.notLogged, style: p.text(13, p.muted))
-        : token(
-            r.requestCount! > 0 && r.eventGrossTokens != null
-                ? (r.eventGrossTokens! / r.requestCount!).round()
-                : null,
-          );
     Widget row(DetailRow r, {bool compact = false}) {
+      final change = changes[r.id];
+      final previous = change?.previous?.grossTokens ?? 0;
+      final delta = change?.delta() ?? 0;
+      final badge = change?.badge(context.strings);
+      final unused = change?.unused ?? false;
+      Widget emptyCell() => Text('—', style: p.text(13, p.muted));
+      Widget cost() => unused ? emptyCell() : money(r.costMicros);
+      Widget requests({bool label = false}) => unused
+          ? emptyCell()
+          : Text(
+              r.requestCount == null
+                  ? context.strings.notLogged
+                  : '${toDisplayNumber(r.requestCount)}${label ? context.strings.requestCountSuffix(r.requestCount!) : ''}',
+              style: p.text(13, p.secondary),
+            );
+      Widget average() => unused
+          ? emptyCell()
+          : r.requestCount == null
+          ? Text(context.strings.notLogged, style: p.text(13, p.muted))
+          : token(
+              r.requestCount! > 0 && r.eventGrossTokens != null
+                  ? (r.eventGrossTokens! / r.requestCount!).round()
+                  : null,
+            );
+      Widget deltaText() => Text(
+        signedValue(
+          delta,
+          (value) => tokenCount(value, unitSystem: c.unitSystem),
+        ),
+        style: p.text(
+          13,
+          delta >= 0 ? p['clay-ink'] : p['ok'],
+          FontWeight.w500,
+        ),
+      );
       Widget tokenKind(int i) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -963,6 +1121,7 @@ class _StatsDetailState extends State<StatsDetail> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           rowName(r),
+          if (badge != null) Text(badge, style: p.text(11, p.muted)),
           if (r.sub != null)
             Text(
               r.sub!,
@@ -1020,6 +1179,23 @@ class _StatsDetailState extends State<StatsDetail> {
                                 Wrap(
                                   spacing: 12,
                                   children: [
+                                    if (change != null) ...[
+                                      Text(
+                                        '${context.strings.comparisonPreviousColumn} ${tokenCount(previous, unitSystem: c.unitSystem)}',
+                                        style: p.text(12.5, p.secondary),
+                                      ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        spacing: 4,
+                                        children: [
+                                          Text(
+                                            context.strings.comparisonChange,
+                                            style: p.text(12.5, p.secondary),
+                                          ),
+                                          deltaText(),
+                                        ],
+                                      ),
+                                    ],
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -1027,10 +1203,10 @@ class _StatsDetailState extends State<StatsDetail> {
                                           context.strings.estimatedCostPrefix,
                                           style: p.text(12.5, p.secondary),
                                         ),
-                                        money(r.costMicros),
+                                        cost(),
                                       ],
                                     ),
-                                    requests(r, label: true),
+                                    requests(label: true),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -1040,7 +1216,7 @@ class _StatsDetailState extends State<StatsDetail> {
                                               .averagePerRequestPrefix,
                                           style: p.text(12.5, p.secondary),
                                         ),
-                                        average(r),
+                                        average(),
                                       ],
                                     ),
                                     Text(
@@ -1075,11 +1251,27 @@ class _StatsDetailState extends State<StatsDetail> {
                                     ),
                                   ),
                                 ),
+                                if (change != null) ...[
+                                  Expanded(
+                                    flex: 10,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: token(previous),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 10,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: deltaText(),
+                                    ),
+                                  ),
+                                ],
                                 Expanded(
                                   flex: 10,
                                   child: Align(
                                     alignment: Alignment.centerRight,
-                                    child: money(r.costMicros),
+                                    child: cost(),
                                   ),
                                 ),
                                 Expanded(
@@ -1119,7 +1311,7 @@ class _StatsDetailState extends State<StatsDetail> {
                                       child: token(k),
                                     ),
                                   ),
-                                for (final child in [requests(r), average(r)])
+                                for (final child in [requests(), average()])
                                   Expanded(
                                     flex: 12,
                                     child: Align(
@@ -1187,6 +1379,7 @@ class _StatsDetailState extends State<StatsDetail> {
             children: [
               FilterPick(
                 key: const Key('detail-sort'),
+                searchable: false,
                 label: context.strings.sortBy0(sortOptions[selectedSort]),
                 options: [
                   for (final option in sortOptions.entries)
@@ -1275,6 +1468,18 @@ class _StatsDetailState extends State<StatsDetail> {
                                 nameFlex,
                               ),
                               header(context.strings.usage, 'v', 10),
+                              if (compared != null) ...[
+                                header(
+                                  context.strings.comparisonPreviousColumn,
+                                  'previous',
+                                  10,
+                                ),
+                                header(
+                                  context.strings.comparisonChange,
+                                  'delta',
+                                  10,
+                                ),
+                              ],
                               header(context.strings.estCost, 'cost', 10),
                               header(context.strings.share, 'share', 20),
                               for (var i = 0; i < 4; i++)
@@ -1371,6 +1576,24 @@ class _StatsDetailState extends State<StatsDetail> {
     final dim = d['dim']!,
         picked = bucketRange(d['bucket']!, period.range(c.clock()));
     final gateway = c.gateway;
+    final strings = context.strings;
+    final prior = period.compare(c.clock(), strings);
+    final compareLabel = strings.compareWith(
+      prior?.label ?? strings.comparisonPreviousColumn,
+    );
+    void setCompare(bool value) {
+      setState(() {
+        sortKey = null;
+        sortDir = -1;
+      });
+      go({
+        ...d,
+        'compare': value ? '1' : '',
+        if (value) 'bucket': '',
+        if (value && !comparisonGroups.containsKey(dim)) 'dim': 'project',
+      });
+    }
+
     final exportBy = dim != 'date'
         ? dim
         : picked != null
@@ -1413,10 +1636,7 @@ class _StatsDetailState extends State<StatsDetail> {
                   context.strings.breakdownDescription(switch (period.period) {
                     'all' => context.strings.periodAllTime,
                     'custom' => context.strings.selectedPeriodInSentence,
-                    _ =>
-                      context.strings.isChinese
-                          ? period.labelFor(context.strings)
-                          : period.labelFor(context.strings).toLowerCase(),
+                    _ => period.inSentence(context.strings),
                   }),
                   style: p.text(14, p.secondary),
                 ),
@@ -1468,6 +1688,39 @@ class _StatsDetailState extends State<StatsDetail> {
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    Tooltip(
+                      message: prior == null
+                          ? strings.noComparisonPeriod
+                          : compareLabel,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 6,
+                        children: [
+                          SizedBox(
+                            height: 30,
+                            child: Switch(
+                              key: const Key('detail-compare'),
+                              value: comparing,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              onChanged: prior == null ? null : setCompare,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: prior == null
+                                ? null
+                                : () => setCompare(!comparing),
+                            child: Text(
+                              compareLabel,
+                              style: p.text(
+                                12.5,
+                                prior == null ? p.muted : p.secondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     LensSegmented(
                       options: {
                         'date':
@@ -1486,7 +1739,11 @@ class _StatsDetailState extends State<StatsDetail> {
                           sortKey = null;
                           sortDir = -1;
                         });
-                        go({...d, 'dim': v});
+                        go({
+                          ...d,
+                          'dim': v,
+                          if (!comparisonGroups.containsKey(v)) 'compare': '',
+                        });
                       },
                       label: context.strings.groupBy,
                       small: true,
@@ -1496,6 +1753,17 @@ class _StatsDetailState extends State<StatsDetail> {
                   ],
                 ),
               ),
+              if (comparing && prior != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                  child: Text(
+                    comparisonSubtitle(picked ?? period.range(c.clock()), (
+                      from: prior.from,
+                      to: prior.to,
+                    ), strings),
+                    style: p.text(12, p.muted),
+                  ),
+                ),
               if (dim != 'request' &&
                   (exportedPath != null || exportError != null))
                 Padding(
@@ -1531,15 +1799,9 @@ class _StatsDetailState extends State<StatsDetail> {
                   child: RequestLog(
                     controller: c,
                     identity:
-                        '${period.query}|${d['tool']}|${d['model']}|${d['project']}|${d['bucket']}|${c.ledgerVersion}',
+                        '${period.query}|${d['tool']}|${d['model']}|${d['project']}|${d['missing']}|${d['bucket']}|${c.ledgerVersion}',
                     filter: c.visibleFilter(
-                      StatsFilter(
-                        from: picked?.from ?? period.range(c.clock()).from,
-                        to: picked?.to ?? period.range(c.clock()).to,
-                        source: d['tool']!.isEmpty ? null : d['tool'],
-                        model: d['model']!.isEmpty ? null : d['model'],
-                        project: d['project']!.isEmpty ? null : d['project'],
-                      ),
+                      detailFilter(d, picked ?? period.range(c.clock())),
                     ),
                     onOpen: (r) {
                       final sessionId = r.sessionId;
@@ -1561,11 +1823,17 @@ class _StatsDetailState extends State<StatsDetail> {
                     table.ready ? 0 : 18,
                     18,
                   ),
-                  child: ResourceBlock(
-                    resource: table,
-                    rows: 5,
-                    builder: tableContent,
-                  ),
+                  child: comparing && gateway is StatsComparisonGateway
+                      ? ResourceBlock(
+                          resource: comparison,
+                          rows: 5,
+                          builder: (_) => tableContent(table.data),
+                        )
+                      : ResourceBlock(
+                          resource: table,
+                          rows: 5,
+                          builder: tableContent,
+                        ),
                 ),
             ],
           ),

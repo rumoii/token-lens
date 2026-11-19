@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1635324002;
+  int get rustContentHash => 1173002403;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -126,6 +126,14 @@ abstract class RustLibApi extends BaseApi {
     required int offsetMinutes,
   });
 
+  Future<StatsComparison> crateApiStatsStatsClientComparison({
+    required StatsClient that,
+    required String by,
+    required StatsFilter current,
+    required StatsFilter previous,
+    required int offsetMinutes,
+  });
+
   Future<StatsDiscovery> crateApiStatsStatsClientDiscovery({
     required StatsClient that,
     required bool fresh,
@@ -172,6 +180,13 @@ abstract class RustLibApi extends BaseApi {
 
   Future<StatsPricing> crateApiStatsStatsClientPricing({
     required StatsClient that,
+  });
+
+  Future<StatsSessions> crateApiStatsStatsClientQuerySessions({
+    required StatsClient that,
+    required StatsFilter filter,
+    required StatsSessionQuery query,
+    required int offsetMinutes,
   });
 
   Future<StatsRequests> crateApiStatsStatsClientRequests({
@@ -649,6 +664,50 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<StatsComparison> crateApiStatsStatsClientComparison({
+    required StatsClient that,
+    required String by,
+    required StatsFilter current,
+    required StatsFilter previous,
+    required int offsetMinutes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+            that,
+            serializer,
+          );
+          sse_encode_String(by, serializer);
+          sse_encode_box_autoadd_stats_filter(current, serializer);
+          sse_encode_box_autoadd_stats_filter(previous, serializer);
+          sse_encode_i_32(offsetMinutes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 11,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_stats_comparison,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiStatsStatsClientComparisonConstMeta,
+        argValues: [that, by, current, previous, offsetMinutes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStatsStatsClientComparisonConstMeta =>
+      const TaskConstMeta(
+        debugName: "StatsClient_comparison",
+        argNames: ["that", "by", "current", "previous", "offsetMinutes"],
+      );
+
+  @override
   Future<StatsDiscovery> crateApiStatsStatsClientDiscovery({
     required StatsClient that,
     required bool fresh,
@@ -665,7 +724,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -703,7 +762,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -743,7 +802,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -779,7 +838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -812,7 +871,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -854,7 +913,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -898,7 +957,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -933,7 +992,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -970,7 +1029,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -987,6 +1046,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiStatsStatsClientPricingConstMeta =>
       const TaskConstMeta(debugName: "StatsClient_pricing", argNames: ["that"]);
+
+  @override
+  Future<StatsSessions> crateApiStatsStatsClientQuerySessions({
+    required StatsClient that,
+    required StatsFilter filter,
+    required StatsSessionQuery query,
+    required int offsetMinutes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_stats_filter(filter, serializer);
+          sse_encode_box_autoadd_stats_session_query(query, serializer);
+          sse_encode_i_32(offsetMinutes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_stats_sessions,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiStatsStatsClientQuerySessionsConstMeta,
+        argValues: [that, filter, query, offsetMinutes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStatsStatsClientQuerySessionsConstMeta =>
+      const TaskConstMeta(
+        debugName: "StatsClient_query_sessions",
+        argNames: ["that", "filter", "query", "offsetMinutes"],
+      );
 
   @override
   Future<StatsRequests> crateApiStatsStatsClientRequests({
@@ -1009,7 +1110,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1053,7 +1154,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1105,7 +1206,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1163,7 +1264,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1197,7 +1298,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1233,7 +1334,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1270,7 +1371,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1304,7 +1405,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1337,7 +1438,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1375,7 +1476,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1417,7 +1518,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1447,7 +1548,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1479,7 +1580,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1514,7 +1615,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1544,7 +1645,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1571,7 +1672,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1609,7 +1710,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1795,6 +1896,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSessionDetail dco_decode_box_autoadd_stats_session_detail(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_stats_session_detail(raw);
+  }
+
+  @protected
+  StatsSessionQuery dco_decode_box_autoadd_stats_session_query(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_stats_session_query(raw);
   }
 
   @protected
@@ -2340,6 +2447,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsComparison dco_decode_stats_comparison(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return StatsComparison(
+      by: dco_decode_String(arr[0]),
+      current: dco_decode_stats_comparison_side(arr[1]),
+      previous: dco_decode_stats_comparison_side(arr[2]),
+    );
+  }
+
+  @protected
+  StatsComparisonSide dco_decode_stats_comparison_side(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return StatsComparisonSide(
+      totals: dco_decode_stats_totals(arr[0]),
+      groups: dco_decode_list_stats_group(arr[1]),
+    );
+  }
+
+  @protected
   StatsCostParts dco_decode_stats_cost_parts(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -2438,8 +2570,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsFilter dco_decode_stats_filter(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return StatsFilter(
       from: dco_decode_opt_String(arr[0]),
       to: dco_decode_opt_String(arr[1]),
@@ -2447,6 +2579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       model: dco_decode_opt_String(arr[3]),
       project: dco_decode_opt_String(arr[4]),
       excludeSources: dco_decode_opt_list_String(arr[5]),
+      missing: dco_decode_opt_String(arr[6]),
     );
   }
 
@@ -2812,6 +2945,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       unpricedRecords: dco_decode_CastedPrimitive_i_64(arr[9]),
       recordCount: dco_decode_CastedPrimitive_i_64(arr[10]),
       eventGrossTokens: dco_decode_opt_CastedPrimitive_i_64(arr[11]),
+    );
+  }
+
+  @protected
+  StatsSessionQuery dco_decode_stats_session_query(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return StatsSessionQuery(
+      q: dco_decode_opt_String(arr[0]),
+      sort: dco_decode_opt_String(arr[1]),
+      dir: dco_decode_opt_String(arr[2]),
+      limit: dco_decode_opt_CastedPrimitive_i_64(arr[3]),
+      cursor: dco_decode_opt_String(arr[4]),
     );
   }
 
@@ -3378,6 +3526,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_stats_session_detail(deserializer));
+  }
+
+  @protected
+  StatsSessionQuery sse_decode_box_autoadd_stats_session_query(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_stats_session_query(deserializer));
   }
 
   @protected
@@ -4282,6 +4438,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StatsComparison sse_decode_stats_comparison(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_by = sse_decode_String(deserializer);
+    var var_current = sse_decode_stats_comparison_side(deserializer);
+    var var_previous = sse_decode_stats_comparison_side(deserializer);
+    return StatsComparison(
+      by: var_by,
+      current: var_current,
+      previous: var_previous,
+    );
+  }
+
+  @protected
+  StatsComparisonSide sse_decode_stats_comparison_side(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_totals = sse_decode_stats_totals(deserializer);
+    var var_groups = sse_decode_list_stats_group(deserializer);
+    return StatsComparisonSide(totals: var_totals, groups: var_groups);
+  }
+
+  @protected
   StatsCostParts sse_decode_stats_cost_parts(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_input = sse_decode_String(deserializer);
@@ -4407,6 +4586,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_model = sse_decode_opt_String(deserializer);
     var var_project = sse_decode_opt_String(deserializer);
     var var_excludeSources = sse_decode_opt_list_String(deserializer);
+    var var_missing = sse_decode_opt_String(deserializer);
     return StatsFilter(
       from: var_from,
       to: var_to,
@@ -4414,6 +4594,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       model: var_model,
       project: var_project,
       excludeSources: var_excludeSources,
+      missing: var_missing,
     );
   }
 
@@ -4886,6 +5067,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       unpricedRecords: var_unpricedRecords,
       recordCount: var_recordCount,
       eventGrossTokens: var_eventGrossTokens,
+    );
+  }
+
+  @protected
+  StatsSessionQuery sse_decode_stats_session_query(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_q = sse_decode_opt_String(deserializer);
+    var var_sort = sse_decode_opt_String(deserializer);
+    var var_dir = sse_decode_opt_String(deserializer);
+    var var_limit = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_cursor = sse_decode_opt_String(deserializer);
+    return StatsSessionQuery(
+      q: var_q,
+      sort: var_sort,
+      dir: var_dir,
+      limit: var_limit,
+      cursor: var_cursor,
     );
   }
 
@@ -5567,6 +5767,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_stats_session_detail(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_stats_session_query(
+    StatsSessionQuery self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_stats_session_query(self, serializer);
   }
 
   @protected
@@ -6385,6 +6594,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_stats_comparison(
+    StatsComparison self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.by, serializer);
+    sse_encode_stats_comparison_side(self.current, serializer);
+    sse_encode_stats_comparison_side(self.previous, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_comparison_side(
+    StatsComparisonSide self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_stats_totals(self.totals, serializer);
+    sse_encode_list_stats_group(self.groups, serializer);
+  }
+
+  @protected
   void sse_encode_stats_cost_parts(
     StatsCostParts self,
     SseSerializer serializer,
@@ -6473,6 +6703,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.model, serializer);
     sse_encode_opt_String(self.project, serializer);
     sse_encode_opt_list_String(self.excludeSources, serializer);
+    sse_encode_opt_String(self.missing, serializer);
   }
 
   @protected
@@ -6775,6 +7006,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_CastedPrimitive_i_64(self.unpricedRecords, serializer);
     sse_encode_CastedPrimitive_i_64(self.recordCount, serializer);
     sse_encode_opt_CastedPrimitive_i_64(self.eventGrossTokens, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_session_query(
+    StatsSessionQuery self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.q, serializer);
+    sse_encode_opt_String(self.sort, serializer);
+    sse_encode_opt_String(self.dir, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.limit, serializer);
+    sse_encode_opt_String(self.cursor, serializer);
   }
 
   @protected
@@ -7176,6 +7420,19 @@ class StatsClientImpl extends RustOpaque implements StatsClient {
     offsetMinutes: offsetMinutes,
   );
 
+  Future<StatsComparison> comparison({
+    required String by,
+    required StatsFilter current,
+    required StatsFilter previous,
+    required int offsetMinutes,
+  }) => RustLib.instance.api.crateApiStatsStatsClientComparison(
+    that: this,
+    by: by,
+    current: current,
+    previous: previous,
+    offsetMinutes: offsetMinutes,
+  );
+
   Future<StatsDiscovery> discovery({required bool fresh}) => RustLib
       .instance
       .api
@@ -7228,6 +7485,17 @@ class StatsClientImpl extends RustOpaque implements StatsClient {
 
   Future<StatsPricing> pricing() =>
       RustLib.instance.api.crateApiStatsStatsClientPricing(that: this);
+
+  Future<StatsSessions> querySessions({
+    required StatsFilter filter,
+    required StatsSessionQuery query,
+    required int offsetMinutes,
+  }) => RustLib.instance.api.crateApiStatsStatsClientQuerySessions(
+    that: this,
+    filter: filter,
+    query: query,
+    offsetMinutes: offsetMinutes,
+  );
 
   Future<StatsRequests> requests({
     required StatsFilter filter,

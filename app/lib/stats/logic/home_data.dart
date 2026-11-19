@@ -86,6 +86,7 @@ class TrendBucket {
   final by = <String, int>{};
   int total = 0;
   int? costMicros;
+  bool hasUsage = false;
 }
 
 String nowBucketKey(String granularity, DateTime now) => granularity == 'hour'
@@ -96,14 +97,17 @@ String nowBucketKey(String granularity, DateTime now) => granularity == 'hour'
 List<TrendBucket> buildBuckets(
   List<StatsBucket> rows,
   PeriodAxis axis,
-  DateTime now,
-) {
+  DateTime now, {
+  bool cost = false,
+}) {
   final map = <String, TrendBucket>{};
   for (final row in rows) {
     final entry = map.putIfAbsent(row.bucket, () => TrendBucket(row.bucket));
-    entry.by[row.key ?? ''] = row.grossTokens;
-    entry.total += row.grossTokens;
-    if (row.costUsd != null) {
+    final amount = cost ? (row.costMicros ?? 0) : row.grossTokens;
+    entry.by[row.key ?? ''] = amount;
+    entry.total += amount;
+    entry.hasUsage |= row.recordCount > 0;
+    if (row.costMicros != null) {
       entry.costMicros = (entry.costMicros ?? 0) + row.costMicros!;
     }
   }

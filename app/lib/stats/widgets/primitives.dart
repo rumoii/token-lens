@@ -383,11 +383,13 @@ class LensSegmented extends StatefulWidget {
     required this.onChanged,
     required this.label,
     this.small = false,
+    this.menu,
   });
   final Map<String, String> options;
   final String value, label;
   final ValueChanged<String> onChanged;
   final bool small;
+  final ({String option, Key anchor})? menu;
   @override
   State<LensSegmented> createState() => _LensSegmentedState();
 }
@@ -440,32 +442,44 @@ class _LensSegmentedState extends State<LensSegmented>
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
+    final menu = widget.menu;
     final widths = [
       for (final e in widget.options.entries)
-        e.key == 'custom'
-            ? 14.0
-            : (TextPainter(
-                text: TextSpan(
-                  text: e.value,
-                  style: p.text(12, null, FontWeight.w600),
-                ),
-                textDirection: TextDirection.ltr,
-              )..layout()).width,
+        (e.key == 'custom'
+                ? 14.0
+                : (TextPainter(
+                    text: TextSpan(
+                      text: e.value,
+                      style: p.text(12, null, FontWeight.w600),
+                    ),
+                    textDirection: TextDirection.ltr,
+                  )..layout()).width) +
+            (e.key == menu?.option ? 16.0 : 0.0),
     ];
     final preferredWidth =
         widths.reduce(math.max) + (widget.options.length == 5 ? 18 : 20);
     final height = widget.small ? 28.0 : 32.0;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = math.min(
-          preferredWidth,
-          math.max(0, constraints.maxWidth - 4) / widths.length,
+        final preferred = [
+          for (final width in widths)
+            menu == null ? preferredWidth : width + 18,
+        ];
+        final total = preferred.fold<double>(0, (a, b) => a + b);
+        final scale = (math.max(0.0, constraints.maxWidth - 4) / total).clamp(
+          0.0,
+          1.0,
         );
+        final segmentWidths = preferred.map((width) => width * scale).toList();
+        final starts = <double>[0];
+        for (final width in segmentWidths) {
+          starts.add(starts.last + width);
+        }
         return Semantics(
           label: widget.label,
           container: true,
           child: Container(
-            width: width * widths.length + 4,
+            width: starts.last + 4,
             height: height,
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
@@ -479,45 +493,60 @@ class _LensSegmentedState extends State<LensSegmented>
               children: [
                 AnimatedBuilder(
                   animation: step,
-                  builder: (context, _) => Transform.translate(
-                    offset: Offset(step.value * width, 0),
-                    child: Container(
-                      width: width,
-                      height: height - 4,
-                      decoration: BoxDecoration(
-                        color: p.dark ? const Color(0xff2c2c2a) : Colors.white,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: (p.dark ? Colors.white : Colors.black)
-                              .withValues(alpha: .06),
-                          strokeAlign: BorderSide.strokeAlignInside,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(
-                              alpha: p.dark ? .4 : .08,
-                            ),
-                            offset: const Offset(0, 1),
-                            blurRadius: 3,
-                          ),
-                        ],
+                  builder: (context, _) {
+                    final at = step.value.clamp(0, segmentWidths.length - 1);
+                    final left = at.floor(), right = at.ceil();
+                    double interpolate(double a, double b) =>
+                        a + (b - a) * (at - left);
+                    return Transform.translate(
+                      offset: Offset(
+                        interpolate(starts[left], starts[right]),
+                        0,
                       ),
-                    ),
-                  ),
+                      child: Container(
+                        width: interpolate(
+                          segmentWidths[left],
+                          segmentWidths[right],
+                        ),
+                        height: height - 4,
+                        decoration: BoxDecoration(
+                          color: p.dark
+                              ? const Color(0xff2c2c2a)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: (p.dark ? Colors.white : Colors.black)
+                                .withValues(alpha: .06),
+                            strokeAlign: BorderSide.strokeAlignInside,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: p.dark ? .4 : .08,
+                              ),
+                              offset: const Offset(0, 1),
+                              blurRadius: 3,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 Row(
                   children: [
-                    for (final e in widget.options.entries)
+                    for (final (i, e) in widget.options.entries.indexed)
                       Semantics(
                         label: e.value,
                         selected: e.key == widget.value,
                         button: true,
                         child: LensFocusOutline(
                           child: InkWell(
+                            key: e.key == menu?.option ? menu?.anchor : null,
                             onTap: () => widget.onChanged(e.key),
                             borderRadius: BorderRadius.circular(999),
                             child: SizedBox(
-                              width: width,
+                              width: segmentWidths[i],
                               height: height - 4,
                               child: Center(
                                 child: e.key == 'custom'
@@ -529,19 +558,34 @@ class _LensSegmentedState extends State<LensSegmented>
                                           color: p.muted,
                                         ),
                                       )
-                                    : Text(
-                                        e.value,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: p.text(
-                                          12,
-                                          e.key == widget.value
-                                              ? p.ink
-                                              : p.muted,
-                                          e.key == widget.value
-                                              ? FontWeight.w600
-                                              : FontWeight.w400,
-                                        ),
+                                    : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              e.value,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: p.text(
+                                                12,
+                                                e.key == widget.value
+                                                    ? p.ink
+                                                    : p.muted,
+                                                e.key == widget.value
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w400,
+                                              ),
+                                            ),
+                                          ),
+                                          if (e.key == menu?.option) ...[
+                                            const SizedBox(width: 2),
+                                            Icon(
+                                              Icons.expand_more,
+                                              size: 14,
+                                              color: p.muted,
+                                            ),
+                                          ],
+                                        ],
                                       ),
                               ),
                             ),
@@ -769,6 +813,36 @@ class MoneyText extends StatelessWidget {
           decimals: digits ?? (converted > 0 && converted < .01 ? 4 : 2),
         ),
         style: style ?? p.text(),
+      ),
+    );
+  }
+}
+
+class TrendMetricControl extends StatelessWidget {
+  const TrendMetricControl({
+    super.key,
+    required this.cost,
+    required this.onChanged,
+  });
+
+  final bool cost;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.strings;
+    return SizedBox(
+      height: 28,
+      width: strings.isChinese ? 106 : 122,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: LensSegmented(
+          options: {'tokens': strings.trendTokens, 'cost': strings.trendCost},
+          value: cost ? 'cost' : 'tokens',
+          label: strings.usage,
+          small: true,
+          onChanged: (value) => onChanged(value == 'cost'),
+        ),
       ),
     );
   }

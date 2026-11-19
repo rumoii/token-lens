@@ -76,12 +76,18 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   late final page = LensResource<StatsSessions>(changed);
   late final sources = LensResource<StatsSources>(changed);
   late final projects = LensResource<StatsBreakdown>(changed);
+  late final models = LensResource<StatsBreakdown>(changed);
+  late final search = TextEditingController(text: q['q'] ?? '');
+  Timer? searchDelay;
   List<StatsSessionItem> history = [];
   String? cursor, _pageIdentity, _opened;
   bool _panel = false, _navigating = false;
   StatsController get c => widget.controller;
   Map<String, String> get q =>
       c.visibleQuery(Uri.splitQueryString(widget.query));
+  static const sortKeys = ['tokens', 'cost', 'started', 'recent', 'requests'];
+  String get sort => sortKeys.contains(q['sort']) ? q['sort']! : 'tokens';
+  String get dir => q['dir'] == 'asc' ? 'asc' : 'desc';
   String _scope = '';
   StatsPeriod get period => q.containsKey('period')
       ? StatsPeriod.parse(widget.query)
@@ -109,6 +115,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   @override
   void didUpdateWidget(StatsSessionsPage old) {
     super.didUpdateWidget(old);
+    if (Uri.splitQueryString(old.query)['q'] != q['q']) {
+      searchDelay?.cancel();
+      final value = q['q'] ?? '';
+      if (search.text != value) search.text = value;
+    }
     if (old.controller != c) {
       old.controller.removeListener(refresh);
       c.addListener(refresh);
@@ -120,9 +131,12 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   @override
   void dispose() {
     c.removeListener(refresh);
+    searchDelay?.cancel();
+    search.dispose();
     page.dispose();
     sources.dispose();
     projects.dispose();
+    models.dispose();
     super.dispose();
   }
 
@@ -150,8 +164,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     final scope = c.hiddenScope;
     final retainData = scope == _scope;
     _scope = scope;
+    final query = params['q']?.trim();
     final identity =
-        '${c.ledgerVersion}|${params['tool']}|${params['project']}|${params['model']}|${period.query}|${period.range(c.clock())}|$scope';
+        '${c.ledgerVersion}|${params['tool']}|${params['project']}|${params['model']}|${period.query}|${period.range(c.clock())}|$scope|${Uri.encodeComponent(query ?? '')}|$sort|$dir';
     if (_pageIdentity != identity) {
       _pageIdentity = identity;
       history = [];
@@ -159,9 +174,19 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     }
     final filter = usageFilter;
     final at = cursor;
+    final gateway = c.gateway;
+    final options = StatsSessionQuery(
+      q: query,
+      sort: sort,
+      dir: dir,
+      limit: 50,
+      cursor: at,
+    );
     page.read(
       '$identity|$cursor',
-      () => c.gateway.sessions(filter, limit: 50, cursor: at),
+      () => gateway is StatsSessionQueryGateway
+          ? (gateway as StatsSessionQueryGateway).querySessions(filter, options)
+          : gateway.sessions(filter, limit: 50, cursor: at),
       retainData: retainData,
     );
     sources.read(c.ledgerVersion, () => c.gateway.sources());
@@ -169,6 +194,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       (c.ledgerVersion, scope),
       () =>
           c.gateway.breakdown('project', c.visibleFilter(const StatsFilter())),
+      retainData: retainData,
+    );
+    models.read(
+      (c.ledgerVersion, scope),
+      () => gateway.breakdown('model', c.visibleFilter(const StatsFilter())),
       retainData: retainData,
     );
   }
@@ -186,6 +216,80 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       next[key] = value;
     }
     widget.onQuery(Uri(queryParameters: next).query);
+  }
+
+  void orderBy(String key, {bool reverseCurrent = false}) {
+    final direction = key == sort && reverseCurrent
+        ? (dir == 'desc' ? 'asc' : 'desc')
+        : key == sort
+        ? dir
+        : 'desc';
+    widget.onQuery(
+      Uri(queryParameters: {...q, 'sort': key, 'dir': direction}).query,
+    );
+  }
+
+  Map<String, String> sortLabels(AppStrings strings) => {
+    'tokens': strings.sessionSortUsage,
+    'cost': strings.sessionSortCost,
+    'started': strings.sessionSortStarted,
+    'recent': strings.sessionSortRecent,
+    'requests': strings.sessionSortRequests,
+  };
+
+  String sortInSentence(AppStrings strings) => switch (sort) {
+    'cost' => strings.sessionSortCostInSentence,
+    'started' => strings.sessionSortStartedInSentence,
+    'recent' => strings.sessionSortRecentInSentence,
+    'requests' => strings.sessionSortRequestsInSentence,
+    _ => strings.sessionSortUsageInSentence,
+  };
+
+  Widget searchField() {
+    final strings = context.strings;
+    return SizedBox(
+      width: strings.isChinese ? 250 : 295,
+      height: 34,
+      child: TextField(
+        controller: search,
+        onChanged: (_) {
+          searchDelay?.cancel();
+          searchDelay = Timer(const Duration(milliseconds: 250), () {
+            filter('q', search.text.trim());
+          });
+          changed();
+        },
+        style: p.text(13),
+        decoration: InputDecoration(
+          hintText: strings.sessionSearch,
+          hintStyle: p.text(13, p.muted),
+          isDense: true,
+          filled: true,
+          fillColor: p.surface,
+          prefixIcon: const Icon(Icons.search, size: 17),
+          prefixIconConstraints: const BoxConstraints(minWidth: 30),
+          suffixIcon: search.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: strings.clearSessionSearch,
+                  iconSize: 15,
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    searchDelay?.cancel();
+                    search.clear();
+                    filter('q', '');
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+          suffixIconConstraints: const BoxConstraints.tightFor(width: 30),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 8,
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
   }
 
   void schedulePanel() {
@@ -280,7 +384,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   Widget filters() => Wrap(
     spacing: 8,
     runSpacing: 8,
+    crossAxisAlignment: WrapCrossAlignment.center,
     children: [
+      searchField(),
       FilterPick(
         label: context.strings.tool,
         options: [
@@ -311,6 +417,35 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ],
         onPick: (v) => filter('project', v),
       ),
+      FilterPick(
+        label: context.strings.model,
+        options: [
+          for (final g in models.data?.groups ?? <StatsGroup>[])
+            if (g.key?.isNotEmpty == true) FilterOption(g.key!, g.key!),
+        ],
+        onPick: (v) => filter('model', v),
+      ),
+      FilterPick(
+        key: const Key('sessions-sort'),
+        label: sortLabels(context.strings)[sort]!,
+        searchable: false,
+        options: [
+          for (final entry in sortLabels(context.strings).entries)
+            FilterOption(entry.key, entry.value),
+        ],
+        onPick: orderBy,
+      ),
+      LensFocusOutline(
+        child: IconButton(
+          tooltip: dir == 'asc'
+              ? context.strings.sortAscending
+              : context.strings.sortDescending,
+          iconSize: 16,
+          visualDensity: VisualDensity.compact,
+          onPressed: () => orderBy(sort, reverseCurrent: true),
+          icon: Icon(dir == 'asc' ? Icons.arrow_upward : Icons.arrow_downward),
+        ),
+      ),
       if (q['tool']?.isNotEmpty == true)
         FilterTag(
           label: context.strings.tool,
@@ -334,10 +469,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   );
   Widget list() {
     final filter = usageFilter;
-    final groupByDate = ![
-      filter.from,
-      filter.to,
-    ].any((value) => value?.isNotEmpty == true);
+    final groupByDate =
+        (sort == 'recent' || c.gateway is! StatsSessionQueryGateway) &&
+        ![filter.from, filter.to].any((value) => value?.isNotEmpty == true);
     final groups = <({String key, List<StatsSessionItem> rows})>[];
     for (final row in items) {
       final day = dayName(row.lastSeenAt, c.clock(), context.strings);
@@ -379,6 +513,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             context.strings.estCost,
             context.strings.requests,
           ];
+    final columns = scoped
+        ? [null, 'started', 'tokens', 'requests', null, null, 'cost']
+        : [null, 'started', null, 'tokens', 'cost', 'requests'];
+    String recentText(StatsSessionItem row) =>
+        '${dayName(row.lastSeenAt, c.clock(), context.strings)} ${hm(row.lastSeenAt)}';
     String nt(int n) => tokenCount(n, unitSystem: c.unitSystem);
     String requests(int? n, {int? lifetimeCount}) => n == null
         ? requestText(
@@ -413,10 +552,17 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     final preferred = [
       for (final label in labels) textWidth(label, p.text(12)),
     ];
+    preferred[1] = math.max(
+      preferred[1],
+      textWidth(context.strings.sessionSortRecent, p.text(12)),
+    );
     for (final r in items) {
       final texts = values(r);
       for (var i = 0; i < preferred.length; i++) {
         var width = textWidth(texts[i], p.text(13));
+        if (i == 1) {
+          width = math.max(width, textWidth(recentText(r), p.text(12)));
+        }
         if (i == 0) {
           width =
               math.max(width, textWidth(toolOf(r.source).name, p.text(12))) +
@@ -607,9 +753,15 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                         children: [
                           cell(name, 0, right: false),
                           cell(
-                            Text(
-                              startText(r, c.clock(), context.strings),
-                              style: p.text(13, p.secondary),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  startText(r, c.clock(), context.strings),
+                                  style: p.text(13, p.secondary),
+                                ),
+                                Text(recentText(r), style: p.text(12, p.muted)),
+                              ],
                             ),
                             1,
                             right: false,
@@ -641,6 +793,38 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       );
     }
 
+    Widget header(String title, String? key) {
+      final selected = key != null && key == sort;
+      final text = Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: p.text(12, selected ? p.ink : p.muted).copyWith(height: 1.4),
+      );
+      if (key == null) return text;
+      return Semantics(
+        button: true,
+        selected: selected,
+        child: LensFocusOutline(
+          child: InkWell(
+            key: Key('sessions-header-$key'),
+            onTap: () => orderBy(key, reverseCurrent: true),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: text),
+                if (selected)
+                  Icon(
+                    dir == 'asc' ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 10,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget content() => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -659,10 +843,18 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
               children: [
                 for (var i = 0; i < labels.length; i++)
                   cell(
-                    Text(
-                      labels[i],
-                      style: p.text(12, p.muted).copyWith(height: 1.4),
-                    ),
+                    i == 1
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              header(labels[i], columns[i]),
+                              header(
+                                context.strings.sessionSortRecent,
+                                'recent',
+                              ),
+                            ],
+                          )
+                        : header(labels[i], columns[i]),
                     i,
                     right: i > 1,
                   ),
@@ -730,11 +922,12 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
           StatsHiddenNotice(controller: c, onManage: widget.onManageHidden!),
         const SizedBox(height: 4),
         Text(
-          scoped
-              ? period.period == 'all'
-                    ? context.strings.usageReflectsTheFiltersSessionTotalsCover
-                    : context.strings.sessionsWithUsageIn0SortedBy(periodLabel)
-              : context.strings.aSessionIsATaskInAn2,
+          context.strings.sortedSessions(
+            period.isShortcut
+                ? period.inSentence(context.strings)
+                : periodLabel,
+            sortInSentence(context.strings),
+          ),
           style: p.text(14, p.secondary),
         ),
         SizedBox(height: narrow ? 12 : 16),
@@ -780,10 +973,13 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                       ? Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 18),
                           child: EmptyState(
-                            title: context.strings.noSessionsYet,
-                            hint:
-                                q['tool']?.isNotEmpty == true ||
-                                    q['project']?.isNotEmpty == true
+                            title: q['q']?.isNotEmpty == true
+                                ? context.strings.noMatchingSessions(q['q']!)
+                                : context.strings.noSessionsYet,
+                            hint: q['q']?.isNotEmpty == true
+                                ? null
+                                : q['tool']?.isNotEmpty == true ||
+                                      q['project']?.isNotEmpty == true
                                 ? context.strings.tryAnotherFilter
                                 : context
                                       .strings

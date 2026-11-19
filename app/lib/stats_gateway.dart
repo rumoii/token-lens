@@ -36,6 +36,21 @@ abstract interface class StatsProgressGateway {
   Future<StatsSyncProgress?> syncProgress();
 }
 
+abstract interface class StatsSessionQueryGateway {
+  Future<StatsSessions> querySessions(
+    StatsFilter filter,
+    StatsSessionQuery query,
+  );
+}
+
+abstract interface class StatsComparisonGateway {
+  Future<StatsComparison> comparison(
+    String by,
+    StatsFilter current,
+    StatsFilter previous,
+  );
+}
+
 abstract interface class StatsUsageExporter {
   Future<String> exportUsage({
     required String by,
@@ -48,7 +63,12 @@ abstract interface class StatsUsageExporter {
 }
 
 class RustStatsGateway
-    implements StatsGateway, StatsProgressGateway, StatsUsageExporter {
+    implements
+        StatsGateway,
+        StatsProgressGateway,
+        StatsUsageExporter,
+        StatsSessionQueryGateway,
+        StatsComparisonGateway {
   RustStatsGateway(this.client);
   final StatsClient client;
   int get _offset => DateTime.now().timeZoneOffset.inMinutes;
@@ -90,6 +110,27 @@ class RustStatsGateway
     filter: filter,
     limit: limit,
     cursor: cursor,
+    offsetMinutes: _offset,
+  );
+  @override
+  Future<StatsSessions> querySessions(
+    StatsFilter filter,
+    StatsSessionQuery query,
+  ) => client.querySessions(
+    filter: filter,
+    query: query,
+    offsetMinutes: _offset,
+  );
+
+  @override
+  Future<StatsComparison> comparison(
+    String by,
+    StatsFilter current,
+    StatsFilter previous,
+  ) => client.comparison(
+    by: by,
+    current: current,
+    previous: previous,
     offsetMinutes: _offset,
   );
   @override

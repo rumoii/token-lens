@@ -21,8 +21,9 @@ const _trendDateTop = 192.0;
 
 List<({double fraction, String label})> trendAxisTicks(
   List<TrendBucket> buckets,
-  String unitSystem,
-) {
+  String unitSystem, {
+  String Function(num)? format,
+}) {
   final peak = buckets.fold<int>(
     0,
     (value, bucket) => math.max(value, bucket.total),
@@ -33,7 +34,8 @@ List<({double fraction, String label})> trendAxisTicks(
   for (final fraction in [0.0, .5, 1.0]) {
     final label = fraction == 0
         ? '0'
-        : tokenCount(ceiling * fraction, unitSystem: unitSystem);
+        : format?.call(ceiling * fraction) ??
+              tokenCount(ceiling * fraction, unitSystem: unitSystem);
     unique[label] = (fraction: fraction, label: label);
   }
   return unique.values.toList();
@@ -55,6 +57,7 @@ class TrendChart extends StatefulWidget {
     this.currency = 'USD',
     this.rate = 1,
     this.growth = 1,
+    this.costMode = false,
   });
   final List<TrendBucket> buckets;
   final List<String> order;
@@ -63,8 +66,22 @@ class TrendChart extends StatefulWidget {
   final DateTime now;
   final String? highlight, selected;
   final bool weekdays;
+  final bool costMode;
   final ValueChanged<String>? onPick;
   final double rate, growth;
+  String format(num n) => costMode
+      ? usdCurrency(
+          n / 1000000,
+          decimals: n.abs() < 100
+              ? 6
+              : n.abs() < 10000
+              ? 4
+              : 2,
+          currency: currency,
+          rate: rate,
+        )
+      : tokenCount(n, unitSystem: unitSystem);
+  double get axisInset => costMode ? 68 : 44;
   @override
   State<TrendChart> createState() => _TrendChartState();
 }
@@ -78,18 +95,26 @@ class _TrendChartState extends State<TrendChart> {
   }
 
   int? hot;
-  String format(num n) => tokenCount(n, unitSystem: widget.unitSystem);
+  String format(num n) => widget.format(n);
+  bool canPick(TrendBucket bucket) =>
+      widget.costMode ? bucket.hasUsage : bucket.total > 0;
   void pick() {
-    if (hot != null && widget.buckets[hot!].total > 0) {
+    if (hot != null &&
+        hot! < widget.buckets.length &&
+        canPick(widget.buckets[hot!])) {
       widget.onPick?.call(widget.buckets[hot!].bucket);
     }
   }
 
   void point(Offset position, double width) {
     if (widget.buckets.isEmpty) return;
-    final index = ((position.dx - 44) / (width - 44) * widget.buckets.length)
-        .floor()
-        .clamp(0, widget.buckets.length - 1);
+    final inset = widget.axisInset;
+    final index =
+        ((position.dx - inset) /
+                math.max(1, width - inset) *
+                widget.buckets.length)
+            .floor()
+            .clamp(0, widget.buckets.length - 1);
     if (hot != index) setState(() => hot = index);
   }
 
@@ -123,11 +148,7 @@ class _TrendChartState extends State<TrendChart> {
               focusNode: focusNode,
               onFocusChange: (focus) => setState(() {
                 hot = focus && widget.buckets.isNotEmpty
-                    ? hot ??
-                          math.max(
-                            0,
-                            widget.buckets.lastIndexWhere((b) => b.total > 0),
-                          )
+                    ? hot ?? math.max(0, widget.buckets.lastIndexWhere(canPick))
                     : null;
               }),
               onKeyEvent: (_, event) {
@@ -177,11 +198,12 @@ class _TrendChartState extends State<TrendChart> {
                       children: [
                         Positioned.fill(
                           child: TimelineMotion(
-                            key: ValueKey(
+                            key: ValueKey((
                               widget.buckets
                                   .map((b) => '${b.bucket}:${b.total}')
                                   .join('|'),
-                            ),
+                              widget.costMode,
+                            )),
                             duration: const Duration(milliseconds: 1500),
                             builder: (context, ms) => Semantics(
                               container: true,
@@ -189,6 +211,9 @@ class _TrendChartState extends State<TrendChart> {
                                 trendAxisTicks(
                                       widget.buckets,
                                       widget.unitSystem,
+                                      format: widget.costMode
+                                          ? widget.format
+                                          : null,
                                     )
                                     .map((tick) => tick.label)
                                     .join(context.strings.listSeparator),
@@ -211,16 +236,18 @@ class _TrendChartState extends State<TrendChart> {
                           Positioned(
                             top: 0,
                             left: hot! < widget.buckets.length / 2
-                                ? (44 +
+                                ? (widget.axisInset +
                                           (hot! + .5) /
                                               widget.buckets.length *
-                                              (box.maxWidth - 44) +
+                                              (box.maxWidth -
+                                                  widget.axisInset) +
                                           10)
                                       .clamp(0, math.max(0, box.maxWidth - 210))
                                 : null,
                             right: hot! >= widget.buckets.length / 2
                                 ? ((1 - (hot! + .5) / widget.buckets.length) *
-                                              (box.maxWidth - 44) +
+                                              (box.maxWidth -
+                                                  widget.axisInset) +
                                           10)
                                       .clamp(0, math.max(0, box.maxWidth - 210))
                                 : null,
@@ -240,7 +267,9 @@ class _TrendChartState extends State<TrendChart> {
                                     Text(
                                       '${_tipLabel(tip.bucket, widget.granularity, widget.now, context.strings)}   ${tip.future
                                           ? context.strings.upcoming2
-                                          : tip.total == 0
+                                          : widget.costMode && tip.costMicros == null && tip.hasUsage
+                                          ? context.strings.unpriced
+                                          : !canPick(tip)
                                           ? context.strings.noUsage2
                                           : format(tip.total)}',
                                       style: p.text(
@@ -278,7 +307,7 @@ class _TrendChartState extends State<TrendChart> {
                                           ),
                                         ],
                                       ),
-                                    if (tip.total > 0)
+                                    if (!widget.costMode && tip.total > 0)
                                       Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
@@ -297,7 +326,7 @@ class _TrendChartState extends State<TrendChart> {
                                           ),
                                         ],
                                       ),
-                                    if (widget.onPick != null && tip.total > 0)
+                                    if (widget.onPick != null && canPick(tip))
                                       Text(
                                         context.strings
                                             .selectToViewThis0SBreakdown(
@@ -370,9 +399,14 @@ class _TrendPainter extends CustomPainter {
     final max = trendCeiling(
       w.buckets.fold<int>(1, (m, b) => math.max(m, b.total)),
     );
-    const top = 8.0, h = 180.0, left = 44.0;
+    const top = 8.0, h = 180.0;
+    final left = w.axisInset;
     final width = size.width - left;
-    final ticks = trendAxisTicks(w.buckets, w.unitSystem);
+    final ticks = trendAxisTicks(
+      w.buckets,
+      w.unitSystem,
+      format: w.costMode ? w.format : null,
+    );
     for (final f in [0.0, .5, 1.0]) {
       final y = top + h * (1 - f);
       canvas.drawLine(
@@ -388,7 +422,10 @@ class _TrendPainter extends CustomPainter {
             text: TextSpan(text: tick.label, style: p.text(11, p.muted)),
             textDirection: TextDirection.ltr,
           )..layout();
-          label.paint(canvas, Offset(40 - label.width, y - 8));
+          label.paint(
+            canvas,
+            Offset(math.max(0, left - 4 - label.width), y - 8),
+          );
           label.dispose();
         }
       }
@@ -479,7 +516,9 @@ class _TrendPainter extends CustomPainter {
       }
       label.dispose();
     }
-    final nonzero = w.buckets.where((b) => b.total > 0).toList();
+    final nonzero = w.buckets
+        .where((b) => w.costMode ? b.costMicros != null : b.total > 0)
+        .toList();
     if (nonzero.isNotEmpty) {
       final avg = nonzero.fold<int>(0, (s, b) => s + b.total) / nonzero.length;
       final y = top + h * (1 - avg / max);
@@ -494,7 +533,7 @@ class _TrendPainter extends CustomPainter {
       }
       final averageLabel = TextPainter(
         text: TextSpan(
-          text: strings.avg0(tokenCount(avg, unitSystem: w.unitSystem)),
+          text: strings.avg0(w.format(avg)),
           style: p.text(11, p.secondary),
         ),
         textDirection: TextDirection.ltr,

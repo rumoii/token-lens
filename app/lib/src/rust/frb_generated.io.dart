@@ -113,6 +113,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsSessionDetail dco_decode_box_autoadd_stats_session_detail(dynamic raw);
 
   @protected
+  StatsSessionQuery dco_decode_box_autoadd_stats_session_query(dynamic raw);
+
+  @protected
   StatsSource dco_decode_box_autoadd_stats_source(dynamic raw);
 
   @protected
@@ -335,6 +338,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsBucket dco_decode_stats_bucket(dynamic raw);
 
   @protected
+  StatsComparison dco_decode_stats_comparison(dynamic raw);
+
+  @protected
+  StatsComparisonSide dco_decode_stats_comparison_side(dynamic raw);
+
+  @protected
   StatsCostParts dco_decode_stats_cost_parts(dynamic raw);
 
   @protected
@@ -417,6 +426,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsSessionModel dco_decode_stats_session_model(dynamic raw);
+
+  @protected
+  StatsSessionQuery dco_decode_stats_session_query(dynamic raw);
 
   @protected
   StatsSessionSummary dco_decode_stats_session_summary(dynamic raw);
@@ -581,6 +593,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsSessionDetail sse_decode_box_autoadd_stats_session_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSessionQuery sse_decode_box_autoadd_stats_session_query(
     SseDeserializer deserializer,
   );
 
@@ -875,6 +892,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsBucket sse_decode_stats_bucket(SseDeserializer deserializer);
 
   @protected
+  StatsComparison sse_decode_stats_comparison(SseDeserializer deserializer);
+
+  @protected
+  StatsComparisonSide sse_decode_stats_comparison_side(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsCostParts sse_decode_stats_cost_parts(SseDeserializer deserializer);
 
   @protected
@@ -971,6 +996,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsSessionModel sse_decode_stats_session_model(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StatsSessionQuery sse_decode_stats_session_query(
     SseDeserializer deserializer,
   );
 
@@ -1169,6 +1199,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_stats_session_detail(
     StatsSessionDetail self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_stats_session_query(
+    StatsSessionQuery self,
     SseSerializer serializer,
   );
 
@@ -1545,6 +1581,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_stats_bucket(StatsBucket self, SseSerializer serializer);
 
   @protected
+  void sse_encode_stats_comparison(
+    StatsComparison self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_comparison_side(
+    StatsComparisonSide self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_stats_cost_parts(
     StatsCostParts self,
     SseSerializer serializer,
@@ -1676,6 +1724,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_stats_session_model(
     StatsSessionModel self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_session_query(
+    StatsSessionQuery self,
     SseSerializer serializer,
   );
 

@@ -11,6 +11,9 @@ String detailSearch(
       if (detail[key]?.isNotEmpty == true) key: detail[key]!,
     if (detail['dim']?.isNotEmpty == true && detail['dim'] != 'date')
       'dim': detail['dim']!,
+    if (detail['compare'] == '1') 'compare': '1',
+    if (['project', 'model'].contains(detail['missing']))
+      'missing': detail['missing']!,
   },
 ).query;
 String nextDim(String key) =>
@@ -55,6 +58,8 @@ Map<String, String> readDetail(String text) {
     'dim': ['date', 'tool', 'model', 'project', 'request'].contains(q['dim'])
         ? q['dim']!
         : 'date',
+    if (q['compare'] == '1') 'compare': '1',
+    if (['project', 'model'].contains(q['missing'])) 'missing': q['missing']!,
   };
 }
 

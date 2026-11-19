@@ -21,6 +21,8 @@ import 'onboarding_page.dart';
 import 'widgets/motion.dart';
 import '../update/update_widgets.dart';
 
+const _sidebarWidth = 244.0;
+
 class StatsPage extends StatefulWidget {
   const StatsPage({
     super.key,
@@ -48,6 +50,7 @@ class _StatsPageState extends State<StatsPage> {
   final _sidebarScroll = SmoothWheelController();
   final _updateCard = GlobalKey();
   String page = 'home', query = '';
+  Map<String, String> _sessionQuery = {};
   bool get newsVisible =>
       widget.news != null && widget.controller.preferences.newsEnabled;
   Map<String, (String, IconData)> get nav {
@@ -73,7 +76,14 @@ class _StatsPageState extends State<StatsPage> {
   void navigate(String target, [Map<String, String> params = const {}]) {
     scaffold.currentState?.closeDrawer();
     if (target == 'news' && !newsVisible) target = 'home';
-    params = widget.controller.visibleQuery({...params});
+    if (page == 'sessions') {
+      _sessionQuery = Uri.splitQueryString(query)
+        ..remove('source')
+        ..remove('session');
+    }
+    params = widget.controller.visibleQuery({
+      ...(target == 'sessions' && params.isEmpty ? _sessionQuery : params),
+    });
     setState(() {
       page = target;
       query = target == 'detail'
@@ -506,7 +516,8 @@ class _StatsPageState extends State<StatsPage> {
             drawerEnableOpenDragGesture: true,
             body: Row(
               children: [
-                if (!narrow) SizedBox(width: 244, child: sidebar(context)),
+                if (!narrow)
+                  SizedBox(width: _sidebarWidth, child: sidebar(context)),
                 Expanded(
                   child: FocusTraversalOrder(
                     order: const NumericFocusOrder(1),
@@ -579,6 +590,7 @@ class _StatsPageState extends State<StatsPage> {
                                           child: page == 'home'
                                               ? StatsHome(
                                                   controller: widget.controller,
+                                                  sidebarWidth: _sidebarWidth,
                                                   onDetail: (p) =>
                                                       navigate('detail', p),
                                                   onSessions: (p) =>

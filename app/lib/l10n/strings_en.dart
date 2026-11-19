@@ -2,6 +2,163 @@ part of 'app_strings.dart';
 
 final class EnglishStrings extends AppStrings {
   @override
+  String get morePeriods => 'More';
+
+  @override
+  String get lastSevenDays => 'Last 7 days';
+
+  @override
+  String get lastThirtyDays => 'Last 30 days';
+
+  @override
+  String get lastSevenDaysInSentence => 'the last 7 days';
+
+  @override
+  String get lastThirtyDaysInSentence => 'the last 30 days';
+
+  @override
+  String get dayBeforeYesterday => 'the day before';
+
+  @override
+  String get weekBeforeLast => 'the week before';
+
+  @override
+  String get monthBeforeLast => 'the month before';
+
+  @override
+  String get previousSevenDays => 'the previous 7 days';
+
+  @override
+  String get previousThirtyDays => 'the previous 30 days';
+
+  @override
+  String comparisonDates(String current, int n, String previous, int m) =>
+      comparisonDateRanges('$current ($n days)', '$previous ($m days)');
+
+  @override
+  String comparisonDateRanges(String current, String previous) =>
+      '$current vs. $previous';
+
+  @override
+  String get sessionSearch => 'Search projects, session IDs, tools or models';
+
+  @override
+  String noMatchingSessions(String q) => 'No sessions match “$q”';
+
+  @override
+  String get clearSessionSearch => 'Clear';
+
+  @override
+  String get sessionSortUsage => 'Usage in period';
+
+  @override
+  String get sessionSortCost => 'Cost';
+
+  @override
+  String get sessionSortStarted => 'Started';
+
+  @override
+  String get sessionSortRecent => 'Last active';
+
+  @override
+  String get sessionSortRequests => 'Requests in period';
+
+  @override
+  String get sortDescending => 'Descending';
+
+  @override
+  String get sortAscending => 'Ascending';
+
+  @override
+  String sortedSessions(String period, String sort) =>
+      'Sessions with usage ($period), sorted by $sort. Totals cover the full session.';
+
+  @override
+  String get sessionSortUsageInSentence => 'usage in that period';
+
+  @override
+  String get sessionSortCostInSentence => 'cost';
+
+  @override
+  String get sessionSortStartedInSentence => 'start time';
+
+  @override
+  String get sessionSortRecentInSentence => 'last activity';
+
+  @override
+  String get sessionSortRequestsInSentence => 'requests in that period';
+
+  @override
+  String get filterSearch => 'Search';
+
+  @override
+  String get noMatchingOptions => 'No matching options';
+
+  @override
+  String get seeWhatChanged => 'See what changed →';
+
+  @override
+  String get whatChangedFromPrevious => 'What changed from the previous period';
+
+  @override
+  String get comparisonCurrent => 'This period';
+
+  @override
+  String get comparisonPrevious => 'Previous period';
+
+  @override
+  String get comparisonChange => 'Change';
+
+  @override
+  String get sortedBySizeOfChange => 'Sorted by size of change';
+
+  @override
+  String get comparisonNew => 'New';
+
+  @override
+  String get comparisonUnused => 'Not used';
+
+  @override
+  String showMoreComparisonRows(int n) => 'Show $n more';
+
+  @override
+  String get noUsageInEitherPeriod => 'No usage in either period';
+
+  @override
+  String get partlyUnpriced => 'Partly unpriced';
+
+  @override
+  String get comparisonUnpricedNote =>
+      'Some records are unpriced; cost covers priced records only.';
+
+  @override
+  String biggestIncrease(String project, String n) =>
+      'The biggest increase was $project (+$n tokens).';
+
+  @override
+  String biggestDrop(String project, String n) =>
+      'The biggest drop was $project (−$n tokens).';
+
+  @override
+  String compareWith(String previous) => 'Compare with $previous';
+
+  @override
+  String get comparisonPreviousColumn => 'Previous';
+
+  @override
+  String get noComparisonPeriod =>
+      'All time and custom ranges have no previous period';
+
+  @override
+  String get trendTokens => 'Tokens';
+
+  @override
+  String get trendCost => 'Cost';
+
+  @override
+  String get trendUnpricedNote => 'Unpriced usage is not included in cost.';
+
+  @override
   String inventoryIntro(int total, int found) =>
       'Supports $total AI coding tools; $found found on this computer. Token Lens reads local logs only, uploads nothing and leaves tools unchanged.';
 
@@ -2424,7 +2581,7 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String get usageIsCountedWhenEachRecordOccurred =>
-      'Usage is counted when each record occurred. For tools that log only session totals, usage counts on the start day and request counts are unavailable. All sessions are sorted by most recent activity.';
+      'Usage is counted when each record occurred. For tools that log only session totals, usage counts on the start day and request counts are unavailable.';
 
   @override
   String get usageIsReady => 'Usage is ready';

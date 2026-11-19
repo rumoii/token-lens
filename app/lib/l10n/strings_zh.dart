@@ -2,6 +2,160 @@ part of 'app_strings.dart';
 
 final class ChineseStrings extends AppStrings {
   @override
+  String get morePeriods => '更多';
+
+  @override
+  String get lastSevenDays => '最近 7 天';
+
+  @override
+  String get lastThirtyDays => '最近 30 天';
+
+  @override
+  String get lastSevenDaysInSentence => '最近 7 天';
+
+  @override
+  String get lastThirtyDaysInSentence => '最近 30 天';
+
+  @override
+  String get dayBeforeYesterday => '前天';
+
+  @override
+  String get weekBeforeLast => '上上周';
+
+  @override
+  String get monthBeforeLast => '上上个月';
+
+  @override
+  String get previousSevenDays => '之前 7 天';
+
+  @override
+  String get previousThirtyDays => '之前 30 天';
+
+  @override
+  String comparisonDates(String current, int n, String previous, int m) =>
+      comparisonDateRanges('$current（$n 天）', '$previous（$m 天）');
+
+  @override
+  String comparisonDateRanges(String current, String previous) =>
+      '$current 对比 $previous';
+
+  @override
+  String get sessionSearch => '搜项目、会话 ID、工具或模型';
+
+  @override
+  String noMatchingSessions(String q) => '没有找到和“$q”匹配的会话';
+
+  @override
+  String get clearSessionSearch => '清除';
+
+  @override
+  String get sessionSortUsage => '时段内用量';
+
+  @override
+  String get sessionSortCost => '约值';
+
+  @override
+  String get sessionSortStarted => '开始时间';
+
+  @override
+  String get sessionSortRecent => '最近活动';
+
+  @override
+  String get sessionSortRequests => '时段内请求数';
+
+  @override
+  String get sortDescending => '降序';
+
+  @override
+  String get sortAscending => '升序';
+
+  @override
+  String sortedSessions(String period, String sort) =>
+      '$period有用量的会话，按$sort排序。累计是整个会话的总数。';
+
+  @override
+  String get sessionSortUsageInSentence => '时段内用量';
+
+  @override
+  String get sessionSortCostInSentence => '约值';
+
+  @override
+  String get sessionSortStartedInSentence => '开始时间';
+
+  @override
+  String get sessionSortRecentInSentence => '最近活动';
+
+  @override
+  String get sessionSortRequestsInSentence => '时段内请求数';
+
+  @override
+  String get filterSearch => '搜索';
+
+  @override
+  String get noMatchingOptions => '没有匹配的选项';
+
+  @override
+  String get seeWhatChanged => '看变化 →';
+
+  @override
+  String get whatChangedFromPrevious => '比上期变化在哪';
+
+  @override
+  String get comparisonCurrent => '本期';
+
+  @override
+  String get comparisonPrevious => '上期';
+
+  @override
+  String get comparisonChange => '差额';
+
+  @override
+  String get sortedBySizeOfChange => '按增减多少排序';
+
+  @override
+  String get comparisonNew => '本期新增';
+
+  @override
+  String get comparisonUnused => '本期未用';
+
+  @override
+  String showMoreComparisonRows(int n) => '展开其余 $n 项';
+
+  @override
+  String get noUsageInEitherPeriod => '两期都没有用量';
+
+  @override
+  String get partlyUnpriced => '含未定价';
+
+  @override
+  String get comparisonUnpricedNote => '有未定价的记录，金额只算已定价的部分。';
+
+  @override
+  String biggestIncrease(String project, String n) =>
+      '增加最多的是 $project（+$n token）。';
+
+  @override
+  String biggestDrop(String project, String n) => '减少最多的是 $project（−$n token）。';
+
+  @override
+  String compareWith(String previous) => '对比$previous';
+
+  @override
+  String get comparisonPreviousColumn => '上期';
+
+  @override
+  String get noComparisonPeriod => '全部和自选日期没有可对比的上期';
+
+  @override
+  String get trendTokens => 'token';
+
+  @override
+  String get trendCost => '金额';
+
+  @override
+  String get trendUnpricedNote => '未定价的用量不计入金额。';
+
+  @override
   String inventoryIntro(int total, int found) =>
       '支持 $total 个 AI 编程工具，这台电脑上找到 $found 个。Token Lens 只读它们的日志，不上传，也不改动这些工具。';
 
@@ -2269,7 +2423,7 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String get usageIsCountedWhenEachRecordOccurred =>
-      '时段用量按记录发生时间归属；只记录总数的会话算在开始那天，不记录请求数。全部会话按最近活动排序。';
+      '时段用量按记录发生时间归属；只记录总数的会话算在开始那天，不记录请求数。';
 
   @override
   String get usageIsReady => '统计好了';
