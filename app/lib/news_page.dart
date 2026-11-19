@@ -1,3 +1,5 @@
+import 'l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,26 +13,24 @@ import 'stats/widgets/filters.dart';
 import 'stats/widgets/primitives.dart';
 import 'stats/widgets/side_panel.dart';
 
-const _kindNames = {
-  'release': '版本',
+Map<String, String> _kindNames(AppStrings strings) => {
+  'release': strings.release,
   'api': 'API',
-  'deprecation': '弃用',
-  'pricing': '价格',
-  'model': '模型',
-  'general': '常规（无标签）',
+  'deprecation': strings.deprecation,
+  'pricing': strings.pricing,
+  'model': strings.model,
+  'general': strings.generalNoLabel,
 };
 
-const _metrics = {
-  'points': ('票', 'Hacker News 票数'),
-  'stars': ('星', 'GitHub 星数'),
-  'likes': ('赞', 'Hugging Face 点赞'),
-  'upvotes': ('赞', 'Hugging Face 论文点赞'),
+Map<String, (String, String)> _metrics(AppStrings strings) => {
+  'points': (strings.pts, strings.hackerNewsPoints),
+  'stars': (strings.stars, strings.githubStars),
+  'likes': (strings.likes, strings.huggingFaceLikes),
+  'upvotes': (strings.upvotes, strings.huggingFacePaperUpvotes),
 };
 
 // These sources publish a calendar day without a time of day.
 const _dateOnlySources = {'openai-api', 'anthropic-api', 'aibase'};
-
-const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
 
 class NewsPage extends StatefulWidget {
   const NewsPage({
@@ -127,16 +127,17 @@ class _NewsPageState extends State<NewsPage> {
 
   void _showOpenError() {
     if (!mounted) return;
-    ScaffoldMessenger.maybeOf(context)
-        ?.showSnackBar(const SnackBar(content: Text('无法打开原文，请检查默认浏览器设置。')));
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(context.strings.couldNotOpenTheArticleCheckYour)),
+    );
   }
 
   Future<void> _manageSources() async {
     await showLensPanel(
       context,
-      label: '管理来源',
-      title: '管理来源',
-      hint: '启停来源、查看每个来源的刷新状态',
+      label: context.strings.manageSources,
+      title: context.strings.manageSources,
+      hint: context.strings.enableOrDisableSourcesAndCheckRefresh,
       icon: Icon(
         Icons.tune_rounded,
         size: 20,
@@ -229,7 +230,7 @@ class _NewsPageState extends State<NewsPage> {
         Semantics(
           header: true,
           child: Text(
-            'AI 热点',
+            context.strings.aiNews,
             style: p
                 .serif(narrow ? 26 : 30, weight: FontWeight.w500)
                 .copyWith(height: 1.25, letterSpacing: -.3),
@@ -248,7 +249,7 @@ class _NewsPageState extends State<NewsPage> {
       children: [
         LensButton(
           key: const Key('manage-sources'),
-          label: '管理来源',
+          label: context.strings.manageSources,
           icon: Icons.tune_rounded,
           focusNode: _manageFocus,
           onPressed: _manageSources,
@@ -257,7 +258,9 @@ class _NewsPageState extends State<NewsPage> {
         snapshot.refreshing
             ? LensButton(
                 key: const Key('refresh-news'),
-                label: controller.cancelling ? '正在取消' : '取消刷新',
+                label: controller.cancelling
+                    ? context.strings.canceling
+                    : context.strings.cancelRefresh,
                 icon: Icons.refresh_rounded,
                 spinning: true,
                 onPressed: controller.cancelling
@@ -266,7 +269,7 @@ class _NewsPageState extends State<NewsPage> {
               )
             : _IconAction(
                 key: const Key('refresh-news'),
-                tooltip: '立即刷新',
+                tooltip: context.strings.refreshNow,
                 icon: Icons.refresh_rounded,
                 onPressed: busy ? null : () => controller.refresh(),
               ),
@@ -302,15 +305,20 @@ class _NewsPageState extends State<NewsPage> {
     final Color dot;
     if (snapshot.refreshing) {
       text = controller.cancelling
-          ? '正在取消刷新…'
-          : '正在刷新 · 已完成 ${controller.refreshDone}/${controller.refreshTotal} 个来源';
+          ? context.strings.cancelingRefresh
+          : context.strings.refreshProgress(
+              controller.refreshDone,
+              controller.refreshTotal,
+            );
       dot = p['clay'];
     } else {
       final last = controller.lastRefreshMs;
       final when = last == null
-          ? '还没刷新过'
-          : '${_refreshTime(last, widget.now())} 刷新';
-      text = '${sources.length} 个来源 · $when · 每 30 分钟自动刷新';
+          ? context.strings.neverRefreshed
+          : context.strings.refreshed0(
+              _refreshTime(last, widget.now(), context.strings),
+            );
+      text = context.strings.newsRefreshSummary(sources.length, when);
       dot = failed > 0 ? p['warn'] : p['ok'];
     }
     return Semantics(
@@ -337,7 +345,7 @@ class _NewsPageState extends State<NewsPage> {
                 onTap: _manageSources,
                 borderRadius: BorderRadius.circular(4),
                 child: Text(
-                  '$failed 个来源没更新',
+                  context.strings.sourcesNotUpdated(failed),
                   style: p
                       .text(13, p['warn'])
                       .copyWith(
@@ -358,10 +366,19 @@ class _NewsPageState extends State<NewsPage> {
     final notices = <(String, String)>[
       if (!snapshot.refreshing && snapshot.error != null)
         snapshot.error!.kind == 'cancelled'
-            ? ('刷新已取消', _errorCopy(snapshot.error!))
-            : ('刷新失败 · 正在查看离线缓存', _errorCopy(snapshot.error!)),
+            ? (
+                context.strings.refreshCanceled,
+                _errorCopy(snapshot.error!, context.strings),
+              )
+            : (
+                context.strings.refreshFailedShowingCachedNews,
+                _errorCopy(snapshot.error!, context.strings),
+              ),
       if (snapshot.stateError != null)
-        ('已读和收藏暂不可用', '本机状态文件无法读取或保存，条目照常显示；这次的标记可能不会保留。'),
+        (
+          context.strings.readAndStarredStatusUnavailable,
+          context.strings.couldNotReadOrSaveLocalStatus,
+        ),
     ];
     return [
       for (final notice in notices) ...[
@@ -444,16 +461,19 @@ class _NewsPageState extends State<NewsPage> {
                     Semantics(
                       header: true,
                       child: Text(
-                        '当前热点',
+                        context.strings.trendingNow,
                         style: p.text(14, null, FontWeight.w600),
                       ),
                     ),
-                    Text('按该来源自带的热度', style: p.text(12, p.faint)),
+                    Text(
+                      context.strings.rankedByThisSource,
+                      style: p.text(12, p.faint),
+                    ),
                   ],
                 ),
                 ScrollFade(
                   child: LensSegmented(
-                    label: '热点来源',
+                    label: context.strings.trendingSources,
                     small: true,
                     options: {
                       for (final id in controller.hotTabs)
@@ -488,7 +508,9 @@ class _NewsPageState extends State<NewsPage> {
         for (final category in [null, ...SourceCategory.values])
           _Chip(
             key: Key('category-${category?.name ?? 'all'}'),
-            label: category == null ? '全部' : _categoryName(category),
+            label: category == null
+                ? context.strings.all
+                : _categoryName(category, context.strings),
             count: controller.categoryCount(category),
             selected: controller.category == category,
             onTap: () => controller.setCategory(category),
@@ -506,12 +528,16 @@ class _NewsPageState extends State<NewsPage> {
       children: [
         LensSegmented(
           key: const Key('news-view'),
-          label: '范围',
+          label: context.strings.view,
           small: true,
           options: {
-            'all': '全部',
-            'unread': unread == 0 ? '未读' : '未读 $unread',
-            'starred': starred == 0 ? '收藏' : '收藏 $starred',
+            'all': context.strings.all,
+            'unread': unread == 0
+                ? context.strings.unread
+                : context.strings.unread0(unread),
+            'starred': starred == 0
+                ? context.strings.starred
+                : context.strings.starred0(starred),
           },
           value: controller.view.name,
           onChanged: (value) =>
@@ -520,9 +546,12 @@ class _NewsPageState extends State<NewsPage> {
         if (controller.hotSortAvailable)
           LensSegmented(
             key: const Key('news-sort'),
-            label: '排序',
+            label: context.strings.sort,
             small: true,
-            options: const {'latest': '最新', 'hot': '热度'},
+            options: {
+              'latest': context.strings.latest,
+              'hot': context.strings.popular,
+            },
             value: controller.sort.name,
             onChanged: (value) =>
                 controller.setSort(NewsSort.values.byName(value)),
@@ -566,19 +595,19 @@ class _NewsPageState extends State<NewsPage> {
                 for (final id in controller.sourceIds)
                   FilterTag(
                     key: Key('filter-tag-$id'),
-                    label: '来源',
+                    label: context.strings.source,
                     value: _sourceName(id),
                     onRemove: () => controller.toggleSourceFilter(id),
                   ),
                 for (final kind in controller.kindIds)
                   FilterTag(
                     key: Key('filter-tag-kind-$kind'),
-                    label: '类型',
-                    value: _kindNames[kind] ?? kind,
+                    label: context.strings.type,
+                    value: _kindNames(context.strings)[kind] ?? kind,
                     onRemove: () => controller.toggleKindFilter(kind),
                   ),
                 LensButton(
-                  label: '清除筛选',
+                  label: context.strings.clearFilters,
                   variant: 'ghost',
                   size: 'xs',
                   onPressed: _clearFilters,
@@ -601,7 +630,7 @@ class _NewsPageState extends State<NewsPage> {
       style: p.text(12.5),
       cursorColor: p['clay'],
       decoration: InputDecoration(
-        hintText: '搜索标题和摘要',
+        hintText: context.strings.searchTitlesAndSummaries,
         hintStyle: p.text(12.5, p.muted),
         isDense: true,
         filled: true,
@@ -619,7 +648,7 @@ class _NewsPageState extends State<NewsPage> {
                 ),
               )
             : IconButton(
-                tooltip: '清除搜索',
+                tooltip: context.strings.clearSearch,
                 padding: EdgeInsets.zero,
                 iconSize: 14,
                 onPressed: () {
@@ -701,18 +730,21 @@ class _NewsPageState extends State<NewsPage> {
           ),
         ),
         menuChildren: [
-          group('filter-group-kind', '类型'),
-          for (final kind in _kindNames.keys)
+          group('filter-group-kind', context.strings.type),
+          for (final kind in _kindNames(context.strings).keys)
             CheckboxMenuButton(
               key: Key('kind-filter-$kind'),
               value: controller.kindIds.contains(kind),
               closeOnActivate: false,
               style: itemStyle,
               onChanged: (_) => controller.toggleKindFilter(kind),
-              child: Text(_kindNames[kind]!),
+              child: Text(_kindNames(context.strings)[kind]!),
             ),
           for (final category in SourceCategory.values) ...[
-            group('filter-group-${category.name}', _categoryName(category)),
+            group(
+              'filter-group-${category.name}',
+              _categoryName(category, context.strings),
+            ),
             for (final source in controller.snapshot.sources.where(
               (source) => source.category == category && source.enabled,
             ))
@@ -739,7 +771,7 @@ class _NewsPageState extends State<NewsPage> {
           children: [
             _IconAction(
               key: const Key('news-filter'),
-              tooltip: '按来源和类型筛选',
+              tooltip: context.strings.filterBySourceAndType,
               icon: Icons.filter_list_rounded,
               focusNode: _filterButtonFocus,
               ghost: true,
@@ -799,7 +831,7 @@ class _NewsPageState extends State<NewsPage> {
           item: item,
           first: rows[index - 1].$1 is NewsDayGroup,
           time: group.isHot
-              ? _monthDay(item.firstSeenMs)
+              ? _monthDay(item.firstSeenMs, context.strings)
               : _clock(item.firstSeenMs),
           sourceName: _sourceName(item.sourceId),
           alsoIn: item.alsoIn.map(_sourceName).toList(),
@@ -817,24 +849,32 @@ class _NewsPageState extends State<NewsPage> {
     final count = group.items.length;
     final String title;
     if (group.isHot) {
-      title = '按热度';
+      title = context.strings.byPopularity;
     } else {
       final date = group.date!;
-      final year = date.year == widget.now().year ? '' : '${date.year}年';
-      final base =
-          '$year${date.month}月${date.day}日 周${_weekdays[date.weekday - 1]}';
+      final strings = context.strings;
+      final base = date.year == widget.now().year
+          ? strings.calendarDayWithWeekday(date.month, date.day, date.weekday)
+          : strings.calendarDayWeekdayWithYear(
+              date.year,
+              date.month,
+              date.day,
+              date.weekday,
+            );
       title = group.isToday
-          ? '今天 · $base'
+          ? context.strings.today0(base)
           : group.isYesterday
-          ? '昨天 · $base'
+          ? context.strings.yesterday0(base)
           : base;
     }
-    final meta =
-        '$count 条${unread == 0
-            ? ''
-            : unread == count
-            ? '，全部未读'
-            : '，$unread 条未读'}';
+    final meta = context.strings.newsItemsSummary(
+      count,
+      unread == 0
+          ? ''
+          : unread == count
+          ? context.strings.allUnread
+          : context.strings.partiallyUnreadSuffix(unread),
+    );
     final key = group.date == null
         ? 'hot'
         : '${group.date!.year}-${group.date!.month}-${group.date!.day}';
@@ -872,7 +912,9 @@ class _NewsPageState extends State<NewsPage> {
             if (unread > 0)
               LensButton(
                 key: Key('read-day-$key'),
-                label: group.isHot ? '全部标为已读' : '本日标为已读',
+                label: group.isHot
+                    ? context.strings.markAllAsRead
+                    : context.strings.markThisDayAsRead,
                 variant: 'ghost',
                 size: 'xs',
                 onPressed: () => widget.controller.markDayRead(group),
@@ -889,10 +931,12 @@ class _NewsPageState extends State<NewsPage> {
       return Column(
         children: [
           EmptyState(
-            title:
-                '正在获取动态 · 已完成 ${controller.refreshDone}/${controller.refreshTotal} 个来源',
+            title: context.strings.newsFetchProgress(
+              controller.refreshDone,
+              controller.refreshTotal,
+            ),
             action: LensButton(
-              label: '取消',
+              label: context.strings.cancel,
               onPressed: controller.cancelling
                   ? null
                   : controller.cancelRefresh,
@@ -908,9 +952,11 @@ class _NewsPageState extends State<NewsPage> {
     final retryAt = controller.nextRetryAt;
     if (retryAt != null && snapshot.items.isEmpty) {
       return EmptyState(
-        title: '将在 ${_clock(retryAt.millisecondsSinceEpoch)} 自动重试',
+        title: context.strings.retryingAt0(
+          _clock(retryAt.millisecondsSinceEpoch),
+        ),
         action: LensButton(
-          label: '立即刷新',
+          label: context.strings.refreshNow,
           icon: Icons.refresh_rounded,
           onPressed: () => controller.refresh(),
         ),
@@ -923,33 +969,33 @@ class _NewsPageState extends State<NewsPage> {
         controller.query.trim().isNotEmpty;
     if (filtered) {
       return EmptyState(
-        title: '没有符合条件的动态',
-        hint: '试试其他分类、来源、类型或关键词。',
+        title: context.strings.noMatchingArticles,
+        hint: context.strings.tryAnotherCategorySourceTypeOrSearch,
         action: LensButton(
           key: const Key('clear-filters'),
-          label: '清除筛选',
+          label: context.strings.clearFilters,
           onPressed: _clearFilters,
         ),
       );
     }
     return switch (controller.view) {
-      NewsView.unread => const EmptyState(
-        title: '都读完了',
-        hint: '新动态会在下次刷新后出现在这里。',
+      NewsView.unread => EmptyState(
+        title: context.strings.allCaughtUp,
+        hint: context.strings.newArticlesWillAppearAfterTheNext,
       ),
-      NewsView.starred => const EmptyState(
-        title: '还没有收藏',
-        hint: '在条目右侧点星标收藏；来源不再列出它以后，收藏也会保留。',
+      NewsView.starred => EmptyState(
+        title: context.strings.noStarredArticles,
+        hint: context.strings.selectTheStarNextToAnArticle,
       ),
       NewsView.all => EmptyState(
-        title: '还没有动态',
+        title: context.strings.noArticlesYet,
         hint: snapshot.sources.any((source) => source.lastSuccessMs != null)
-            ? '已启用的来源暂时没有可显示的动态，程序会每 30 分钟自动刷新。'
-            : '本地还没有缓存。程序开着时每 30 分钟自动刷新，也可以现在刷新。',
+            ? context.strings.enabledSourcesHaveNoArticlesToShow
+            : context.strings.nothingIsCachedYetTheAppRefreshes,
         action: snapshot.refreshing
             ? null
             : LensButton(
-                label: '立即刷新',
+                label: context.strings.refreshNow,
                 icon: Icons.refresh_rounded,
                 onPressed: () => controller.refresh(),
               ),
@@ -1089,7 +1135,7 @@ class _HotRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
-    final metric = _metrics[item.popularityKind];
+    final metric = _metrics(context.strings)[item.popularityKind];
     final rankColor = switch (rank) {
       1 => p['clay'],
       2 => p['clay-hover'].withValues(alpha: .85),
@@ -1100,7 +1146,7 @@ class _HotRow extends StatelessWidget {
     final unit = metric?.$1 ?? item.popularityKind ?? '';
     return Semantics(
       link: true,
-      label: '热点第 $rank 名：${item.title}，$value $unit',
+      label: context.strings.trendingItemLabel(rank, item.title, value, unit),
       onTap: onOpen,
       excludeSemantics: true,
       child: InkWell(
@@ -1187,22 +1233,22 @@ class _NewsRowState extends State<_NewsRow> {
     final item = widget.item;
     final read = item.read;
     final description = item.description?.trim() ?? '';
-    final metric = _metrics[item.popularityKind];
+    final metric = _metrics(context.strings)[item.popularityKind];
     final meta = p.text(12, p.muted);
     final sep = Text('·', style: p.text(12, p.faint));
     final reveal = _hovered || _focused;
     final value = [
-      if (!read) '未读',
-      '来源 ${widget.sourceName}',
+      if (!read) context.strings.unread,
+      context.strings.source0(widget.sourceName),
       if (description.isNotEmpty) description,
-    ].join('，');
+    ].join(context.strings.isChinese ? '，' : ', ');
     final content = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
           width: 48,
           child: Tooltip(
-            message: _publishedLabel(item),
+            message: _publishedLabel(item, context.strings),
             child: Padding(
               padding: const EdgeInsets.only(top: 1),
               child: Text(
@@ -1249,7 +1295,7 @@ class _NewsRowState extends State<_NewsRow> {
                   if (item.origin != null && item.origin!.trim().isNotEmpty)
                     Text('· ${item.origin!.split('：').first}', style: meta),
                   if (item.kind != 'general' &&
-                      _kindNames.containsKey(item.kind)) ...[
+                      _kindNames(context.strings).containsKey(item.kind)) ...[
                     sep,
                     Container(
                       key: Key('item-kind-${item.kind}'),
@@ -1259,7 +1305,7 @@ class _NewsRowState extends State<_NewsRow> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        _kindNames[item.kind]!,
+                        _kindNames(context.strings)[item.kind]!,
                         style: p.text(11, p.secondary),
                       ),
                     ),
@@ -1278,9 +1324,13 @@ class _NewsRowState extends State<_NewsRow> {
                   if (widget.alsoIn.isNotEmpty) ...[
                     sep,
                     Tooltip(
-                      message: '也见于 ${widget.alsoIn.join('、')}',
+                      message: context.strings.alsoOn0(
+                        widget.alsoIn.join(context.strings.listSeparator),
+                      ),
                       child: Text(
-                        '另有 ${widget.alsoIn.length} 个来源',
+                        context.strings.additionalNewsSources(
+                          widget.alsoIn.length,
+                        ),
                         style: meta.copyWith(
                           decoration: TextDecoration.underline,
                           decorationStyle: TextDecorationStyle.dotted,
@@ -1332,7 +1382,7 @@ class _NewsRowState extends State<_NewsRow> {
                       children: [
                         if (item.aiSummary)
                           TextSpan(
-                            text: 'AI 摘要  ',
+                            text: context.strings.aiSummary,
                             style: p.text(11, p['clay-ink']),
                           ),
                         TextSpan(text: description),
@@ -1378,7 +1428,9 @@ class _NewsRowState extends State<_NewsRow> {
                   Expanded(
                     child: Semantics(
                       link: true,
-                      label: '在默认浏览器中打开原文：${item.title}',
+                      label: context.strings.openArticleInDefaultBrowser0(
+                        item.title,
+                      ),
                       value: value,
                       onTap: widget.opening ? null : widget.onOpen,
                       excludeSemantics: true,
@@ -1402,7 +1454,9 @@ class _NewsRowState extends State<_NewsRow> {
                         _RowTool(
                           key: Key('star-${item.id}'),
                           visible: reveal || item.starred,
-                          tooltip: item.starred ? '取消收藏' : '收藏',
+                          tooltip: item.starred
+                              ? context.strings.unstar
+                              : context.strings.star,
                           icon: item.starred
                               ? Icons.star_rounded
                               : Icons.star_outline_rounded,
@@ -1412,7 +1466,9 @@ class _NewsRowState extends State<_NewsRow> {
                         _RowTool(
                           key: Key('read-${item.id}'),
                           visible: reveal,
-                          tooltip: read ? '标为未读' : '标为已读',
+                          tooltip: read
+                              ? context.strings.markAsUnread
+                              : context.strings.markAsRead,
                           icon: read
                               ? Icons.mark_email_unread_outlined
                               : Icons.done_rounded,
@@ -1511,9 +1567,12 @@ class _SourcesPanel extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('自动刷新', style: p.text(13, null, FontWeight.w500)),
                       Text(
-                        '程序开着时每 30 分钟刷新一次；被限流就跳过下一轮。',
+                        context.strings.autoRefresh,
+                        style: p.text(13, null, FontWeight.w500),
+                      ),
+                      Text(
+                        context.strings.refreshesEvery30MinutesWhileOpenRate,
                         style: p.text(12, p.muted),
                       ),
                     ],
@@ -1522,7 +1581,9 @@ class _SourcesPanel extends StatelessWidget {
                 const SizedBox(width: 12),
                 LensButton(
                   key: const Key('refresh-all-sources'),
-                  label: snapshot.refreshing ? '正在刷新' : '全部刷新',
+                  label: snapshot.refreshing
+                      ? context.strings.refreshing
+                      : context.strings.refreshAll,
                   icon: Icons.refresh_rounded,
                   spinning: snapshot.refreshing,
                   onPressed: busy ? null : () => controller.refresh(),
@@ -1538,7 +1599,7 @@ class _SourcesPanel extends StatelessWidget {
                 child: Semantics(
                   header: true,
                   child: Text(
-                    _categoryName(category),
+                    _categoryName(category, context.strings),
                     style: p.text(12, p.muted, FontWeight.w500),
                   ),
                 ),
@@ -1548,7 +1609,7 @@ class _SourcesPanel extends StatelessWidget {
               ))
                 _SourceRow(
                   source: source,
-                  status: _sourceStatus(source, now()),
+                  status: _sourceStatus(source, now(), context.strings),
                   busy: busy,
                   onRefresh: () => controller.refresh(sourceIds: [source.id]),
                   onToggle: (value) =>
@@ -1559,7 +1620,7 @@ class _SourcesPanel extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(6, 14, 6, 0),
               child: Text(
-                'AIHOT 精选来自 aihot.news 的公开 RSS，标题和摘要由它的模型生成；原文链接指向原始出处。',
+                context.strings.aihotPicksComeFromThePublicRss,
                 style: p.text(12, p.muted),
               ),
             ),
@@ -1617,7 +1678,7 @@ class _SourceRow extends StatelessWidget {
               children: [
                 Text(source.name, style: p.text(13, off ? p.faint : p.ink)),
                 if (source.id == 'aihot')
-                  const LensBadge('AI 摘要', tone: 'clay'),
+                  LensBadge(context.strings.aiSummary2, tone: 'clay'),
               ],
             ),
           ),
@@ -1625,7 +1686,7 @@ class _SourceRow extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 190),
             child: Tooltip(
-              message: failed ? _errorCopy(source.error!) : '',
+              message: failed ? _errorCopy(source.error!, context.strings) : '',
               child: Text(
                 status,
                 key: Key('source-status-${source.id}'),
@@ -1644,7 +1705,7 @@ class _SourceRow extends StatelessWidget {
           const SizedBox(width: 2),
           PopupMenuButton<String>(
             key: Key('source-row-${source.id}'),
-            tooltip: '${source.name} 的更多操作',
+            tooltip: context.strings.moreActionsFor0(source.name),
             color: p['surface-3'],
             surfaceTintColor: LensPalette.transparent,
             position: PopupMenuPosition.under,
@@ -1664,8 +1725,10 @@ class _SourceRow extends StatelessWidget {
                 enabled: false,
                 child: Text(
                   source.lastSuccessMs == null
-                      ? '尚无成功刷新记录'
-                      : '上次成功：${_fullTime(source.lastSuccessMs!)}',
+                      ? context.strings.noSuccessfulRefreshYet
+                      : context.strings.lastSuccessfulRefresh0(
+                          _fullTime(source.lastSuccessMs!, context.strings),
+                        ),
                   style: p.text(12, p.muted),
                 ),
               ),
@@ -1673,7 +1736,7 @@ class _SourceRow extends StatelessWidget {
                 PopupMenuItem<String>(
                   enabled: false,
                   child: Text(
-                    _errorCopy(source.error!),
+                    _errorCopy(source.error!, context.strings),
                     key: Key('error-${source.id}'),
                     style: p.text(12, p['danger']),
                   ),
@@ -1683,7 +1746,7 @@ class _SourceRow extends StatelessWidget {
                 value: 'refresh',
                 enabled: source.enabled && !busy,
                 child: Text(
-                  '刷新此来源',
+                  context.strings.refreshThisSource,
                   style: p.text(13, source.enabled && !busy ? p.ink : p.faint),
                 ),
               ),
@@ -1691,7 +1754,8 @@ class _SourceRow extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Semantics(
-            label: '${source.enabled ? '停用' : '启用'} ${source.name}',
+            label:
+                '${source.enabled ? context.strings.disable : context.strings.enable} ${source.name}',
             child: SizedBox(
               width: 36,
               height: 22,
@@ -1717,12 +1781,13 @@ class _SourceRow extends StatelessWidget {
   }
 }
 
-String _categoryName(SourceCategory category) => switch (category) {
-  SourceCategory.official => '官方',
-  SourceCategory.tools => '工具更新',
-  SourceCategory.community => '社区',
-  SourceCategory.chinese => '中文',
-};
+String _categoryName(SourceCategory category, AppStrings strings) =>
+    switch (category) {
+      SourceCategory.official => strings.official,
+      SourceCategory.tools => strings.toolUpdates,
+      SourceCategory.community => strings.community,
+      SourceCategory.chinese => strings.chinese,
+    };
 
 String _compact(int value) => value >= 10000
     ? '${(value / 1000).toStringAsFixed(0)}k'
@@ -1745,85 +1810,96 @@ String? _clock(int milliseconds) {
   return date == null ? null : '${_two(date.hour)}:${_two(date.minute)}';
 }
 
-String? _monthDay(int milliseconds) {
-  final date = _local(milliseconds);
-  return date == null ? null : '${_two(date.month)}/${_two(date.day)}';
-}
-
-String _fullTime(int milliseconds) {
+String? _monthDay(int milliseconds, AppStrings strings) {
   final date = _local(milliseconds);
   return date == null
-      ? '时间不可用'
-      : '${date.year}-${_two(date.month)}-${_two(date.day)} ${_two(date.hour)}:${_two(date.minute)}';
+      ? null
+      : strings.isChinese
+      ? '${_two(date.month)}/${_two(date.day)}'
+      : strings.calendarDay(date.month, date.day);
 }
 
-String _refreshTime(int milliseconds, DateTime now) {
+String _fullTime(int milliseconds, AppStrings strings) {
   final date = _local(milliseconds);
-  if (date == null) return '时间不可用';
+  return date == null
+      ? strings.timeUnavailable
+      : '${strings.isChinese ? '${date.year}-${_two(date.month)}-${_two(date.day)}' : strings.calendarDayWithYear(date.year, date.month, date.day)} ${_two(date.hour)}:${_two(date.minute)}';
+}
+
+String _refreshTime(int milliseconds, DateTime now, AppStrings strings) {
+  final date = _local(milliseconds);
+  if (date == null) return strings.timeUnavailable;
   final clock = '${_two(date.hour)}:${_two(date.minute)}';
   final today = now.toLocal();
   return date.year == today.year &&
           date.month == today.month &&
           date.day == today.day
       ? clock
-      : '${date.month}月${date.day}日 $clock';
+      : '${strings.calendarDay(date.month, date.day)} $clock';
 }
 
-String _publishedLabel(NewsItem item) {
+String _publishedLabel(NewsItem item, AppStrings strings) {
   final date = DateTime.tryParse(item.publishedAt ?? '');
-  if (date == null) return '来源未提供发布时间';
+  if (date == null) return strings.theSourceDidNotProvideAPublication;
   if (_dateOnlySources.contains(item.sourceId)) {
-    return '发布日期：${date.toUtc().toIso8601String().split('T').first}';
+    final utc = date.toUtc();
+    return strings.publishedOn0(
+      strings.isChinese
+          ? utc.toIso8601String().split('T').first
+          : strings.calendarDayWithYear(utc.year, utc.month, utc.day),
+    );
   }
-  return '发布时间：${_fullTime(date.millisecondsSinceEpoch)}';
+  return strings.publishedAt0(_fullTime(date.millisecondsSinceEpoch, strings));
 }
 
-String _ago(int milliseconds, DateTime now) {
+String _ago(int milliseconds, DateTime now, AppStrings strings) {
   final minutes = now
       .difference(DateTime.fromMillisecondsSinceEpoch(milliseconds))
       .inMinutes;
-  if (minutes < 1) return '刚刚';
-  if (minutes < 60) return '$minutes 分钟前';
-  if (minutes < 1440) return '${(minutes / 60).round()} 小时前';
-  return '${(minutes / 1440).round()} 天前';
+  if (minutes < 1) return strings.justNow;
+  if (minutes < 60) return strings.minutesAgo(minutes);
+  if (minutes < 1440) return strings.hoursAgo((minutes / 60).round());
+  return strings.daysAgo((minutes / 1440).round());
 }
 
-String _sourceStatus(NewsSource source, DateTime now) {
-  if (!source.enabled) return '已停用';
-  if (source.refreshing) return '刷新中…';
+String _sourceStatus(NewsSource source, DateTime now, AppStrings strings) {
+  if (!source.enabled) return strings.disabled;
+  if (source.refreshing) return strings.refreshing2;
   final last =
       source.lastSuccessMs == null || _local(source.lastSuccessMs!) == null
       ? null
-      : _ago(source.lastSuccessMs!, now);
+      : _ago(source.lastSuccessMs!, now, strings);
   if (source.error != null) {
     final label = switch (source.error!.kind) {
-      'rate_limited' => '限流',
-      'network' => '离线',
-      'timeout' => '超时',
-      'parse' => '解析失败',
-      'too_large' => '响应过大',
-      'content_type' => '类型不符',
-      'cancelled' => '已取消',
-      _ => '未更新',
+      'rate_limited' => strings.rateLimited,
+      'network' => strings.offline,
+      'timeout' => strings.timedOut,
+      'parse' => strings.couldNotParse,
+      'too_large' => strings.responseTooLarge,
+      'content_type' => strings.unsupportedFormat,
+      'cancelled' => strings.canceled,
+      _ => strings.didNotUpdate,
     };
-    return last == null ? label : '$label · 上次成功 $last';
+    return last == null
+        ? label
+        : strings.sourceStatusWithLastRefresh(label, last);
   }
-  if (source.lastSuccessMs == null) return '还没刷新过';
-  return last ?? '时间不可用';
+  if (source.lastSuccessMs == null) return strings.neverRefreshed;
+  return last ?? strings.timeUnavailable;
 }
 
-String _errorCopy(NewsError error) => switch (error.kind) {
-  'network' => '无法连接来源，请检查网络后重试。',
-  'timeout' => '连接来源超时，请稍后重试。',
-  'rate_limited' => '来源暂时限制请求，下一轮自动刷新会跳过它。',
-  'http' => '来源暂时无法响应，请稍后重试。',
-  'parse' => '来源内容无法解析，本次未更新缓存。',
-  'too_large' => '来源响应超过大小上限，本次未更新缓存。',
-  'content_type' => '来源返回了不支持的内容类型，本次未更新缓存。',
-  'cache' => '本地缓存暂不可用，可尝试刷新。',
-  'busy' => '已有刷新正在进行，请等待完成。',
-  'closed' => 'AI 热点已关闭，请重新打开窗口。',
-  'cancelled' => '已有内容保留，可随时再次刷新。',
-  'cancel' => '取消请求失败，请等待当前刷新结束。',
-  _ => '刷新失败，请稍后重试。',
+String _errorCopy(NewsError error, AppStrings strings) => switch (error.kind) {
+  'network' => strings.couldNotReachTheSourceCheckYour,
+  'timeout' => strings.theSourceTimedOutTryAgainShortly,
+  'rate_limited' => strings.theSourceIsRateLimitingRequestsIt,
+  'http' => strings.theSourceIsUnavailableTryAgainShortly,
+  'parse' => strings.couldNotParseThisSourceCachedArticles,
+  'too_large' => strings.theResponseExceededTheSizeLimitCached,
+  'content_type' => strings.theSourceReturnedAnUnsupportedFormatCached,
+  'cache' => strings.theLocalCacheIsUnavailableTryRefreshing,
+  'busy' => strings.aRefreshIsAlreadyRunningWaitFor,
+  'closed' => strings.aiNewsIsClosedReopenTheWindow,
+  'cancelled' => strings.cachedArticlesAreStillAvailableYouCan,
+  'cancel' => strings.couldNotCancelWaitForTheCurrent,
+  _ => strings.refreshFailedTryAgainShortly,
 };

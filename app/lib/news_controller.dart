@@ -1,3 +1,5 @@
+import 'l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -142,13 +144,15 @@ class NewsController extends ChangeNotifier {
       if (!item.read) item.id,
   ], true);
 
-  Future<void> setRead(List<String> ids, bool read) =>
-      _changeState(() => gateway.setRead(List.of(ids), read), '已读状态保存失败。');
+  Future<void> setRead(List<String> ids, bool read) => _changeState(
+    () => gateway.setRead(List.of(ids), read),
+    chineseStrings.couldNotSaveReadStatus,
+  );
 
   Future<void> toggleStar(String id) => _changeState(
     () =>
         gateway.setStarred(id, !_snapshot.starred.any((item) => item.id == id)),
-    '收藏状态保存失败。',
+    chineseStrings.couldNotSaveStarredStatus,
   );
 
   Future<void> openedItem(String id) => setRead([id], true);
@@ -299,13 +303,17 @@ class NewsController extends ChangeNotifier {
 
   bool get hotSortAvailable => _heatUnits.length == 1;
 
-  String get sortExplanation {
+  String get sortExplanation => sortExplanationFor(chineseStrings);
+
+  String sortExplanationFor(AppStrings strings) {
     final units = _heatUnits;
-    if (units.isEmpty) return '当前结果没有热度数据，暂不能按热度排序。';
+    if (units.isEmpty) return strings.noPopularityDataForTheseResults;
     if (units.length > 1) {
-      return '当前结果包含 ${units.join('、')}，不同热度单位无法比较。';
+      return strings.theseResultsUse0PopularityScoresUse(
+        units.join(strings.listSeparator),
+      );
     }
-    return '按 ${units.single} 降序；无热度排在最后，同热度按时间。';
+    return strings.sortedBy0HighestFirstItemsWithout(units.single);
   }
 
   List<NewsItem> get visibleItems {
@@ -418,7 +426,10 @@ class NewsController extends ChangeNotifier {
         starred: _snapshot.starred,
         stateError: _snapshot.stateError,
         sources: _snapshot.sources,
-        error: const NewsError(kind: 'cache', message: '本地缓存读取失败，可尝试手动刷新。'),
+        error: NewsError(
+          kind: 'cache',
+          message: chineseStrings.couldNotReadTheLocalCacheTry,
+        ),
       );
     } finally {
       if (!_closed) {
@@ -486,7 +497,10 @@ class NewsController extends ChangeNotifier {
         sources: _snapshot.sources
             .map((source) => source.copyWith(refreshing: false))
             .toList(),
-        error: const NewsError(kind: 'network', message: '刷新失败，请稍后重试。'),
+        error: NewsError(
+          kind: 'network',
+          message: chineseStrings.refreshFailedTryAgainShortly,
+        ),
       );
     } finally {
       if (!_closed && generation == _generation) {
@@ -594,9 +608,9 @@ class NewsController extends ChangeNotifier {
     try {
       await gateway.cancelRefresh();
     } catch (_) {
-      cancelError = const NewsError(
+      cancelError = NewsError(
         kind: 'cancel',
-        message: '取消请求失败，请等待当前刷新结束。',
+        message: chineseStrings.couldNotCancelWaitForTheCurrent,
       );
     }
     await activeRefresh;
@@ -625,7 +639,10 @@ class NewsController extends ChangeNotifier {
             .toList(),
         error:
             cancelError ??
-            const NewsError(kind: 'cache', message: '刷新结束后无法读取本地状态，可尝试再次手动刷新。'),
+            NewsError(
+              kind: 'cache',
+              message: chineseStrings.couldNotReadLocalStatusAfterRefresh,
+            ),
       );
     } finally {
       if (!_closed) {
@@ -683,7 +700,10 @@ class NewsController extends ChangeNotifier {
         items: _snapshot.items,
         starred: _snapshot.starred,
         stateError: _snapshot.stateError,
-        error: const NewsError(kind: 'cache', message: '来源设置保存失败。'),
+        error: NewsError(
+          kind: 'cache',
+          message: chineseStrings.couldNotSaveSourceSettings,
+        ),
       );
     } finally {
       if (!_closed) {

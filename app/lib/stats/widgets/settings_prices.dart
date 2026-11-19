@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -16,7 +18,9 @@ class SettingsStateBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context),
-        item = pricingStates[state] ?? pricingStates['unknown']!;
+        item =
+            pricingStates(context.strings)[state] ??
+            pricingStates(context.strings)['unknown']!;
     return Container(
       height: 20,
       padding: const EdgeInsets.symmetric(horizontal: 7),
@@ -63,8 +67,11 @@ class _SettingsPricesState extends State<SettingsPrices> {
     children: [
       Text(
         m.prices?.input != null
-            ? '输入 ${priceText(m.prices!.input)} · 输出 ${priceText(m.prices!.output)}'
-            : '没有公开价',
+            ? context.strings.inputOutputPrices(
+                priceText(m.prices!.input),
+                priceText(m.prices!.output),
+              )
+            : context.strings.noListPrice,
         style: p.text(
           narrow ? 12.5 : 13,
           m.prices?.input == null ? p.muted : p.secondary,
@@ -72,13 +79,15 @@ class _SettingsPricesState extends State<SettingsPrices> {
       ),
       if (m.localRecords > 0 && m.state != 'local')
         Text(
-          '其中 ${recordText(m.localRecords)} 条本地 · 金额按 0 计',
+          context.strings.includes0LocalRecordZeroCost(
+            recordText(m.localRecords),
+          ),
           style: p.text(12, p.muted),
         ),
     ],
   );
   Widget _summary(StatsModelPrice m) {
-    final summary = conditionalSummary(m);
+    final summary = conditionalSummary(m, context.strings);
     if (summary.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 4),
@@ -90,7 +99,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
   }
 
   Widget _row(StatsModelPrice m, int tokens, bool open) {
-    final name = m.model ?? '没写模型';
+    final name = m.model ?? context.strings.modelNotLogged;
     return Semantics(
       button: true,
       expanded: open,
@@ -142,11 +151,21 @@ class _SettingsPricesState extends State<SettingsPrices> {
                         children: [
                           _line(m),
                           Text(
-                            '累计 ${tokenCount(tokens, unitSystem: widget.preferences.unitSystem)}',
+                            context.strings.total0(
+                              tokenCount(
+                                tokens,
+                                unitSystem: widget.preferences.unitSystemFor(
+                                  context.strings.languageCode,
+                                ),
+                              ),
+                            ),
                             style: p.text(12.5, p.secondary),
                           ),
                           if (m.billing == 'plan')
-                            Text('套餐', style: p.text(12.5, p.secondary)),
+                            Text(
+                              context.strings.subscription,
+                              style: p.text(12.5, p.secondary),
+                            ),
                         ],
                       ),
                       if (hasConditionalPrices(m)) _summary(m),
@@ -166,7 +185,10 @@ class _SettingsPricesState extends State<SettingsPrices> {
                           ),
                         ),
                         if (m.billing == 'plan')
-                          Text('套餐', style: p.text(12, p.muted)),
+                          Text(
+                            context.strings.subscription,
+                            style: p.text(12, p.muted),
+                          ),
                       ],
                     ),
                     Column(
@@ -183,7 +205,9 @@ class _SettingsPricesState extends State<SettingsPrices> {
                     Text(
                       tokenCount(
                         tokens,
-                        unitSystem: widget.preferences.unitSystem,
+                        unitSystem: widget.preferences.unitSystemFor(
+                          context.strings.languageCode,
+                        ),
                       ),
                       textAlign: TextAlign.right,
                       style: p.text(13, p.secondary),
@@ -259,11 +283,11 @@ class _SettingsPricesState extends State<SettingsPrices> {
                 runSpacing: 10,
                 children: [
                   for (final pair in [
-                    ('新输入', model.prices?.input),
-                    ('输出', model.prices?.output),
-                    ('读缓存', model.prices?.cacheRead),
-                    ('写缓存（存 5 分钟）', model.prices?.cacheWrite5M),
-                    ('写缓存（存 1 小时）', model.prices?.cacheWrite1H),
+                    (context.strings.newInput, model.prices?.input),
+                    (context.strings.output, model.prices?.output),
+                    (context.strings.cacheRead, model.prices?.cacheRead),
+                    (context.strings.cacheWrite5m, model.prices?.cacheWrite5M),
+                    (context.strings.cacheWrite1h, model.prices?.cacheWrite1H),
                   ])
                     SizedBox(
                       width:
@@ -289,14 +313,14 @@ class _SettingsPricesState extends State<SettingsPrices> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              '${model.note ?? (model.state == 'verified' ? '和厂商价格页逐项对过。' : pricingStates[model.state]?.$2 ?? '')}${model.billing == 'plan' ? ' 用套餐时不按这个价扣费。' : ''}',
+              '${(context.strings.isChinese ? model.note : model.noteEn ?? model.note) ?? (model.state == 'verified' ? context.strings.checkedAgainstTheProviderSPricingPage : pricingStates(context.strings)[model.state]?.$2 ?? '')}${model.billing == 'plan' ? context.strings.subscriptionsAreBilledSeparately : ''}',
               style: p.text(12.5, p.muted),
             ),
             if (model.sourceUrl != null)
               Semantics(
                 link: true,
                 child: LensButton(
-                  label: '官方价格页',
+                  label: context.strings.officialPricingPage,
                   icon: Icons.open_in_new,
                   trailingIcon: true,
                   size: 'link',
@@ -316,12 +340,22 @@ class _SettingsPricesState extends State<SettingsPrices> {
   Widget _conditional(StatsModelPrice model) {
     final tod = model.timeOfDay;
     final rows = [
-      (tod == null ? '基础档' : '高峰', model.prices),
+      (
+        tod == null ? context.strings.baseTier : context.strings.peak,
+        model.prices,
+      ),
       for (final tier in model.tiers ?? <StatsPriceTier>[])
-        ('提示 > ${recordText(tier.above)} token', tier.prices),
-      if (tod != null) ('低谷', tod.offPeakPrices),
+        (context.strings.prompt0Tokens(recordText(tier.above)), tier.prices),
+      if (tod != null) (context.strings.offPeak, tod.offPeakPrices),
     ];
-    final labels = ['档位', '新输入', '输出', '读缓存', '写缓存（短时）', '写缓存（存 1 小时）'];
+    final labels = [
+      context.strings.tier,
+      context.strings.newInput,
+      context.strings.output,
+      context.strings.cacheRead,
+      context.strings.cacheWriteShort,
+      context.strings.cacheWrite1h,
+    ];
     TableRow tableRow(List<String> values, {bool header = false}) => TableRow(
       decoration: BoxDecoration(
         border: Border(
@@ -348,21 +382,24 @@ class _SettingsPricesState extends State<SettingsPrices> {
       children: [
         Text(
           [
-            if (model.tiers?.isNotEmpty == true) '长上下文分档',
-            if (tod != null) '峰谷分时',
+            if (model.tiers?.isNotEmpty == true)
+              context.strings.longContextTiers,
+            if (tod != null) context.strings.peakAndOffPeak,
           ].join(' · '),
           style: p.text(13, null, FontWeight.w500),
         ),
         const SizedBox(height: 8),
         LayoutBuilder(
           builder: (context, constraints) => Semantics(
-            label: '条件价格表，可横向滚动',
+            label: context.strings.scrollableTableOfConditionalPrices,
             container: true,
             explicitChildNodes: true,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Semantics(
-                label: '${model.model ?? '没写模型'} 条件价格',
+                label: context.strings.conditionalPriceTableLabel(
+                  model.model ?? context.strings.modelNotLogged,
+                ),
                 container: true,
                 explicitChildNodes: true,
                 child: SizedBox(
@@ -371,7 +408,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'USD / 百万 token · — 表示不单独计价',
+                        context.strings.usdMillionTokensADashMeansNo,
                         style: p.text(12.5, p.secondary),
                       ),
                       const SizedBox(height: 8),
@@ -409,10 +446,13 @@ class _SettingsPricesState extends State<SettingsPrices> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(priceMarkLabel(e.key), style: p.text(12.5, p.secondary)),
+                  Text(
+                    priceMarkLabel(e.key, context.strings),
+                    style: p.text(12.5, p.secondary),
+                  ),
                   const SizedBox(width: 4),
                   Text(
-                    '${recordText(e.value)} 条',
+                    context.strings.recordCount(recordText(e.value)),
                     style: p.text(12.5, null, FontWeight.w500),
                   ),
                 ],
@@ -422,30 +462,40 @@ class _SettingsPricesState extends State<SettingsPrices> {
         if (model.tiers?.isNotEmpty == true) ...[
           const SizedBox(height: 12),
           Text(
-            '提示长度含新输入、缓存读和缓存写；恰好等于门槛仍用较低档。累计快照用基础档。提示长度不完整且已知部分未超过门槛时，用基础档并标记。',
+            context.strings.promptLengthIncludesNewInputCacheReads,
             style: p.text(12.5, p.secondary),
           ),
         ],
         if (tod != null) ...[
           const SizedBox(height: 12),
           Text(
-            '${timeZoneText(tod.utcOffsetMinutes)}，以下时段为高峰，结束时刻不含在内：',
+            context.strings.peakHoursInTimeZone(
+              timeZoneText(tod.utcOffsetMinutes, context.strings),
+            ),
             style: p.text(12.5, p.secondary),
           ),
           const SizedBox(height: 4),
           for (final peak in tod.peak)
             Text(
-              '${peak.days.map((day) => ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][day]).join('、')} ${timeText(peak.from)}–${timeText(peak.to)}',
+              '${peak.days.map((day) => [context.strings.sun2, context.strings.mon2, context.strings.tue2, context.strings.wed2, context.strings.thu2, context.strings.fri2, context.strings.sat2][day]).join(context.strings.listSeparator)} ${timeText(peak.from)}–${timeText(peak.to)}',
               style: p.text(12.5, p.secondary),
             ),
           const SizedBox(height: 4),
           Text(
-            '其余时段与已登记节假日全天按低谷价；周末补班日按周末计。',
+            context.strings.offPeakPricingAppliesAtOtherTimes,
             style: p.text(12.5, p.secondary),
           ),
           const SizedBox(height: 4),
           Text(
-            '${holidayText(tod)}${tod.holidaysThrough == null ? '' : '（${recordText(tod.holidaysCount)} 天，最晚 ${tod.holidaysThrough}）'}；未登记年份仍按星期和时段判断。',
+            context.strings.holidayPricingNote(
+              holidayText(tod, context.strings),
+              tod.holidaysThrough == null
+                  ? ''
+                  : context.strings.holidayCountAndEnd(
+                      recordText(tod.holidaysCount),
+                      tod.holidaysThrough,
+                    ),
+            ),
             style: p.text(12.5, p.secondary),
           ),
         ],
@@ -457,7 +507,10 @@ class _SettingsPricesState extends State<SettingsPrices> {
   Widget build(BuildContext context) {
     final data = widget.pricing, usage = modelUsage(widget.usage);
     if (data.models.isEmpty) {
-      return const EmptyState(title: '还没有用到的模型', hint: '同步之后，出现过的模型会逐条列在这里。');
+      return EmptyState(
+        title: context.strings.noModelsUsedYet,
+        hint: context.strings.modelsAppearHereAfterSyncingToolLogs,
+      );
     }
     final counts = [
       data.counts.verified,
@@ -474,11 +527,16 @@ class _SettingsPricesState extends State<SettingsPrices> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SettingsStateBadge(pricingStates.keys.elementAt(i)),
+          SettingsStateBadge(pricingStates(context.strings).keys.elementAt(i)),
           const SizedBox(height: 4),
-          Text('${counts[i]} 个模型', style: p.text(20, null, FontWeight.w600)),
           Text(
-            keepTailTogether(pricingStates.values.elementAt(i).$2),
+            context.strings.modelCount(counts[i]),
+            style: p.text(20, null, FontWeight.w600),
+          ),
+          Text(
+            keepTailTogether(
+              pricingStates(context.strings).values.elementAt(i).$2,
+            ),
             style: p.text(12, p.muted),
           ),
         ],
@@ -522,12 +580,19 @@ class _SettingsPricesState extends State<SettingsPrices> {
               ),
             ),
             child: _desktopCells([
-              for (final label in ['模型', '每百万 token', '价格', '累计用量'])
+              for (final label in [
+                context.strings.model,
+                context.strings.perMillionTokens,
+                context.strings.pricing,
+                context.strings.totalUsage,
+              ])
                 Text(
                   label,
                   maxLines: 1,
                   softWrap: false,
-                  textAlign: label == '累计用量' ? TextAlign.right : TextAlign.left,
+                  textAlign: label == context.strings.totalUsage
+                      ? TextAlign.right
+                      : TextAlign.left,
                   style: p.text(12, p.muted),
                 ),
             ]),
@@ -536,12 +601,16 @@ class _SettingsPricesState extends State<SettingsPrices> {
           _row(
             model,
             usage[model.model] ?? 0,
-            expanded == (model.model ?? '没写模型'),
+            expanded == (model.model ?? context.strings.modelNotLogged),
           ),
-          if (expanded == (model.model ?? '没写模型')) _expanded(model),
+          if (expanded == (model.model ?? context.strings.modelNotLogged))
+            _expanded(model),
         ],
         const SizedBox(height: 10),
-        Text('点一行看缓存价格和说明。价格表随软件内置，不联网也能用。', style: p.text(12.5, p.muted)),
+        Text(
+          context.strings.selectARowForCachePricesAnd,
+          style: p.text(12.5, p.muted),
+        ),
       ],
     );
   }

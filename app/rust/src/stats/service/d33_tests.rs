@@ -252,11 +252,36 @@ fn d33_queries_match_node_golden_and_conserve() {
                 // The frozen Node registry cannot include Rust-only sources.
                 match name {
                     "sources" => {
+                        for source in actual["sources"].as_array_mut().unwrap() {
+                            let fields = source.as_object_mut().unwrap();
+                            let limits_en = fields.remove("limits_en").unwrap();
+                            assert_eq!(
+                                limits_en.as_array().unwrap().len(),
+                                fields["limits"].as_array().unwrap().len(),
+                            );
+                            for limit in limits_en.as_array().unwrap() {
+                                assert!(limit.as_str().is_some_and(|text| !text.is_empty()));
+                            }
+                            for note in fields.get_mut("notes").unwrap().as_array_mut().unwrap() {
+                                let text_en =
+                                    note.as_object_mut().unwrap().remove("text_en").unwrap();
+                                assert!(text_en.as_str().is_some_and(|text| !text.is_empty()));
+                            }
+                        }
                         let known = row["expected"]["snapshot"]["known_sources"]
                             .as_u64()
                             .unwrap();
                         expected["snapshot"]["known_sources"] =
                             json!(known + rust_only_evidence as u64);
+                    }
+                    "pricing" => {
+                        for model in actual["models"].as_array_mut().unwrap() {
+                            let fields = model.as_object_mut().unwrap();
+                            let note_en = fields.remove("note_en").unwrap();
+                            if fields["note"].as_str().is_some_and(|note| !note.is_empty()) {
+                                assert!(note_en.as_str().is_some_and(|note| !note.is_empty()));
+                            }
+                        }
                     }
                     "discovery" => {
                         let supported = row["expected"]["supported"].as_u64().unwrap();

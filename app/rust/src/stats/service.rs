@@ -413,8 +413,9 @@ pub fn sources(
         let kept = reviewable.get(source).copied().unwrap_or(0);
         let entries = limits[source].as_array().cloned().unwrap_or_default();
         let raw: Vec<_> = entries.iter().map(|row| row[0].clone()).collect();
-        let notes: Vec<_> = entries.iter().map(|row| json!({"text":row[1],"impact":row[2]})).collect();
-        json!({"source":source,"evidence":evidence[source].as_str().unwrap_or("B"),"status":if records>0 {"ok"} else {"no_data"},"first_observed_at":row["first_observed_at"],"last_observed_at":row["last_observed_at"],"records":records,"record_mode":if cumulative==0 {"event"} else if cumulative==records {"cumulative"} else {"mixed"},"retention":{"reviewable":kept,"logs_gone":records-kept},"checks":checks[source],"limits":raw,"notes":notes})
+        let raw_en: Vec<_> = entries.iter().map(|row| row[3].clone()).collect();
+        let notes: Vec<_> = entries.iter().map(|row| json!({"text":row[1],"impact":row[2],"text_en":row[4]})).collect();
+        json!({"source":source,"evidence":evidence[source].as_str().unwrap_or("B"),"status":if records>0 {"ok"} else {"no_data"},"first_observed_at":row["first_observed_at"],"last_observed_at":row["last_observed_at"],"records":records,"record_mode":if cumulative==0 {"event"} else if cumulative==records {"cumulative"} else {"mixed"},"retention":{"reviewable":kept,"logs_gone":records-kept},"checks":checks[source],"limits":raw,"limits_en":raw_en,"notes":notes})
     }).collect();
     let run = ledger.last_run()?;
     let discovery_issues: Vec<_> = super::adapters::PARSER_REV
@@ -514,6 +515,11 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
             json!("本地提供方，金额按 0 计。")
         } else {
             class["note"].clone()
+        };
+        model["note_en"] = if local {
+            json!("Local provider. Cost is zero.")
+        } else {
+            json!(pricing::english_note(class["id"].as_str()))
         };
         model["prices"] = if local {
             prices_of(&json!({"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cacheWrite1h":0}))

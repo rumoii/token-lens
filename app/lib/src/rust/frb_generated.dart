@@ -2352,8 +2352,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsModelPrice dco_decode_stats_model_price(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return StatsModelPrice(
       model: dco_decode_opt_String(arr[0]),
       records: dco_decode_CastedPrimitive_i_64(arr[1]),
@@ -2361,12 +2361,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       billing: dco_decode_String(arr[3]),
       sourceUrl: dco_decode_opt_String(arr[4]),
       note: dco_decode_opt_String(arr[5]),
-      localRecords: dco_decode_CastedPrimitive_i_64(arr[6]),
-      localProviders: dco_decode_Map_String_CastedPrimitive_i_64_None(arr[7]),
-      prices: dco_decode_opt_box_autoadd_stats_prices(arr[8]),
-      tiers: dco_decode_opt_list_stats_price_tier(arr[9]),
-      timeOfDay: dco_decode_opt_box_autoadd_stats_time_of_day(arr[10]),
-      priceMarks: dco_decode_Map_String_CastedPrimitive_i_64_None(arr[11]),
+      noteEn: dco_decode_opt_String(arr[6]),
+      localRecords: dco_decode_CastedPrimitive_i_64(arr[7]),
+      localProviders: dco_decode_Map_String_CastedPrimitive_i_64_None(arr[8]),
+      prices: dco_decode_opt_box_autoadd_stats_prices(arr[9]),
+      tiers: dco_decode_opt_list_stats_price_tier(arr[10]),
+      timeOfDay: dco_decode_opt_box_autoadd_stats_time_of_day(arr[11]),
+      priceMarks: dco_decode_Map_String_CastedPrimitive_i_64_None(arr[12]),
     );
   }
 
@@ -2700,8 +2701,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSource dco_decode_stats_source(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return StatsSource(
       source: dco_decode_String(arr[0]),
       evidence: dco_decode_String(arr[1]),
@@ -2713,7 +2714,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       retention: dco_decode_stats_retention(arr[7]),
       checks: dco_decode_stats_source_checks(arr[8]),
       limits: dco_decode_list_String(arr[9]),
-      notes: dco_decode_list_stats_source_note(arr[10]),
+      limitsEn: dco_decode_opt_list_String(arr[10]),
+      notes: dco_decode_list_stats_source_note(arr[11]),
     );
   }
 
@@ -2735,11 +2737,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSourceNote dco_decode_stats_source_note(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return StatsSourceNote(
       text: dco_decode_String(arr[0]),
-      impact: dco_decode_String(arr[1]),
+      textEn: dco_decode_opt_String(arr[1]),
+      impact: dco_decode_String(arr[2]),
     );
   }
 
@@ -4183,6 +4186,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_billing = sse_decode_String(deserializer);
     var var_sourceUrl = sse_decode_opt_String(deserializer);
     var var_note = sse_decode_opt_String(deserializer);
+    var var_noteEn = sse_decode_opt_String(deserializer);
     var var_localRecords = sse_decode_CastedPrimitive_i_64(deserializer);
     var var_localProviders = sse_decode_Map_String_CastedPrimitive_i_64_None(
       deserializer,
@@ -4202,6 +4206,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       billing: var_billing,
       sourceUrl: var_sourceUrl,
       note: var_note,
+      noteEn: var_noteEn,
       localRecords: var_localRecords,
       localProviders: var_localProviders,
       prices: var_prices,
@@ -4634,6 +4639,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_retention = sse_decode_stats_retention(deserializer);
     var var_checks = sse_decode_stats_source_checks(deserializer);
     var var_limits = sse_decode_list_String(deserializer);
+    var var_limitsEn = sse_decode_opt_list_String(deserializer);
     var var_notes = sse_decode_list_stats_source_note(deserializer);
     return StatsSource(
       source: var_source,
@@ -4646,6 +4652,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       retention: var_retention,
       checks: var_checks,
       limits: var_limits,
+      limitsEn: var_limitsEn,
       notes: var_notes,
     );
   }
@@ -4671,8 +4678,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSourceNote sse_decode_stats_source_note(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_text = sse_decode_String(deserializer);
+    var var_textEn = sse_decode_opt_String(deserializer);
     var var_impact = sse_decode_String(deserializer);
-    return StatsSourceNote(text: var_text, impact: var_impact);
+    return StatsSourceNote(
+      text: var_text,
+      textEn: var_textEn,
+      impact: var_impact,
+    );
   }
 
   @protected
@@ -6023,6 +6035,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.billing, serializer);
     sse_encode_opt_String(self.sourceUrl, serializer);
     sse_encode_opt_String(self.note, serializer);
+    sse_encode_opt_String(self.noteEn, serializer);
     sse_encode_CastedPrimitive_i_64(self.localRecords, serializer);
     sse_encode_Map_String_CastedPrimitive_i_64_None(
       self.localProviders,
@@ -6314,6 +6327,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_stats_retention(self.retention, serializer);
     sse_encode_stats_source_checks(self.checks, serializer);
     sse_encode_list_String(self.limits, serializer);
+    sse_encode_opt_list_String(self.limitsEn, serializer);
     sse_encode_list_stats_source_note(self.notes, serializer);
   }
 
@@ -6336,6 +6350,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.text, serializer);
+    sse_encode_opt_String(self.textEn, serializer);
     sse_encode_String(self.impact, serializer);
   }
 

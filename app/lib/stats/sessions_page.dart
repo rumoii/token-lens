@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -23,19 +25,32 @@ import 'widgets/request_log.dart';
 
 String hm(String iso) => usageTime(iso);
 
-String spanText(String start, String end) {
+String spanText(
+  String start,
+  String end, [
+  AppStrings strings = chineseStrings,
+]) {
   final a = DateTime.tryParse(start), b = DateTime.tryParse(end);
   if (a == null || b == null) return '—';
   final minutes = math.max(
     0,
     ((b.difference(a).inMilliseconds) / 60000).round(),
   );
-  return minutes < 60 ? '$minutes 分钟' : '${minutes ~/ 60} 小时 ${minutes % 60} 分';
+  return minutes < 60
+      ? strings.minutesDuration(minutes)
+      : strings.hoursAndMinutesDuration(minutes ~/ 60, minutes % 60);
 }
 
-String dayName(String iso, DateTime now) => usageDate(iso, now);
-String startText(StatsSessionItem row, DateTime now) =>
-    '${dayName(row.startedAt, now)} ${hm(row.startedAt)}';
+String dayName(
+  String iso,
+  DateTime now, [
+  AppStrings strings = chineseStrings,
+]) => usageDate(iso, now, strings: strings);
+String startText(
+  StatsSessionItem row,
+  DateTime now, [
+  AppStrings strings = chineseStrings,
+]) => '${dayName(row.startedAt, now, strings)} ${hm(row.startedAt)}';
 
 class StatsSessionsPage extends StatefulWidget {
   const StatsSessionsPage({
@@ -68,7 +83,8 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   bool get scoped =>
       period.period != 'all' ||
       ['tool', 'project', 'model'].any((key) => q[key]?.isNotEmpty == true);
-  String get periodLabel => sessionUsageLabel(period, usageFilter);
+  String get periodLabel =>
+      sessionUsageLabel(period, usageFilter, context.strings);
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   void changed() {
@@ -178,13 +194,21 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       title:
           projectName(project, peers: items.map((item) => item.projectKey)) ??
           toolOf(source).name,
-      hint:
-          '${toolOf(source).name} · ${usageDate(started, c.clock())} ${usageTime(started)} 开始 · 持续 ${spanText(started, ended)}',
+      hint: context.strings.sessionHeading(
+        toolOf(source).name,
+        usageDate(started, c.clock(), strings: context.strings),
+        usageTime(started),
+        spanText(started, ended, context.strings),
+      ),
       tooltip: project,
     );
     final heading = ValueNotifier<PanelHeading>(
       found == null
-          ? (title: toolOf(source).name, hint: '正在读取会话…', tooltip: null)
+          ? (
+              title: toolOf(source).name,
+              hint: context.strings.loadingSession,
+              tooltip: null,
+            )
           : headingFor(found.projectKey, found.startedAt, found.lastSeenAt),
     );
     var receiving = true;
@@ -241,7 +265,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     runSpacing: 8,
     children: [
       FilterPick(
-        label: '工具',
+        label: context.strings.tool,
         options: [
           for (final s in sources.data?.sources ?? <StatsSource>[])
             if (s.records > 0)
@@ -250,7 +274,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         onPick: (v) => filter('tool', v),
       ),
       FilterPick(
-        label: '项目',
+        label: context.strings.project,
         options: [
           for (final g
               in (projects.data?.groups ?? <StatsGroup>[])
@@ -272,20 +296,20 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       ),
       if (q['tool']?.isNotEmpty == true)
         FilterTag(
-          label: '工具',
+          label: context.strings.tool,
           value: toolOf(q['tool']!).name,
           tool: q['tool'],
           onRemove: () => filter('tool', ''),
         ),
       if (q['project']?.isNotEmpty == true)
         FilterTag(
-          label: '项目',
+          label: context.strings.project,
           value: projectName(q['project']) ?? q['project']!,
           onRemove: () => filter('project', ''),
         ),
       if (q['model']?.isNotEmpty == true)
         FilterTag(
-          label: '模型',
+          label: context.strings.model,
           value: q['model']!,
           onRemove: () => filter('model', ''),
         ),
@@ -299,7 +323,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     ].any((value) => value?.isNotEmpty == true);
     final groups = <({String key, List<StatsSessionItem> rows})>[];
     for (final row in items) {
-      final day = dayName(row.lastSeenAt, c.clock());
+      final day = dayName(row.lastSeenAt, c.clock(), context.strings);
       if (groups.isNotEmpty && groups.last.key == day) {
         groups.last.rows.add(row);
       } else {
@@ -322,34 +346,45 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
 
     final labels = scoped
         ? [
-            '会话',
-            '开始',
+            context.strings.session,
+            context.strings.start,
             periodLabel,
-            '$periodLabel请求',
-            '累计',
-            '累计请求',
-            '$periodLabel约值',
+            context.strings.requests0(periodLabel),
+            context.strings.total,
+            context.strings.totalRequests,
+            context.strings.estCost0(periodLabel),
           ]
-        : ['会话', '开始', '时长', '用量', '约值', '请求'];
-    String nt(int n) => tokenCount(n, unitSystem: c.preferences.unitSystem);
+        : [
+            context.strings.session,
+            context.strings.start,
+            context.strings.duration,
+            context.strings.usage,
+            context.strings.estCost,
+            context.strings.requests,
+          ];
+    String nt(int n) => tokenCount(n, unitSystem: c.unitSystem);
     String requests(int? n, {int? lifetimeCount}) => n == null
-        ? requestText(null, lifetimeCount: lifetimeCount)
+        ? requestText(
+            null,
+            strings: context.strings,
+            lifetimeCount: lifetimeCount,
+          )
         : toDisplayNumber(n);
     List<String> values(StatsSessionItem r) => [
       projectName(r.projectKey, peers: items.map((item) => item.projectKey)) ??
-          '没有记录项目',
-      startText(r, c.clock()),
+          context.strings.noProjectLogged,
+      startText(r, c.clock(), context.strings),
       if (scoped) ...[
         nt(r.grossTokens),
         requests(r.requestCount, lifetimeCount: r.cumulative.requestCount),
         nt(r.cumulative.grossTokens),
         requests(r.cumulative.requestCount),
       ] else ...[
-        spanText(r.startedAt, r.lastSeenAt),
+        spanText(r.startedAt, r.lastSeenAt, context.strings),
         nt(r.grossTokens),
       ],
       r.costMicros == null
-          ? '未定价'
+          ? context.strings.unpriced
           : usdCurrency(
               microsUsd(r.costMicros!),
               currency: c.preferences.currency,
@@ -407,8 +442,8 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             r.projectKey,
             peers: items.map((item) => item.projectKey),
           ) ??
-          '没有记录项目';
-      final label = '查看会话：$title，${toolOf(r.source).name}';
+          context.strings.noProjectLogged;
+      final label = context.strings.viewSession01(title, toolOf(r.source).name);
       final name = Row(
         children: [
           ToolTile(r.source, size: narrow ? 32 : 28),
@@ -496,7 +531,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                                     ),
                                   TokenText(
                                     r.grossTokens,
-                                    unitSystem: c.preferences.unitSystem,
+                                    unitSystem: c.unitSystem,
                                     style: p.text(14, null, FontWeight.w600),
                                   ),
                                 ],
@@ -509,24 +544,38 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                               spacing: 12,
                               children: [
                                 Text(
-                                  '${startText(r, c.clock())} 开始',
+                                  context.strings.sessionStartLabel(
+                                    startText(r, c.clock(), context.strings),
+                                  ),
                                   style: p.text(12.5, p.secondary),
                                 ),
                                 Text(
                                   scoped
-                                      ? '累计 ${nt(r.cumulative.grossTokens)} · ${requestText(r.cumulative.requestCount)}'
-                                      : spanText(r.startedAt, r.lastSeenAt),
+                                      ? context.strings.total01(
+                                          nt(r.cumulative.grossTokens),
+                                          requestText(
+                                            r.cumulative.requestCount,
+                                            strings: context.strings,
+                                          ),
+                                        )
+                                      : spanText(
+                                          r.startedAt,
+                                          r.lastSeenAt,
+                                          context.strings,
+                                        ),
                                   style: p.text(12.5, p.secondary),
                                 ),
                                 Text(
-                                  '${scoped ? '$periodLabel ' : ''}${requestText(r.requestCount, lifetimeCount: r.cumulative.requestCount)}',
+                                  '${scoped ? '$periodLabel ' : ''}${requestText(r.requestCount, strings: context.strings, lifetimeCount: r.cumulative.requestCount)}',
                                   style: p.text(12.5, p.secondary),
                                 ),
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      '${scoped ? periodLabel : ''}约值 ',
+                                      context.strings.estCost02(
+                                        scoped ? periodLabel : '',
+                                      ),
                                       style: p.text(12.5, p.secondary),
                                     ),
                                     money(r.costMicros),
@@ -542,7 +591,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                           cell(name, 0, right: false),
                           cell(
                             Text(
-                              startText(r, c.clock()),
+                              startText(r, c.clock(), context.strings),
                               style: p.text(13, p.secondary),
                             ),
                             1,
@@ -648,7 +697,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '会话',
+          context.strings.sessions,
           style: p
               .serif(narrow ? 24 : 28, weight: FontWeight.w500)
               .copyWith(height: 1.25),
@@ -657,9 +706,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         Text(
           scoped
               ? period.period == 'all'
-                    ? '筛选后的用量，累计是整个会话的总数，不受筛选影响。'
-                    : '$periodLabel有用量的会话，按时段内用量排序。累计是整个会话的总数。'
-              : '每次打开 AI 工具做的一件事，最近的在最上面。点一个看它用了哪些模型、花在什么时候。',
+                    ? context.strings.usageReflectsTheFiltersSessionTotalsCover
+                    : context.strings.sessionsWithUsageIn0SortedBy(periodLabel)
+              : context.strings.aSessionIsATaskInAn2,
           style: p.text(14, p.secondary),
         ),
         SizedBox(height: narrow ? 12 : 16),
@@ -704,12 +753,14 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                       ? Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 18),
                           child: EmptyState(
-                            title: '还没有会话',
+                            title: context.strings.noSessionsYet,
                             hint:
                                 q['tool']?.isNotEmpty == true ||
                                     q['project']?.isNotEmpty == true
-                                ? '换个筛选看看。'
-                                : '同步之后，工具记录的每个会话都会出现在这里。',
+                                ? context.strings.tryAnotherFilter
+                                : context
+                                      .strings
+                                      .sessionsAppearHereAfterSyncingToolLogs,
                           ),
                         )
                       : list(),
@@ -722,12 +773,12 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '已显示 ${items.length} 个会话',
+                        context.strings.showing0Session(items.length),
                         style: p.text(12, p.muted).copyWith(height: 1.4),
                       ),
                       if (nextCursor != null)
                         LensButton(
-                          label: '加载更多',
+                          label: context.strings.loadMore,
                           size: 'sm',
                           onPressed: () {
                             final next = nextCursor;
@@ -741,7 +792,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                         )
                       else
                         Text(
-                          '已经是全部了',
+                          context.strings.allSessionsShown,
                           style: p.text(12, p.muted).copyWith(height: 1.4),
                         ),
                     ],
@@ -752,7 +803,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ),
         SizedBox(height: narrow ? 12 : 16),
         Text(
-          '时段用量按记录发生时间归属；只记录总数的会话算在开始那天，不记录请求数。全部会话按最近活动排序。',
+          context.strings.usageIsCountedWhenEachRecordOccurred,
           style: p.text(12, p.muted).copyWith(height: 1.4),
         ),
       ],
@@ -797,8 +848,11 @@ class _SessionDetailState extends State<SessionDetail> {
   }
 
   StatsPeriod get period => widget.period ?? c.preferences.period;
-  String get periodLabel =>
-      sessionUsageLabel(period, widget.filter ?? const StatsFilter());
+  String get periodLabel => sessionUsageLabel(
+    period,
+    widget.filter ?? const StatsFilter(),
+    context.strings,
+  );
   void refresh() {
     final range = period.range(c.clock());
     final filter = widget.filter ?? StatsFilter(from: range.from, to: range.to);
@@ -848,10 +902,10 @@ class _SessionDetailState extends State<SessionDetail> {
     rate: rateFor(c.preferences.rates, c.preferences.currency),
     style: style ?? p.text(13, p.secondary),
   );
-  String nt(num n) => tokenCount(n, unitSystem: c.preferences.unitSystem);
+  String nt(num n) => tokenCount(n, unitSystem: c.unitSystem);
   Widget token(num? n, {TextStyle? style}) => TokenText(
     n,
-    unitSystem: c.preferences.unitSystem,
+    unitSystem: c.unitSystem,
     style: style ?? p.text(13, p.secondary),
   );
   Widget card(String title, String? sub, Widget body) => LensCard(
@@ -880,7 +934,10 @@ class _SessionDetailState extends State<SessionDetail> {
   );
   Widget content(StatsSessionDetail? value) {
     if (value == null) {
-      return const EmptyState(title: '会话不存在', hint: '这条会话可能已不在账本中。');
+      return EmptyState(
+        title: context.strings.sessionUnavailable,
+        hint: context.strings.thisSessionMayNoLongerBeIn,
+      );
     }
     final s = value.session,
         onlyTotals = value.kinds.cumulative > 0 && value.kinds.event == 0;
@@ -934,8 +991,8 @@ class _SessionDetailState extends State<SessionDetail> {
           border: Border(
             left:
                 label == periodLabel ||
-                    label == '约值' ||
-                    label == '$periodLabel约值'
+                    label == context.strings.estCost ||
+                    label == context.strings.estCost0(periodLabel)
                 ? BorderSide.none
                 : BorderSide(
                     width: LensPalette.hairline(context),
@@ -988,14 +1045,18 @@ class _SessionDetailState extends State<SessionDetail> {
                     style: p.serif(28, weight: FontWeight.w600),
                   ),
                   Text(
-                    requestText(periodRequests, lifetimeCount: s.requestCount),
+                    requestText(
+                      periodRequests,
+                      strings: context.strings,
+                      lifetimeCount: s.requestCount,
+                    ),
                     style: p.text(12, p.muted),
                   ),
                 ],
               ),
             ),
             mini(
-              '整个会话累计',
+              context.strings.fullSessionTotal,
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1008,10 +1069,16 @@ class _SessionDetailState extends State<SessionDetail> {
                     ),
                   ),
                   Text(
-                    '${requestText(s.requestCount)} · 跨 $spanDays 天',
+                    context.strings.sessionSpan(
+                      requestText(s.requestCount, strings: context.strings),
+                      spanDays,
+                    ),
                     style: p.text(12, p.muted),
                   ),
-                  Text('不受筛选影响', style: p.text(11.5, p.muted)),
+                  Text(
+                    context.strings.includesAllUsage,
+                    style: p.text(11.5, p.muted),
+                  ),
                 ],
               ),
             ),
@@ -1020,17 +1087,19 @@ class _SessionDetailState extends State<SessionDetail> {
       ),
       if (onlyTotals)
         card(
-          '只记录总数',
+          context.strings.sessionTotalsOnly,
           null,
           Text(
-            '${toolOf(widget.source).name} 只记录每个会话的总数，算在开始那天，没有每次请求的时间，无法按天拆分。',
+            context.strings.sessionTotalsOnlyForTool(
+              toolOf(widget.source).name,
+            ),
             style: p.text(13, p.muted),
           ),
         )
       else
         card(
-          '按天',
-          '这个会话每天用了多少；今天高亮',
+          context.strings.byDay,
+          context.strings.dailyUsageForThisSessionTodayIs,
           LayoutBuilder(
             builder: (context, box) => SizedBox(
               child: SizedBox(
@@ -1039,12 +1108,18 @@ class _SessionDetailState extends State<SessionDetail> {
                   children: [
                     Row(
                       children: [
-                        for (final title in ['日期', '用量', '请求', '平均每次', '约值'])
+                        for (final title in [
+                          context.strings.date,
+                          context.strings.usage,
+                          context.strings.requests,
+                          context.strings.avgPerRequest,
+                          context.strings.estCost,
+                        ])
                           Expanded(
-                            flex: title == '日期' ? 3 : 2,
+                            flex: title == context.strings.date ? 3 : 2,
                             child: Text(
                               title,
-                              textAlign: title == '日期'
+                              textAlign: title == context.strings.date
                                   ? TextAlign.left
                                   : TextAlign.right,
                               style: p.text(12, p.muted),
@@ -1082,17 +1157,28 @@ class _SessionDetailState extends State<SessionDetail> {
                                       day.bucket,
                                       c.clock(),
                                       relativeLabel: false,
+                                      strings: context.strings,
                                     ),
                                     maxLines: 1,
                                     softWrap: false,
                                     style: p.text(12, p.secondary),
                                   ),
                                   if ([
-                                    '今天',
-                                    '昨天',
-                                  ].contains(usageDate(day.bucket, c.clock())))
+                                    context.strings.today,
+                                    context.strings.yesterday,
+                                  ].contains(
+                                    usageDate(
+                                      day.bucket,
+                                      c.clock(),
+                                      strings: context.strings,
+                                    ),
+                                  ))
                                     Text(
-                                      usageDate(day.bucket, c.clock()),
+                                      usageDate(
+                                        day.bucket,
+                                        c.clock(),
+                                        strings: context.strings,
+                                      ),
                                       style: p.text(11, p.muted),
                                     ),
                                 ],
@@ -1123,6 +1209,7 @@ class _SessionDetailState extends State<SessionDetail> {
                                 day.requestCount == null
                                     ? requestText(
                                         null,
+                                        strings: context.strings,
                                         lifetimeCount: s.requestCount,
                                       )
                                     : toDisplayNumber(day.requestCount),
@@ -1138,6 +1225,7 @@ class _SessionDetailState extends State<SessionDetail> {
                                     ? Text(
                                         requestText(
                                           null,
+                                          strings: context.strings,
                                           lifetimeCount: s.requestCount,
                                         ),
                                         style: p.text(12, p.muted),
@@ -1165,7 +1253,10 @@ class _SessionDetailState extends State<SessionDetail> {
                     if (days.isEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: Text('没有按天记录', style: p.text(13, p.muted)),
+                        child: Text(
+                          context.strings.noDailyRecords,
+                          style: p.text(13, p.muted),
+                        ),
                       ),
                   ],
                 ),
@@ -1177,7 +1268,9 @@ class _SessionDetailState extends State<SessionDetail> {
         child: Row(
           children: [
             mini(
-              value.period != null ? '$periodLabel约值' : '约值',
+              value.period != null
+                  ? context.strings.estCost0(periodLabel)
+                  : context.strings.estCost,
               money(
                 value.period != null ? value.period!.costMicros : s.costMicros,
                 style: p
@@ -1187,7 +1280,7 @@ class _SessionDetailState extends State<SessionDetail> {
             ),
             if (value.period != null)
               mini(
-                '累计约值',
+                context.strings.totalEstCost,
                 money(
                   s.costMicros,
                   style: p
@@ -1196,7 +1289,9 @@ class _SessionDetailState extends State<SessionDetail> {
                 ),
               ),
             mini(
-              value.period != null ? '$periodLabel缓存命中' : '缓存命中',
+              value.period != null
+                  ? context.strings.cacheHit0(periodLabel)
+                  : context.strings.cacheHit,
               Text(
                 percentage(hit),
                 style: p
@@ -1215,7 +1310,7 @@ class _SessionDetailState extends State<SessionDetail> {
       if (s.source == 'grok' || (value.timing?.turn?.turnCount ?? 0) > 0)
         timingCard(true),
       card(
-        '用了哪些模型',
+        context.strings.modelsUsed,
         null,
         Column(
           children: [
@@ -1228,7 +1323,8 @@ class _SessionDetailState extends State<SessionDetail> {
                       children: [
                         Expanded(
                           child: Text(
-                            value.models[i].model ?? '没写模型',
+                            value.models[i].model ??
+                                context.strings.modelNotLogged,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: p.text(13, null, FontWeight.w500),
@@ -1261,14 +1357,14 @@ class _SessionDetailState extends State<SessionDetail> {
         ),
       ),
       card(
-        'token 是怎么构成的',
-        '大部分是重复发送的上下文，命中缓存后便宜很多',
+        context.strings.whereTheTokensWent,
+        context.strings.mostTokensAreReusedContextWhichCosts,
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (kindSum > 0)
               Semantics(
-                label: 'token 构成',
+                label: context.strings.tokenBreakdown,
                 image: true,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(99),
@@ -1309,7 +1405,7 @@ class _SessionDetailState extends State<SessionDetail> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '${['新输入', '输出', '读缓存', '写缓存'][i]} ',
+                        '${[context.strings.newInput, context.strings.output, context.strings.cacheRead, context.strings.cacheWrite][i]} ',
                         style: p.text(12, p.secondary).copyWith(height: 1.4),
                       ),
                       token(
@@ -1331,7 +1427,9 @@ class _SessionDetailState extends State<SessionDetail> {
         children: [
           if (s.projectKey != null)
             LensButton(
-              label: '在明细里看 ${projectName(s.projectKey) ?? s.projectKey}',
+              label: context.strings.view0InBreakdown(
+                projectName(s.projectKey) ?? s.projectKey,
+              ),
               icon: Icons.arrow_forward,
               trailingIcon: true,
               size: 'sm',
@@ -1339,7 +1437,7 @@ class _SessionDetailState extends State<SessionDetail> {
                   widget.onDetail({'period': 'all', 'project': s.projectKey!}),
             ),
           LensButton(
-            label: '在明细里看 ${toolOf(widget.source).name}',
+            label: context.strings.view0InBreakdown(toolOf(widget.source).name),
             icon: Icons.arrow_forward,
             trailingIcon: true,
             size: 'sm',
@@ -1375,7 +1473,10 @@ class _SessionDetailState extends State<SessionDetail> {
                         color: p.secondary,
                       ),
                       const SizedBox(width: 6),
-                      Text('技术细节', style: p.text(13, p.secondary)),
+                      Text(
+                        context.strings.technicalDetails,
+                        style: p.text(13, p.secondary),
+                      ),
                     ],
                   ),
                 ),
@@ -1391,13 +1492,21 @@ class _SessionDetailState extends State<SessionDetail> {
                   },
                   children: [
                     for (final row in [
-                      ('会话 ID', s.sessionId),
-                      ('工作目录', s.projectKey ?? '工具没有写进日志'),
+                      (context.strings.sessionId, s.sessionId),
                       (
-                        '记录',
-                        '${s.recordCount} 条${onlyTotals ? '（这个工具每个会话只写一条总数）' : '，每次请求一条'}',
+                        context.strings.workingDirectory,
+                        s.projectKey ?? context.strings.theToolDidNotLogThis,
                       ),
-                      ('来源', widget.source),
+                      (
+                        context.strings.records,
+                        context.strings.sessionRecordSummary(
+                          s.recordCount,
+                          onlyTotals
+                              ? context.strings.thisToolLogsOneTotalPerSession
+                              : context.strings.onePerRequest,
+                        ),
+                      ),
+                      (context.strings.source, widget.source),
                     ])
                       TableRow(
                         children: [
@@ -1432,7 +1541,10 @@ class _SessionDetailState extends State<SessionDetail> {
             child: LensSegmented(
               key: const Key('session-tabs'),
               small: true,
-              options: const {'overview': '概况', 'requests': '请求'},
+              options: {
+                'overview': context.strings.overview2,
+                'requests': context.strings.requests,
+              },
               value: requestsTab ? 'requests' : 'overview',
               onChanged: (tab) =>
                   setState(() => requestsTab = tab == 'requests'),

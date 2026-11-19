@@ -1,27 +1,43 @@
+import '../../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../stats_gateway.dart' show StatsFilter;
 import '../logic/period.dart';
 import '../theme/palette.dart';
 
-String sessionPeriodLabel(StatsPeriod period) => switch (period.period) {
-  'week' => '本周',
-  'month' => '本月',
-  'custom' => '所选时段',
-  _ => period.label,
+String sessionPeriodLabel(
+  StatsPeriod period, [
+  AppStrings strings = chineseStrings,
+]) => switch (period.period) {
+  'week' => strings.thisWeek2,
+  'month' => strings.thisMonth2,
+  'custom' => strings.selectedPeriod,
+  _ => period.labelFor(strings),
 };
 
-String sessionUsageLabel(StatsPeriod period, StatsFilter filter) =>
+String sessionUsageLabel(
+  StatsPeriod period,
+  StatsFilter filter, [
+  AppStrings strings = chineseStrings,
+]) =>
     [
       filter.source,
       filter.project,
       filter.model,
     ].any((value) => value?.isNotEmpty == true)
-    ? '${period.period == 'all' ? '' : sessionPeriodLabel(period)}筛选后'
-    : sessionPeriodLabel(period);
+    ? strings.filteredPeriod(
+        period.period == 'all' ? '' : sessionPeriodLabel(period, strings),
+      )
+    : sessionPeriodLabel(period, strings);
 
-String requestText(int? count, {int? lifetimeCount}) =>
-    count == null ? (lifetimeCount == null ? '不记录' : '—') : '$count 次请求';
+String requestText(
+  int? count, {
+  int? lifetimeCount,
+  AppStrings strings = chineseStrings,
+}) => count == null
+    ? (lifetimeCount == null ? strings.notLogged : '—')
+    : strings.requestCount(count);
 
 bool sessionStartedBefore(
   String startedAt,
@@ -54,6 +70,10 @@ class SessionStartChip extends StatelessWidget {
         .toUtc()
         .add(Duration(minutes: offsetMinutes));
     final year = now.toUtc().add(Duration(minutes: offsetMinutes)).year;
+    final strings = context.strings;
+    final day = date.year == year
+        ? strings.calendarDay(date.month, date.day)
+        : strings.calendarDayWithYear(date.year, date.month, date.day);
     return Container(
       margin: const EdgeInsets.only(left: 6),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -62,7 +82,7 @@ class SessionStartChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
-        '开始于 ${date.year == year ? '' : '${date.year}年'}${date.month}月${date.day}日',
+        strings.startedOn(day),
         style: p.text(11, p['clay-ink'], FontWeight.w500),
       ),
     );

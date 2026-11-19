@@ -1,3 +1,5 @@
+import 'l10n/app_strings.dart';
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show AppExitResponse, AppExitType, PlatformDispatcher;
@@ -53,12 +55,15 @@ class TokenLensApp extends StatefulWidget {
   State<TokenLensApp> createState() => _TokenLensAppState();
 }
 
-class _TokenLensAppState extends State<TokenLensApp> {
+enum _StartupFailure { previewDirectories, busy, initialization }
+
+class _TokenLensAppState extends State<TokenLensApp>
+    with WidgetsBindingObserver {
   late final AppLifecycleListener _lifecycle;
   NewsController? _controller;
   StatsController? _statsController;
-  String? _statsInitializationError;
-  String? _initializationError;
+  bool _statsInitializationFailed = false;
+  _StartupFailure? _initializationError;
   bool _closing = false;
   String? _runtimeData;
   UiPreferences _preferences = const UiPreferences();
@@ -69,6 +74,7 @@ class _TokenLensAppState extends State<TokenLensApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _lifecycle = AppLifecycleListener(onExitRequested: _exit);
     unawaited(_initialize());
   }
@@ -116,10 +122,11 @@ class _TokenLensAppState extends State<TokenLensApp> {
           RustStatsGateway(statsClient),
           store: preferenceStore,
           preferences: _preferences,
+          systemLanguage: () => PlatformDispatcher.instance.locale.languageCode,
         );
       } catch (error, stack) {
         _runtimeErrors.report(error, stack);
-        _statsInitializationError = '无法打开统计账本，请检查数据目录是否可读写。';
+        _statsInitializationFailed = true;
       }
       if (!mounted || _closing) {
         await statsController?.shutdown();
@@ -141,10 +148,10 @@ class _TokenLensAppState extends State<TokenLensApp> {
       final text = error.toString();
       setState(() {
         _initializationError = text.contains('preview-directory-required')
-            ? '调试运行需要同时设置 TOKEN_LENS_PREVIEW_DATA_DIR 和 TOKEN_LENS_PREVIEW_HOME 为独立的绝对目录。'
+            ? _StartupFailure.previewDirectories
             : text.contains('busy:')
-            ? 'Token Lens 已在运行，当前数据目录正在使用。请回到已打开的窗口。'
-            : '无法启动 Token Lens。请检查应用文件是否完整，以及数据目录是否可读写。';
+            ? _StartupFailure.busy
+            : _StartupFailure.initialization;
       });
     }
   }
@@ -176,7 +183,11 @@ class _TokenLensAppState extends State<TokenLensApp> {
   }
 
   @override
+  void didChangeLocales(List<Locale>? locales) => _statsChanged();
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _closing = true;
     _lifecycle.dispose();
     _controller?.dispose();
@@ -187,16 +198,29 @@ class _TokenLensAppState extends State<TokenLensApp> {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode =
-        switch ((_statsController?.preferences ?? _preferences).appearance) {
-          'light' => ThemeMode.light,
-          'dark' => ThemeMode.dark,
-          _ => ThemeMode.system,
-        };
+    final prefs = _statsController?.preferences ?? _preferences;
+    final strings = resolveStrings(
+      prefs.language,
+      PlatformDispatcher.instance.locale.languageCode,
+    );
+    final initializationError = switch (_initializationError) {
+      _StartupFailure.previewDirectories =>
+        strings.debugRunsRequireTokenLensPreviewData,
+      _StartupFailure.busy => strings.tokenLensIsAlreadyUsingThisData,
+      _StartupFailure.initialization => strings.cannotStartTokenLensCheckTheApp,
+      null => null,
+    };
+    final themeMode = switch (prefs.appearance) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
     return WindowTheme(
       themeMode: themeMode,
       child: MaterialApp(
         title: 'Token Lens',
+        builder: (_, child) =>
+            AppLanguageScope(strings: strings, child: child!),
         debugShowCheckedModeBanner: false,
         themeAnimationDuration:
             WidgetsBinding
@@ -213,7 +237,9 @@ class _TokenLensAppState extends State<TokenLensApp> {
             ? AppShell(
                 statsController: _statsController,
                 openLink: _openLink,
-                statsInitializationError: _statsInitializationError,
+                statsInitializationError: _statsInitializationFailed
+                    ? strings.cannotOpenTheUsageLedgerCheckThat
+                    : null,
                 news: NewsPage(controller: _controller!, openLink: _openLink),
                 newsListenable: _controller,
                 newsUnread: () => _controller?.totalUnread ?? 0,
@@ -223,12 +249,12 @@ class _TokenLensAppState extends State<TokenLensApp> {
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: _initializationError == null
-                        ? const Column(
+                        ? Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              CircularProgressIndicator(),
-                              SizedBox(height: 20),
-                              Text('正在打开本地新闻缓存…'),
+                              const CircularProgressIndicator(),
+                              const SizedBox(height: 20),
+                              Text(strings.openingTheLocalNewsCache),
                             ],
                           )
                         : Column(
@@ -237,14 +263,14 @@ class _TokenLensAppState extends State<TokenLensApp> {
                               const Icon(Icons.info_outline, size: 32),
                               const SizedBox(height: 16),
                               Text(
-                                _initializationError!,
+                                initializationError!,
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 20),
                               OutlinedButton(
                                 onPressed: () => ServicesBinding.instance
                                     .exitApplication(AppExitType.required),
-                                child: const Text('关闭'),
+                                child: Text(strings.close),
                               ),
                             ],
                           ),

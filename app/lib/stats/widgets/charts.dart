@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -115,8 +117,8 @@ class _TrendChartState extends State<TrendChart> {
               : widget.buckets[hot!];
           return Semantics(
             label: widget.onPick == null
-                ? '趋势图：聚焦后用左右方向键逐个查看时段'
-                : '趋势图：聚焦后用左右方向键逐个查看时段，回车看这个时段的明细',
+                ? context.strings.trendChartFocusItAndUseThe
+                : context.strings.trendChartFocusItAndUseThe2,
             child: Focus(
               focusNode: focusNode,
               onFocusChange: (focus) => setState(() {
@@ -183,8 +185,14 @@ class _TrendChartState extends State<TrendChart> {
                             duration: const Duration(milliseconds: 1500),
                             builder: (context, ms) => Semantics(
                               container: true,
-                              label:
-                                  '趋势纵轴：${trendAxisTicks(widget.buckets, widget.unitSystem).map((tick) => tick.label).join('、')}',
+                              label: context.strings.trendAxisLabels(
+                                trendAxisTicks(
+                                      widget.buckets,
+                                      widget.unitSystem,
+                                    )
+                                    .map((tick) => tick.label)
+                                    .join(context.strings.listSeparator),
+                              ),
                               child: CustomPaint(
                                 painter: _TrendPainter(
                                   widget,
@@ -193,6 +201,7 @@ class _TrendChartState extends State<TrendChart> {
                                   ms,
                                   LensPalette.hairline(context),
                                   textScaler,
+                                  context.strings,
                                 ),
                               ),
                             ),
@@ -229,10 +238,10 @@ class _TrendChartState extends State<TrendChart> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      '${_tipLabel(tip.bucket, widget.granularity, widget.now)}   ${tip.future
-                                          ? '还没到'
+                                      '${_tipLabel(tip.bucket, widget.granularity, widget.now, context.strings)}   ${tip.future
+                                          ? context.strings.upcoming2
                                           : tip.total == 0
-                                          ? '没有用量'
+                                          ? context.strings.noUsage2
                                           : format(tip.total)}',
                                       style: p.text(
                                         12.5,
@@ -275,7 +284,7 @@ class _TrendChartState extends State<TrendChart> {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
-                                            '约值',
+                                            context.strings.estCost,
                                             style: p.text(12.5, p.muted),
                                           ),
                                           MoneyText(
@@ -290,7 +299,12 @@ class _TrendChartState extends State<TrendChart> {
                                       ),
                                     if (widget.onPick != null && tip.total > 0)
                                       Text(
-                                        '点一下看这${widget.granularity == 'month' ? '个月' : '天'}的明细',
+                                        context.strings
+                                            .selectToViewThis0SBreakdown(
+                                              widget.granularity == 'month'
+                                                  ? context.strings.month2
+                                                  : context.strings.day,
+                                            ),
                                         style: p.text(11.5, p.muted),
                                       ),
                                   ],
@@ -311,15 +325,26 @@ class _TrendChartState extends State<TrendChart> {
   }
 }
 
-String _tipLabel(String key, String granularity, DateTime now) {
+String _tipLabel(
+  String key,
+  String granularity,
+  DateTime now,
+  AppStrings strings,
+) {
   if (granularity == 'month') {
-    return '${key.substring(0, 4)}年${int.parse(key.substring(5, 7))}月';
+    return strings.calendarMonth(
+      int.parse(key.substring(0, 4)),
+      int.parse(key.substring(5, 7)),
+    );
   }
-  final d = DateTime.parse(key.substring(0, 10));
+  final date = DateTime.parse(key.substring(0, 10));
   if (granularity == 'hour') {
-    return '${key.substring(0, 10) == dayKey(now) ? '今天' : '${d.month}月${d.day}日'} ${int.parse(key.substring(11, 13))}:00';
+    final day = key.substring(0, 10) == dayKey(now)
+        ? strings.today
+        : strings.calendarDay(date.month, date.day);
+    return '$day ${int.parse(key.substring(11, 13))}:00';
   }
-  return '${d.month}月${d.day}日 周${'日一二三四五六'[d.weekday % 7]}';
+  return strings.calendarDayWithWeekday(date.month, date.day, date.weekday);
 }
 
 class _TrendPainter extends CustomPainter {
@@ -330,6 +355,7 @@ class _TrendPainter extends CustomPainter {
     this.elapsed,
     this.lineWidth,
     this.textScaler,
+    this.strings,
   );
   final double lineWidth;
   final double elapsed;
@@ -337,6 +363,7 @@ class _TrendPainter extends CustomPainter {
   final LensPalette p;
   final int? hot;
   final TextScaler textScaler;
+  final AppStrings strings;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -423,13 +450,15 @@ class _TrendPainter extends CustomPainter {
       }
       String text = '';
       if (w.granularity == 'hour') {
-        if (i % 3 == 0) text = '${int.parse(bucket.bucket.substring(11, 13))}时';
+        if (i % 3 == 0) {
+          text = strings.hourTick(int.parse(bucket.bucket.substring(11, 13)));
+        }
       } else if (w.granularity == 'month') {
-        text = '${int.parse(bucket.bucket.substring(5, 7))}月';
+        text = strings.shortMonth(int.parse(bucket.bucket.substring(5, 7)));
       } else {
         final d = DateTime.parse(bucket.bucket);
         if (w.weekdays) {
-          text = '周${'日一二三四五六'[d.weekday % 7]}';
+          text = strings.shortWeekday(d.weekday);
         } else if (count <= 10 || i % 5 == 0 || i == count - 1) {
           text = '${d.month}/${d.day}';
         }
@@ -465,7 +494,7 @@ class _TrendPainter extends CustomPainter {
       }
       final averageLabel = TextPainter(
         text: TextSpan(
-          text: '平均 ${tokenCount(avg, unitSystem: w.unitSystem)}',
+          text: strings.avg0(tokenCount(avg, unitSystem: w.unitSystem)),
           style: p.text(11, p.secondary),
         ),
         textDirection: TextDirection.ltr,
@@ -544,7 +573,7 @@ class _HeatmapState extends State<Heatmap> {
 
         final text = hot == null
             ? null
-            : '${days[hot!].month}月${days[hot!].day}日 周${'日一二三四五六'[days[hot!].weekday % 7]} · ${(widget.values[dayKey(days[hot!])] ?? 0) == 0 ? '没有用量' : '${tokenCount(widget.values[dayKey(days[hot!])], unitSystem: widget.unitSystem)} token'}';
+            : '${context.strings.calendarDayWithWeekday(days[hot!].month, days[hot!].day, days[hot!].weekday)} · ${(widget.values[dayKey(days[hot!])] ?? 0) == 0 ? context.strings.noUsage2 : '${tokenCount(widget.values[dayKey(days[hot!])], unitSystem: widget.unitSystem)} ${context.strings.tokenUnit}'}';
         final lines = text?.split(' · ');
         final tipWidth = lines == null
             ? 0.0
@@ -598,6 +627,7 @@ class _HeatmapState extends State<Heatmap> {
                         hot,
                         widget.unitSystem,
                         ms,
+                        context.strings,
                       ),
                     ),
                   ),
@@ -653,6 +683,7 @@ class _HeatPainter extends CustomPainter {
     this.hot,
     this.units,
     this.elapsed,
+    this.strings,
   );
   final LensPalette p;
   final List<DateTime> days;
@@ -660,6 +691,7 @@ class _HeatPainter extends CustomPainter {
   final Map<String, int> values;
   final int? hot;
   final String units;
+  final AppStrings strings;
   final double elapsed;
   @override
   void paint(Canvas canvas, Size size) {
@@ -672,7 +704,10 @@ class _HeatPainter extends CustomPainter {
       );
       if (d.day <= 7) {
         final tp = TextPainter(
-          text: TextSpan(text: '${d.month}月', style: p.text(11, p.muted)),
+          text: TextSpan(
+            text: strings.shortMonth(d.month),
+            style: p.text(11, p.muted),
+          ),
           textDirection: TextDirection.ltr,
         )..layout();
         tp.paint(canvas, Offset(w * (cell + 3), 0));
@@ -728,7 +763,8 @@ class _HeatPainter extends CustomPainter {
             cell,
           ),
           properties: SemanticsProperties(
-            label: '${dayKey(days[i])} ${values[dayKey(days[i])] ?? 0} token',
+            label:
+                '${dayKey(days[i])} ${values[dayKey(days[i])] ?? 0} ${strings.tokenUnit}',
             textDirection: TextDirection.ltr,
           ),
         ),

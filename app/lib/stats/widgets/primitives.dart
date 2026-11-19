@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -450,98 +452,109 @@ class _LensSegmentedState extends State<LensSegmented>
                 textDirection: TextDirection.ltr,
               )..layout()).width,
     ];
-    final width =
-            widths.reduce(math.max) + (widget.options.length == 5 ? 18 : 20),
-        height = widget.small ? 28.0 : 32.0;
-    return Semantics(
-      label: widget.label,
-      container: true,
-      child: Container(
-        width: width * widths.length + 4,
-        height: height,
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: (p.dark ? Colors.white : Colors.black).withValues(
-            alpha: p.dark ? .08 : .06,
-          ),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            AnimatedBuilder(
-              animation: step,
-              builder: (context, _) => Transform.translate(
-                offset: Offset(step.value * width, 0),
-                child: Container(
-                  width: width,
-                  height: height - 4,
-                  decoration: BoxDecoration(
-                    color: p.dark ? const Color(0xff2c2c2a) : Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: (p.dark ? Colors.white : Colors.black).withValues(
-                        alpha: .06,
-                      ),
-                      strokeAlign: BorderSide.strokeAlignInside,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(
-                          alpha: p.dark ? .4 : .08,
+    final preferredWidth =
+        widths.reduce(math.max) + (widget.options.length == 5 ? 18 : 20);
+    final height = widget.small ? 28.0 : 32.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = math.min(
+          preferredWidth,
+          math.max(0, constraints.maxWidth - 4) / widths.length,
+        );
+        return Semantics(
+          label: widget.label,
+          container: true,
+          child: Container(
+            width: width * widths.length + 4,
+            height: height,
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: (p.dark ? Colors.white : Colors.black).withValues(
+                alpha: p.dark ? .08 : .06,
+              ),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedBuilder(
+                  animation: step,
+                  builder: (context, _) => Transform.translate(
+                    offset: Offset(step.value * width, 0),
+                    child: Container(
+                      width: width,
+                      height: height - 4,
+                      decoration: BoxDecoration(
+                        color: p.dark ? const Color(0xff2c2c2a) : Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: (p.dark ? Colors.white : Colors.black)
+                              .withValues(alpha: .06),
+                          strokeAlign: BorderSide.strokeAlignInside,
                         ),
-                        offset: const Offset(0, 1),
-                        blurRadius: 3,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: p.dark ? .4 : .08,
+                            ),
+                            offset: const Offset(0, 1),
+                            blurRadius: 3,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-            Row(
-              children: [
-                for (final e in widget.options.entries)
-                  Semantics(
-                    label: e.value,
-                    selected: e.key == widget.value,
-                    button: true,
-                    child: LensFocusOutline(
-                      child: InkWell(
-                        onTap: () => widget.onChanged(e.key),
-                        borderRadius: BorderRadius.circular(999),
-                        child: SizedBox(
-                          width: width,
-                          height: height - 4,
-                          child: Center(
-                            child: e.key == 'custom'
-                                ? Tooltip(
-                                    message: '自定义',
-                                    child: Icon(
-                                      Icons.calendar_month_outlined,
-                                      size: 14,
-                                      color: p.muted,
-                                    ),
-                                  )
-                                : Text(
-                                    e.value,
-                                    style: p.text(
-                                      12,
-                                      e.key == widget.value ? p.ink : p.muted,
-                                      e.key == widget.value
-                                          ? FontWeight.w600
-                                          : FontWeight.w400,
-                                    ),
-                                  ),
+                Row(
+                  children: [
+                    for (final e in widget.options.entries)
+                      Semantics(
+                        label: e.value,
+                        selected: e.key == widget.value,
+                        button: true,
+                        child: LensFocusOutline(
+                          child: InkWell(
+                            onTap: () => widget.onChanged(e.key),
+                            borderRadius: BorderRadius.circular(999),
+                            child: SizedBox(
+                              width: width,
+                              height: height - 4,
+                              child: Center(
+                                child: e.key == 'custom'
+                                    ? Tooltip(
+                                        message: context.strings.custom,
+                                        child: Icon(
+                                          Icons.calendar_month_outlined,
+                                          size: 14,
+                                          color: p.muted,
+                                        ),
+                                      )
+                                    : Text(
+                                        e.value,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: p.text(
+                                          12,
+                                          e.key == widget.value
+                                              ? p.ink
+                                              : p.muted,
+                                          e.key == widget.value
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                        ),
+                                      ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -697,7 +710,9 @@ class TokenText extends StatelessWidget {
   final String unitSystem, mode;
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: value == null ? '客户端没有上报该字段' : '${toDisplayNumber(value)} token',
+    message: value == null
+        ? context.strings.theClientDidNotReportThisField
+        : '${toDisplayNumber(value)} ${context.strings.tokenUnit}',
     child: Text(
       value == null
           ? '—'
@@ -728,13 +743,13 @@ class MoneyText extends StatelessWidget {
     final p = LensPalette.of(context);
     if (value == null || value == '') {
       return Tooltip(
-        message: '该模型没有可用价格',
+        message: context.strings.pricingIsUnavailableForThisModel,
         child: Text(
           state == 'aggregate'
-              ? '待核价'
+              ? context.strings.priceUnverified
               : state == 'verified'
               ? '—'
-              : '未定价',
+              : context.strings.unpriced,
           style: style ?? p.text(14, p.muted),
         ),
       );
@@ -794,7 +809,7 @@ class SkeletonLines extends StatelessWidget {
   final int rows;
   @override
   Widget build(BuildContext context) => Semantics(
-    label: '正在加载',
+    label: context.strings.loading,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -248,7 +250,7 @@ class FilterTag extends StatelessWidget {
             height: 20,
             child: LensFocusOutline(
               child: IconButton(
-                tooltip: '去掉$label筛选',
+                tooltip: context.strings.remove0Filter(label),
                 padding: EdgeInsets.zero,
                 iconSize: 14,
                 onPressed: onRemove,

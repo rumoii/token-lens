@@ -40,6 +40,8 @@ macOS 可用 `python3`。调试运行需同时设置预览数据目录与预览�
 cargo fetch --manifest-path app/rust/Cargo.toml --locked --target x86_64-pc-windows-msvc --target aarch64-apple-darwin
 ```
 
+界面文字分中文和英文两份：在 `lib/l10n/app_strings.dart` 声明，`strings_zh.dart` 和 `strings_en.dart` 各写一份，少写一份无法通过分析。Rust 传给界面的来源说明和价格说明同时带两种语言（`source_notes.rs` 的英文列、`pricing-catalog.json` 的 `conditionsEn`）。
+
 修改 Rust 公共接口后，在 `app/` 运行 `flutter_rust_bridge_codegen generate`，再执行完整检查。构建发行版用 `flutter build windows --release --no-pub` 或 `flutter build macos --release --no-pub`。Flutter native-assets hook 编译并打包 Rust 动态库；测试与发行不需要额外启动 Rust 服务。
 
 ## 运行与回退

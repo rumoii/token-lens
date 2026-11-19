@@ -1,3 +1,6 @@
+import '../../l10n/app_strings.dart';
+import '../../l10n/sync_messages.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -17,22 +20,22 @@ TextStyle _sourceText(
   Color? color,
   FontWeight weight = FontWeight.w400,
 ]) => p.text(size, color, weight).copyWith(height: 1.5, letterSpacing: 0);
-String _relative(String? iso, DateTime now) {
+String _relative(String? iso, DateTime now, AppStrings strings) {
   final then = DateTime.tryParse(iso ?? '');
   if (then == null) return '—';
   final minutes = (now.difference(then).inMilliseconds / 60000 + .5).floor();
   return minutes < 1
-      ? '刚刚'
+      ? strings.justNow
       : minutes < 60
-      ? '$minutes 分钟前'
+      ? strings.minutesAgo(minutes)
       : minutes < 1440
-      ? '${(minutes / 60 + .5).floor()} 小时前'
-      : '${(minutes / 1440 + .5).floor()} 天前';
+      ? strings.hoursAgo((minutes / 60 + .5).floor())
+      : strings.daysAgo((minutes / 1440 + .5).floor());
 }
 
 class SourcesTech extends StatefulWidget {
-  const SourcesTech({super.key, this.title = '技术细节', required this.child});
-  final String title;
+  const SourcesTech({super.key, this.title, required this.child});
+  final String? title;
   final Widget child;
   @override
   State<SourcesTech> createState() => _SourcesTechState();
@@ -78,7 +81,10 @@ class _SourcesTechState extends State<SourcesTech> {
                       child: const Icon(Icons.chevron_right, size: 14),
                     ),
                     const SizedBox(width: 6),
-                    Text(widget.title, style: _sourceText(p, 13, p.secondary)),
+                    Text(
+                      widget.title ?? context.strings.technicalDetails,
+                      style: _sourceText(p, 13, p.secondary),
+                    ),
                   ],
                 ),
               ),
@@ -123,14 +129,18 @@ class _Pill extends StatelessWidget {
             Icon(Icons.check, size: 12, color: color),
             const SizedBox(width: 4),
           ],
-          Text(
-            label,
-            style: _sourceText(
-              p,
-              11.5,
-              color,
-              FontWeight.w500,
-            ).copyWith(height: 20 / 11.5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _sourceText(
+                p,
+                11.5,
+                color,
+                FontWeight.w500,
+              ).copyWith(height: 20 / 11.5),
+            ),
           ),
         ],
       ),
@@ -156,14 +166,14 @@ class SourcesSyncStatus extends StatelessWidget {
     final result = this.result;
     final failures = (run?.anomalyCount ?? 0) + discoveryFailures;
     final problem = run == null
-        ? '还没有同步过'
+        ? context.strings.noSyncYet
         : run!.status == 'running'
-        ? '正在同步…'
+        ? context.strings.syncing
         : failures > 0
-        ? '上次同步有 $failures 处没读成功，其余已经更新'
+        ? context.strings.lastSyncReadFailures(failures)
         : run!.status == 'ok'
         ? null
-        : '上次同步没有完成';
+        : context.strings.lastSyncIncomplete;
     final syncing =
         c.busy || c.phase == StatsSyncPhase.idle && run?.status == 'running';
     final rereading = c.rereading;
@@ -218,11 +228,17 @@ class SourcesSyncStatus extends StatelessWidget {
                       children: [
                         Text(
                           problem ??
-                              '${_relative(run!.finishedAt, c.clock())}同步过，一切正常',
+                              context.strings.synced0NoIssues(
+                                _relative(
+                                  run!.finishedAt,
+                                  c.clock(),
+                                  context.strings,
+                                ),
+                              ),
                           style: _sourceText(p, 14, null, FontWeight.w500),
                         ),
                         Text(
-                          '每次打开 Token Lens 会自动同步一次，也可以手动同步。',
+                          context.strings.tokenLensSyncsOnceEachTimeIt,
                           style: _sourceText(p, 12.5, p.muted),
                         ),
                       ],
@@ -239,11 +255,13 @@ class SourcesSyncStatus extends StatelessWidget {
                   children: [
                     Tooltip(
                       message:
-                          '忽略上次的读取结果，把全部日志重新读一遍。怀疑统计漏了或不对时使用；账本里已有的用量不会被删除。',
+                          context.strings.rereadAllLogsWithoutUsingThePrevious,
                       child: SizedBox(
                         height: 34,
                         child: LensButton(
-                          label: rereading ? '重新读取中…' : '重新读取全部日志',
+                          label: rereading
+                              ? context.strings.rereading
+                              : context.strings.rereadAllLogs,
                           onPressed: syncing
                               ? null
                               : () => unawaited(c.rereadLogs()),
@@ -257,7 +275,9 @@ class SourcesSyncStatus extends StatelessWidget {
                         data: Theme.of(context)
                             .copyWith(brightness: Brightness.light),
                         child: LensButton(
-                          label: syncing && !rereading ? '同步中…' : '立即同步',
+                          label: syncing && !rereading
+                              ? context.strings.syncing2
+                              : context.strings.syncNow,
                           variant: 'primary',
                           icon: Icons.refresh,
                           spinning: syncing && !rereading,
@@ -275,9 +295,13 @@ class SourcesSyncStatus extends StatelessWidget {
             Semantics(
               liveRegion: true,
               child: Text(
-                '同步完成：扫描 ${result.fileCount} 个文件，'
-                '${reused > 0 ? '其中 $reused 个没变（沿用上次结果），' : ''}'
-                '新增 ${result.inserted} 条，有变化的 ${result.updated} 条，用时 ${(result.durationMs / 1000).toStringAsFixed(1)} 秒。',
+                context.strings.syncCompleted(
+                  result.fileCount,
+                  reused > 0 ? context.strings.unchangedFiles(reused) : '',
+                  result.inserted,
+                  result.updated,
+                  (result.durationMs / 1000).toStringAsFixed(1),
+                ),
                 style: _sourceText(p, 12.5, p.secondary),
               ),
             ),
@@ -286,7 +310,10 @@ class SourcesSyncStatus extends StatelessWidget {
             const SizedBox(height: 12),
             Semantics(
               liveRegion: true,
-              child: Text('已有同步在执行，正在等待完成', style: _sourceText(p)),
+              child: Text(
+                context.strings.aSyncIsAlreadyRunningWaitingFor,
+                style: _sourceText(p),
+              ),
             ),
           ],
           if (c.warning != null) ...[
@@ -294,7 +321,7 @@ class SourcesSyncStatus extends StatelessWidget {
             Semantics(
               liveRegion: true,
               child: Text(
-                '同步完成，有异常警告：${c.warning}',
+                context.strings.syncFinishedWithWarnings(c.warning),
                 style: _sourceText(p, 12.5, p.secondary),
               ),
             ),
@@ -304,7 +331,9 @@ class SourcesSyncStatus extends StatelessWidget {
             Semantics(
               liveRegion: true,
               child: Text(
-                '同步失败：${c.syncError ?? '请求失败'}',
+                context.strings.syncFailed0(
+                  c.syncError ?? context.strings.requestFailed,
+                ),
                 style: _sourceText(p, 12.5, p['danger']),
               ),
             ),
@@ -312,20 +341,30 @@ class SourcesSyncStatus extends StatelessWidget {
           if (run != null) ...[
             const SizedBox(height: 12),
             SourcesTech(
-              title: '上次同步的技术细节',
+              title: context.strings.lastSyncDetails,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '处理了 ${toDisplayNumber(run!.attempted)} 条记录：新增 ${run!.inserted} 条，有变化的 ${run!.updated} 条，没变的 ${toDisplayNumber(run!.unchanged)} 条，跳过 ${run!.rejected} 条。',
+                    context.strings.recordsProcessed(
+                      toDisplayNumber(run!.attempted),
+                      run!.inserted,
+                      run!.updated,
+                      toDisplayNumber(run!.unchanged),
+                      run!.rejected,
+                    ),
                   ),
                   if (run!.skippedFiles > 0)
-                    Text('另有 ${run!.skippedFiles} 个文件所在的工具没有任何变化，这次没有重新处理。'),
+                    Text(
+                      context.strings.skipped0FileFromToolsWithNo(
+                        run!.skippedFiles,
+                      ),
+                    ),
                   if (run!.anomalies.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     for (final anomaly in run!.anomalies)
                       Text(
-                        '• $anomaly',
+                        '• ${localizedAnomaly(anomaly, context.strings)}',
                         style: p
                             .text(12, p.secondary)
                             .copyWith(
@@ -383,9 +422,9 @@ class _SourcePermissionStatus extends StatelessWidget {
   const _SourcePermissionStatus();
 
   @override
-  Widget build(BuildContext context) => const Tooltip(
-    message: 'Token Lens 只读取日志，不会修改。请检查这个文件夹的读取权限，然后点「立即同步」。',
-    child: _Pill('没有权限读取日志目录', tone: 'warn'),
+  Widget build(BuildContext context) => Tooltip(
+    message: context.strings.tokenLensOnlyReadsLogFilesCheck,
+    child: _Pill(context.strings.cannotReadLogDirectory, tone: 'warn'),
   );
 }
 
@@ -408,20 +447,49 @@ class SourcesToolCard extends StatelessWidget {
     final p = LensPalette.of(context);
     final real = item.evidence == 'A';
     final mode = switch (item.recordMode) {
-      'cumulative' => ('只记录每个会话的总数', '能看到每个会话用了多少，看不到会话里每次请求的时间。'),
-      'mixed' => ('大多按请求记录', '有的会话只有一条总数，这些会话看不到时间线。'),
-      _ => ('每次请求都有记录', '能看到每次请求的时间、模型和用量。'),
+      'cumulative' => (
+        context.strings.sessionTotalsOnly2,
+        context.strings.sessionUsageIsAvailableRequestTimesAre,
+      ),
+      'mixed' => (
+        context.strings.mostlyPerRequest,
+        context.strings.someSessionsHaveOnlyATotalAnd,
+      ),
+      _ => (
+        context.strings.perRequest,
+        context.strings.eachRequestIncludesItsTimeModelAnd,
+      ),
     };
+    final strings = context.strings;
+    final limits = strings.isChinese
+        ? item.limits
+        : item.limitsEn ?? item.limits;
     final checks = [
-      ('时间不在合理范围', item.checks.timeOutOfRange, '条'),
-      ('单次请求超过 1 亿 token', item.checks.hugeRequests, '条'),
-      ('没有模型名、不计价', item.checks.nullModel, '条'),
-      ('同一会话混用两种记录方式', item.checks.mixedKindSessions, '个会话'),
+      (
+        context.strings.timeOutsideExpectedRange,
+        item.checks.timeOutOfRange,
+        strings.sourceCheckRecordCount,
+      ),
+      (
+        context.strings.over100MillionTokensInOneRequest,
+        item.checks.hugeRequests,
+        strings.sourceCheckRecordCount,
+      ),
+      (
+        context.strings.unpricedBecauseTheModelIsMissing,
+        item.checks.nullModel,
+        strings.sourceCheckRecordCount,
+      ),
+      (
+        context.strings.sessionsMixingBothRecordTypes,
+        item.checks.mixedKindSessions,
+        strings.sourceCheckSessionCount,
+      ),
     ].where((check) => check.$2 > 0).toList();
     final status = [
-      if (item.recordMode == 'event') '每次请求都有记录',
-      if (item.retention.logsGone == 0) '记录完整',
-      if (checks.isEmpty) '自检正常',
+      if (item.recordMode == 'event') context.strings.perRequest,
+      if (item.retention.logsGone == 0) context.strings.recordsComplete,
+      if (checks.isEmpty) context.strings.checksPassed,
     ];
     Widget text(String value, {bool muted = false, bool balance = false}) =>
         Text(
@@ -482,26 +550,40 @@ class SourcesToolCard extends StatelessWidget {
                         toolOf(item.source).name,
                         style: _sourceText(p, 15, null, FontWeight.w600),
                       ),
-                      const _Pill('已接入', tone: 'ok', check: true),
+                      _Pill(context.strings.supported, tone: 'ok', check: true),
                     ],
                   ),
                   Wrap(
                     runSpacing: 2,
                     children: [
                       Text(
-                        '最近一次使用 ${_relative(item.lastObservedAt, controller.clock())} · ',
+                        context.strings.lastUsed0(
+                          _relative(
+                            item.lastObservedAt,
+                            controller.clock(),
+                            context.strings,
+                          ),
+                        ),
                         maxLines: 1,
                         softWrap: false,
                         style: _sourceText(p, 12.5, p.muted),
                       ),
                       Text(
-                        '本月 ${tokenCount(monthTokens, mode: controller.preferences.tokenMode, unitSystem: controller.preferences.unitSystem)} token · ',
+                        context.strings.sourceMonthlyTokens(
+                          tokenCount(
+                            monthTokens,
+                            mode: controller.preferences.tokenMode,
+                            unitSystem: controller.unitSystem,
+                          ),
+                        ),
                         maxLines: 1,
                         softWrap: false,
                         style: _sourceText(p, 12.5, p.muted),
                       ),
                       Text(
-                        '${toDisplayNumber(item.records)} 条记录',
+                        context.strings.sourceRecordCount(
+                          toDisplayNumber(item.records),
+                        ),
                         maxLines: 1,
                         softWrap: false,
                         style: _sourceText(p, 12.5, p.muted),
@@ -514,7 +596,7 @@ class SourcesToolCard extends StatelessWidget {
               Semantics(
                 link: true,
                 child: LensButton(
-                  label: '看用量',
+                  label: context.strings.sourceViewUsage,
                   size: 'link',
                   variant: 'ghost',
                   icon: Icons.arrow_forward,
@@ -527,7 +609,7 @@ class SourcesToolCard extends StatelessWidget {
           const SizedBox(height: 12),
           stack([
             field(
-              '状态',
+              context.strings.status,
               permissionDenied
                   ? const _SourcePermissionStatus()
                   : Wrap(
@@ -537,14 +619,22 @@ class SourcesToolCard extends StatelessWidget {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Tooltip(
-                              message: real
-                                  ? '拿真实使用的日志逐条对过，数字可靠。'
-                                  : '格式按公开资料和样例确认，大概率没问题；对不上的话可以反馈。',
-                              child: _Pill(
-                                real ? '用真实日志核对过' : '只用样例日志核对过',
-                                tone: real ? 'ok' : null,
-                                check: real,
+                            Flexible(
+                              child: Tooltip(
+                                message: real
+                                    ? context
+                                          .strings
+                                          .checkedAgainstRealUsageLogs
+                                    : context
+                                          .strings
+                                          .checkedAgainstPublicReferencesAndSamplesReport,
+                                child: _Pill(
+                                  real
+                                      ? context.strings.verifiedWithRealLogs
+                                      : context.strings.checkedWithSampleLogs,
+                                  tone: real ? 'ok' : null,
+                                  check: real,
+                                ),
                               ),
                             ),
                             if (status.isNotEmpty) text(' · ', muted: true),
@@ -562,7 +652,7 @@ class SourcesToolCard extends StatelessWidget {
             ),
             if (item.recordMode != 'event')
               field(
-                '记录方式',
+                context.strings.recordType,
                 stack([
                   text(mode.$1),
                   text(mode.$2, muted: true, balance: true),
@@ -570,37 +660,43 @@ class SourcesToolCard extends StatelessWidget {
               ),
             if (item.retention.logsGone > 0)
               field(
-                '日志留存',
+                context.strings.logRetention,
                 stack([
                   text(
-                    '${toDisplayNumber(item.retention.reviewable)} 条还能对照原始日志复核',
+                    context.strings.reviewableRecords(
+                      toDisplayNumber(item.retention.reviewable),
+                    ),
                   ),
                   text(
-                    '另有 ${toDisplayNumber(item.retention.logsGone)} 条的日志已经不在了，照常计入总数，但没法再复核。',
+                    context.strings.logsGone(
+                      toDisplayNumber(item.retention.logsGone),
+                    ),
                     muted: true,
                   ),
                 ]),
               ),
             if (checks.isNotEmpty)
               field(
-                '自检',
+                context.strings.checks,
                 stack([
                   for (final check in checks)
                     note(
-                      '待查',
-                      '${check.$1}：${toDisplayNumber(check.$2)} ${check.$3}',
+                      context.strings.needsReview,
+                      strings.sourceCheckLabel(check.$1, check.$3(check.$2)),
                       tone: 'warn',
                     ),
                 ], gap: 6),
               ),
             if (item.notes.isNotEmpty)
               field(
-                '要知道的',
+                context.strings.knownLimitations,
                 stack([
                   for (final n in item.notes)
                     note(
-                      n.impact == 'affects' ? '有影响' : '已处理',
-                      n.text,
+                      n.impact == 'affects'
+                          ? context.strings.affectsData
+                          : context.strings.handled,
+                      strings.isChinese ? n.text : n.textEn ?? n.text,
                       tone: n.impact == 'affects' ? 'warn' : null,
                     ),
                 ], gap: 6),
@@ -610,7 +706,7 @@ class SourcesToolCard extends StatelessWidget {
           SourcesTech(
             child: stack([
               field(
-                '来源 ID',
+                context.strings.sourceId,
                 Text(
                   item.source,
                   style: p
@@ -623,11 +719,18 @@ class SourcesToolCard extends StatelessWidget {
                       ),
                 ),
               ),
-              field('证据等级', Text(real ? 'A（真实样本）' : 'B（合成样本）')),
-              if (item.limits.isNotEmpty)
+              field(
+                context.strings.evidence,
+                Text(
+                  real
+                      ? context.strings.aRealSamples
+                      : context.strings.bSyntheticSamples,
+                ),
+              ),
+              if (limits.isNotEmpty)
                 field(
-                  '口径原文',
-                  stack([for (final limit in item.limits) Text(limit)]),
+                  context.strings.technicalNotes,
+                  stack([for (final limit in limits) Text(limit)]),
                 ),
             ], gap: 4),
           ),
@@ -679,7 +782,9 @@ class _SourcesMissingToolsState extends State<SourcesMissingTools> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '还有 ${widget.ids.length} 个支持的工具没在这台电脑上找到',
+                        context.strings.supportedToolsMissing(
+                          widget.ids.length,
+                        ),
                         style: _sourceText(p, 13.5, p.secondary),
                       ),
                     ),
@@ -753,7 +858,7 @@ class _SourcesMissingToolsState extends State<SourcesMissingTools> {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
               child: Text(
-                '装上并用过一次以后，点「立即同步」就会出现在上面。',
+                context.strings.installAndUseASupportedToolThen,
                 style: _sourceText(p, 12.5, p.muted),
               ),
             ),

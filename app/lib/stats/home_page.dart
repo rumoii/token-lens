@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -39,10 +41,9 @@ class _StatsHomeState extends State<StatsHome> {
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   bool get large => MediaQuery.sizeOf(context).width >= 1024;
-  String nt(num value) =>
-      tokenCount(value, unitSystem: c.preferences.unitSystem);
+  String nt(num value) => tokenCount(value, unitSystem: c.unitSystem);
   Widget token(num? value, {TextStyle? style}) =>
-      TokenText(value, unitSystem: c.preferences.unitSystem, style: style);
+      TokenText(value, unitSystem: c.unitSystem, style: style);
   Widget money(
     Object? value, {
     int? digits,
@@ -131,12 +132,15 @@ class _StatsHomeState extends State<StatsHome> {
     runSpacing: 10,
     children: [
       LensSegmented(
-        options: const {'overview': '概览', 'detail': '明细'},
+        options: {
+          'overview': context.strings.overview,
+          'detail': context.strings.breakdown,
+        },
         value: 'overview',
         onChanged: (v) {
           if (v == 'detail') widget.onDetail({});
         },
-        label: '视图',
+        label: context.strings.view2,
       ),
       PeriodControl(
         period: c.preferences.period,
@@ -148,14 +152,14 @@ class _StatsHomeState extends State<StatsHome> {
   Widget header(Widget summary) {
     final hour = c.clock().hour;
     final greet = hour < 6
-        ? '夜深了'
+        ? context.strings.stillUpLate
         : hour < 11
-        ? '早上好'
+        ? context.strings.goodMorning
         : hour < 13
-        ? '中午好'
+        ? context.strings.goodAfternoon
         : hour < 18
-        ? '下午好'
-        : '晚上好';
+        ? context.strings.goodAfternoon2
+        : context.strings.goodEvening;
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -204,7 +208,7 @@ class _StatsHomeState extends State<StatsHome> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                sync ? error : '加载失败（request_failed）',
+                sync ? error : context.strings.couldNotLoadRequestFailed,
                 style: p.text(12, null, FontWeight.w500),
               ),
               if (!sync) Text(error, style: p.text(12, p.muted)),
@@ -212,14 +216,14 @@ class _StatsHomeState extends State<StatsHome> {
           ),
         ),
         LensButton(
-          label: '重试',
+          label: context.strings.retry,
           size: 'xs',
           variant: 'ghost',
           onPressed: c.busy
               ? null
               : () => unawaited(sync ? c.sync() : c.load()),
         ),
-        if (sync) link('查看详情', widget.onSources),
+        if (sync) link(context.strings.viewDetails, widget.onSources),
       ],
     ),
   );
@@ -228,10 +232,14 @@ class _StatsHomeState extends State<StatsHome> {
   Widget build(BuildContext context) {
     final data = c.overview;
     final banner = <Widget>[
-      if (c.syncError == null && c.syncFailed) failure('上次同步没有完成。', sync: true),
+      if (c.syncError == null && c.syncFailed)
+        failure(context.strings.theLastSyncDidNotFinish, sync: true),
       if (c.syncError != null) failure(c.syncError!, sync: true),
       if (c.warning != null)
-        Text('同步完成，有异常警告：${c.warning}', style: p.text(13.5, p['warn'])),
+        Text(
+          context.strings.syncFinishedWithWarnings(c.warning),
+          style: p.text(13.5, p['warn']),
+        ),
       if (c.error != null) failure(c.error!),
     ];
     if (data == null) {
@@ -250,7 +258,8 @@ class _StatsHomeState extends State<StatsHome> {
         ],
       );
     }
-    final digest = digestPairs(data.pairs.groups), totals = data.summary.totals;
+    final digest = digestPairs(data.pairs.groups, context.strings),
+        totals = data.summary.totals;
     final rank = digest.rank, models = digest.models;
     final order = sortByToolOrder(
       rank.map((g) => g.id).toList(),
@@ -258,12 +267,12 @@ class _StatsHomeState extends State<StatsHome> {
     );
     final slots = assignToolColors(sourceSequence(data.sources.sources));
     final period = data.period, now = c.clock();
-    final compare = period.compare(now);
+    final compare = period.compare(now, context.strings);
     final buckets = buildBuckets(data.matrix.rows, data.axis, now);
     var comparison = compare?.label ?? '';
     int? cmp;
     if (period.period == 'today' && data.previousHours != null) {
-      comparison = '昨天同一时间';
+      comparison = context.strings.theSameTimeYesterday;
       final cutoff =
           '${compare!.from}T${now.hour.toString().padLeft(2, '0')}:00:00';
       final prev = data.previousHours!.points
@@ -287,13 +296,32 @@ class _StatsHomeState extends State<StatsHome> {
     final emptyLedger =
         c.sourcesReadSucceeded &&
         data.sources.sources.every((source) => source.records == 0);
+    final strings = context.strings;
+    final periodLabel = period.period == 'custom'
+        ? strings.selectedPeriodInSentence
+        : period.labelFor(strings);
+    String inSentence(String value) =>
+        strings.isChinese ? value : value.toLowerCase();
+    InlineSpan toolSpan(String id) => strings.isChinese
+        ? WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: toolName(id),
+          )
+        : TextSpan(
+            text: toolOf(id).name,
+            style: p.text(15, null, FontWeight.w700),
+          );
     final summary = <InlineSpan>[];
     if (totals.recordCount == 0) {
       summary.add(
         TextSpan(
           text: emptyLedger
-              ? '同步之后，这里会显示每个 AI 编程工具用了多少 token。'
-              : '${period.label}还没有用量。换个时间范围看看，或者等工具产生新的日志后再同步。',
+              ? strings.afterSyncingYouLlSeeHowMany
+              : strings.emptyPeriodHint(
+                  inSentence(
+                    strings.isChinese ? period.labelFor(strings) : periodLabel,
+                  ),
+                ),
         ),
       );
     } else {
@@ -302,64 +330,78 @@ class _StatsHomeState extends State<StatsHome> {
             ?.toLocal();
         summary.add(
           TextSpan(
-            text:
-                '从 ${first == null ? '最早一条记录' : '${first.month} 月 ${first.day} 日'}开始记录，',
+            text: strings.overviewTrackingSince(
+              first == null
+                  ? strings.theEarliestRecord
+                  : strings.spacedCalendarDay(first.month, first.day),
+            ),
           ),
         );
       } else if (cmp != null) {
+        final similar = cmp.abs() < 10;
+        final relation = similar
+            ? strings.overviewComparisonEqualLink
+            : strings.overviewComparisonOtherLink;
         final direction = cmp >= 50
-            ? '用得多了不少'
+            ? strings.overviewMuchHigher
             : cmp >= 10
-            ? '用得多'
+            ? strings.overviewHigher
             : cmp <= -50
-            ? '少了不少'
+            ? strings.overviewMuchLower
             : cmp <= -10
-            ? '用得少'
-            : '差不多';
-        summary.add(
+            ? strings.overviewLower
+            : strings.overviewSimilar;
+        summary.addAll([
           TextSpan(
-            text:
-                '${period.period == 'custom' ? '这段时间' : period.label}${cmp.abs() < 10 ? '和' : '比'}$comparison',
+            text: strings.overviewComparisonLead(
+              inSentence(periodLabel),
+              inSentence(comparison),
+              relation,
+            ),
           ),
-        );
-        summary.add(
           TextSpan(
             text: direction,
-            style: cmp.abs() < 10
+            style: similar
                 ? null
                 : p.text(15, p[cmp >= 0 ? 'clay-ink' : 'ok'], FontWeight.w500),
           ),
-        );
-        summary.add(const TextSpan(text: '，'));
-      } else {
-        summary.add(
-          TextSpan(text: period.period == 'custom' ? '这段时间' : period.label),
-        );
+          TextSpan(
+            text: strings.overviewComparisonTail(
+              relation,
+              inSentence(comparison),
+            ),
+          ),
+        ]);
+      } else if (strings.isChinese || rank.isEmpty) {
+        summary.add(TextSpan(text: periodLabel));
       }
       if (rank.isNotEmpty) {
         final most = rank.first.tokens / math.max(1, totals.grossTokens) >= .5;
-        summary.add(TextSpan(text: most ? '大部分花在 ' : '用得最多的是 '));
         summary.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: toolName(rank.first.id),
+          TextSpan(
+            text: most
+                ? strings.overviewMajorityLead
+                : strings.overviewTopToolLead,
           ),
         );
-        if (most) summary.add(const TextSpan(text: ' 上'));
+        summary.add(toolSpan(rank.first.id));
+        if (most) summary.add(TextSpan(text: strings.overviewMajorityTail));
         if (rank.length > 1) {
-          summary.add(const TextSpan(text: '，其次是 '));
-          summary.add(
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: toolName(rank[1].id),
-            ),
-          );
+          summary.add(TextSpan(text: strings.overviewSecondToolLead));
+          summary.add(toolSpan(rank[1].id));
         }
       }
-      summary.add(const TextSpan(text: '。'));
+      if (strings.isChinese ||
+          rank.isNotEmpty ||
+          cmp == null && period.period != 'all') {
+        summary.add(TextSpan(text: strings.overviewSentenceEnd));
+      }
       if (compare != null && cmp == null) {
         summary.add(
-          TextSpan(text: '$comparison还没有记录，没法比。', style: p.text(15, p.muted)),
+          TextSpan(
+            text: strings.noUsageRecordedFor0ToCompare(inSentence(comparison)),
+            style: p.text(15, p.muted),
+          ),
         );
       }
     }
@@ -383,7 +425,7 @@ class _StatsHomeState extends State<StatsHome> {
       children: [
         if (c.loading)
           Semantics(
-            label: '正在加载',
+            label: context.strings.loading,
             child: SizedBox(
               height: 2,
               child: LinearProgressIndicator(
@@ -398,15 +440,21 @@ class _StatsHomeState extends State<StatsHome> {
         if (totals.recordCount == 0)
           LensCard(
             child: EmptyState(
-              title: emptyLedger ? '还没有任何用量' : '${period.label}还没有用量',
+              title: emptyLedger
+                  ? context.strings.noUsageYet
+                  : context.strings.noUsageForPeriod(
+                      period.labelFor(context.strings),
+                    ),
               hint: emptyLedger
-                  ? 'Token Lens 读取 AI 编程工具的日志。去「工具来源」看看找到了哪些工具，或者立即同步。'
-                  : 'Token Lens 只统计已经写进日志的用量。可以换个时间范围，或者在工具里用一会儿再回来。',
+                  ? context.strings.tokenLensReadsAiCodingToolLogs
+                  : context.strings.usageAppearsHereAfterTheToolWrites,
               action: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   LensButton(
-                    label: emptyLedger ? '立即同步' : '看本月',
+                    label: emptyLedger
+                        ? context.strings.syncNow
+                        : context.strings.viewThisMonth,
                     size: 'sm',
                     onPressed: emptyLedger
                         ? () => unawaited(c.sync())
@@ -416,7 +464,9 @@ class _StatsHomeState extends State<StatsHome> {
                   ),
                   const SizedBox(width: 8),
                   LensButton(
-                    label: emptyLedger ? '看工具来源' : '看全部',
+                    label: emptyLedger
+                        ? context.strings.viewToolSources
+                        : context.strings.viewAll,
                     size: 'sm',
                     onPressed: emptyLedger
                         ? widget.onSources
@@ -453,7 +503,7 @@ class _StatsHomeState extends State<StatsHome> {
             alignStart: true,
           ),
           Text(
-            '金额按各模型的公开标准价估算，用来比较和感知，不是你的账单。套餐用户的实际花费通常更低。',
+            context.strings.costsAreEstimatesAtEachModelS2,
             style: p.text(12, p.muted),
           ),
         ],
@@ -473,18 +523,25 @@ class _StatsHomeState extends State<StatsHome> {
     final allUnpriced = total.costUsd == null && total.recordCount > 0;
     final hasUnpriced = total.unpricedRecords > 0;
     final pricingNote = allUnpriced
-        ? '这段时间用到的模型都还没有价格'
-        : '按公开标准价估算，另有 ${toDisplayNumber(total.unpricedRecords)} 条记录没有价格';
+        ? context.strings.thereAreNoPricesForTheModels
+        : context.strings.atListPrices0RecordWithoutA(
+            toDisplayNumber(total.unpricedRecords),
+          );
     final value = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          data.period.period == 'all' ? '累计用量' : '${data.period.label}用量',
+          data.period.period == 'all'
+              ? context.strings.totalUsage
+              : context.strings.periodUsage(
+                  data.period.labelFor(context.strings),
+                ),
           style: p.text(13, p.muted),
         ),
         const SizedBox(height: 6),
         Tooltip(
-          message: '${toDisplayNumber(total.grossTokens)} token',
+          message:
+              '${toDisplayNumber(total.grossTokens)} ${context.strings.tokenUnit}',
           child: TweenValue(
             value: total.grossTokens,
             builder: (value) {
@@ -505,7 +562,7 @@ class _StatsHomeState extends State<StatsHome> {
                       ),
                     ),
                     TextSpan(
-                      text: ' token',
+                      text: ' ${context.strings.tokenUnit}',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w500,
@@ -521,7 +578,7 @@ class _StatsHomeState extends State<StatsHome> {
         ),
         if (total.grossTokens > 0 && total.recordCount > 0)
           Text(
-            '= ${tokenCount(total.grossTokens, unitSystem: c.preferences.unitSystem == 'chinese' ? 'english' : 'chinese')} token',
+            '= ${context.strings.isChinese ? tokenCount(total.grossTokens, unitSystem: c.unitSystem == 'chinese' ? 'english' : 'chinese') : toDisplayNumber(total.grossTokens)} ${context.strings.tokenUnit}',
             key: const Key('home-conversion'),
             style: p.text(13, p.muted),
           ),
@@ -531,7 +588,10 @@ class _StatsHomeState extends State<StatsHome> {
             children: [
               delta(cmp),
               const SizedBox(width: 8),
-              Text('比$comparison', style: p.text(12.5, p.muted)),
+              Text(
+                context.strings.vs0(comparison),
+                style: p.text(12.5, p.muted),
+              ),
             ],
           ),
         ],
@@ -541,14 +601,17 @@ class _StatsHomeState extends State<StatsHome> {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Text('约值 ', style: p.text(15, p.secondary)),
+            Text(
+              context.strings.estimatedCostPrefix,
+              style: p.text(15, p.secondary),
+            ),
             money(total.costUsd, style: p.serif(22), animate: true),
           ],
         ),
         const SizedBox(height: 10),
         if (allUnpriced || hasUnpriced)
           Tooltip(
-            message: '没有价格的记录不计入金额。到「价格与设置」里查看是哪些模型。',
+            message: context.strings.recordsWithoutPricesAreExcludedFromCost,
             child: Semantics(
               link: true,
               child: LensFocusOutline(
@@ -565,7 +628,10 @@ class _StatsHomeState extends State<StatsHome> {
             ),
           )
         else
-          Text('按公开标准价估算，不是账单', style: p.text(12.5, p.muted)),
+          Text(
+            context.strings.estimatedAtListPrices,
+            style: p.text(12.5, p.muted),
+          ),
       ],
     );
     String percent(int n) {
@@ -578,7 +644,7 @@ class _StatsHomeState extends State<StatsHome> {
       children: [
         const SizedBox(height: 4),
         Semantics(
-          label: '按工具分布',
+          label: context.strings.usageByTool,
           image: true,
           child: LensGrow(
             reveal: true,
@@ -633,7 +699,7 @@ class _StatsHomeState extends State<StatsHome> {
                             style: p.text(14, null, FontWeight.w500),
                           ),
                           Text(
-                            '${g.models} 个模型',
+                            context.strings.modelCount(g.models),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: p.text(12, p.muted),
@@ -695,7 +761,13 @@ class _StatsHomeState extends State<StatsHome> {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              '另有 ${rank.skip(5).map((g) => toolOf(g.id).name).join('、')}，合计 ${percent(rank.skip(5).fold<int>(0, (s, g) => s + g.tokens))}',
+              context.strings.remainingTools(
+                rank
+                    .skip(5)
+                    .map((g) => toolOf(g.id).name)
+                    .join(context.strings.listSeparator),
+                percent(rank.skip(5).fold<int>(0, (s, g) => s + g.tokens)),
+              ),
               style: p.text(12.5, p.muted),
             ),
           ),
@@ -782,15 +854,21 @@ class _StatsHomeState extends State<StatsHome> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                title.startsWith('缓存')
+                title.startsWith(context.strings.cache)
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('缓存帮你省了', style: p.text(13, p.muted)),
+                          Flexible(
+                            child: Text(
+                              context.strings.cacheSavings,
+                              style: p.text(13, p.muted),
+                            ),
+                          ),
                           const SizedBox(width: 6),
                           Tooltip(
-                            message:
-                                '工具重复发送的上下文命中缓存时，按缓存价而不是输入价计费。这里是两者的差额，按公开价估算。',
+                            message: context
+                                .strings
+                                .whenRepeatedContextHitsTheCacheIt,
                             child: Container(
                               width: 15,
                               height: 15,
@@ -831,7 +909,7 @@ class _StatsHomeState extends State<StatsHome> {
       final h = busy == null ? 0 : int.parse(busy.bucket.substring(11, 13));
       items.add(
         card(
-          '最忙的一小时',
+          context.strings.busiestHour,
           Text.rich(
             TextSpan(
               text: busy == null ? '—' : '$h:00',
@@ -850,7 +928,10 @@ class _StatsHomeState extends State<StatsHome> {
             keepTailTogether(
               busy == null
                   ? ''
-                  : '${nt(busy.total)} token，占今天的 ${percentage(busy.total / math.max(1, totals.grossTokens))}',
+                  : context.strings.peakHourShare(
+                      nt(busy.total),
+                      percentage(busy.total / math.max(1, totals.grossTokens)),
+                    ),
             ),
             style: p.text(12, p.muted),
           ),
@@ -876,12 +957,15 @@ class _StatsHomeState extends State<StatsHome> {
       );
       items.add(
         card(
-          '这一小时',
+          context.strings.thisHour,
           token(current, style: numStyle),
           hint([
             if (change != null) delta(change),
             Text(
-              '${now.hour}:00 到现在${change != null ? '，比昨天这时候' : ''}',
+              context.strings.thisHourSoFar(
+                now.hour,
+                change != null ? context.strings.vsThisTimeYesterday : '',
+              ),
               style: p.text(12, p.muted),
             ),
           ]),
@@ -901,14 +985,14 @@ class _StatsHomeState extends State<StatsHome> {
             ), now);
       items.add(
         card(
-          '日均用量',
+          context.strings.dailyAverage,
           TweenValue(
             value: perDay,
             builder: (n) => token(n, style: numStyle),
           ),
           hint([
             if (change != null) delta(change),
-            Text('按有用量的天算', style: p.text(12, p.muted)),
+            Text(context.strings.onDaysWithUsage, style: p.text(12, p.muted)),
           ]),
           spark: keys.length < 2
               ? null
@@ -923,7 +1007,7 @@ class _StatsHomeState extends State<StatsHome> {
     final sessionDelta = deltaOf(sessions, prevSessions);
     items.add(
       card(
-        '会话',
+        context.strings.sessions,
         TweenValue(
           value: sessions,
           builder: (n) => Text('${n.round()}', style: numStyle),
@@ -931,7 +1015,9 @@ class _StatsHomeState extends State<StatsHome> {
         hint([
           if (sessionDelta != null) delta(sessionDelta),
           Text(
-            '平均每个 ${nt(totals.grossTokens / math.max(1, sessions))}',
+            context.strings.average0PerSession(
+              nt(totals.grossTokens / math.max(1, sessions)),
+            ),
             style: p.text(12, p.muted),
           ),
         ]),
@@ -942,7 +1028,7 @@ class _StatsHomeState extends State<StatsHome> {
           used = {for (final d in days) d.bucket: d.grossTokens};
       items.add(
         card(
-          '活跃天数',
+          context.strings.activeDays,
           TweenValue(
             value: active,
             builder: (n) => Text.rich(
@@ -950,7 +1036,10 @@ class _StatsHomeState extends State<StatsHome> {
                 text: '${n.round()}',
                 style: numStyle,
                 children: [
-                  TextSpan(text: ' / $elapsed 天', style: p.text(15, p.muted)),
+                  TextSpan(
+                    text: context.strings.outOfDays(elapsed),
+                    style: p.text(15, p.muted),
+                  ),
                 ],
               ),
             ),
@@ -966,10 +1055,10 @@ class _StatsHomeState extends State<StatsHome> {
                       Tooltip(
                         message:
                             '$key${key.compareTo(dayKey(now)) > 0
-                                ? ' · 还没到'
+                                ? context.strings.upcoming
                                 : (used[key] ?? 0) > 0
                                 ? ''
-                                : ' · 没有用量'}',
+                                : context.strings.noUsage}',
                         child: Container(
                           width: 14,
                           height: 14,
@@ -992,7 +1081,7 @@ class _StatsHomeState extends State<StatsHome> {
                   ],
                 )
               : Text(
-                  keepTailTogether('最长连续 $streak 天'),
+                  keepTailTogether(context.strings.longestStreakDays(streak)),
                   style: p.text(12, p.muted),
                 ),
         ),
@@ -1001,7 +1090,7 @@ class _StatsHomeState extends State<StatsHome> {
     final ratio = data.summary.activity.cacheHitRatio;
     items.add(
       card(
-        '缓存帮你省了  ⓘ',
+        context.strings.cacheSavings2,
         c.resourceErrors.containsKey('pricing')
             ? failure(c.resourceErrors['pricing']!)
             : money(
@@ -1013,9 +1102,11 @@ class _StatsHomeState extends State<StatsHome> {
         c.resourceErrors.containsKey('pricing')
             ? const SizedBox.shrink()
             : Tooltip(
-                message: '工具重复发送的上下文命中缓存时，按缓存价而不是输入价计费。这里是两者的差额，按公开价估算。',
+                message: context.strings.whenRepeatedContextHitsTheCacheIt,
                 child: Text(
-                  ratio == null ? '—' : '${percentage(ratio)} 的输入走了缓存',
+                  ratio == null
+                      ? '—'
+                      : context.strings.cacheInputShare(percentage(ratio)),
                   style: p.text(12, p.muted),
                 ),
               ),
@@ -1081,19 +1172,27 @@ class _StatsHomeState extends State<StatsHome> {
   ) {
     final granularity = data.axis.granularity,
         unit = data.axis.granularity == 'hour'
-            ? '小时'
+            ? context.strings.hour
             : data.axis.granularity == 'month'
-            ? '月'
-            : '天';
+            ? context.strings.month
+            : context.strings.day;
     final unallocated = data.matrix.unallocated?.grossTokens ?? 0;
     return LensCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           secHead(
-            '趋势',
-            '每$unit用了多少，颜色代表工具，虚线是平均值${granularity == 'hour' ? '' : '。点柱子看那$unit的明细'}',
-            action: link('看明细', () => widget.onDetail({})),
+            context.strings.trend,
+            context.strings.trendWithAverageHint(
+              unit,
+              granularity == 'hour'
+                  ? ''
+                  : context.strings.selectABarForThat0S(unit),
+            ),
+            action: link(
+              context.strings.viewBreakdown,
+              () => widget.onDetail({}),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
@@ -1144,7 +1243,7 @@ class _StatsHomeState extends State<StatsHome> {
                       ? null
                       : (key) =>
                             widget.onDetail({'bucket': key, 'dim': 'tool'}),
-                  unitSystem: c.preferences.unitSystem,
+                  unitSystem: c.unitSystem,
                   currency: c.preferences.currency,
                   rate: rateFor(c.preferences.rates, c.preferences.currency),
                 ),
@@ -1152,7 +1251,11 @@ class _StatsHomeState extends State<StatsHome> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      '另有 ${nt(unallocated)} token 来自跨$unit的会话快照，没法按$unit拆开，不在图里；上面的总量已经算上了。',
+                      context.strings.chartUnallocatedUsage(
+                        nt(unallocated),
+                        unit,
+                        unit,
+                      ),
                       style: p.text(12.5, p.muted),
                     ),
                   ),
@@ -1173,9 +1276,16 @@ class _StatsHomeState extends State<StatsHome> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         secHead(
-          '常用模型',
-          '${data.period.period == 'all' ? '累计' : data.period.label}用得最多的 5 个',
-          action: link('全部', () => widget.onDetail({'dim': 'model'})),
+          context.strings.topModels,
+          context.strings.topFiveModels(
+            data.period.period == 'all'
+                ? context.strings.allTime2
+                : data.period.labelFor(context.strings),
+          ),
+          action: link(
+            context.strings.all,
+            () => widget.onDetail({'dim': 'model'}),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
@@ -1185,7 +1295,7 @@ class _StatsHomeState extends State<StatsHome> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: rowLink(
-                    onTap: model.name == '未知模型'
+                    onTap: model.name == context.strings.unknownModel
                         ? null
                         : () => widget.onDetail({'model': model.name}),
                     child: Padding(
@@ -1280,14 +1390,17 @@ class _StatsHomeState extends State<StatsHome> {
     );
     cells.add(
       cell(
-        newcomer ? '到现在一共' : '这一年一共',
+        newcomer ? context.strings.totalSoFar : context.strings.thisYearSTotal,
         token(
           data.yearTools.totals.grossTokens,
           style: p.text(16, null, FontWeight.w600),
         ),
         Wrap(
           children: [
-            Text('约值 ', style: p.text(12, p.muted)),
+            Text(
+              context.strings.estimatedCostPrefix,
+              style: p.text(12, p.muted),
+            ),
             money(
               data.yearTools.totals.costUsd,
               digits: 0,
@@ -1299,30 +1412,37 @@ class _StatsHomeState extends State<StatsHome> {
     );
     cells.add(
       cell(
-        '最忙的一天',
+        context.strings.busiestDay,
         Text(
-          busyDay == null ? '—' : '${busyDay.month}月${busyDay.day}日',
+          busyDay == null
+              ? '—'
+              : context.strings.calendarDay(busyDay.month, busyDay.day),
           style: p.text(16, null, FontWeight.w600),
         ),
         Text(
-          busy == null ? '' : '${nt(busy.value)} token',
+          busy == null ? '' : '${nt(busy.value)} ${context.strings.tokenUnit}',
           style: p.text(12, p.muted),
         ),
       ),
     );
     cells.add(
       cell(
-        '最长连续',
-        Text('$streak 天', style: p.text(16, null, FontWeight.w600)),
+        context.strings.longestStreak,
         Text(
-          newcomer && streak == active ? '从第一天起没断过' : '一共活跃 $active 天',
+          context.strings.dayCount(streak),
+          style: p.text(16, null, FontWeight.w600),
+        ),
+        Text(
+          newcomer && streak == active
+              ? context.strings.activeEveryDaySinceTrackingBegan
+              : context.strings.activeDayCount(active),
           style: p.text(12, p.muted),
         ),
       ),
     );
     cells.add(
       cell(
-        '用得最多',
+        context.strings.mostUsed,
         top == null
             ? const Text('—')
             : Row(
@@ -1342,7 +1462,12 @@ class _StatsHomeState extends State<StatsHome> {
         Text(
           top == null
               ? ''
-              : '占 ${percentage(top.grossTokens / math.max(1, data.yearTools.totals.grossTokens))}',
+              : context.strings.shareOfTotal(
+                  percentage(
+                    top.grossTokens /
+                        math.max(1, data.yearTools.totals.grossTokens),
+                  ),
+                ),
           style: p.text(12, p.muted),
         ),
       ),
@@ -1351,7 +1476,10 @@ class _StatsHomeState extends State<StatsHome> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          secHead(narrow ? '最近 20 周' : '这一年', '每个格子是一天，颜色越深用得越多'),
+          secHead(
+            narrow ? context.strings.last20Weeks : context.strings.pastYear,
+            context.strings.eachSquareIsADayDarkerSquares,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
             child: Column(
@@ -1361,7 +1489,7 @@ class _StatsHomeState extends State<StatsHome> {
                   values: map,
                   now: c.clock(),
                   narrow: narrow,
-                  unitSystem: c.preferences.unitSystem,
+                  unitSystem: c.unitSystem,
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -1374,8 +1502,15 @@ class _StatsHomeState extends State<StatsHome> {
                         children: [
                           TextSpan(
                             text: newcomer
-                                ? '从 ${first == null ? '' : '${first.month} 月 ${first.day} 日'}开始记录，已经活跃 '
-                                : '过去一年活跃 ',
+                                ? context.strings.yearNewcomerLead(
+                                    first == null
+                                        ? ''
+                                        : context.strings.spacedCalendarDay(
+                                            first.month,
+                                            first.day,
+                                          ),
+                                  )
+                                : context.strings.yearActivityLead,
                           ),
                           TextSpan(
                             text: '\u2060$active\u2060',
@@ -1383,7 +1518,12 @@ class _StatsHomeState extends State<StatsHome> {
                           ),
                           TextSpan(
                             text: keepTailTogether(
-                              newcomer ? ' 天' : ' 天，最长连续 $streak 天',
+                              newcomer
+                                  ? context.strings.yearActiveDaysTail(active)
+                                  : context.strings.yearActiveDaysAndStreakTail(
+                                      active,
+                                      streak,
+                                    ),
                             ),
                           ),
                         ],
@@ -1393,7 +1533,7 @@ class _StatsHomeState extends State<StatsHome> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('少', style: p.text(12, p.muted)),
+                        Text(context.strings.less, style: p.text(12, p.muted)),
                         for (var level = 0; level <= 4; level++)
                           Container(
                             width: 11,
@@ -1405,7 +1545,7 @@ class _StatsHomeState extends State<StatsHome> {
                             ),
                           ),
                         const SizedBox(width: 3),
-                        Text('多', style: p.text(12, p.muted)),
+                        Text(context.strings.more, style: p.text(12, p.muted)),
                       ],
                     ),
                   ],
@@ -1475,9 +1615,13 @@ class _StatsHomeState extends State<StatsHome> {
       children: [
         secHead(
           data.period.period == 'all'
-              ? '最近会话'
-              : '${sessionPeriodLabel(data.period)}的会话',
-          data.period.period == 'all' ? '每次打开工具做的一件事' : '按这段时间的用量排序',
+              ? context.strings.recentSessions
+              : context.strings.sessions0(
+                  sessionPeriodLabel(data.period, context.strings),
+                ),
+          data.period.period == 'all'
+              ? context.strings.aSessionIsATaskInAn
+              : context.strings.sortedByUsageInThisPeriod,
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
@@ -1500,13 +1644,15 @@ class _StatsHomeState extends State<StatsHome> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              '${data.period.period == 'all' ? '累计' : sessionPeriodLabel(data.period)} ${nt(item.grossTokens)}',
+                              '${data.period.period == 'all' ? context.strings.total : sessionPeriodLabel(data.period, context.strings)} ${nt(item.grossTokens)}',
                               maxLines: 1,
                               style: p.text(13, null, FontWeight.w600),
                             ),
                             if (item.cumulative.grossTokens != item.grossTokens)
                               Text(
-                                '累计 ${nt(item.cumulative.grossTokens)}',
+                                context.strings.total0(
+                                  nt(item.cumulative.grossTokens),
+                                ),
                                 maxLines: 1,
                                 style: p.text(11.5, p.muted),
                               ),
@@ -1543,7 +1689,9 @@ class _StatsHomeState extends State<StatsHome> {
                                                         (s) => s.isNotEmpty,
                                                       )
                                                       .lastOrNull ??
-                                                  '没有记录项目',
+                                                  context
+                                                      .strings
+                                                      .noProjectLogged,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: p.text(
@@ -1590,14 +1738,21 @@ class _StatsHomeState extends State<StatsHome> {
                                         item.requestCount == null &&
                                                 item.cumulative.requestCount !=
                                                     null
-                                            ? '本时段没有逐次请求'
+                                            ? context
+                                                  .strings
+                                                  .noIndividualRequestsInThisPeriod
                                             : item.hasCumulative &&
                                                   item
                                                           .cumulative
                                                           .requestCount ==
                                                       null
-                                            ? '只记录总数，算在开始那天'
-                                            : requestText(item.requestCount),
+                                            ? context
+                                                  .strings
+                                                  .onlyASessionTotalIsLoggedCounted
+                                            : requestText(
+                                                item.requestCount,
+                                                strings: context.strings,
+                                              ),
                                         maxLines: 1,
                                         softWrap: false,
                                         style: p.text(12, p.muted),
@@ -1625,7 +1780,7 @@ class _StatsHomeState extends State<StatsHome> {
                   ),
                 ),
               link(
-                '查看全部会话',
+                context.strings.viewAllSessions,
                 () =>
                     widget.onSessions(Uri.splitQueryString(data.period.query)),
               ),

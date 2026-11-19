@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../stats_controller.dart';
@@ -116,7 +118,7 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
           Semantics(
             header: true,
             child: Text(
-              '工具',
+              context.strings.tools,
               style: p
                   .serif(wide ? 28 : 24, weight: FontWeight.w500)
                   .copyWith(height: 1.25, letterSpacing: wide ? -.28 : -.24),
@@ -124,7 +126,11 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${list.isEmpty ? '' : '这台电脑上找到 ${list.length} 个 AI 编程工具。'}Token Lens 只读它们的日志，不上传，也不改动这些工具。',
+            context.strings.sourcesIntro(
+              list.isEmpty
+                  ? ''
+                  : context.strings.toolsFoundOnComputer(list.length),
+            ),
             style: p
                 .text(14, p.secondary)
                 .copyWith(height: 1.5, letterSpacing: 0),
@@ -153,11 +159,11 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
               resource: sources,
               rows: 5,
               builder: (_) => list.isEmpty && deniedOnly.isEmpty
-                  ? const LensCard(
+                  ? LensCard(
                       padding: EdgeInsets.all(16),
                       child: EmptyState(
-                        title: '还没找到工具的日志',
-                        hint: '用过支持的 AI 编程工具以后，点「立即同步」。',
+                        title: context.strings.noToolLogsFoundYet,
+                        hint: context.strings.useASupportedAiCodingToolThen,
                       ),
                     )
                   : LayoutBuilder(

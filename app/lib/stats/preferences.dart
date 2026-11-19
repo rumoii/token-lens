@@ -9,7 +9,8 @@ class UiPreferences {
   const UiPreferences({
     this.appearance = 'system',
     this.tokenMode = 'compact',
-    this.unitSystem = 'chinese',
+    this._unitSystem,
+    this.language = 'system',
     this.currency = 'USD',
     this.period = const StatsPeriod(),
     this.onboarded = false,
@@ -20,8 +21,20 @@ class UiPreferences {
     this.updateLastAttemptMs,
     this.updateResult,
     this.updateIgnoredVersion,
-  });
-  final String appearance, tokenMode, unitSystem, currency;
+  }); // Null keeps the language default implicit.
+
+  final String appearance, tokenMode, currency, language;
+  final String? _unitSystem;
+
+  String get unitSystem => unitSystemFor(language);
+  String unitSystemFor(String resolvedLanguage) =>
+      _unitSystem ?? (resolvedLanguage == 'en' ? 'english' : 'chinese');
+
+  static String _language(Object? value) => switch (value) {
+    'zh' => 'zh',
+    'en' => 'en',
+    _ => 'system',
+  };
   final StatsPeriod period;
   final bool onboarded;
   final Map<String, num> rates;
@@ -52,6 +65,7 @@ class UiPreferences {
     String? tokenMode,
     String? unitSystem,
     String? currency,
+    String? language,
     StatsPeriod? period,
     bool? onboarded,
     Map<String, num>? rates,
@@ -64,7 +78,8 @@ class UiPreferences {
   }) => UiPreferences(
     appearance: appearance ?? this.appearance,
     tokenMode: tokenMode ?? this.tokenMode,
-    unitSystem: unitSystem ?? this.unitSystem,
+    unitSystem: unitSystem ?? _unitSystem,
+    language: _language(language ?? this.language),
     currency: currency ?? this.currency,
     period: period ?? this.period,
     onboarded: onboarded ?? this.onboarded,
@@ -127,8 +142,9 @@ class UiPreferences {
             : 'system',
         tokenMode: normalizeTokenMode(value['tokenMode']),
         unitSystem: value['unitSystem'] == null
-            ? 'chinese'
+            ? null
             : normalizeTokenUnit(value['unitSystem']),
+        language: _language(value['language']),
         currency: normalizeCurrency(value['currency']),
         period: period,
         onboarded: value['onboarded'] is bool ? value['onboarded'] : false,
@@ -151,7 +167,8 @@ class UiPreferences {
   String encode() => jsonEncode({
     'appearance': appearance,
     'tokenMode': tokenMode,
-    'unitSystem': unitSystem,
+    if (_unitSystem != null) 'unitSystem': _unitSystem,
+    'language': _language(language),
     'currency': normalizeCurrency(currency),
     'period': {'period': period.period, 'from': period.from, 'to': period.to},
     'onboarded': onboarded,

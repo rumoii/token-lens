@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -7,12 +9,22 @@ import '../stats/widgets/primitives.dart';
 import 'update_check.dart';
 import 'update_controller.dart';
 
-String updateDate(DateTime date, DateTime now) {
+String updateDate(
+  DateTime date,
+  DateTime now, [
+  AppStrings strings = chineseStrings,
+]) {
   final local = date.toLocal();
-  return '${local.year == now.year ? '' : '${local.year}年'}${local.month}月${local.day}日';
+  return local.year == now.year
+      ? strings.calendarDay(local.month, local.day)
+      : strings.calendarDayWithYear(local.year, local.month, local.day);
 }
 
-String updateAttemptTime(int ms, DateTime now) {
+String updateAttemptTime(
+  int ms,
+  DateTime now, [
+  AppStrings strings = chineseStrings,
+]) {
   DateTime date;
   try {
     date = DateTime.fromMillisecondsSinceEpoch(ms);
@@ -25,10 +37,10 @@ String updateAttemptTime(int ms, DateTime now) {
     now.day,
   ).difference(DateTime.utc(date.year, date.month, date.day)).inDays;
   final day = days == 0
-      ? '今天'
+      ? strings.today
       : days == 1
-      ? '昨天'
-      : updateDate(date, now);
+      ? strings.yesterday
+      : updateDate(date, now, strings);
   return '$day ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
 }
 
@@ -59,42 +71,61 @@ class SettingsUpdate extends StatelessWidget {
       }
       final time = prefs.updateLastAttemptMs == null
           ? '—'
-          : updateAttemptTime(prefs.updateLastAttemptMs!, now);
-      final suffix = prefs.autoCheckUpdates ? '明天会再试，也可以现在重试。' : '可以现在重试。';
+          : updateAttemptTime(prefs.updateLastAttemptMs!, now, context.strings);
+      final suffix = prefs.autoCheckUpdates
+          ? context.strings.theAppWillTryAgainTomorrowYou
+          : context.strings.youCanRetryNow;
       final published = prefs.updateResult?.publishedAt;
       final status = controller.checking
-          ? ('text-faint', '正在检查…', '你现在用的是 $current')
+          ? (
+              'text-faint',
+              context.strings.checking,
+              context.strings.currentVersion(current),
+            )
           : switch (kind) {
               UpdateKind.available => (
                 'clay',
-                '$latest 可以更新了',
-                '${published == null ? '' : '${updateDate(published, now)}发布 · '}你现在用的是 $current',
+                context.strings.updateAvailable(latest),
+                context.strings.updateAvailableDetails(
+                  published == null
+                      ? ''
+                      : context.strings.releaseDatePrefix(
+                          updateDate(published, now, context.strings),
+                        ),
+                  current,
+                ),
               ),
-              UpdateKind.latest => ('ok', '$current 已是最新', '$time 检查过'),
+              UpdateKind.latest => (
+                'ok',
+                context.strings.upToDate(current),
+                context.strings.checkedAt(time),
+              ),
               UpdateKind.none => (
                 'ok',
-                '$current 是目前唯一的版本',
-                'GitHub 上还没有正式发布的版本 · $time 检查过',
+                context.strings.onlyVersionSoFar(current),
+                context.strings.noReleaseCheckResult(time),
               ),
               UpdateKind.offline => (
                 'warn',
-                '没检查成功',
-                '连不上 GitHub · $time。$suffix',
+                context.strings.updateCheckFailed,
+                context.strings.unreachableUpdateCheck(time, suffix),
               ),
               UpdateKind.limited => (
                 'warn',
-                '没检查成功',
-                'GitHub 暂时拒绝了请求（同一网络下请求太多）· $time。过一会儿再试。',
+                context.strings.updateCheckFailed,
+                context.strings.rateLimitedUpdateCheck(time),
               ),
               UpdateKind.invalid => (
                 'warn',
-                '没检查成功',
-                'GitHub 返回的内容读不懂 · $time。$suffix',
+                context.strings.updateCheckFailed,
+                context.strings.invalidUpdateCheckResponse(time, suffix),
               ),
               null => (
                 'text-faint',
-                '你现在用的是 $current',
-                prefs.autoCheckUpdates ? '还没检查过' : '还没检查过 · 自动检查已关',
+                context.strings.currentVersion(current),
+                prefs.autoCheckUpdates
+                    ? context.strings.neverChecked
+                    : context.strings.neverCheckedAutomaticChecksOff,
               ),
             };
       final available = kind == UpdateKind.available && !controller.checking;
@@ -105,10 +136,13 @@ class SettingsUpdate extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('更新', style: p.text(15, null, FontWeight.w600)),
+              Text(
+                context.strings.updates,
+                style: p.text(15, null, FontWeight.w600),
+              ),
               const SizedBox(height: 2),
               Text(
-                '有新版本时提示你，去 GitHub 的发布页下载。程序不会自己下载或安装。',
+                context.strings.getANoticeWhenANewVersion,
                 style: p.text(12.5, p.muted),
               ),
               const SizedBox(height: 14),
@@ -153,7 +187,7 @@ class SettingsUpdate extends StatelessWidget {
                 children: [
                   if (available)
                     LensButton(
-                      label: '打开下载页',
+                      label: context.strings.openDownloadPage,
                       variant: 'primary',
                       size: 'settings',
                       icon: Icons.open_in_new,
@@ -179,14 +213,14 @@ class SettingsUpdate extends StatelessWidget {
                           : () => unawaited(controller.check()),
                       child: Text(
                         controller.checking
-                            ? '正在检查…'
+                            ? context.strings.checking
                             : [
                                 UpdateKind.offline,
                                 UpdateKind.limited,
                                 UpdateKind.invalid,
                               ].contains(kind)
-                            ? '重试'
-                            : '检查更新',
+                            ? context.strings.retry
+                            : context.strings.checkForUpdates,
                       ),
                     ),
                   ),
@@ -200,7 +234,7 @@ class SettingsUpdate extends StatelessWidget {
                               .text(12.5)
                               .copyWith(decoration: TextDecoration.underline),
                         ),
-                        child: const Text('这个版本不再提示'),
+                        child: Text(context.strings.dismissThisVersion),
                       ),
                     ),
                 ],
@@ -216,7 +250,7 @@ class SettingsUpdate extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Semantics(
-                    label: '每天自动检查一次',
+                    label: context.strings.checkAutomaticallyOnceADay,
                     child: Transform.translate(
                       // Align the painted square while keeping its compact tap target.
                       offset: const Offset(-(40 - Checkbox.width) / 2, 0),
@@ -240,12 +274,15 @@ class SettingsUpdate extends StatelessWidget {
                             ),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Text('每天自动检查一次', style: p.text(13)),
+                              child: Text(
+                                context.strings.checkAutomaticallyOnceADay,
+                                style: p.text(13),
+                              ),
                             ),
                           ),
                         ),
                         Text(
-                          '只向 api.github.com 询问本项目最新的正式版本，不带账号、凭据或用量数据。关掉后只在点“检查更新”时联网。',
+                          context.strings.asksApiGithubComForTheLatest,
                           style: p.text(12, p.muted),
                         ),
                       ],
@@ -282,7 +319,7 @@ class UpdateHint extends StatelessWidget {
             children: [
               Expanded(
                 child: Tooltip(
-                  message: '点开看怎么更新',
+                  message: context.strings.viewUpdateDetails,
                   child: LensFocusOutline(
                     child: InkWell(
                       key: const Key('update-hint-open'),
@@ -303,7 +340,7 @@ class UpdateHint extends StatelessWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                '有新版本 $version',
+                                context.strings.newVersion(version),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: p.text(12.5, p['clay-ink']),
@@ -323,7 +360,7 @@ class UpdateHint extends StatelessWidget {
                   inset: true,
                   child: IconButton(
                     key: const Key('update-hint-dismiss'),
-                    tooltip: '这个版本不再提示',
+                    tooltip: context.strings.dismissThisVersion,
                     onPressed: () => unawaited(controller.ignoreVersion()),
                     padding: EdgeInsets.zero,
                     style: IconButton.styleFrom(

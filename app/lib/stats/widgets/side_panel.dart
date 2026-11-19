@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'primitives.dart';
 
 import 'package:flutter/material.dart';
@@ -14,18 +16,20 @@ Future<void> showLensPanel(
   required String hint,
   required Widget icon,
   required Widget body,
-  String label = '会话详情',
+  String? label,
   ValueNotifier<PanelHeading>? heading,
 }) {
+  final strings = context.strings;
+  final panelLabel = label ?? strings.sessionDetails;
   final narrow = MediaQuery.sizeOf(context).width < 768;
   final reduced = MediaQuery.disableAnimationsOf(context);
   return Navigator.of(context).push<void>(
     _LensPanelRoute(
       reduced: reduced,
-      barrierLabel: '关闭$label',
+      barrierLabel: strings.closePanel(panelLabel),
       pageBuilder: (context, _, _) => heading == null
           ? _LensPanel(
-              label: label,
+              label: label ?? context.strings.sessionDetails,
               title: title,
               hint: hint,
               icon: icon,
@@ -35,7 +39,7 @@ Future<void> showLensPanel(
           : ValueListenableBuilder<PanelHeading>(
               valueListenable: heading,
               builder: (context, value, _) => _LensPanel(
-                label: label,
+                label: label ?? context.strings.sessionDetails,
                 title: value.title,
                 hint: value.hint,
                 titleTooltip: value.tooltip,
@@ -188,7 +192,7 @@ class _LensPanelState extends State<_LensPanel> {
                               child: LensFocusOutline(
                                 child: IconButton(
                                   autofocus: true,
-                                  tooltip: '关闭',
+                                  tooltip: context.strings.close,
                                   padding: EdgeInsets.zero,
                                   onPressed: () => Navigator.pop(context),
                                   icon: Icon(

@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -46,14 +48,18 @@ class _StatsPageState extends State<StatsPage> {
   final _sidebarScroll = SmoothWheelController();
   final _updateCard = GlobalKey();
   String page = 'home', query = '';
-  static const nav = {
-    'home': ('用量总览', Icons.insights_outlined),
-    'detail': ('用量明细', Icons.manage_search),
-    'sessions': ('会话记录', Icons.history),
-    'sources': ('工具来源', Icons.build_outlined),
-    'news': ('AI 热点', Icons.rss_feed_rounded),
-    'settings': ('价格与设置', Icons.settings_outlined),
-  };
+  Map<String, (String, IconData)> get nav {
+    final strings = context.strings;
+    return {
+      'home': (strings.usageOverview, Icons.insights_outlined),
+      'detail': (strings.usageBreakdown, Icons.manage_search),
+      'sessions': (strings.sessionsNavigation, Icons.history),
+      'sources': (strings.toolSources, Icons.build_outlined),
+      'news': (strings.aiNews, Icons.rss_feed_rounded),
+      'settings': (strings.pricingSettings, Icons.settings_outlined),
+    };
+  }
+
   @override
   void dispose() {
     _drawerFocus.dispose();
@@ -104,7 +110,7 @@ class _StatsPageState extends State<StatsPage> {
   Widget unreadBadge(LensPalette p, int count) => count == 0
       ? const SizedBox.shrink()
       : Semantics(
-          label: '$count 条未读',
+          label: context.strings.unreadCount(count),
           excludeSemantics: true,
           child: Container(
             key: const Key('news-unread-badge'),
@@ -215,7 +221,7 @@ class _StatsPageState extends State<StatsPage> {
                         order: const NumericFocusOrder(2),
                         child: LensFocusOutline(
                           child: IconButton(
-                            tooltip: '关闭导航菜单',
+                            tooltip: context.strings.closeNavigationMenu,
                             onPressed: () =>
                                 scaffold.currentState?.closeDrawer(),
                             icon: const Icon(Icons.close, size: 18),
@@ -236,23 +242,26 @@ class _StatsPageState extends State<StatsPage> {
                         padding: EdgeInsets.zero,
                         children: [
                           Semantics(
-                            label: '页面导航',
+                            label: context.strings.pageNavigation,
                             container: true,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 for (final group in [
                                   (
-                                    '用量',
+                                    context.strings.usage,
                                     ['home', 'detail', 'sessions', 'sources'],
                                   ),
-                                  if (widget.news != null) ('资讯', ['news']),
-                                  ('设置', ['settings']),
+                                  if (widget.news != null)
+                                    (context.strings.news, ['news']),
+                                  (context.strings.settings, ['settings']),
                                 ]) ...[
                                   Padding(
                                     padding: EdgeInsets.fromLTRB(
                                       12,
-                                      group.$1 == '用量' ? 0 : 14,
+                                      group.$1 == context.strings.usage
+                                          ? 0
+                                          : 14,
                                       12,
                                       6,
                                     ),
@@ -304,11 +313,14 @@ class _StatsPageState extends State<StatsPage> {
                           if (page != 'news') ...[
                             const SizedBox(height: 20),
                             if (c.loading)
-                              Text('正在读取本期用量…', style: p.text(12, p.muted)),
+                              Text(
+                                context.strings.loadingUsageForThisPeriod,
+                                style: p.text(12, p.muted),
+                              ),
                             if (c.error != null ||
                                 c.resourceErrors.containsKey('sources'))
                               LensButton(
-                                label: '重试读取',
+                                label: context.strings.retryLoading,
                                 size: 'xs',
                                 onPressed: () => unawaited(c.load()),
                               ),
@@ -321,7 +333,7 @@ class _StatsPageState extends State<StatsPage> {
                                   8,
                                 ),
                                 child: Text(
-                                  '本期工具',
+                                  context.strings.toolsInThisPeriod,
                                   style: p.text(12, p.muted, FontWeight.w500),
                                 ),
                               ),
@@ -382,7 +394,7 @@ class _StatsPageState extends State<StatsPage> {
                     child: Row(
                       children: [
                         LensButton(
-                          label: '同步用量',
+                          label: context.strings.syncUsage,
                           spinning: c.busy,
                           icon: Icons.refresh,
                           variant: 'ghost',
@@ -391,14 +403,22 @@ class _StatsPageState extends State<StatsPage> {
                         ),
                         const Spacer(),
                         for (final item in [
-                          ('light', '浅色', Icons.light_mode_outlined),
-                          ('dark', '深色', Icons.dark_mode_outlined),
+                          (
+                            'light',
+                            context.strings.light,
+                            Icons.light_mode_outlined,
+                          ),
+                          (
+                            'dark',
+                            context.strings.dark,
+                            Icons.dark_mode_outlined,
+                          ),
                         ])
                           Semantics(
                             button: true,
                             selected: c.preferences.appearance == item.$1,
                             child: Tooltip(
-                              message: '${item.$2}；长按跟随系统',
+                              message: context.strings.themeShortcut(item.$2),
                               child: LensFocusOutline(
                                 child: InkWell(
                                   onTap: () => unawaited(
@@ -491,7 +511,8 @@ class _StatsPageState extends State<StatsPage> {
                                 children: [
                                   LensFocusOutline(
                                     child: IconButton(
-                                      tooltip: '打开导航菜单',
+                                      tooltip:
+                                          context.strings.openNavigationMenu,
                                       onPressed: () =>
                                           scaffold.currentState!.openDrawer(),
                                       padding: EdgeInsets.zero,

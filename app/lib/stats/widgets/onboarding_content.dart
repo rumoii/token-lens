@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -127,7 +129,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
       ),
     );
     final title = Text(
-      done ? '统计好了' : '欢迎使用 Token Lens',
+      done ? context.strings.usageIsReady : context.strings.welcomeToTokenLens,
       textAlign: TextAlign.center,
       style: p
           .serif(width >= 768 ? 34 : 28, weight: FontWeight.w500)
@@ -141,7 +143,11 @@ class _OnboardingContentState extends State<OnboardingContent> {
         ?.toLocal();
     final firstSeenText = firstSeen == null
         ? '—'
-        : '${firstSeen.year} 年 ${firstSeen.month} 月 ${firstSeen.day} 日';
+        : context.strings.spacedCalendarDayWithYear(
+            firstSeen.year,
+            firstSeen.month,
+            firstSeen.day,
+          );
     return Material(
       color: p['surface-0'],
       child: Stack(
@@ -200,8 +206,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
                     const SizedBox(height: 6),
                     text(
                       done
-                          ? '最早的一条记录在 $firstSeenText。更早的用量，工具已经没有保留日志，所以统计不到。以后每次打开都会自动补上新的用量。'
-                          : '看看你的 AI 编程工具用了多少 token、按公开价值多少钱。',
+                          ? context.strings.theFirstRecordIsFrom0Older(
+                              firstSeenText,
+                            )
+                          : context.strings.seeHowManyTokensYourAiCoding,
                       16,
                       color: p.secondary,
                       align: TextAlign.center,
@@ -219,9 +227,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                     : tokenCount(
                                         summary.totals.grossTokens,
                                         mode: c.preferences.tokenMode,
-                                        unitSystem: c.preferences.unitSystem,
+                                        unitSystem: c.unitSystem,
                                       ),
-                                'token',
+                                context.strings.tokenUnit,
                               ),
                               (
                                 summary == null
@@ -229,7 +237,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                     : toDisplayNumber(
                                         summary.totals.recordCount,
                                       ),
-                                '条记录',
+                                context.strings.recordsNoun(
+                                  summary?.totals.recordCount ?? 0,
+                                ),
                               ),
                               (
                                 summary == null
@@ -237,7 +247,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                     : toDisplayNumber(
                                         summary.activity.sessions,
                                       ),
-                                '个会话',
+                                context.strings.sessionsNoun(
+                                  summary?.activity.sessions ?? 0,
+                                ),
                               ),
                             ].indexed)
                               Expanded(
@@ -265,7 +277,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                       Tooltip(
                                         message:
                                             entry.$1 == 0 && summary != null
-                                            ? '${toDisplayNumber(summary.totals.grossTokens)} token'
+                                            ? '${toDisplayNumber(summary.totals.grossTokens)} ${context.strings.tokenUnit}'
                                             : '',
                                         child: Text(
                                           entry.$2.$1,
@@ -294,7 +306,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                       ),
                       const SizedBox(height: 24),
                       if (c.warning != null) ...[
-                        statusText('同步完成，有异常警告：${c.warning}'),
+                        statusText(
+                          context.strings.syncFinishedWithWarnings(c.warning),
+                        ),
                         const SizedBox(height: 12),
                       ],
                       if (widget.completed.error != null) ...[
@@ -304,7 +318,13 @@ class _OnboardingContentState extends State<OnboardingContent> {
                         ),
                         const SizedBox(height: 12),
                       ],
-                      Center(child: action('去看看', widget.onEnter, arrow: true)),
+                      Center(
+                        child: action(
+                          context.strings.viewUsage,
+                          widget.onEnter,
+                          arrow: true,
+                        ),
+                      ),
                     ] else ...[
                       LensCard(
                         child: ResourceBlock(
@@ -327,7 +347,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                       Semantics(
                                         liveRegion: true,
                                         child: text(
-                                          '正在读取日志…',
+                                          context.strings.readingLogs,
                                           14,
                                           weight: FontWeight.w700,
                                         ),
@@ -393,13 +413,20 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                         CrossAxisAlignment.baseline,
                                     textBaseline: TextBaseline.alphabetic,
                                     children: [
-                                      text(
-                                        '在这台电脑上找到 ${found.length} 个工具',
-                                        14,
-                                        weight: FontWeight.w600,
+                                      Flexible(
+                                        child: text(
+                                          context.strings.toolsFound(
+                                            found.length,
+                                          ),
+                                          14,
+                                          weight: FontWeight.w600,
+                                        ),
                                       ),
+                                      const SizedBox(width: 8),
                                       text(
-                                        '支持 $supported 个',
+                                        context.strings.supportedToolCount(
+                                          supported,
+                                        ),
                                         12.5,
                                         color: p.muted,
                                       ),
@@ -416,8 +443,13 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                   ),
                                   child: text(
                                     denied.isEmpty
-                                        ? '这台电脑上还没找到支持的工具的日志。装好并用过其中任意一个后再回来。'
-                                        : '有 ${denied.length} 个工具的日志目录没有权限读取，见下方。其余支持的工具没在这台电脑上找到。',
+                                        ? context
+                                              .strings
+                                              .noLogsFoundForSupportedToolsOn
+                                        : context.strings
+                                              .couldNotAccessLogDirectoriesFor0(
+                                                denied.length,
+                                              ),
                                     13,
                                     color: p.muted,
                                   ),
@@ -468,7 +500,12 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                                     if (filesByTool[item.$2]
                                                         case final files?)
                                                       text(
-                                                        '${toDisplayNumber(files)} 个日志文件',
+                                                        context.strings
+                                                            .logFileCount(
+                                                              toDisplayNumber(
+                                                                files,
+                                                              ),
+                                                            ),
                                                         12.5,
                                                         color: p.muted,
                                                       ),
@@ -476,7 +513,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                                       item.$2,
                                                     ))
                                                       text(
-                                                        '找到了日志目录，但没有权限读取。检查文件夹权限后点「重新检测」。',
+                                                        context
+                                                            .strings
+                                                            .foundTheLogDirectoryButCouldNot,
                                                         12.5,
                                                         color: p['warn'],
                                                       ),
@@ -488,7 +527,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                                     item.$2,
                                                   ))
                                                 text(
-                                                  '读取中…',
+                                                  context.strings.reading,
                                                   12.5,
                                                   color: p.muted,
                                                 )
@@ -502,7 +541,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                                 ),
                                                 const SizedBox(width: 4),
                                                 text(
-                                                  '找到',
+                                                  context.strings.found,
                                                   12.5,
                                                   color: p['ok'],
                                                 ),
@@ -548,7 +587,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                               const SizedBox(width: 6),
                                               Flexible(
                                                 child: text(
-                                                  '还有 $missingCount 个支持的工具没在这台电脑上找到',
+                                                  context.strings
+                                                      .supportedToolsMissing(
+                                                        missingCount,
+                                                      ),
                                                   13,
                                                   color: p.secondary,
                                                 ),
@@ -634,30 +676,32 @@ class _OnboardingContentState extends State<OnboardingContent> {
                       ),
                       const SizedBox(height: 24),
                       if (counting && c.phase == StatsSyncPhase.conflict) ...[
-                        statusText('已有同步在执行，正在等待完成'),
+                        statusText(
+                          context.strings.aSyncIsAlreadyRunningWaitingFor,
+                        ),
                         const SizedBox(height: 12),
                       ],
                       Center(
                         child: found.isEmpty && !counting
                             ? action(
-                                '重新检测',
+                                context.strings.scanAgain,
                                 widget.discovery.loading
                                     ? null
                                     : widget.onRescan,
                               )
                             : action(
                                 counting
-                                    ? '统计中…'
+                                    ? context.strings.counting
                                     : c.syncError != null
-                                    ? '重试'
-                                    : '开始统计',
+                                    ? context.strings.retry
+                                    : context.strings.startCounting,
                                 counting ? null : widget.onStart,
                               ),
                       ),
                       if (!counting && found.isNotEmpty && denied.isNotEmpty)
                         Center(
                           child: action(
-                            '重新检测',
+                            context.strings.scanAgain,
                             widget.discovery.loading ? null : widget.onRescan,
                           ),
                         ),
@@ -686,7 +730,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                           const SizedBox(width: 6),
                           Flexible(
                             child: text(
-                              '只读取本机日志，不上传任何内容，也不改动这些工具。',
+                              context.strings.readsLogsOnThisComputerAndLeaves,
                               12.5,
                               color: p.muted,
                             ),

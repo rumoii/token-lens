@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../stats_gateway.dart';
@@ -5,16 +7,28 @@ import '../logic/format.dart';
 import '../theme/palette.dart';
 
 enum TimingKind {
-  ttft(
-    '首字（开始回复前要等）',
-    '首字',
-    '从发出请求到看到第一段输出（含思考）的时间。‘一般’是一半请求不超过这个时间，‘慢时’是九成请求不超过这个时间。',
-  ),
-  speed('速度（回复时每秒出多少）', '速度', '模型开始输出后，每秒生成的 token 数。'),
-  throughput('平均速度（算上等待）', '平均速度', '整次请求的输出 token 除以总耗时，等待时间也算在内，所以通常比“速度”低。');
+  ttft,
+  speed,
+  throughput;
 
-  const TimingKind(this.label, this.shortName, this.hint);
-  final String label, shortName, hint;
+  (String label, String shortName, String hint) copy(AppStrings strings) =>
+      switch (this) {
+        ttft => (
+          strings.firstTokenWaitForTheReply,
+          strings.firstToken,
+          strings.timeFromSendingTheRequestToThe,
+        ),
+        speed => (
+          strings.speedTokensPerSecondWhileReplying,
+          strings.speed,
+          strings.tokensGeneratedPerSecondAfterOutputBegins,
+        ),
+        throughput => (
+          strings.averageSpeedIncludesTheWait,
+          strings.averageSpeed,
+          strings.outputTokensDividedByTotalRequestTime,
+        ),
+      };
 
   bool hasSamples(StatsTiming? timing, {bool turn = false}) => switch (this) {
     ttft =>
@@ -57,13 +71,16 @@ class TimingStrip extends StatelessWidget {
     final p = LensPalette.of(context);
     final missing = TimingKind.values
         .where((kind) => !kind.hasSamples(timing, turn: turn))
-        .map((kind) => kind.shortName)
-        .join('、');
+        .map((kind) => kind.copy(context.strings).$2)
+        .join(context.strings.listSeparator);
     final scope = Tooltip(
       message: turn
-          ? '这个工具只按一整轮对话记录时间，一轮里可能有多次请求，不能和其他工具的‘每次请求’直接比。'
-          : '按每次请求统计，数字是从日志时间推算的约值。',
-      child: Text(turn ? '每轮对话' : '每次请求', style: p.text(12, p['clay'])),
+          ? context.strings.thisToolLogsTimingForAWhole2
+          : context.strings.perRequestEstimatesBasedOnLogTimestamps,
+      child: Text(
+        turn ? context.strings.perTurn : context.strings.perRequest2,
+        style: p.text(12, p['clay']),
+      ),
     );
     final metrics = Wrap(
       spacing: 24,
@@ -81,7 +98,10 @@ class TimingStrip extends StatelessWidget {
               requestCount: requestCount,
             ),
         if (missing.isNotEmpty)
-          Text('日志里没记：$missing', style: p.text(11.5, p.muted)),
+          Text(
+            context.strings.missingFromLogs0(missing),
+            style: p.text(11.5, p.muted),
+          ),
       ],
     );
     return scopeAsTitle
@@ -106,16 +126,17 @@ class TimingMetric extends StatelessWidget {
   final bool turn;
   final int requestCount;
 
-  String source(String method) => switch (method) {
-    'client_reported' => '客户端记录的计时',
-    'log_timestamps' => '按日志时间戳估算',
-    'content_event_proxy' => '按推理开始事件估算',
-    _ => '计时来源未知',
+  String source(String method, AppStrings strings) => switch (method) {
+    'client_reported' => strings.timingReportedByTheClient,
+    'log_timestamps' => strings.estimatedFromLogTimestamps,
+    'content_event_proxy' => strings.estimatedFromReasoningStartEvents,
+    _ => strings.unknownTimingSource,
   };
 
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
+    final (label, shortName, hint) = kind.copy(context.strings);
     final n = turn
         ? timing?.turn?.turnCount ?? requestCount
         : timing?.requestCount ?? requestCount;
@@ -130,8 +151,13 @@ class TimingMetric extends StatelessWidget {
               method: t.method,
               count: t.sampleCount,
               value: t.sampleCount == 1 || t.medianMs == t.p90Ms
-                  ? '${(t.medianMs / 1000).toStringAsFixed(2)} 秒'
-                  : '一般 ${(t.medianMs / 1000).toStringAsFixed(2)} 秒，慢时 ${(t.p90Ms / 1000).toStringAsFixed(2)} 秒',
+                  ? context.strings.secondsDuration(
+                      (t.medianMs / 1000).toStringAsFixed(2),
+                    )
+                  : context.strings.typicalAndSlowTiming(
+                      (t.medianMs / 1000).toStringAsFixed(2),
+                      (t.p90Ms / 1000).toStringAsFixed(2),
+                    ),
             ),
       ],
       TimingKind.speed => [
@@ -140,7 +166,9 @@ class TimingMetric extends StatelessWidget {
             (
               method: t.method,
               count: t.sampleCount,
-              value: '约 ${t.tokensPerSecond.toStringAsFixed(1)} token/s',
+              value: context.strings.about0TokenS(
+                t.tokensPerSecond.toStringAsFixed(1),
+              ),
             ),
       ],
       TimingKind.throughput => [
@@ -149,7 +177,9 @@ class TimingMetric extends StatelessWidget {
             (
               method: t.method,
               count: t.sampleCount,
-              value: '约 ${t.tokensPerSecond.toStringAsFixed(1)} token/s',
+              value: context.strings.about0TokenS(
+                t.tokensPerSecond.toStringAsFixed(1),
+              ),
             ),
       ],
     };
@@ -161,12 +191,12 @@ class TimingMetric extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(child: Text(kind.label, style: p.text(12, p.muted))),
+            Flexible(child: Text(label, style: p.text(12, p.muted))),
             const SizedBox(width: 5),
             Tooltip(
-              message: kind.hint,
+              message: hint,
               child: Semantics(
-                label: '${kind.shortName}说明',
+                label: context.strings.about0(shortName),
                 child: Container(
                   width: 14,
                   height: 14,
@@ -186,17 +216,23 @@ class TimingMetric extends StatelessWidget {
         ),
         for (final sample in samples)
           Tooltip(
-            message: source(sample.method),
+            message: source(sample.method, context.strings),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (samples.length > 1)
-                  Text(source(sample.method), style: p.text(11, p.muted)),
+                  Text(
+                    source(sample.method, context.strings),
+                    style: p.text(11, p.muted),
+                  ),
                 Text(sample.value, style: p.text(13, p.secondary)),
                 if (sample.count < n)
                   Text(
-                    '${toDisplayNumber(n)} 次里 ${toDisplayNumber(sample.count)} 次有记录',
+                    context.strings.timedRequestCoverage(
+                      toDisplayNumber(n),
+                      toDisplayNumber(sample.count),
+                    ),
                     style: p.text(11, p.muted),
                   ),
               ],

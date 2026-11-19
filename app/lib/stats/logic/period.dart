@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 typedef DayRange = ({String? from, String? to});
 typedef PeriodAxis = ({String granularity, String? from, String? to});
 typedef PeriodComparison = ({String from, String to, String label});
@@ -30,15 +32,16 @@ class StatsPeriod {
       if (period == 'custom' && to != null) 'to': to!,
     },
   ).query;
-  String get label =>
-      const {
-        'today': '今天',
-        'week': '这周',
-        'month': '这个月',
-        'all': '全部',
-        'custom': '自定义',
+  String get label => labelFor(chineseStrings);
+  String labelFor(AppStrings strings) =>
+      {
+        'today': strings.today,
+        'week': strings.thisWeek,
+        'month': strings.thisMonth,
+        'all': strings.all,
+        'custom': strings.custom,
       }[period] ??
-      '这周';
+      strings.thisWeek;
   DayRange range(DateTime today) => switch (period) {
     'today' => (from: dayKey(today), to: dayKey(today)),
     'week' => (
@@ -54,12 +57,15 @@ class StatsPeriod {
     'custom' when from != null && to != null => (from: from, to: to),
     _ => (from: null, to: null),
   };
-  PeriodComparison? compare(DateTime today) {
+  PeriodComparison? compare(
+    DateTime today, [
+    AppStrings strings = chineseStrings,
+  ]) {
     if (period == 'today') {
       final yesterday = dayKey(
         DateTime(today.year, today.month, today.day - 1),
       );
-      return (from: yesterday, to: yesterday, label: '昨天');
+      return (from: yesterday, to: yesterday, label: strings.yesterday);
     }
     if (period == 'week') {
       return (
@@ -67,7 +73,7 @@ class StatsPeriod {
           DateTime(today.year, today.month, today.day - today.weekday - 6),
         ),
         to: dayKey(DateTime(today.year, today.month, today.day - 7)),
-        label: '上周',
+        label: strings.lastWeek,
       );
     }
     if (period == 'month') {
@@ -81,7 +87,7 @@ class StatsPeriod {
             today.day > last ? last : today.day,
           ),
         ),
-        label: '上个月',
+        label: strings.lastMonth,
       );
     }
     return null;

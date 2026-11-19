@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -84,7 +86,7 @@ class ResourceBlock<T> extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '加载失败（request_failed）',
+                    context.strings.couldNotLoadRequestFailed,
                     style: p.text(12, null, FontWeight.w500),
                   ),
                   Text('${resource.error}', style: p.text(12, p.muted)),
@@ -92,7 +94,7 @@ class ResourceBlock<T> extends StatelessWidget {
               ),
             ),
             LensButton(
-              label: '重试',
+              label: context.strings.retry,
               size: 'xs',
               variant: 'ghost',
               onPressed: () => unawaited(resource.reload()),
@@ -107,7 +109,7 @@ class ResourceBlock<T> extends StatelessWidget {
       children: [
         if (resource.loading) ...[
           Semantics(
-            label: '正在加载',
+            label: context.strings.loading,
             liveRegion: true,
             child: LinearProgressIndicator(
               value: MediaQuery.disableAnimationsOf(context) ? 1 / 3 : null,

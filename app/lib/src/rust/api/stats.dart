@@ -674,6 +674,7 @@ class StatsModelPrice {
   final String billing;
   final String? sourceUrl;
   final String? note;
+  final String? noteEn;
   final int localRecords;
   final Map<String, int> localProviders;
   final StatsPrices? prices;
@@ -688,6 +689,7 @@ class StatsModelPrice {
     required this.billing,
     this.sourceUrl,
     this.note,
+    this.noteEn,
     required this.localRecords,
     required this.localProviders,
     this.prices,
@@ -704,6 +706,7 @@ class StatsModelPrice {
       billing.hashCode ^
       sourceUrl.hashCode ^
       note.hashCode ^
+      noteEn.hashCode ^
       localRecords.hashCode ^
       localProviders.hashCode ^
       prices.hashCode ^
@@ -722,6 +725,7 @@ class StatsModelPrice {
           billing == other.billing &&
           sourceUrl == other.sourceUrl &&
           note == other.note &&
+          noteEn == other.noteEn &&
           localRecords == other.localRecords &&
           localProviders == other.localProviders &&
           prices == other.prices &&
@@ -1536,6 +1540,7 @@ class StatsSource {
   final StatsRetention retention;
   final StatsSourceChecks checks;
   final List<String> limits;
+  final List<String>? limitsEn;
   final List<StatsSourceNote> notes;
 
   const StatsSource({
@@ -1549,6 +1554,7 @@ class StatsSource {
     required this.retention,
     required this.checks,
     required this.limits,
+    this.limitsEn,
     required this.notes,
   });
 
@@ -1564,6 +1570,7 @@ class StatsSource {
       retention.hashCode ^
       checks.hashCode ^
       limits.hashCode ^
+      limitsEn.hashCode ^
       notes.hashCode;
 
   @override
@@ -1581,6 +1588,7 @@ class StatsSource {
           retention == other.retention &&
           checks == other.checks &&
           limits == other.limits &&
+          limitsEn == other.limitsEn &&
           notes == other.notes;
 }
 
@@ -1617,12 +1625,17 @@ class StatsSourceChecks {
 
 class StatsSourceNote {
   final String text;
+  final String? textEn;
   final String impact;
 
-  const StatsSourceNote({required this.text, required this.impact});
+  const StatsSourceNote({
+    required this.text,
+    this.textEn,
+    required this.impact,
+  });
 
   @override
-  int get hashCode => text.hashCode ^ impact.hashCode;
+  int get hashCode => text.hashCode ^ textEn.hashCode ^ impact.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1630,6 +1643,7 @@ class StatsSourceNote {
       other is StatsSourceNote &&
           runtimeType == other.runtimeType &&
           text == other.text &&
+          textEn == other.textEn &&
           impact == other.impact;
 }
 

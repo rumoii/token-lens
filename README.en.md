@@ -22,13 +22,13 @@ The app and the specifications are written in Simplified Chinese.
 ## Features
 
 - **Overview**: tokens and estimated cost for today, this week, this month or any range, compared with the same time yesterday; hourly or daily trend charts; a year-long activity heatmap.
-- **Breakdown**: split by time, tool, model or project, with stacked filters; every row shows the four token kinds: new input, output, cache read and cache write.
+- **Breakdown**: split by time, tool, model or project, with stacked filters; every row shows the four token kinds: input, output, cache read and cache write.
 - **Sessions**: what each session used, how it spread across days, and which models it called.
 - **Request timing**: time to first token, output speed, and average speed including the wait. Only tools whose logs record timestamps have it; gaps say why.
-- **Tool sources**: which tools were found on this computer, how each one logs usage, whether it was checked against real or sample logs, and its known limitations.
+- **Tools**: which tools were found on this computer, how each one logs usage, whether it was checked against real or sample logs, and its known limitations.
 - **Pricing**: list prices per model, including long-context and time-of-day pricing, shown in USD or CNY. Amounts are for comparison only and are not your bill; on a subscription plan you usually pay less.
 - **AI news**: 20 official blogs, changelogs and community sources, refreshed every 30 minutes while the app is open; read and starred state stays on this computer.
-- **Dark mode**, and number units in 万 / 亿 or K / M / B.
+- **Chinese and English interface**, following the system language by default; dark mode; number units in 万 / 亿 or K / M / B.
 
 ## Screenshots
 

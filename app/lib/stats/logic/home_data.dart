@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import '../../stats_gateway.dart';
 import 'period.dart';
 import 'tool_order.dart';
@@ -20,8 +22,9 @@ class ModelUsage {
 }
 
 ({List<ToolUsage> rank, List<ModelUsage> models}) digestPairs(
-  List<StatsGroup> groups,
-) {
+  List<StatsGroup> groups, [
+  AppStrings strings = chineseStrings,
+]) {
   final sources = <String, ToolUsage>{}, models = <String, ModelUsage>{};
   for (final group in groups) {
     if (group.source == null ||
@@ -40,7 +43,7 @@ class ModelUsage {
       tool.costMicros += group.costMicros!;
     }
     final name = group.model == null || group.model!.isEmpty
-        ? '未知模型'
+        ? strings.unknownModel
         : group.model!;
     final model = models.putIfAbsent(name, () => ModelUsage(name));
     model.tokens += group.grossTokens;

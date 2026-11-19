@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../stats_controller.dart';
@@ -11,13 +13,11 @@ import 'primitives.dart';
 import 'resource.dart';
 import 'filters.dart';
 
-const requestLegend = '“—”表示日志里没记，鼠标停上去看原因。褐色是这里最慢的一成。带“≈”的是算上等待的平均速度。';
-const requestTotalsLegend = '只记录会话总数的工具没有逐次请求，不出现在这里。';
-const requestSortNames = {
-  'time': '时间',
-  'cost': '金额',
-  'ttft': '首字',
-  'speed': '速度',
+Map<String, String> requestSortNames(AppStrings strings) => {
+  'time': strings.time,
+  'cost': strings.cost,
+  'ttft': strings.firstToken,
+  'speed': strings.speed,
 };
 
 class RequestLog extends StatefulWidget {
@@ -106,7 +106,8 @@ class _RequestLogState extends State<RequestLog> {
     TextSpan(
       children: [
         TextSpan(
-          text: '${usageDate(r.observedAt, c.clock())} ',
+          text:
+              '${usageDate(r.observedAt, c.clock(), strings: context.strings)} ',
           style: p.text(12, p.muted),
         ),
         TextSpan(text: usageTime(r.observedAt), style: p.text(12)),
@@ -149,10 +150,10 @@ class _RequestLogState extends State<RequestLog> {
 
   Widget tokens(int? n) => Tooltip(
     message: n == null
-        ? '日志里没记这一项。'
-        : tokenTooltip(n, unitSystem: c.preferences.unitSystem),
+        ? context.strings.theLogDidNotRecordThisField
+        : tokenTooltip(n, unitSystem: c.unitSystem),
     child: Text(
-      n == null ? '—' : tokenCount(n, unitSystem: c.preferences.unitSystem),
+      n == null ? '—' : tokenCount(n, unitSystem: c.unitSystem),
       style: p.text(12, n == null ? p.muted : null),
     ),
   );
@@ -173,17 +174,17 @@ class _RequestLogState extends State<RequestLog> {
     if (n == null) {
       hint = ttft
           ? r.source == 'codex' && r.status != null
-                ? 'Codex 这次请求直接从工具调用开始，日志里看不到第一段输出的时间。'
-                : '$tool 的日志里没记首字时间。'
+                ? context.strings.thisCodexRequestBeganWithATool
+                : context.strings.toolDidNotLogFirstTokenTime(tool)
           : r.status != null && r.status != 'completed'
-          ? '这次请求没有正常结束，不算速度。'
-          : '$tool 的日志里没记生成时长。';
+          ? context.strings.thisRequestDidNotFinishNormallySo
+          : context.strings.toolDidNotLogGenerationTime(tool);
     } else if (r.scope == 'turn') {
-      hint = '这个工具按一整轮对话记录时间，一轮里可能有多次请求。';
+      hint = context.strings.thisToolLogsTimingForAWhole;
     } else if (approx) {
-      hint = '$tool 只记了整次请求的时长，这是算上等待的平均速度。';
+      hint = context.strings.averageSpeedIncludesWait(tool);
     } else {
-      hint = isSlow ? '比这里九成请求都慢' : null;
+      hint = isSlow ? context.strings.slowerThan90OfRequestsHere : null;
     }
     final text = Text.rich(
       TextSpan(
@@ -192,7 +193,7 @@ class _RequestLogState extends State<RequestLog> {
             text: n == null
                 ? '—'
                 : ttft
-                ? '${(n / 1000).toStringAsFixed(1)} 秒'
+                ? context.strings.secondsDuration((n / 1000).toStringAsFixed(1))
                 : n.toStringAsFixed(1),
             style: p.text(
               12,
@@ -253,10 +254,10 @@ class _RequestLogState extends State<RequestLog> {
             runSpacing: 4,
             children: [
               for (final (label, n) in [
-                ('新输入', r.inputTokens),
-                ('输出', r.outputTokens),
-                ('读缓存', r.cacheReadTokens),
-                ('写缓存', r.cacheWriteTokens),
+                (context.strings.newInput, r.inputTokens),
+                (context.strings.output, r.outputTokens),
+                (context.strings.cacheRead, r.cacheReadTokens),
+                (context.strings.cacheWrite, r.cacheWriteTokens),
               ])
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -275,7 +276,12 @@ class _RequestLogState extends State<RequestLog> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(ttft ? '首字 ' : '速度 ', style: p.text(11.5, p.muted)),
+                    Text(
+                      ttft
+                          ? context.strings.firstToken2
+                          : context.strings.speed2,
+                      style: p.text(11.5, p.muted),
+                    ),
                     metric(r, slow, ttft: ttft),
                   ],
                 ),
@@ -327,7 +333,10 @@ class _RequestLogState extends State<RequestLog> {
       child: session
           ? content
           : r.sessionId == null
-          ? Tooltip(message: '这次请求的日志里没有会话编号，打不开所在的会话。', child: content)
+          ? Tooltip(
+              message: context.strings.theLogHasNoSessionIdFor,
+              child: content,
+            )
           : Material(
               type: MaterialType.transparency,
               child: LensFocusOutline(
@@ -363,10 +372,10 @@ class _RequestLogState extends State<RequestLog> {
     children: [
       FilterPick(
         key: const Key('request-sort-menu'),
-        label: '排序：${requestSortNames[sort]}',
+        label: context.strings.sortBy0(requestSortNames(context.strings)[sort]),
         onPick: order,
         options: [
-          for (final e in requestSortNames.entries)
+          for (final e in requestSortNames(context.strings).entries)
             FilterOption(e.key, e.value),
         ],
       ),
@@ -380,7 +389,9 @@ class _RequestLogState extends State<RequestLog> {
         ),
         child: LensFocusOutline(
           child: IconButton(
-            tooltip: descending ? '从大到小' : '从小到大',
+            tooltip: descending
+                ? context.strings.highestFirst
+                : context.strings.lowestFirst,
             onPressed: () => order(sort),
             padding: const EdgeInsets.all(6),
             constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -408,7 +419,7 @@ class _RequestLogState extends State<RequestLog> {
                 child: Row(
                   children: [
                     Semantics(
-                      label: '只看有计时的',
+                      label: context.strings.timedOnly,
                       child: Checkbox(
                         value: timedOnly,
                         onChanged: (value) {
@@ -425,7 +436,10 @@ class _RequestLogState extends State<RequestLog> {
                           timedOnly = !timedOnly;
                           load();
                         },
-                        child: Text('只看有计时的', style: p.text(12.5)),
+                        child: Text(
+                          context.strings.timedOnly,
+                          style: p.text(12.5),
+                        ),
                       ),
                     ),
                   ],
@@ -435,7 +449,9 @@ class _RequestLogState extends State<RequestLog> {
               const Spacer(),
             if (resource.data?.total != null)
               Text(
-                '${toDisplayNumber(resource.data!.total!)} 次请求',
+                context.strings.requestCount(
+                  toDisplayNumber(resource.data!.total!),
+                ),
                 key: const Key('request-total'),
                 style: p.text(12, p.muted),
               )
@@ -467,13 +483,15 @@ class _RequestLogState extends State<RequestLog> {
                         key: const Key('request-sort-pills'),
                         small: true,
                         options: {
-                          for (final e in requestSortNames.entries)
+                          for (final e in requestSortNames(
+                            context.strings,
+                          ).entries)
                             e.key:
                                 '${e.value}${sort == e.key ? (descending ? ' ▼' : ' ▲') : ''}',
                         },
                         value: sort,
                         onChanged: order,
-                        label: '排序',
+                        label: context.strings.sort,
                       ),
                     ),
                   )
@@ -486,16 +504,16 @@ class _RequestLogState extends State<RequestLog> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: columns([
-                      header('时间', 'time'),
-                      header('工具', null),
-                      header('模型', null),
-                      header('金额', 'cost'),
-                      header('新输入', null),
-                      header('输出', null),
-                      header('读缓存', null),
-                      header('写缓存', null),
-                      header('首字', 'ttft'),
-                      header('速度 token/s', 'speed'),
+                      header(context.strings.time, 'time'),
+                      header(context.strings.tool, null),
+                      header(context.strings.model, null),
+                      header(context.strings.cost, 'cost'),
+                      header(context.strings.newInput, null),
+                      header(context.strings.output, null),
+                      header(context.strings.cacheRead, null),
+                      header(context.strings.cacheWrite, null),
+                      header(context.strings.firstToken, 'ttft'),
+                      header(context.strings.speedTokenS, 'speed'),
                     ]),
                   ),
                 if (items.isEmpty)
@@ -506,8 +524,10 @@ class _RequestLogState extends State<RequestLog> {
                     ),
                     child: Text(
                       timedOnly
-                          ? '这段时间的请求都没有计时记录。'
-                          : '这段时间没有逐次请求。只记录会话总数的工具不出现在这里。',
+                          ? context.strings.noRequestsInThisPeriodHaveTiming
+                          : context
+                                .strings
+                                .noIndividualRequestsInThisPeriodTools,
                       style: p.text(13, p.muted),
                     ),
                   )
@@ -519,8 +539,12 @@ class _RequestLogState extends State<RequestLog> {
                     child: Center(
                       child: LensButton(
                         label: remaining < 30
-                            ? '再显示 ${toDisplayNumber(remaining)} 条'
-                            : '再显示 30 条（还有 ${toDisplayNumber(remaining)} 条）',
+                            ? context.strings.show0More(
+                                toDisplayNumber(remaining),
+                              )
+                            : context.strings.show30More0Left(
+                                toDisplayNumber(remaining),
+                              ),
                         size: 'sm',
                         variant: 'ghost',
                         onPressed: resource.loading
@@ -532,7 +556,7 @@ class _RequestLogState extends State<RequestLog> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
                   child: Text(
-                    '$requestLegend${session ? '' : requestTotalsLegend}',
+                    '${context.strings.aDashMeansTheLogOmitsThe}${session ? '' : context.strings.toolsThatLogOnlySessionTotalsHave}',
                     style: p.text(11.5, p.muted),
                   ),
                 ),

@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 List<String> _parts(String path) =>
     path.split(RegExp(r'[\\/]')).where((part) => part.isNotEmpty).toList();
 
@@ -18,13 +20,13 @@ String usageDate(
   DateTime now, {
   bool includeRelativeDate = false,
   bool relativeLabel = true,
+  AppStrings strings = chineseStrings,
 }) {
   final date = DateTime.tryParse(iso)?.toLocal();
-  if (date == null) return '时间未知';
-  final day = '${date.month}月${date.day}日';
+  if (date == null) return strings.unknownTime;
   final calendar = date.year == now.year
-      ? '$day 周${'日一二三四五六'[date.weekday % 7]}'
-      : '${date.year}年$day';
+      ? strings.calendarDayWithWeekday(date.month, date.day, date.weekday)
+      : strings.calendarDayWithYear(date.year, date.month, date.day);
   if (!relativeLabel) return calendar;
   final distance = DateTime.utc(
     now.year,
@@ -32,9 +34,9 @@ String usageDate(
     now.day,
   ).difference(DateTime.utc(date.year, date.month, date.day)).inDays;
   final relative = distance == 0
-      ? '今天'
+      ? strings.today
       : distance == 1
-      ? '昨天'
+      ? strings.yesterday
       : null;
   return relative == null
       ? calendar
@@ -50,12 +52,16 @@ String usageTime(String iso) {
       : '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
 }
 
-String usageBucket(String bucket, DateTime? now) {
+String usageBucket(
+  String bucket,
+  DateTime? now, [
+  AppStrings strings = chineseStrings,
+]) {
   if (bucket.contains('T')) return '${int.parse(bucket.substring(11, 13))}:00';
   if (bucket.length == 7) {
     final date = DateTime.parse('$bucket-01');
-    return '${date.year}年${date.month}月';
+    return strings.calendarMonth(date.year, date.month);
   }
   // Callers without a clock request a calendar label, without relative wording.
-  return usageDate(bucket, now ?? DateTime(0));
+  return usageDate(bucket, now ?? DateTime(0), strings: strings);
 }

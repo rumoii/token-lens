@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -33,7 +35,7 @@ class SettingsDisplay extends StatefulWidget {
 
 class _SettingsDisplayState extends State<SettingsDisplay> {
   ExchangeRateOperation? _operation;
-  String? _error;
+  Object? _error;
   void _cancel() {
     final old = _operation;
     _operation = null;
@@ -78,7 +80,7 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
       );
     } catch (failure) {
       if (mounted && _operation == operation) {
-        setState(() => _error = '汇率更新失败：$failure');
+        setState(() => _error = failure);
       }
     } finally {
       if (mounted && _operation == operation) setState(() => _operation = null);
@@ -108,9 +110,10 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
         String hint,
         List<Widget> controls, {
         String? note,
+        bool first = false,
       }) => Container(
         decoration: BoxDecoration(
-          border: title == '外观'
+          border: first
               ? null
               : Border(
                   top: BorderSide(
@@ -134,7 +137,8 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: p.text(14, null, FontWeight.w500)),
-                      Text(hint, softWrap: false, style: p.text(12.5, p.muted)),
+                      if (hint.isNotEmpty)
+                        Text(hint, style: p.text(12.5, p.muted)),
                     ],
                   ),
                 ),
@@ -149,12 +153,17 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
         ),
       );
       final when = prefs.ratesFetchedAt == null
-          ? '内置汇率'
+          ? context.strings.builtInRate
           : (() {
               final date = DateTime.fromMillisecondsSinceEpoch(
                 prefs.ratesFetchedAt!,
               );
-              return '${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} 更新';
+              return context.strings.rateUpdatedAt(
+                date.month,
+                date.day,
+                date.hour.toString().padLeft(2, '0'),
+                date.minute.toString().padLeft(2, '0'),
+              );
             })();
       return LensCard(
         child: Column(
@@ -162,72 +171,127 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
-              child: Text('显示', style: p.text(15, null, FontWeight.w600)),
+              child: Text(
+                context.strings.display,
+                style: p.text(15, null, FontWeight.w600),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  row('外观', '浅色、深色或跟着系统走', [
+                  row(
+                    context.strings.appearance,
+                    context.strings.lightDarkOrSystemTheme,
+                    [
+                      segment(
+                        context.strings.appearance,
+                        {
+                          'light': context.strings.light,
+                          'dark': context.strings.dark,
+                          'system': context.strings.followSystem,
+                        },
+                        prefs.appearance,
+                        (value) => unawaited(
+                          c.setPreferences(
+                            c.preferences.copyWith(appearance: value),
+                          ),
+                        ),
+                      ),
+                    ],
+                    first: true,
+                  ),
+                  row(context.strings.interfaceLanguage, '', [
                     segment(
-                      '外观',
-                      const {'light': '浅色', 'dark': '深色', 'system': '跟随系统'},
-                      prefs.appearance,
-                      (value) => unawaited(
+                      context.strings.interfaceLanguage,
+                      {
+                        'system': context.strings.followSystem,
+                        'zh': context.strings.chineseLanguage,
+                        'en': context.strings.englishLanguage,
+                      },
+                      prefs.language,
+                      (language) => unawaited(
                         c.setPreferences(
-                          c.preferences.copyWith(appearance: value),
+                          c.preferences.copyWith(language: language),
                         ),
                       ),
                     ),
                   ]),
-                  row('数字单位', '大数字怎么缩写', [
-                    segment(
-                      '数字单位',
-                      const {'chinese': '万 / 亿', 'english': 'K / M / B'},
-                      prefs.unitSystem,
-                      (value) => unawaited(
-                        c.setPreferences(
-                          c.preferences.copyWith(unitSystem: value),
+                  row(
+                    context.strings.numberUnits,
+                    context.strings.howLargeNumbersAreShortened,
+                    [
+                      segment(
+                        context.strings.numberUnits,
+                        {
+                          'chinese': context.strings.chineseNumberUnits,
+                          'english': 'K / M / B',
+                        },
+                        c.unitSystem,
+                        (value) => unawaited(
+                          c.setPreferences(
+                            c.preferences.copyWith(unitSystem: value),
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      '例：${prefs.unitSystem == 'chinese' ? '18.2亿 token · 3700万 token' : '1.82B token · 37.0M token'}',
-                      style: p.text(12.5, p.muted),
-                    ),
-                  ]),
-                  row('货币', '金额用什么显示', [
-                    segment(
-                      '货币',
-                      const {'USD': '美元 \$', 'CNY': '人民币 ¥'},
-                      prefs.currency,
-                      (value) => unawaited(
-                        c.setPreferences(
-                          c.preferences.copyWith(currency: value),
+                      Text(
+                        context.strings.example0(
+                          c.unitSystem == 'chinese'
+                              ? context.strings.chineseNumberExample
+                              : context.strings.englishNumberExample,
+                        ),
+                        style: p.text(12.5, p.muted),
+                      ),
+                    ],
+                  ),
+                  row(
+                    context.strings.currency,
+                    context.strings.currencyUsedToDisplayCosts,
+                    [
+                      segment(
+                        context.strings.currency,
+                        {
+                          'USD': context.strings.usd,
+                          'CNY': context.strings.cny,
+                        },
+                        prefs.currency,
+                        (value) => unawaited(
+                          c.setPreferences(
+                            c.preferences.copyWith(currency: value),
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      '1 美元 ≈ ${rateFor(prefs.rates, 'CNY').toStringAsFixed(2)} 元 · $when',
-                      style: p.text(12.5, p.muted),
-                    ),
-                    LensButton(
-                      label: _operation == null ? '更新汇率' : '更新中…',
-                      icon: Icons.refresh,
-                      variant: 'ghost',
-                      size: 'link',
-                      spinning: _operation != null,
-                      onPressed: _operation == null
-                          ? () => unawaited(_refresh())
-                          : null,
-                    ),
-                    if (_error != null)
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(_error!, style: p.text(12, p['danger'])),
+                      Text(
+                        context.strings.exchangeRate(
+                          rateFor(prefs.rates, 'CNY').toStringAsFixed(2),
+                          when,
+                        ),
+                        style: p.text(12.5, p.muted),
                       ),
-                  ], note: '只换显示，账本里的金额不变。汇率只在点「更新汇率」时联网取一次，失败就保留现在的值。'),
+                      LensButton(
+                        label: _operation == null
+                            ? context.strings.updateRate
+                            : context.strings.updating,
+                        icon: Icons.refresh,
+                        variant: 'ghost',
+                        size: 'link',
+                        spinning: _operation != null,
+                        onPressed: _operation == null
+                            ? () => unawaited(_refresh())
+                            : null,
+                      ),
+                      if (_error != null)
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            context.strings.exchangeRateUpdateFailed(_error),
+                            style: p.text(12, p['danger']),
+                          ),
+                        ),
+                    ],
+                    note: context.strings.displayOnlyLedgerAmountsStayTheSame,
+                  ),
                 ],
               ),
             ),

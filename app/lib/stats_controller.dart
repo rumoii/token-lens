@@ -1,3 +1,6 @@
+import 'l10n/app_strings.dart';
+import 'l10n/sync_messages.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -49,9 +52,17 @@ class StatsController extends ChangeNotifier {
     this.store,
     this.preferences = const UiPreferences(),
     DateTime Function()? clock,
+    String Function()? systemLanguage,
     this.updateRequest = requestUpdate,
     this.updateTimer = Timer.new,
-  }) : clock = clock ?? DateTime.now;
+  }) : clock = clock ?? DateTime.now,
+       _systemLanguage = systemLanguage ?? _defaultLanguage;
+
+  static String _defaultLanguage() => 'zh';
+  final String Function() _systemLanguage;
+  AppStrings get strings =>
+      resolveStrings(preferences.language, _systemLanguage());
+  String get unitSystem => preferences.unitSystemFor(strings.languageCode);
   final StatsGateway gateway;
   final PreferencesStore? store;
   final DateTime Function() clock;
@@ -78,7 +89,15 @@ class StatsController extends ChangeNotifier {
   UiPreferences preferences;
   StatsHomeData? overview;
   StatsSync? lastSync;
-  String? error, syncError, warning;
+  String Function(AppStrings)? _error, _syncError;
+  List<String> _warnings = const [];
+
+  String? get error => _error?.call(strings);
+  set error(String? text) => _error = text == null ? null : (_) => text;
+  String? get syncError => _syncError?.call(strings);
+  set syncError(String? text) => _syncError = text == null ? null : (_) => text;
+  String? get warning => localizedWarnings(_warnings, strings);
+  set warning(String? text) => _warnings = text == null ? const [] : [text];
   final resourceErrors = <String, String>{};
   StatsSyncPhase phase = StatsSyncPhase.idle;
   StatsSyncErrorKind? syncErrorKind;
@@ -308,7 +327,9 @@ class StatsController extends ChangeNotifier {
         ..addAll(readErrors);
       sourcesReadSucceeded = !readErrors.containsKey('sources');
     } catch (failure) {
-      if (!_closed && ticket == _generation) error = '请求失败：$failure';
+      if (!_closed && ticket == _generation) {
+        _error = (strings) => strings.requestFailed0(failure);
+      }
     } finally {
       if (!_closed && ticket == _generation) {
         loading = false;
@@ -338,7 +359,7 @@ class StatsController extends ChangeNotifier {
       if (_closed) return;
       lastSync = result;
       ledgerVersion++;
-      warning = result.anomalies.isEmpty ? null : result.anomalies.join('；');
+      _warnings = result.anomalies;
       phase = StatsSyncPhase.success;
       await load();
     } catch (failure) {
@@ -349,9 +370,9 @@ class StatsController extends ChangeNotifier {
       } else {
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
-        syncError = failure.toString().contains('LEGACY_SYNC_LOCK')
-            ? '检测到旧版采集锁，请退出旧版后处理遗留锁文件。'
-            : '同步失败，已保留先前采集的数据。';
+        _syncError = failure.toString().contains('LEGACY_SYNC_LOCK')
+            ? (strings) => strings.anOlderCollectorLockWasFoundClose
+            : (strings) => strings.syncFailedPreviouslyCollectedDataIsStill;
         // A failed ingestion can still have committed earlier files.
         await load();
       }
@@ -395,17 +416,17 @@ class StatsController extends ChangeNotifier {
         phase = StatsSyncPhase.success;
         syncError = null;
         syncErrorKind = null;
-        warning = run!.anomalies.isEmpty ? null : run.anomalies.join('；');
+        _warnings = run!.anomalies;
         await load();
       } else if (run?.status == 'failed' || run?.status == 'abandoned') {
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
-        syncError = '最近的同步未完成';
+        _syncError = (strings) => strings.recentSyncIncomplete;
         await load();
       } else if (clock().difference(started) >= const Duration(minutes: 2)) {
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
-        syncError = '等待超时，同步可能仍在进行';
+        _syncError = (strings) => strings.theWaitTimedOutSyncMayStill;
       } else {
         _watchConflict(started);
       }
@@ -413,41 +434,42 @@ class StatsController extends ChangeNotifier {
       if (_closed || ticket != _statusGeneration) return;
       phase = StatsSyncPhase.error;
       syncErrorKind = StatsSyncErrorKind.status;
-      syncError = '无法确认同步状态：$failure';
+      _syncError = (strings) => strings.syncStatusReadFailed(failure);
     }
     _notify();
   }
 
   String get syncLabel {
-    if (phase == StatsSyncPhase.conflict) return '已有同步在执行，正在等待完成';
-    if (phase == StatsSyncPhase.running) return '正在同步';
+    if (phase == StatsSyncPhase.conflict) {
+      return strings.aSyncIsAlreadyRunningWaitingFor;
+    }
+    if (phase == StatsSyncPhase.running) return strings.syncing3;
     if (syncError != null) return syncError!;
     final run = overview?.sources.lastRun;
     if (run?.status == 'failed' || run?.status == 'abandoned') {
-      return '最近的同步未完成';
+      return strings.recentSyncIncomplete;
     }
-    if (run?.status == 'running') return '正在同步';
+    if (run?.status == 'running') return strings.syncing3;
     final note =
-        warning ??
-        (run?.anomalies.isNotEmpty == true ? run!.anomalies.join('；') : null);
-    if (note != null) return '同步完成，有异常警告：$note';
+        warning ?? localizedWarnings(run?.anomalies ?? const [], strings);
+    if (note != null) return strings.syncFinishedWithWarnings(note);
     if (phase == StatsSyncPhase.success ||
         run?.status == 'ok' ||
         run?.status == 'completed_with_anomalies') {
       final finished = DateTime.tryParse(run?.finishedAt ?? '');
-      if (finished == null) return '已完成同步';
+      if (finished == null) return strings.syncComplete;
       final minutes = (clock().difference(finished).inMilliseconds / 60000)
           .round()
           .clamp(0, 1 << 30);
       return minutes < 1
-          ? '刚刚完成同步'
+          ? strings.syncedJustNow
           : minutes < 60
-          ? '$minutes 分钟前完成'
+          ? strings.syncedMinutesAgo(minutes)
           : minutes < 1440
-          ? '${(minutes / 60).round()} 小时前完成'
-          : '${(minutes / 1440).round()} 天前完成';
+          ? strings.syncedHoursAgo((minutes / 60).round())
+          : strings.syncedDaysAgo((minutes / 1440).round());
     }
-    return '还没有同步记录';
+    return strings.noSyncHistory;
   }
 
   Future<void> shutdown() => _shutdown ??= _close();

@@ -411,6 +411,7 @@ pub struct StatsSourceChecks {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsSourceNote {
     pub text: String,
+    pub text_en: Option<String>,
     pub impact: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -425,6 +426,7 @@ pub struct StatsSource {
     pub retention: StatsRetention,
     pub checks: StatsSourceChecks,
     pub limits: Vec<String>,
+    pub limits_en: Option<Vec<String>>,
     pub notes: Vec<StatsSourceNote>,
 }
 #[flutter_rust_bridge::frb]
@@ -507,6 +509,7 @@ pub struct StatsModelPrice {
     pub billing: String,
     pub source_url: Option<String>,
     pub note: Option<String>,
+    pub note_en: Option<String>,
     pub local_records: i64,
     pub local_providers: HashMap<String, i64>,
     pub prices: Option<StatsPrices>,

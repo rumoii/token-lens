@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'dart:math' as math;
 
 import 'period.dart';
@@ -84,12 +86,12 @@ HeatmapData buildHeatmap(
 }
 
 String isoDay(DateTime date) => dayKey(date.toUtc());
-String? formatSpan(num? ms) {
+String? formatSpan(num? ms, [AppStrings strings = chineseStrings]) {
   if (ms == null || !ms.isFinite || ms <= 0) return null;
   final hours = ms / 3600000;
   return hours < 1
-      ? '${(ms / 60000).round()} 分'
+      ? strings.roundedMinutes((ms / 60000).round())
       : hours < 48
-      ? '${hours.toStringAsFixed(1)} 小时'
-      : '${(hours / 24).toStringAsFixed(1)} 天';
+      ? strings.fractionalHours(hours.toStringAsFixed(1))
+      : strings.dayCount((hours / 24).toStringAsFixed(1));
 }

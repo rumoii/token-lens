@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -37,7 +39,8 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
   late final health = LensResource<StatsHealth>(changed);
   bool aboutOpen = false;
   bool exporting = false;
-  String? exportPath, exportError;
+  String? exportPath;
+  String Function(AppStrings)? exportError;
 
   Future<void> exportDiagnostics() async {
     if (exporting) return;
@@ -61,7 +64,12 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
       final path = await gateway.exportDiagnostics(directory);
       if (mounted) setState(() => exportPath = path);
     } catch (error, stack) {
-      if (mounted) setState(() => exportError = '导出失败：$error');
+      if (mounted) {
+        setState(
+          () =>
+              exportError = (strings) => strings.diagnosticsExportFailed(error),
+        );
+      }
       try {
         await gateway.logError(
           error.runtimeType.toString(),
@@ -79,13 +87,24 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
   Future<void> openExportFolder() async {
     final path = exportPath;
     if (path == null) return;
+    final unavailable = StateError(
+      chineseStrings.couldNotOpenTheContainingFolder,
+    );
     try {
       final opened = await widget.openLink?.call(
         Uri.directory(File(path).parent.path),
       );
-      if (opened != true) throw StateError('无法打开所在文件夹');
+      if (opened != true) throw unavailable;
     } catch (error, stack) {
-      if (mounted) setState(() => exportError = '打开文件夹失败：$error');
+      if (mounted) {
+        setState(() {
+          exportError = (strings) => strings.exportFolderOpenFailed(
+            identical(error, unavailable)
+                ? StateError(strings.couldNotOpenTheContainingFolder)
+                : error,
+          );
+        });
+      }
       try {
         await widget.controller.gateway.logError(
           error.runtimeType.toString(),
@@ -153,13 +172,16 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '价格与设置',
+          context.strings.pricingSettings,
           style: p
               .serif(narrow ? 24 : 28, weight: FontWeight.w500)
               .copyWith(height: 1.25, letterSpacing: -(narrow ? 24 : 28) * .01),
         ),
         const SizedBox(height: 4),
-        Text('数字怎么显示，金额怎么算。', style: p.text(14, p.secondary)),
+        Text(
+          context.strings.displayPreferencesAndHowCostsAreCalculated,
+          style: p.text(14, p.secondary),
+        ),
         gap(),
         SettingsDisplay(controller: widget.controller),
         gap(),
@@ -172,10 +194,13 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('价格', style: p.text(15, null, FontWeight.w600)),
+                    Text(
+                      context.strings.pricing,
+                      style: p.text(15, null, FontWeight.w600),
+                    ),
                     const SizedBox(height: 2),
                     Text(
-                      '金额是按各模型的公开价算出来的，用来比较和感知，不是你的账单。用套餐的话，实际花费通常更低。',
+                      context.strings.costsAreEstimatesAtEachModelS3,
                       style: p.text(12.5, p.muted),
                     ),
                   ],
@@ -217,22 +242,29 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('诊断与关于', style: p.text(15, null, FontWeight.w600)),
+                    Text(
+                      context.strings.diagnosticsAbout,
+                      style: p.text(15, null, FontWeight.w600),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      '遇到统计不对、同步报错或者应用卡住时，导出一份诊断日志发给维护者。',
+                      context.strings.ifUsageLooksWrongSyncFailsOr,
                       style: p.text(12.5, p.muted),
                     ),
                     const SizedBox(height: 14),
                     LensFocusOutline(
                       child: OutlinedButton(
                         onPressed: exporting ? null : exportDiagnostics,
-                        child: Text(exporting ? '正在导出…' : '导出诊断日志'),
+                        child: Text(
+                          exporting
+                              ? context.strings.exporting
+                              : context.strings.exportDiagnostics,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '包含：应用和系统版本、最近 10 次同步的结果和全部异常、各工具找到的日志文件数和路径、最近 7 天的运行日志。\n不包含：账本、任何对话内容。用户目录会显示成 ~。',
+                      context.strings.includesAppAndSystemVersionsResultsAnd,
                       style: p.text(12, p.muted),
                     ),
                     if (exportPath != null) ...[
@@ -240,7 +272,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                       Semantics(
                         liveRegion: true,
                         child: SelectableText(
-                          '已保存到：$exportPath',
+                          context.strings.savedTo0(exportPath),
                           style: p.text(13),
                         ),
                       ),
@@ -248,7 +280,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                       LensFocusOutline(
                         child: OutlinedButton(
                           onPressed: openExportFolder,
-                          child: const Text('打开所在文件夹'),
+                          child: Text(context.strings.openContainingFolder),
                         ),
                       ),
                     ],
@@ -256,7 +288,10 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                       const SizedBox(height: 12),
                       Semantics(
                         liveRegion: true,
-                        child: SelectableText(exportError!, style: p.text(13)),
+                        child: SelectableText(
+                          exportError!(context.strings),
+                          style: p.text(13),
+                        ),
                       ),
                     ],
                   ],
@@ -290,7 +325,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              '关于这台电脑上的 Token Lens',
+                              context.strings.aboutThisInstallationOfTokenLens,
                               style: p.text(13.5, p.secondary),
                             ),
                           ),
@@ -313,13 +348,18 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                       },
                       children: [
                         for (final item in [
-                          ('版本', data?.version ?? '—'),
-                          ('数据目录', data?.dataDir ?? '—'),
-                          ('账本路径', data?.ledgerPath ?? '—'),
-                          ('schema 版本', data?.schemaVersion.toString() ?? '—'),
+                          (context.strings.version, data?.version ?? '—'),
+                          (context.strings.dataDirectory, data?.dataDir ?? '—'),
+                          (context.strings.ledgerPath, data?.ledgerPath ?? '—'),
                           (
-                            '价格表版本',
-                            '${pricing.data?.priceVersion ?? '—'} · 内置',
+                            context.strings.schemaVersion,
+                            data?.schemaVersion.toString() ?? '—',
+                          ),
+                          (
+                            context.strings.pricingVersion,
+                            context.strings.builtInVersion(
+                              pricing.data?.priceVersion ?? '—',
+                            ),
                           ),
                         ])
                           TableRow(

@@ -179,6 +179,15 @@ pub fn find_price(model: Option<&str>) -> Value {
     Value::Null
 }
 
+pub(super) fn english_note(id: Option<&str>) -> Option<&'static str> {
+    let id = id?;
+    catalog()["entries"]
+        .as_array()?
+        .iter()
+        .find(|entry| entry["id"].as_str() == Some(id))?["conditionsEn"]
+        .as_str()
+}
+
 pub fn local_provider(provider: Option<&str>) -> Option<String> {
     let id = provider?.to_lowercase();
     catalog()["localProviders"]

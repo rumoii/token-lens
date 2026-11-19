@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -21,7 +23,11 @@ import 'widgets/resource.dart';
 import 'widgets/timing.dart';
 import 'widgets/request_log.dart';
 
-String bucketText(String bucket, [DateTime? now]) => usageBucket(bucket, now);
+String bucketText(
+  String bucket, [
+  DateTime? now,
+  AppStrings strings = chineseStrings,
+]) => usageBucket(bucket, now, strings);
 
 class DetailRow {
   DetailRow({
@@ -52,6 +58,7 @@ List<DetailRow> detailRows(
   Object? data,
   Map<String, String> detail, {
   DateTime? now,
+  AppStrings strings = chineseStrings,
 }) {
   if (data is StatsTimeseries) {
     return [
@@ -59,7 +66,7 @@ List<DetailRow> detailRows(
         if (r.grossTokens > 0)
           DetailRow(
             id: r.bucket,
-            name: bucketText(r.bucket, now),
+            name: bucketText(r.bucket, now, strings),
             tokens: r.grossTokens,
             requestCount: r.requestCount,
             eventGrossTokens: r.eventGrossTokens,
@@ -112,7 +119,7 @@ List<DetailRow> detailRows(
           }
           return DetailRow(
             id: e.key ?? '—',
-            name: e.key ?? '没写模型',
+            name: e.key ?? strings.modelNotLogged,
             tokens: tokens,
             requestCount: requests,
             eventGrossTokens: eventGross,
@@ -122,7 +129,7 @@ List<DetailRow> detailRows(
             // Percentiles cannot be merged from per-tool summaries. Rust returns
             // the model's request distribution under the same filter/snapshot.
             timing: e.value.first.modelTiming,
-            sub: tools.map((id) => toolOf(id).name).join('、'),
+            sub: tools.map((id) => toolOf(id).name).join(strings.listSeparator),
             drill:
                 detail['model']!.isEmpty && e.key != null && e.key!.isNotEmpty
                 ? ('model', e.key!)
@@ -141,7 +148,7 @@ List<DetailRow> detailRows(
                     g.key,
                     peers: data.groups.map((group) => group.key),
                   ) ??
-                  '没有记录项目',
+                  strings.noProjectLogged,
         tokens: g.grossTokens,
         requestCount: g.requestCount,
         eventGrossTokens: g.eventGrossTokens,
@@ -308,7 +315,7 @@ class _StatsDetailState extends State<StatsDetail> {
   });
   Widget token(num? v, {TextStyle? style}) => TokenText(
     v,
-    unitSystem: c.preferences.unitSystem,
+    unitSystem: c.unitSystem,
     style: style ?? p.text(13, p.secondary),
   );
   Widget money(int? micros, {TextStyle? style}) => MoneyText(
@@ -380,7 +387,7 @@ class _StatsDetailState extends State<StatsDetail> {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         FilterPick(
-          label: '工具',
+          label: context.strings.tool,
           options: [
             for (final t in ts)
               FilterOption(
@@ -391,10 +398,10 @@ class _StatsDetailState extends State<StatsDetail> {
               ),
           ],
           onPick: (v) => setFilter('tool', v),
-          unitSystem: c.preferences.unitSystem,
+          unitSystem: c.unitSystem,
         ),
         FilterPick(
-          label: '模型',
+          label: context.strings.model,
           options: [
             for (final m in ms)
               FilterOption(
@@ -405,10 +412,10 @@ class _StatsDetailState extends State<StatsDetail> {
               ),
           ],
           onPick: (v) => setFilter('model', v),
-          unitSystem: c.preferences.unitSystem,
+          unitSystem: c.unitSystem,
         ),
         FilterPick(
-          label: '项目',
+          label: context.strings.project,
           options: [
             for (final g in ps)
               FilterOption(
@@ -420,18 +427,18 @@ class _StatsDetailState extends State<StatsDetail> {
               ),
           ],
           onPick: (v) => setFilter('project', v),
-          unitSystem: c.preferences.unitSystem,
+          unitSystem: c.unitSystem,
         ),
         for (final k in tags)
           FilterTag(
-            label: const {
-              'tool': '工具',
-              'model': '模型',
-              'project': '项目',
-              'bucket': '时间',
+            label: {
+              'tool': context.strings.tool,
+              'model': context.strings.model,
+              'project': context.strings.project,
+              'bucket': context.strings.time,
             }[k]!,
             value: k == 'bucket'
-                ? bucketText(detail[k]!, c.clock())
+                ? bucketText(detail[k]!, c.clock(), context.strings)
                 : k == 'tool'
                 ? toolOf(detail[k]!).name
                 : k == 'project'
@@ -442,7 +449,7 @@ class _StatsDetailState extends State<StatsDetail> {
           ),
         if (tags.isNotEmpty)
           LensButton(
-            label: '清除筛选',
+            label: context.strings.clearFilters,
             size: 'link',
             variant: 'ghost',
             onPressed: () => go({'dim': detail['dim']!}),
@@ -456,42 +463,44 @@ class _StatsDetailState extends State<StatsDetail> {
     final unpriced = totals?.unpricedRecords ?? 0;
     final cells = [
       (
-        '用量',
+        context.strings.usage,
         token(
           totals?.grossTokens,
           style: p.serif(22, weight: FontWeight.w600).copyWith(height: 1.5),
         ),
-        'token',
+        context.strings.tokenUnit,
       ),
       (
-        '约值',
+        context.strings.estCost,
         money(
           totals?.costMicros,
           style: p.serif(22, weight: FontWeight.w600).copyWith(height: 1.5),
         ),
         totals != null && totals.recordCount > 0 && totals.costMicros == null
-            ? '还没有价格'
+            ? context.strings.noPricingYet
             : unpriced > 0
-            ? '按公开价估算 · ${toDisplayNumber(unpriced)} 条未计价'
-            : '按公开价估算',
+            ? context.strings.listPriceWithUnpricedRecords(
+                toDisplayNumber(unpriced),
+              )
+            : context.strings.atListPrices,
       ),
       (
-        '会话',
+        context.strings.sessions,
         Text(
           '${data?.activity.sessions ?? 0}',
           style: p.serif(22, weight: FontWeight.w600).copyWith(height: 1.5),
         ),
-        '这段时间里有用量的',
+        context.strings.withUsageInThisPeriod,
       ),
       (
-        '缓存命中',
+        context.strings.cacheHit,
         Text(
           data?.activity.cacheHitRatio == null
               ? '—'
               : percentage(data!.activity.cacheHitRatio),
           style: p.serif(22, weight: FontWeight.w600).copyWith(height: 1.5),
         ),
-        '输入里走缓存的比例',
+        context.strings.shareOfInputServedFromCache,
       ),
     ];
     final columns = narrow ? 2 : 4;
@@ -527,7 +536,9 @@ class _StatsDetailState extends State<StatsDetail> {
                       if (i == 3) ...[
                         const SizedBox(width: 6),
                         Tooltip(
-                          message: '读缓存 ÷（新输入 + 读缓存）。越高越省钱。',
+                          message: context
+                              .strings
+                              .cacheReadsNewInputCacheReadsHigher,
                           child: Container(
                             width: 15,
                             height: 15,
@@ -572,17 +583,22 @@ class _StatsDetailState extends State<StatsDetail> {
           .toList(),
       sequence,
     );
-    final unit = const {
-      'hour': '小时',
-      'day': '天',
-      'month': '月',
+    final unit = {
+      'hour': context.strings.hour,
+      'day': context.strings.day,
+      'month': context.strings.month,
     }[value.axis.granularity]!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         head(
-          '趋势',
-          '每$unit用了多少，颜色代表工具${value.axis.granularity != 'hour' ? '。点柱子只看那$unit' : ''}',
+          context.strings.trend,
+          context.strings.usageTrendHint(
+            unit,
+            value.axis.granularity != 'hour'
+                ? context.strings.selectABarToFilterToThat(unit)
+                : '',
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
@@ -625,7 +641,7 @@ class _StatsDetailState extends State<StatsDetail> {
                 onPick: value.axis.granularity == 'hour'
                     ? null
                     : (v) => setFilter('bucket', v),
-                unitSystem: c.preferences.unitSystem,
+                unitSystem: c.unitSystem,
                 currency: c.preferences.currency,
                 rate: rateFor(c.preferences.rates, c.preferences.currency),
               ),
@@ -633,7 +649,13 @@ class _StatsDetailState extends State<StatsDetail> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '另有 ${tokenCount(value.data.unallocated!.grossTokens, unitSystem: c.preferences.unitSystem)} token 来自跨$unit的会话快照，不在图里；上面的用量已经算上了。',
+                    context.strings.chartSpanningSessions(
+                      tokenCount(
+                        value.data.unallocated!.grossTokens,
+                        unitSystem: c.unitSystem,
+                      ),
+                      unit,
+                    ),
                     style: p.text(12.5, p.muted),
                   ),
                 ),
@@ -662,7 +684,9 @@ class _StatsDetailState extends State<StatsDetail> {
         ],
         if (row.tools.length > 3) ...[
           Tooltip(
-            message: row.tools.map((id) => toolOf(id).name).join('、'),
+            message: row.tools
+                .map((id) => toolOf(id).name)
+                .join(context.strings.listSeparator),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
@@ -699,7 +723,13 @@ class _StatsDetailState extends State<StatsDetail> {
         : dim == 'tool'
         ? 26
         : 16;
-    final rows = detailRows(dim, data, detail, now: c.clock());
+    final rows = detailRows(
+      dim,
+      data,
+      detail,
+      now: c.clock(),
+      strings: context.strings,
+    );
     final showTiming = dim == 'tool' || dim == 'model';
     Widget timingStrip(DetailRow r, {bool turn = false}) => TimingStrip(
       timing: r.timing,
@@ -709,18 +739,24 @@ class _StatsDetailState extends State<StatsDetail> {
           Key('detail-${turn ? 'turn-' : ''}${kind.name}-${r.id}'),
     );
     final sortOptions = {
-      'name': const {
-        'date': '时间',
-        'tool': '工具',
-        'model': '模型',
-        'project': '项目',
+      'name': {
+        'date': context.strings.time,
+        'tool': context.strings.tool,
+        'model': context.strings.model,
+        'project': context.strings.project,
       }[dim]!,
-      'v': '用量',
-      'cost': '约值',
-      'share': '占比',
-      for (var i = 0; i < 4; i++) 'k$i': ['新输入', '输出', '读缓存', '写缓存'][i],
-      'requests': '请求',
-      'average': '平均每次',
+      'v': context.strings.usage,
+      'cost': context.strings.estCost,
+      'share': context.strings.share,
+      for (var i = 0; i < 4; i++)
+        'k$i': [
+          context.strings.newInput,
+          context.strings.output,
+          context.strings.cacheRead,
+          context.strings.cacheWrite,
+        ][i],
+      'requests': context.strings.requests,
+      'average': context.strings.avgPerRequest,
     };
     final selectedSort = sortKey ?? (dim == 'date' ? 'name' : 'v');
     num value(DetailRow r) => switch (selectedSort) {
@@ -754,12 +790,12 @@ class _StatsDetailState extends State<StatsDetail> {
 
     Widget requests(DetailRow r, {bool label = false}) => Text(
       r.requestCount == null
-          ? '不记录'
-          : '${toDisplayNumber(r.requestCount)}${label ? ' 次请求' : ''}',
+          ? context.strings.notLogged
+          : '${toDisplayNumber(r.requestCount)}${label ? context.strings.requestCountSuffix(r.requestCount!) : ''}',
       style: p.text(13, p.secondary),
     );
     Widget average(DetailRow r) => r.requestCount == null
-        ? Text('不记录', style: p.text(13, p.muted))
+        ? Text(context.strings.notLogged, style: p.text(13, p.muted))
         : token(
             r.requestCount! > 0 && r.eventGrossTokens != null
                 ? (r.eventGrossTokens! / r.requestCount!).round()
@@ -770,7 +806,7 @@ class _StatsDetailState extends State<StatsDetail> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '${['新输入', '输出', '读缓存', '写缓存'][i]} ',
+            '${[context.strings.newInput, context.strings.output, context.strings.cacheRead, context.strings.cacheWrite][i]} ',
             style: p.text(12.5, p.secondary),
           ),
           token(r.kinds[i]),
@@ -841,7 +877,7 @@ class _StatsDetailState extends State<StatsDetail> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
-                                          '约值 ',
+                                          context.strings.estimatedCostPrefix,
                                           style: p.text(12.5, p.secondary),
                                         ),
                                         money(r.costMicros),
@@ -852,14 +888,16 @@ class _StatsDetailState extends State<StatsDetail> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
-                                          '平均每次 ',
+                                          context
+                                              .strings
+                                              .averagePerRequestPrefix,
                                           style: p.text(12.5, p.secondary),
                                         ),
                                         average(r),
                                       ],
                                     ),
                                     Text(
-                                      '占 ${percent(r)}',
+                                      context.strings.shareOfTotal(percent(r)),
                                       style: p.text(12.5, p.secondary),
                                     ),
                                     for (var i = 0; i < r.kinds.length; i += 2)
@@ -1002,7 +1040,7 @@ class _StatsDetailState extends State<StatsDetail> {
             children: [
               FilterPick(
                 key: const Key('detail-sort'),
-                label: '排序：${sortOptions[selectedSort]}',
+                label: context.strings.sortBy0(sortOptions[selectedSort]),
                 options: [
                   for (final option in sortOptions.entries)
                     FilterOption(option.key, option.value),
@@ -1022,7 +1060,9 @@ class _StatsDetailState extends State<StatsDetail> {
                 ),
                 child: LensFocusOutline(
                   child: IconButton(
-                    tooltip: sortDir < 0 ? '从大到小' : '从小到大',
+                    tooltip: sortDir < 0
+                        ? context.strings.highestFirst
+                        : context.strings.lowestFirst,
                     onPressed: () => setState(() {
                       sortKey = selectedSort;
                       sortDir = -sortDir;
@@ -1053,7 +1093,7 @@ class _StatsDetailState extends State<StatsDetail> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 18),
             child: Text(
-              '这段时间没有符合筛选的用量。',
+              context.strings.noUsageMatchesTheseFiltersInThis,
               textAlign: TextAlign.center,
               style: p.text(14, p.muted),
             ),
@@ -1078,26 +1118,35 @@ class _StatsDetailState extends State<StatsDetail> {
                           child: Row(
                             children: [
                               header(
-                                const {
-                                  'date': '时间',
-                                  'tool': '工具',
-                                  'model': '模型',
-                                  'project': '项目',
+                                {
+                                  'date': context.strings.time,
+                                  'tool': context.strings.tool,
+                                  'model': context.strings.model,
+                                  'project': context.strings.project,
                                 }[dim]!,
                                 'name',
                                 nameFlex,
                               ),
-                              header('用量', 'v', 10),
-                              header('约值', 'cost', 10),
-                              header('占比', 'share', 20),
+                              header(context.strings.usage, 'v', 10),
+                              header(context.strings.estCost, 'cost', 10),
+                              header(context.strings.share, 'share', 20),
                               for (var i = 0; i < 4; i++)
                                 header(
-                                  ['新输入', '输出', '读缓存', '写缓存'][i],
+                                  [
+                                    context.strings.newInput,
+                                    context.strings.output,
+                                    context.strings.cacheRead,
+                                    context.strings.cacheWrite,
+                                  ][i],
                                   'k$i',
                                   11,
                                 ),
-                              header('请求', 'requests', 12),
-                              header('平均每次', 'average', 12),
+                              header(context.strings.requests, 'requests', 12),
+                              header(
+                                context.strings.avgPerRequest,
+                                'average',
+                                12,
+                              ),
                             ],
                           ),
                         ),
@@ -1113,14 +1162,31 @@ class _StatsDetailState extends State<StatsDetail> {
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
             child: Text(
-              '另有 ${tokenCount(data.unallocated!.grossTokens, unitSystem: c.preferences.unitSystem)} token 来自跨${const {'hour': '小时', 'day': '天', 'month': '月'}[trend.data?.axis.granularity] ?? '天'}的会话快照，没法按${const {'hour': '小时', 'day': '天', 'month': '月'}[trend.data?.axis.granularity] ?? '天'}拆开，不在这张表里；上面的用量已经算上了。',
+              context.strings.tableSpanningSessions(
+                tokenCount(
+                  data.unallocated!.grossTokens,
+                  unitSystem: c.unitSystem,
+                ),
+                {
+                      'hour': context.strings.hour,
+                      'day': context.strings.day,
+                      'month': context.strings.month,
+                    }[trend.data?.axis.granularity] ??
+                    context.strings.day,
+                {
+                      'hour': context.strings.hour,
+                      'day': context.strings.day,
+                      'month': context.strings.month,
+                    }[trend.data?.axis.granularity] ??
+                    context.strings.day,
+              ),
               style: p.text(12.5, p.muted),
             ),
           ),
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
           child: Text(
-            '新输入：这次新发给模型的内容 · 输出：模型写回来的 · 读缓存：重复发送、命中缓存的上下文，便宜很多 · 写缓存：第一次写进缓存的内容。四类互不重叠，加起来就是用量。',
+            context.strings.newInputIsContentSentToThe,
             style: p.text(12.5, p.muted),
           ),
         ),
@@ -1135,12 +1201,15 @@ class _StatsDetailState extends State<StatsDetail> {
       runSpacing: 10,
       children: [
         LensSegmented(
-          options: const {'overview': '概览', 'detail': '明细'},
+          options: {
+            'overview': context.strings.overview,
+            'detail': context.strings.breakdown,
+          },
           value: 'detail',
           onChanged: (v) {
             if (v == 'overview') widget.onHome();
           },
-          label: '视图',
+          label: context.strings.view2,
         ),
         PeriodControl(
           period: period,
@@ -1169,18 +1238,21 @@ class _StatsDetailState extends State<StatsDetail> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '明细',
+                  context.strings.breakdown,
                   style: p
                       .serif(narrow ? 24 : 28, weight: FontWeight.w500)
                       .copyWith(height: 1.25),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${period.label == '全部'
-                      ? '全部时间'
-                      : period.label == '自定义'
-                      ? '这段时间'
-                      : period.label}的用量，按工具、模型、项目和时间拆开看。',
+                  context.strings.breakdownDescription(switch (period.period) {
+                    'all' => context.strings.periodAllTime,
+                    'custom' => context.strings.selectedPeriodInSentence,
+                    _ =>
+                      context.strings.isChinese
+                          ? period.labelFor(context.strings)
+                          : period.labelFor(context.strings).toLowerCase(),
+                  }),
                   style: p.text(14, p.secondary),
                 ),
               ],
@@ -1212,22 +1284,22 @@ class _StatsDetailState extends State<StatsDetail> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               head(
-                '拆开看',
+                context.strings.breakdown2,
                 dim == 'request'
-                    ? '每个请求一行，点一行打开它所在的会话。'
+                    ? context.strings.oneRowPerRequestSelectARow
                     : filtered
-                    ? '已经按这一项筛选了，换个拆法看看'
-                    : '点一行，把它加进筛选',
+                    ? context.strings.alreadyFilteredByThisFieldTryAnother
+                    : context.strings.selectARowToAddItTo,
                 action: LensSegmented(
                   options: {
                     'date':
                         trend.data?.axis.granularity == 'hour' && picked == null
-                        ? '按小时'
-                        : '按时间',
-                    'tool': '按工具',
-                    'model': '按模型',
-                    'project': '按项目',
-                    'request': '按请求',
+                        ? context.strings.byHour
+                        : context.strings.byTime,
+                    'tool': context.strings.byTool,
+                    'model': context.strings.byModel,
+                    'project': context.strings.byProject,
+                    'request': context.strings.byRequest,
                   },
                   value: dim,
                   onChanged: (v) {
@@ -1237,7 +1309,7 @@ class _StatsDetailState extends State<StatsDetail> {
                     });
                     go({...d, 'dim': v});
                   },
-                  label: '拆分方式',
+                  label: context.strings.groupBy,
                   small: true,
                 ),
               ),
@@ -1288,10 +1360,13 @@ class _StatsDetailState extends State<StatsDetail> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              '金额按各模型的公开标准价估算，用来比较和感知，不是你的账单。 ',
+              context.strings.costsAreEstimatesAtEachModelS,
               style: p.text(12, p.muted).copyWith(height: 1.4),
             ),
-            LensTextLink(label: '价格怎么算', onTap: widget.onSettings),
+            LensTextLink(
+              label: context.strings.howPricesWork,
+              onTap: widget.onSettings,
+            ),
           ],
         ),
       ],

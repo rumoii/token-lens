@@ -1,3 +1,5 @@
+import '../../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../logic/period.dart';
@@ -46,14 +48,14 @@ class _PeriodControlState extends State<PeriodControl> {
   Widget build(BuildContext context) => SizedBox(
     key: anchor,
     child: LensSegmented(
-      label: '周期',
+      label: context.strings.period,
       value: widget.period.period,
-      options: const {
-        'today': '今天',
-        'week': '本周',
-        'month': '本月',
-        'all': '全部',
-        'custom': '自定义',
+      options: {
+        'today': context.strings.today,
+        'week': context.strings.thisWeek2,
+        'month': context.strings.thisMonth2,
+        'all': context.strings.all,
+        'custom': context.strings.custom,
       },
       onChanged: (v) {
         if (v == 'custom') {
@@ -126,16 +128,16 @@ class _CustomRangePopoverState extends State<CustomRangePopover> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            input('起始', from),
+            input(context.strings.from, from),
             const SizedBox(height: 8),
-            input('结束', to),
+            input(context.strings.to, to),
             if (error != null) Text(error!, style: p.text(11, p['danger'])),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 LensButton(
-                  label: '清空',
+                  label: context.strings.clear,
                   variant: 'ghost',
                   size: 'xs',
                   onPressed: () {
@@ -145,7 +147,7 @@ class _CustomRangePopoverState extends State<CustomRangePopover> {
                   },
                 ),
                 LensButton(
-                  label: '应用',
+                  label: context.strings.apply,
                   variant: 'primary',
                   size: 'xs',
                   icon: Icons.check,
@@ -155,7 +157,9 @@ class _CustomRangePopoverState extends State<CustomRangePopover> {
                         from.text.isNotEmpty &&
                             to.text.isNotEmpty &&
                             from.text.compareTo(to.text) > 0) {
-                      setState(() => error = '请填写有效的日期范围');
+                      setState(
+                        () => error = context.strings.enterAValidDateRange,
+                      );
                       return;
                     }
                     Navigator.of(context).pop(

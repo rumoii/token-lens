@@ -2779,6 +2779,7 @@ impl SseDecode for crate::api::stats::StatsModelPrice {
         let mut var_billing = <String>::sse_decode(deserializer);
         let mut var_sourceUrl = <Option<String>>::sse_decode(deserializer);
         let mut var_note = <Option<String>>::sse_decode(deserializer);
+        let mut var_noteEn = <Option<String>>::sse_decode(deserializer);
         let mut var_localRecords = <i64>::sse_decode(deserializer);
         let mut var_localProviders =
             <std::collections::HashMap<String, i64>>::sse_decode(deserializer);
@@ -2795,6 +2796,7 @@ impl SseDecode for crate::api::stats::StatsModelPrice {
             billing: var_billing,
             source_url: var_sourceUrl,
             note: var_note,
+            note_en: var_noteEn,
             local_records: var_localRecords,
             local_providers: var_localProviders,
             prices: var_prices,
@@ -3242,6 +3244,7 @@ impl SseDecode for crate::api::stats::StatsSource {
         let mut var_retention = <crate::api::stats::StatsRetention>::sse_decode(deserializer);
         let mut var_checks = <crate::api::stats::StatsSourceChecks>::sse_decode(deserializer);
         let mut var_limits = <Vec<String>>::sse_decode(deserializer);
+        let mut var_limitsEn = <Option<Vec<String>>>::sse_decode(deserializer);
         let mut var_notes = <Vec<crate::api::stats::StatsSourceNote>>::sse_decode(deserializer);
         return crate::api::stats::StatsSource {
             source: var_source,
@@ -3254,6 +3257,7 @@ impl SseDecode for crate::api::stats::StatsSource {
             retention: var_retention,
             checks: var_checks,
             limits: var_limits,
+            limits_en: var_limitsEn,
             notes: var_notes,
         };
     }
@@ -3279,9 +3283,11 @@ impl SseDecode for crate::api::stats::StatsSourceNote {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_textEn = <Option<String>>::sse_decode(deserializer);
         let mut var_impact = <String>::sse_decode(deserializer);
         return crate::api::stats::StatsSourceNote {
             text: var_text,
+            text_en: var_textEn,
             impact: var_impact,
         };
     }
@@ -4174,6 +4180,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsModelPrice {
             self.billing.into_into_dart().into_dart(),
             self.source_url.into_into_dart().into_dart(),
             self.note.into_into_dart().into_dart(),
+            self.note_en.into_into_dart().into_dart(),
             self.local_records.into_into_dart().into_dart(),
             self.local_providers.into_into_dart().into_dart(),
             self.prices.into_into_dart().into_dart(),
@@ -4703,6 +4710,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSource {
             self.retention.into_into_dart().into_dart(),
             self.checks.into_into_dart().into_dart(),
             self.limits.into_into_dart().into_dart(),
+            self.limits_en.into_into_dart().into_dart(),
             self.notes.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -4747,6 +4755,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSourceNote {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.text.into_into_dart().into_dart(),
+            self.text_en.into_into_dart().into_dart(),
             self.impact.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -5870,6 +5879,7 @@ impl SseEncode for crate::api::stats::StatsModelPrice {
         <String>::sse_encode(self.billing, serializer);
         <Option<String>>::sse_encode(self.source_url, serializer);
         <Option<String>>::sse_encode(self.note, serializer);
+        <Option<String>>::sse_encode(self.note_en, serializer);
         <i64>::sse_encode(self.local_records, serializer);
         <std::collections::HashMap<String, i64>>::sse_encode(self.local_providers, serializer);
         <Option<crate::api::stats::StatsPrices>>::sse_encode(self.prices, serializer);
@@ -6142,6 +6152,7 @@ impl SseEncode for crate::api::stats::StatsSource {
         <crate::api::stats::StatsRetention>::sse_encode(self.retention, serializer);
         <crate::api::stats::StatsSourceChecks>::sse_encode(self.checks, serializer);
         <Vec<String>>::sse_encode(self.limits, serializer);
+        <Option<Vec<String>>>::sse_encode(self.limits_en, serializer);
         <Vec<crate::api::stats::StatsSourceNote>>::sse_encode(self.notes, serializer);
     }
 }
@@ -6160,6 +6171,7 @@ impl SseEncode for crate::api::stats::StatsSourceNote {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.text, serializer);
+        <Option<String>>::sse_encode(self.text_en, serializer);
         <String>::sse_encode(self.impact, serializer);
     }
 }
