@@ -22,15 +22,58 @@ typedef HeatmapData = ({List<List<HeatCell>> weeks, num max, num total});
   );
 }
 
-int homeHeatLevel(num value) => value <= 0
-    ? 0
-    : value < 15e6
-    ? 1
-    : value < 30e6
-    ? 2
-    : value < 50e6
-    ? 3
-    : 4;
+class HeatScale {
+  const HeatScale._(this.lowerQuartile, this.median, this.upperQuartile);
+
+  final int lowerQuartile, median, upperQuartile;
+
+  int level(int tokens) => tokens <= 0
+      ? 0
+      : tokens <= lowerQuartile
+      ? 1
+      : tokens <= median
+      ? 2
+      : tokens <= upperQuartile
+      ? 3
+      : 4;
+
+  (int, int?) range(int level) => switch (level) {
+    0 => (0, 0),
+    1 => (1, lowerQuartile),
+    2 => (lowerQuartile + 1, median),
+    3 => (median + 1, upperQuartile),
+    _ => (upperQuartile + 1, null),
+  };
+}
+
+HeatScale heatScale(Iterable<int> values) {
+  final active = values.where((value) => value > 0).toList()..sort();
+  if (active.isEmpty) return const HeatScale._(0, 0, 0);
+  if (active.length < 8) {
+    final peak = active.last;
+    return HeatScale._(peak ~/ 4, peak ~/ 2, peak ~/ 4 * 3 + peak % 4 * 3 ~/ 4);
+  }
+  int quartile(int numerator) {
+    final rank = (active.length - 1) * numerator;
+    final index = rank ~/ 4;
+    final distance = active[index + 1] - active[index];
+    final remainder = rank % 4;
+    return active[index] +
+        distance ~/ 4 * remainder +
+        distance % 4 * remainder ~/ 4;
+  }
+
+  return HeatScale._(quartile(1), quartile(2), quartile(3));
+}
+
+List<DateTime> heatmapDays(DateTime today, bool narrow, int weekStartsOn) {
+  final count = narrow ? weekdayIndex(today, weekStartsOn) + 134 : 365;
+  return List.generate(
+    count,
+    (index) => DateTime(today.year, today.month, today.day - count + 1 + index),
+  );
+}
+
 int levelOf(num value, num max) {
   if (!value.isFinite || value <= 0 || !max.isFinite || max <= 0) return 0;
   final ratio = math.log(1 + value) / math.log(1 + max);

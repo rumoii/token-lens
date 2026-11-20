@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/smooth_wheel.dart';
 import 'package:token_lens_app/stats/detail_page.dart';
+import 'package:token_lens_app/stats/sessions_page.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/widgets/charts.dart';
 import 'package:token_lens_app/stats/widgets/filters.dart';
@@ -331,7 +332,13 @@ void main() {
     await s.mountSessions(tester, fake, query: 'source=codex&session=s1');
     await tester.tap(find.text('技术细节'));
     await tester.pumpAndSettle();
-    expect(find.text('s1'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(SessionDetail),
+        matching: find.text('s1'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.text('在明细里看 Codex'));
     await tester.pumpAndSettle();
     expect(find.byType(StatsDetail), findsOneWidget);

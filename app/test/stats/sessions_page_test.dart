@@ -135,13 +135,19 @@ Future<StatsController> mountSessions(
 void main() {
   testWidgets('pages.test 会话空态', (tester) async {
     await mountSessions(tester, SessionsGateway()..empty = true);
-    expect(find.text('还没有会话'), findsOneWidget);
+    expect(find.text('还没有任何用量'), findsOneWidget);
   });
   testWidgets('pages.test 分页标题不显示 ID；游标加载到末页', (tester) async {
     final fake = SessionsGateway()..paged = true;
     await mountSessions(tester, fake);
-    expect(find.text('没有记录项目'), findsOneWidget);
-    expect(find.text('s1'), findsNothing);
+    final title = find.byWidgetPredicate(
+      (widget) => widget is Tooltip && widget.message == '没有记录项目',
+    );
+    expect(
+      find.descendant(of: title, matching: find.text('没有记录项目')),
+      findsOneWidget,
+    );
+    expect(find.descendant(of: title, matching: find.text('s1')), findsNothing);
     await tester.tap(find.text('加载更多'));
     await tester.pumpAndSettle();
     expect(fake.pages.last.limit, 50);

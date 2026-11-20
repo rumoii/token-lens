@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../stats_controller.dart';
 import '../stats_gateway.dart';
@@ -16,6 +17,7 @@ import 'logic/tool_order.dart';
 import 'theme/palette.dart';
 import 'widgets/filters.dart';
 import 'widgets/date_range.dart';
+import 'widgets/empty_ledger.dart';
 import 'widgets/session_usage.dart';
 import 'widgets/primitives.dart';
 import 'widgets/sync_status.dart';
@@ -535,6 +537,29 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       );
     }
 
+    final titleStyle = p
+        .text(narrow ? 14 : 13, null, FontWeight.w500)
+        .copyWith(height: 1.5);
+    final toolStyle = p.text(12, p.muted).copyWith(height: 1.4);
+    final idStyle = toolStyle.copyWith(
+      fontFamily: LensPalette.monoFonts.first,
+      fontFamilyFallback: LensPalette.monoFonts.skip(1).toList(),
+    );
+    String shortId(StatsSessionItem row) =>
+        row.sessionId.characters.takeLast(8).join();
+    final badgeWidth =
+        textWidth(
+          context.strings.spansPeriod,
+          p.text(11, p.secondary, FontWeight.w500),
+        ) +
+        12;
+    bool spansPeriod(StatsSessionItem row) => sessionStartedBefore(
+      row.startedAt,
+      period,
+      c.clock(),
+      offsetMinutes: offsetMinutes,
+    );
+
     // Reserve room for complete body values before giving headers extra space.
     final minimum = List.filled(labels.length, 22.0);
     for (final r in items) {
@@ -545,22 +570,20 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
           width = math.max(width, textWidth(recentText(r), p.text(12)));
         }
         if (i == 0) {
-          width =
-              math.max(width, textWidth(toolOf(r.source).name, p.text(12))) +
-              38;
-          if (sessionStartedBefore(
-            r.startedAt,
-            period,
-            c.clock(),
-            offsetMinutes: offsetMinutes,
-          )) {
-            width += 132;
-          }
+          width = textWidth(texts[i], titleStyle);
+          if (spansPeriod(r)) width += 6 + badgeWidth;
+          final metadata =
+              textWidth(toolOf(r.source).name, toolStyle) +
+              textWidth(' · ', toolStyle) +
+              textWidth(shortId(r), idStyle) +
+              2;
+          width = math.max(width, metadata) + 38;
         }
         minimum[i] = math.max(minimum[i], width.ceilToDouble());
       }
     }
-    minimum[0] = math.min(188, minimum[0]);
+    final firstWidth = (minimum[0] + 20).clamp(208.0, 280.0);
+    minimum[0] = math.min(firstWidth - 20, minimum[0]);
     final preferred = [
       for (final (column, label) in labels.indexed)
         math.max(
@@ -609,38 +632,75 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
                   children: [
-                    Tooltip(
-                      message: r.projectKey ?? title,
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: p
-                            .text(narrow ? 14 : 13, null, FontWeight.w500)
-                            .copyWith(height: 1.5),
+                    Flexible(
+                      child: Tooltip(
+                        message: r.projectKey ?? title,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: titleStyle,
+                        ),
                       ),
                     ),
-                    if (sessionStartedBefore(
-                      r.startedAt,
-                      period,
-                      c.clock(),
-                      offsetMinutes: offsetMinutes,
-                    ))
+                    if (spansPeriod(r)) ...[
+                      const SizedBox(width: 6),
                       SessionStartChip(
                         startedAt: r.startedAt,
                         now: c.clock(),
                         offsetMinutes: offsetMinutes,
+                        showDate: false,
                       ),
+                    ],
                   ],
                 ),
-                Text(
-                  toolOf(r.source).name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: p.text(12, p.muted).copyWith(height: 1.4),
+                Row(
+                  children: [
+                    Flexible(
+                      child: singleLine(
+                        Text(
+                          toolOf(r.source).name,
+                          maxLines: 1,
+                          style: toolStyle,
+                        ),
+                        right: false,
+                      ),
+                    ),
+                    Text(' · ', style: toolStyle),
+                    Semantics(
+                      button: true,
+                      child: Tooltip(
+                        message: context.strings.copySessionId,
+                        child: LensFocusOutline(
+                          child: InkWell(
+                            onTap: () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: r.sessionId),
+                              );
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context)
+                                ..hideCurrentSnackBar()
+                                ..showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      context.strings.sessionIdCopied,
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                            },
+                            child: Text(
+                              shortId(r),
+                              style: idStyle,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -894,7 +954,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                     ? 0.0
                     : math.min(
                         spare * preferred.first / preferredTotal,
-                        208 - 2 * cellInset - minimum.first,
+                        firstWidth - 2 * cellInset - minimum.first,
                       );
                 columnWidths = [
                   for (final (column, required) in minimum.indexed)
@@ -917,16 +977,15 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(right: 4),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (c.fullSyncRunning || c.syncReceipt != null) ...[
-          StatsSyncBanner(controller: c, onSources: widget.onSources),
-          SizedBox(height: narrow ? 12 : 16),
-        ],
-        StatsSyncTitle(
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (c.fullSyncRunning || c.syncReceipt != null) ...[
+        StatsSyncBanner(controller: c, onSources: widget.onSources),
+        SizedBox(height: narrow ? 12 : 16),
+      ],
+      LensPageHeader(
+        title: StatsSyncTitle(
           controller: c,
           title: Text(
             context.strings.sessions,
@@ -935,119 +994,148 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
                 .copyWith(height: 1.25),
           ),
         ),
-        if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
-          StatsHiddenNotice(controller: c, onManage: widget.onManageHidden!),
-        const SizedBox(height: 4),
-        Text(
-          context.strings.sortedSessions(
-            period.isShortcut
-                ? period.inSentence(context.strings)
-                : periodLabel,
-            sortInSentence(context.strings),
-          ),
-          style: p.text(14, p.secondary),
+        controls: LensHeaderControls(
+          children: [
+            if (!c.emptyLedger)
+              PeriodControl(
+                period: period,
+                now: c.clock(),
+                onChanged: (value) {
+                  final next = {...q}
+                    ..remove('period')
+                    ..remove('from')
+                    ..remove('to');
+                  next.addAll(Uri.splitQueryString(value.query));
+                  widget.onQuery(Uri(queryParameters: next).query);
+                  unawaited(c.setPeriod(value));
+                },
+              ),
+          ],
         ),
-        SizedBox(height: narrow ? 12 : 16),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: PeriodControl(
-            period: period,
-            now: c.clock(),
-            onChanged: (value) {
-              final next = {...q}
-                ..remove('period')
-                ..remove('from')
-                ..remove('to');
-              next.addAll(Uri.splitQueryString(value.query));
-              widget.onQuery(Uri(queryParameters: next).query);
-              unawaited(c.setPeriod(value));
-            },
-          ),
+        spacing: 4,
+        description: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (c.hiddenTools.isNotEmpty && widget.onManageHidden != null)
+              StatsHiddenNotice(
+                controller: c,
+                onManage: widget.onManageHidden!,
+              ),
+            Text(
+              context.strings.sortedSessions(
+                period.isShortcut
+                    ? period.inSentence(context.strings)
+                    : periodLabel,
+                sortInSentence(context.strings),
+              ),
+              style: p.text(14, p.secondary),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        ResourceBlock(
-          resource: projects,
-          rows: 1,
-          builder: (_) => ResourceBlock(
-            resource: sources,
-            rows: 1,
-            builder: (_) => filters(),
-          ),
-        ),
-        SizedBox(height: narrow ? 12 : 16),
-        LensCard(
-          padding:
-              const EdgeInsets.fromLTRB(0, 8, 0, 16) * c.preferences.spacing,
+      ),
+      const SizedBox(height: 12),
+      if (c.emptyLedger)
+        EmptyLedgerCard(controller: c, onTools: widget.onSources)
+      else
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: page.ready ? 0 : 18),
-                child: ResourceBlock(
-                  resource: page,
-                  rows: 6,
-                  builder: (_) => items.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: EmptyState(
-                            title: q['q']?.isNotEmpty == true
-                                ? context.strings.noMatchingSessions(q['q']!)
-                                : context.strings.noSessionsYet,
-                            hint: q['q']?.isNotEmpty == true
-                                ? null
-                                : q['tool']?.isNotEmpty == true ||
-                                      q['project']?.isNotEmpty == true
-                                ? context.strings.tryAnotherFilter
-                                : context
-                                      .strings
-                                      .sessionsAppearHereAfterSyncingToolLogs,
-                          ),
-                        )
-                      : list(),
+              ResourceBlock(
+                resource: projects,
+                rows: 1,
+                builder: (_) => ResourceBlock(
+                  resource: sources,
+                  rows: 1,
+                  builder: (_) => filters(),
                 ),
               ),
-              if (items.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        context.strings.showing0Session(items.length),
-                        style: p.text(12, p.muted).copyWith(height: 1.4),
+              SizedBox(height: narrow ? 12 : 16),
+              LensCard(
+                padding:
+                    const EdgeInsets.fromLTRB(0, 8, 0, 16) *
+                    c.preferences.spacing,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: page.ready ? 0 : 18,
                       ),
-                      if (nextCursor != null)
-                        LensButton(
-                          label: context.strings.loadMore,
-                          size: 'sm',
-                          onPressed: () {
-                            final next = nextCursor;
-                            if (next == null) return;
-                            setState(() {
-                              history = items;
-                              cursor = next;
-                              refresh();
-                            });
-                          },
-                        )
-                      else
-                        Text(
-                          context.strings.allSessionsShown,
-                          style: p.text(12, p.muted).copyWith(height: 1.4),
+                      child: ResourceBlock(
+                        resource: page,
+                        rows: 6,
+                        builder: (_) => items.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                ),
+                                child: EmptyState(
+                                  title: q['q']?.isNotEmpty == true
+                                      ? context.strings.noMatchingSessions(
+                                          q['q']!,
+                                        )
+                                      : context.strings.noSessionsYet,
+                                  hint: q['q']?.isNotEmpty == true
+                                      ? null
+                                      : q['tool']?.isNotEmpty == true ||
+                                            q['project']?.isNotEmpty == true
+                                      ? context.strings.tryAnotherFilter
+                                      : context
+                                            .strings
+                                            .sessionsAppearHereAfterSyncingToolLogs,
+                                ),
+                              )
+                            : list(),
+                      ),
+                    ),
+                    if (items.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              context.strings.showing0Session(items.length),
+                              style: p.text(12, p.muted).copyWith(height: 1.4),
+                            ),
+                            if (nextCursor != null)
+                              LensButton(
+                                label: context.strings.loadMore,
+                                size: 'sm',
+                                onPressed: () {
+                                  final next = nextCursor;
+                                  if (next == null) return;
+                                  setState(() {
+                                    history = items;
+                                    cursor = next;
+                                    refresh();
+                                  });
+                                },
+                              )
+                            else
+                              Text(
+                                context.strings.allSessionsShown,
+                                style: p
+                                    .text(12, p.muted)
+                                    .copyWith(height: 1.4),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
+              ),
+              SizedBox(height: narrow ? 12 : 16),
+              Text(
+                context.strings.usageIsCountedWhenEachRecordOccurred,
+                style: p.text(12, p.muted).copyWith(height: 1.4),
+              ),
             ],
           ),
         ),
-        SizedBox(height: narrow ? 12 : 16),
-        Text(
-          context.strings.usageIsCountedWhenEachRecordOccurred,
-          style: p.text(12, p.muted).copyWith(height: 1.4),
-        ),
-      ],
-    ),
+    ],
   );
 }
 

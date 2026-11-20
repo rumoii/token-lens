@@ -220,7 +220,7 @@ void main() {
     expect(find.text('今天请求'), findsOneWidget);
     expect(find.text('累计请求'), findsOneWidget);
     expect(find.text('今天约值'), findsOneWidget);
-    expect(find.text('开始于 10月16日'), findsOneWidget);
+    expect(find.text('跨时段'), findsOneWidget);
   });
   testWidgets('E3 会话详情按天表、时段与累计', (tester) async {
     final c = StatsController(

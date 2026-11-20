@@ -105,10 +105,20 @@ void untruncated(WidgetTester tester, Finder text) {
   insideCard(tester, text);
 }
 
-class TabGateway extends FakeStatsGateway {
+class TabGateway extends FakeStatsGateway implements StatsUsageExporter {
   @override
   List<StatsGroup> groups(StatsFilter filter, {String by = 'source_model'}) =>
       super.groups(const StatsFilter(from: '2026-11-10'), by: by);
+
+  @override
+  Future<String> exportUsage({
+    required String by,
+    required String period,
+    required StatsFilter filter,
+    required String format,
+    required bool projectPaths,
+    required String directory,
+  }) async => throw StateError('The Tab order test does not export files');
 }
 
 const sidebarStops = [
@@ -405,11 +415,14 @@ void main() {
             'token',
             '金额',
             '今天 0:00   1080万',
-            '对比昨天',
+            '导出',
             '按小时',
             '按工具',
             '按模型',
             '按项目',
+            '按请求',
+            '对比昨天',
+            if (width < 1440) ...['排序：时间', '从大到小'],
           ],
           _ => ['浅色', '深色', '跟随系统'],
         };

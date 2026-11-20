@@ -8,13 +8,14 @@ class LensHeaderControls extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => MediaQuery.sizeOf(context).width < 1180
+  Widget build(BuildContext context) =>
+      children.length < 2 || MediaQuery.sizeOf(context).width < 1180
       ? Wrap(spacing: 10, runSpacing: 10, children: children)
       : Row(
           mainAxisSize: MainAxisSize.min,
           spacing: 10,
           children: [
-            children.first,
+            ...children.take(children.length - 1),
             Flexible(child: children.last),
           ],
         );

@@ -52,6 +52,7 @@ class _OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<_OnboardingPage> {
   late final discovery = LensResource<StatsDiscovery>(changed);
   late final completed = LensResource<StatsSummary>(changed);
+  late final completedTools = LensResource<StatsBreakdown>(changed);
   OnboardingStep step = OnboardingStep.discover;
   bool fresh = false;
   late bool localOnly = !c.preferences.newsEnabled;
@@ -79,6 +80,10 @@ class _OnboardingPageState extends State<_OnboardingPage> {
           'completed',
           () => c.gateway.summary(const StatsFilter()),
         );
+        completedTools.read(
+          'completed',
+          () => c.gateway.breakdown('source', const StatsFilter()),
+        );
       }
     }
     changed();
@@ -96,6 +101,7 @@ class _OnboardingPageState extends State<_OnboardingPage> {
     c.removeListener(observe);
     discovery.dispose();
     completed.dispose();
+    completedTools.dispose();
     super.dispose();
   }
 
@@ -105,6 +111,7 @@ class _OnboardingPageState extends State<_OnboardingPage> {
     step: step,
     discovery: discovery,
     completed: completed,
+    completedTools: completedTools,
     onStart: start,
     localOnly: localOnly,
     onLocalOnlyChanged: (value) => setState(() => localOnly = value),

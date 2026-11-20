@@ -8,6 +8,8 @@ import '../../smooth_wheel.dart';
 import '../../stats_controller.dart';
 import '../../stats_gateway.dart';
 import '../logic/format.dart';
+import '../logic/home_data.dart';
+import '../logic/tool_order.dart';
 import '../logic/tools.dart';
 import '../theme/palette.dart';
 import 'motion.dart';
@@ -23,6 +25,7 @@ class OnboardingContent extends StatefulWidget {
     required this.step,
     required this.discovery,
     required this.completed,
+    required this.completedTools,
     required this.onStart,
     required this.localOnly,
     required this.onLocalOnlyChanged,
@@ -33,6 +36,7 @@ class OnboardingContent extends StatefulWidget {
   final OnboardingStep step;
   final LensResource<StatsDiscovery> discovery;
   final LensResource<StatsSummary> completed;
+  final LensResource<StatsBreakdown> completedTools;
   final VoidCallback onStart, onRescan, onEnter;
   final bool localOnly;
   final ValueChanged<bool> onLocalOnlyChanged;
@@ -104,6 +108,12 @@ class _OnboardingContentState extends State<OnboardingContent> {
           ),
     );
     final summary = widget.completed.fresh ? widget.completed.data : null;
+    final breakdown = widget.completedTools.fresh
+        ? widget.completedTools.data
+        : null;
+    final unit = context.strings.tokenUnit;
+    final currency = c.preferences.currency;
+    final rate = rateFor(c.preferences.rates, currency);
     final firstSeen = DateTime.tryParse(summary?.activity.firstSeen ?? '')
         ?.toLocal();
     final firstSeenText = firstSeen == null
@@ -122,7 +132,16 @@ class _OnboardingContentState extends State<OnboardingContent> {
                 mode: c.preferences.tokenMode,
                 unitSystem: c.unitSystem,
               ),
-        context.strings.tokenUnit,
+        summary?.totals.costUsd == null
+            ? unit
+            : context.strings.completionTokenEstimate(
+                usdCurrency(
+                  summary!.totals.costUsd,
+                  decimals: 0,
+                  currency: currency,
+                  rate: rate,
+                ),
+              ),
       ),
       (
         summary == null ? '—' : toDisplayNumber(summary.totals.recordCount),
@@ -133,6 +152,28 @@ class _OnboardingContentState extends State<OnboardingContent> {
         context.strings.sessionsNoun(summary?.activity.sessions ?? 0),
       ),
     ];
+    final horizontalPad = width >= 768 ? 20.0 : 14.0;
+    final padding = EdgeInsets.fromLTRB(
+      horizontalPad,
+      done ? 24 : (width >= 768 ? 56 : 32),
+      horizontalPad,
+      done ? 24 : 40,
+    );
+    Widget scrollContent(Widget content) => LayoutBuilder(
+      builder: (context, viewport) => SingleChildScrollView(
+        controller: scroll,
+        padding: padding,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: done
+                ? math.max(0, viewport.maxHeight - padding.vertical)
+                : 0,
+          ),
+          child: content,
+        ),
+      ),
+    );
+
     return Material(
       color: p['surface-0'],
       child: Stack(
@@ -142,15 +183,8 @@ class _OnboardingContentState extends State<OnboardingContent> {
               child: CustomPaint(painter: _OnboardingGlow(p['clay'])),
             ),
           ),
-          SingleChildScrollView(
-            controller: scroll,
-            padding: EdgeInsets.fromLTRB(
-              width >= 768 ? 20 : 14,
-              width >= 768 ? 56 : 32,
-              width >= 768 ? 20 : 14,
-              40,
-            ),
-            child: Center(
+          scrollContent(
+            Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
                 child: Column(
@@ -215,7 +249,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                           children: [
                             TableRow(
                               children: [
-                                for (final (index, (number, unit))
+                                for (final (index, (number, _))
                                     in completionMetrics.indexed)
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(
@@ -255,16 +289,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (final item in found)
-                            ToolTile(item.source, size: 32),
-                        ],
-                      ),
+                      if (breakdown != null && breakdown.groups.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _CompletionTools(controller: c, breakdown: breakdown),
+                      ],
                       const SizedBox(height: 24),
                       if (c.warning != null) ...[
                         statusText(
@@ -726,6 +754,160 @@ class _OnboardingContentState extends State<OnboardingContent> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompletionTools extends StatelessWidget {
+  const _CompletionTools({required this.controller, required this.breakdown});
+
+  final StatsController controller;
+  final StatsBreakdown breakdown;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context), s = context.strings;
+    final slots = assignToolColors(
+      sourceSequence(
+        controller.overview?.sources.sources
+                .where((source) => !controller.isHidden(source.source))
+                .toList() ??
+            [],
+      ),
+    );
+    final groups =
+        breakdown.groups
+            .where((group) => group.key?.isNotEmpty == true)
+            .toList()
+          ..sort((a, b) {
+            final tokens = b.grossTokens.compareTo(a.grossTokens);
+            return tokens != 0 ? tokens : a.key!.compareTo(b.key!);
+          });
+    if (groups.isEmpty) return const SizedBox.shrink();
+
+    final visible = groups.length <= 5 ? groups : groups.take(4);
+    final other = groups.skip(visible.length).toList();
+    final pricedOther = other.where((group) => group.costMicros != null);
+    final otherCost = pricedOther.isEmpty
+        ? null
+        : microsUsd(
+            pricedOther.fold<int>(0, (sum, group) => sum + group.costMicros!),
+          );
+    final currency = controller.preferences.currency;
+    final rate = rateFor(controller.preferences.rates, currency);
+
+    Widget value(Widget child) => FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerRight,
+      child: child,
+    );
+    Widget row(String? id, String name, int tokens, String? cost) {
+      final share = breakdown.totals.grossTokens > 0
+          ? tokens / breakdown.totals.grossTokens
+          : 0.0;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          spacing: 8,
+          children: [
+            if (id != null)
+              ToolTile(id, size: 24)
+            else
+              SizedBox(
+                width: 24,
+                child: Icon(Icons.more_horiz, size: 16, color: p.muted),
+              ),
+            Expanded(
+              flex: 4,
+              child: Tooltip(
+                message: name,
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: p.text(13, null, FontWeight.w500),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 5,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: ExcludeSemantics(
+                  child: LinearProgressIndicator(
+                    value: share.clamp(0, 1),
+                    minHeight: 5,
+                    backgroundColor: p['fill-hover'],
+                    color: p.category(slots[id] ?? 0),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 3,
+              child: value(
+                TokenText(
+                  tokens,
+                  mode: controller.preferences.tokenMode,
+                  unitSystem: controller.unitSystem,
+                  style: p.text(12.5, null, FontWeight.w600),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: value(Text(percentage(share), style: p.text(12, p.muted))),
+            ),
+            Expanded(
+              flex: 3,
+              child: value(
+                MoneyText(
+                  cost,
+                  currency: currency,
+                  rate: rate,
+                  style: p.text(12, p.secondary),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return LensCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                s.completionByTool,
+                style: p.text(13, null, FontWeight.w600),
+              ),
+              Text(
+                s.completionToolCount(groups.length),
+                style: p.text(12, p.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final group in visible)
+            row(
+              group.key,
+              toolOf(group.key!).name,
+              group.grossTokens,
+              group.costUsd,
+            ),
+          if (other.isNotEmpty)
+            row(
+              null,
+              s.otherCompletionTools(other.length),
+              other.fold<int>(0, (sum, group) => sum + group.grossTokens),
+              otherCost,
+            ),
         ],
       ),
     );

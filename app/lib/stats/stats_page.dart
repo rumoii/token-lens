@@ -529,7 +529,7 @@ class _StatsPageState extends State<StatsPage> {
                                       alignment: Alignment.topCenter,
                                       child: ConstrainedBox(
                                         constraints: const BoxConstraints(
-                                          maxWidth: 1120,
+                                          maxWidth: 1440,
                                         ),
                                         child: Padding(
                                           padding: EdgeInsets.fromLTRB(

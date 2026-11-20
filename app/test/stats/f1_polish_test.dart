@@ -669,15 +669,32 @@ void main() {
       expect(tester.takeException(), isNull);
     });
     testWidgets(
-      'F1-15 session period capsule is compact and left aligned at $width',
+      'F1-15 session period capsule is compact and aligned in the page header at $width',
       (tester) async {
-        await mountPolish(tester, width: width, page: 'sessions');
+        await mountPolish(tester, width: width);
         final capsule = find.byType(PeriodControl);
-        expect(tester.getSize(capsule).width, lessThan(400));
-        expect(
-          tester.getTopLeft(capsule).dx,
-          closeTo(tester.getTopLeft(find.text('会话').first).dx, 1),
+        final overviewRight = tester.getTopRight(capsule).dx;
+        (tester.state(find.byType(StatsPage)) as dynamic).navigate(
+          'sessions',
+          <String, String>{},
         );
+        await tester.pumpAndSettle();
+        expect(tester.getSize(capsule).width, lessThan(400));
+        final header = find.byType(LensPageHeader);
+        final title = find.descendant(of: header, matching: find.text('会话'));
+        final bounds = tester.getRect(header);
+        final control = tester.getRect(capsule);
+        final heading = tester.getRect(title);
+        if (heading.width + control.width + 16 <= bounds.width) {
+          expect(control.center.dy, closeTo(heading.center.dy, 1));
+          expect(control.right, closeTo(overviewRight, 1));
+        } else {
+          expect(control.left, greaterThanOrEqualTo(bounds.left));
+          expect(control.right, lessThanOrEqualTo(bounds.right));
+          expect(control.top, greaterThanOrEqualTo(heading.bottom));
+          expect(control.bottom, lessThanOrEqualTo(bounds.bottom));
+          expect(capsule.hitTestable(), findsOneWidget);
+        }
         expect(tester.takeException(), isNull);
       },
     );

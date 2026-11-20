@@ -2,6 +2,47 @@ part of 'app_strings.dart';
 
 final class EnglishStrings extends AppStrings {
   @override
+  String get spansPeriod => 'Spans period';
+
+  @override
+  String get copySessionId => 'Copy session ID';
+
+  @override
+  String get sessionIdCopied => 'Session ID copied';
+
+  @override
+  String heatTokenRange(String from, String to) => '$from–$to tokens';
+
+  @override
+  String heatTokensAndAbove(String from) => '$from tokens and above';
+
+  @override
+  String discoveredLogTools(int count) =>
+      'Found logs for $count tools on this computer';
+
+  @override
+  String discoveredLogFiles(int count) => '$count files';
+
+  @override
+  String moreDiscoveredTools(int count) => '$count more';
+
+  @override
+  String get noSupportedToolsDiscovered =>
+      'No supported AI coding tools found on this computer yet';
+
+  @override
+  String get completionByTool => byTool;
+
+  @override
+  String completionToolCount(int count) => '$count tools';
+
+  @override
+  String otherCompletionTools(int count) => '$count other tools';
+
+  @override
+  String completionTokenEstimate(String cost) => 'tokens · est. $cost';
+
+  @override
   String get morePeriods => 'More';
 
   @override

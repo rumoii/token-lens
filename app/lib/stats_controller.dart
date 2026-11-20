@@ -124,6 +124,20 @@ class StatsController extends ChangeNotifier {
   bool loading = false;
   bool sourcesReadSucceeded = false;
   int ledgerVersion = 0, syncDiscoveryRevision = 0;
+  Future<StatsDiscovery>? _emptyLedgerDiscovery;
+  int? _emptyLedgerDiscoveryRevision;
+
+  bool get emptyLedger =>
+      sourcesReadSucceeded &&
+      overview?.sources.sources.every((source) => source.records == 0) == true;
+
+  Future<StatsDiscovery> discoverEmptyLedgerTools() {
+    if (_emptyLedgerDiscoveryRevision != syncDiscoveryRevision) {
+      _emptyLedgerDiscoveryRevision = syncDiscoveryRevision;
+      _emptyLedgerDiscovery = null;
+    }
+    return _emptyLedgerDiscovery ??= Future.sync(gateway.discovery);
+  }
 
   Iterable<String> get hiddenTools =>
       preferences.hiddenTools.where(tools.containsKey);
@@ -533,6 +547,7 @@ class StatsController extends ChangeNotifier {
         ..clear()
         ..addAll(readErrors);
       sourcesReadSucceeded = !readErrors.containsKey('sources');
+      if (!emptyLedger) _emptyLedgerDiscovery = null;
       _hasSucceeded |=
           syncSuccessful || overview!.sources.hasSuccessfulSync == true;
     } catch (failure) {

@@ -33,6 +33,15 @@ class _PricingGateway extends FakeStatsGateway {
   }
 }
 
+class _EmptyPeriodPricingGateway extends _PricingGateway {
+  _EmptyPeriodPricingGateway() : super(0, null, 0) {
+    empty = true;
+  }
+
+  @override
+  Future<StatsSources> sources() => FakeStatsGateway().sources();
+}
+
 const _estimate = '按公开标准价估算，不是账单';
 const _pricingHint = '没有价格的记录不计入金额。到「价格与设置」里查看是哪些模型。';
 
@@ -150,11 +159,7 @@ void main() {
   });
 
   testWidgets('明细空期仍显示普通金额说明', (tester) async {
-    await _mount(
-      tester,
-      _PricingGateway(0, null, 0)..empty = true,
-      detail: true,
-    );
+    await _mount(tester, _EmptyPeriodPricingGateway(), detail: true);
     expect(find.text('按公开价估算'), findsOneWidget);
     expect(find.text('还没有价格'), findsNothing);
   });

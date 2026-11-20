@@ -22,6 +22,7 @@ import 'widgets/primitives.dart';
 import 'widgets/sync_status.dart';
 import 'widgets/charts.dart';
 import 'widgets/date_range.dart';
+import 'widgets/empty_ledger.dart';
 import 'widgets/filters.dart';
 import 'widgets/resource.dart';
 import 'widgets/timing.dart';
@@ -341,7 +342,7 @@ class _StatsDetailState extends State<StatsDetail> {
       key: exportAnchor,
       label: strings.export,
       size: 'sm',
-      variant: 'ghost',
+      icon: Icons.download_outlined,
       focusNode: exportFocus,
       onPressed: by == null || exporting
           ? null
@@ -988,7 +989,10 @@ class _StatsDetailState extends State<StatsDetail> {
     );
   }
 
-  Widget tableContent(({String kind, Object data})? snapshot) {
+  ({Widget? sort, Widget content}) tableContent(
+    ({String kind, Object data})? snapshot, {
+    required bool compact,
+  }) {
     final data = snapshot?.data;
     final detail = d, dim = snapshot?.kind ?? detail['dim']!;
     final nameFlex = switch (dim) {
@@ -1415,12 +1419,9 @@ class _StatsDetailState extends State<StatsDetail> {
         ),
       ),
     );
-    Widget compactTable() => Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-          child: Row(
+    final sort = compact && rows.isNotEmpty
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               FilterPick(
                 key: const Key('detail-sort'),
@@ -1450,12 +1451,9 @@ class _StatsDetailState extends State<StatsDetail> {
                 }),
               ),
             ],
-          ),
-        ),
-        for (final r in rows) row(r, compact: true),
-      ],
-    );
-    return Column(
+          )
+        : null;
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (rows.isEmpty)
@@ -1467,76 +1465,56 @@ class _StatsDetailState extends State<StatsDetail> {
               style: p.text(14, p.muted),
             ),
           )
-        else if (narrow)
-          compactTable()
+        else if (compact)
+          for (final r in rows) row(r, compact: true)
         else
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: LayoutBuilder(
-              builder: (context, box) {
-                if (box.maxWidth < 860) {
-                  return compactTable();
-                }
-                return SizedBox(
-                  child: SizedBox(
-                    width: box.maxWidth,
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Row(
-                            children: [
-                              header(
-                                {
-                                  'date': context.strings.time,
-                                  'tool': context.strings.tool,
-                                  'model': context.strings.model,
-                                  'project': context.strings.project,
-                                }[dim]!,
-                                'name',
-                                nameFlex,
-                              ),
-                              header(context.strings.usage, 'v', 10),
-                              if (compared != null) ...[
-                                header(
-                                  context.strings.comparisonPreviousColumn,
-                                  'previous',
-                                  10,
-                                ),
-                                header(
-                                  context.strings.comparisonChange,
-                                  'delta',
-                                  10,
-                                ),
-                              ],
-                              header(context.strings.estCost, 'cost', 10),
-                              header(context.strings.share, 'share', 20),
-                              for (var i = 0; i < 4; i++)
-                                header(
-                                  [
-                                    context.strings.newInput,
-                                    context.strings.output,
-                                    context.strings.cacheRead,
-                                    context.strings.cacheWrite,
-                                  ][i],
-                                  'k$i',
-                                  11,
-                                ),
-                              header(context.strings.requests, 'requests', 12),
-                              header(
-                                context.strings.avgPerRequest,
-                                'average',
-                                12,
-                              ),
-                            ],
-                          ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    children: [
+                      header(
+                        {
+                          'date': context.strings.time,
+                          'tool': context.strings.tool,
+                          'model': context.strings.model,
+                          'project': context.strings.project,
+                        }[dim]!,
+                        'name',
+                        nameFlex,
+                      ),
+                      header(context.strings.usage, 'v', 10),
+                      if (compared != null) ...[
+                        header(
+                          context.strings.comparisonPreviousColumn,
+                          'previous',
+                          10,
                         ),
-                        ...rows.map(row),
+                        header(context.strings.comparisonChange, 'delta', 10),
                       ],
-                    ),
+                      header(context.strings.estCost, 'cost', 10),
+                      header(context.strings.share, 'share', 20),
+                      for (var i = 0; i < 4; i++)
+                        header(
+                          [
+                            context.strings.newInput,
+                            context.strings.output,
+                            context.strings.cacheRead,
+                            context.strings.cacheWrite,
+                          ][i],
+                          'k$i',
+                          11,
+                        ),
+                      header(context.strings.requests, 'requests', 12),
+                      header(context.strings.avgPerRequest, 'average', 12),
+                    ],
                   ),
-                );
-              },
+                ),
+                ...rows.map(row),
+              ],
             ),
           ),
         if (data is StatsTimeseries && (data.unallocated?.grossTokens ?? 0) > 0)
@@ -1573,6 +1551,7 @@ class _StatsDetailState extends State<StatsDetail> {
         ),
       ],
     );
+    return (sort: sort, content: content);
   }
 
   @override
@@ -1590,14 +1569,15 @@ class _StatsDetailState extends State<StatsDetail> {
           },
           label: context.strings.view2,
         ),
-        PeriodControl(
-          period: period,
-          now: c.clock(),
-          onChanged: (value) {
-            go({...d, 'bucket': ''}, value);
-            unawaited(c.setPeriod(value));
-          },
-        ),
+        if (!c.emptyLedger)
+          PeriodControl(
+            period: period,
+            now: c.clock(),
+            onChanged: (value) {
+              go({...d, 'bucket': ''}, value);
+              unawaited(c.setPeriod(value));
+            },
+          ),
       ],
     );
     final dim = d['dim']!,
@@ -1633,6 +1613,92 @@ class _StatsDetailState extends State<StatsDetail> {
         : dim == 'date'
         ? d['bucket']!.isNotEmpty
         : d[dim]!.isNotEmpty;
+    final compareSwitch = Tooltip(
+      message: prior == null ? strings.noComparisonPeriod : compareLabel,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: [
+          SizedBox(
+            height: 30,
+            child: LensSwitch(
+              key: const Key('detail-compare'),
+              label: compareLabel,
+              value: comparing,
+              onChanged: prior == null ? null : setCompare,
+            ),
+          ),
+          GestureDetector(
+            onTap: prior == null ? null : () => setCompare(!comparing),
+            child: Text(
+              compareLabel,
+              style: p.text(12.5, prior == null ? p.muted : p.secondary),
+            ),
+          ),
+        ],
+      ),
+    );
+    final dimensionTabs = LensSegmented(
+      options: {
+        'date': trend.data?.axis.granularity == 'hour' && picked == null
+            ? context.strings.byHour
+            : context.strings.byTime,
+        'tool': context.strings.byTool,
+        'model': context.strings.byModel,
+        'project': context.strings.byProject,
+        'request': context.strings.byRequest,
+      },
+      value: dim,
+      onChanged: (v) {
+        setState(() {
+          sortKey = null;
+          sortDir = -1;
+        });
+        go({
+          ...d,
+          'dim': v,
+          if (!comparisonGroups.containsKey(v)) 'compare': '',
+        });
+      },
+      label: context.strings.groupBy,
+      small: true,
+    );
+
+    Widget toolbar(Widget? sort) {
+      final trailing = Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 6,
+        children: [compareSwitch, ?sort],
+      );
+      return Padding(
+        padding:
+            const EdgeInsets.fromLTRB(18, 12, 18, 0) * c.preferences.spacing,
+        child: LayoutBuilder(
+          builder: (context, box) => box.maxWidth < 760
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 6,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: dimensionTabs,
+                    ),
+                    Align(alignment: Alignment.centerRight, child: trailing),
+                  ],
+                )
+              : OverflowBar(
+                  alignment: MainAxisAlignment.spaceBetween,
+                  overflowAlignment: OverflowBarAlignment.end,
+                  spacing: 8,
+                  overflowSpacing: 6,
+                  children: [dimensionTabs, trailing],
+                ),
+        ),
+      );
+    }
+
     return Column(
       spacing: narrow ? 12 : 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1670,178 +1736,142 @@ class _StatsDetailState extends State<StatsDetail> {
             ],
           ),
         ),
-        ResourceBlock(resource: options, rows: 1, builder: filters),
-        LensCard(
-          child: ResourceBlock(resource: summary, rows: 2, builder: strip),
-        ),
-        LensCard(
-          child: ResourceBlock(resource: trend, rows: 6, builder: trendContent),
-        ),
-        LensCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              head(
-                context.strings.breakdown2,
-                dim == 'request'
-                    ? context.strings.oneRowPerRequestSelectARow
-                    : filtered
-                    ? context.strings.alreadyFilteredByThisFieldTryAnother
-                    : context.strings.selectARowToAddItTo,
-                action: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Tooltip(
-                      message: prior == null
-                          ? strings.noComparisonPeriod
-                          : compareLabel,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 6,
-                        children: [
-                          SizedBox(
-                            height: 30,
-                            child: LensSwitch(
-                              key: const Key('detail-compare'),
-                              label: compareLabel,
-                              value: comparing,
-                              onChanged: prior == null ? null : setCompare,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: prior == null
-                                ? null
-                                : () => setCompare(!comparing),
-                            child: Text(
-                              compareLabel,
-                              style: p.text(
-                                12.5,
-                                prior == null ? p.muted : p.secondary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    LensSegmented(
-                      options: {
-                        'date':
-                            trend.data?.axis.granularity == 'hour' &&
-                                picked == null
-                            ? context.strings.byHour
-                            : context.strings.byTime,
-                        'tool': context.strings.byTool,
-                        'model': context.strings.byModel,
-                        'project': context.strings.byProject,
-                        'request': context.strings.byRequest,
-                      },
-                      value: dim,
-                      onChanged: (v) {
-                        setState(() {
-                          sortKey = null;
-                          sortDir = -1;
-                        });
-                        go({
-                          ...d,
-                          'dim': v,
-                          if (!comparisonGroups.containsKey(v)) 'compare': '',
-                        });
-                      },
-                      label: context.strings.groupBy,
-                      small: true,
-                    ),
-                    if (dim != 'request' && gateway is StatsUsageExporter)
-                      exportMenu(gateway as StatsUsageExporter, exportBy),
-                  ],
-                ),
-              ),
-              if (comparing && prior != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-                  child: Text(
-                    comparisonSubtitle(picked ?? period.range(c.clock()), (
-                      from: prior.from,
-                      to: prior.to,
-                    ), strings),
-                    style: p.text(12, p.muted),
-                  ),
-                ),
-              if (dim != 'request' &&
-                  (exportedPath != null || exportError != null))
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-                  child: Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (exportedPath case final path?) ...[
-                        Text(
-                          context.strings.exportCompleted(
-                            File(path).uri.pathSegments.last,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => openExportFolder(path),
-                          child: Text(context.strings.openContainingFolder),
-                        ),
-                      ],
-                      if (exportError case final error?)
-                        Text(
-                          context.strings.diagnosticsExportFailed(error),
-                          style: p.text(13, p['danger']),
-                        ),
-                    ],
-                  ),
-                ),
-              if (dim == 'request')
-                Padding(
-                  padding:
-                      const EdgeInsets.only(top: 12, bottom: 18) *
-                      c.preferences.spacing,
-                  child: RequestLog(
-                    controller: c,
-                    identity:
-                        '${period.query}|${d['tool']}|${d['model']}|${d['project']}|${d['missing']}|${d['bucket']}|${c.ledgerVersion}',
-                    filter: c.visibleFilter(
-                      detailFilter(d, picked ?? period.range(c.clock())),
-                    ),
-                    onOpen: (r) {
-                      final sessionId = r.sessionId;
-                      if (sessionId != null) {
-                        widget.onSessions?.call({
-                          ...Uri.splitQueryString(period.query),
-                          'source': r.source,
-                          'session': sessionId,
-                        });
-                      }
-                    },
-                  ),
-                )
-              else
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    table.ready ? 0 : 18,
-                    12,
-                    table.ready ? 0 : 18,
-                    18,
-                  ),
-                  child: comparing && gateway is StatsComparisonGateway
-                      ? ResourceBlock(
-                          resource: comparison,
-                          rows: 5,
-                          builder: (_) => tableContent(table.data),
-                        )
-                      : ResourceBlock(
-                          resource: table,
-                          rows: 5,
-                          builder: tableContent,
-                        ),
-                ),
-            ],
+        if (c.emptyLedger)
+          EmptyLedgerCard(controller: c, onTools: widget.onSources)
+        else ...[
+          ResourceBlock(resource: options, rows: 1, builder: filters),
+          LensCard(
+            child: ResourceBlock(resource: summary, rows: 2, builder: strip),
           ),
-        ),
+          LensCard(
+            child: ResourceBlock(
+              resource: trend,
+              rows: 6,
+              builder: trendContent,
+            ),
+          ),
+          LensCard(
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final useComparison =
+                    comparing && gateway is StatsComparisonGateway;
+                final ready = useComparison
+                    ? comparison.ready && comparison.error == null
+                    : table.ready && table.error == null;
+                final view = dim != 'request' && ready
+                    ? tableContent(
+                        table.data,
+                        compact:
+                            narrow ||
+                            box.maxWidth - (table.ready ? 0 : 36) - 16 < 860,
+                      )
+                    : null;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    head(
+                      context.strings.breakdown2,
+                      dim == 'request'
+                          ? context.strings.oneRowPerRequestSelectARow
+                          : filtered
+                          ? context.strings.alreadyFilteredByThisFieldTryAnother
+                          : context.strings.selectARowToAddItTo,
+                      action: dim != 'request' && gateway is StatsUsageExporter
+                          ? exportMenu(gateway as StatsUsageExporter, exportBy)
+                          : null,
+                    ),
+                    toolbar(view?.sort),
+                    if (comparing && prior != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                        child: Text(
+                          comparisonSubtitle(
+                            picked ?? period.range(c.clock()),
+                            (from: prior.from, to: prior.to),
+                            strings,
+                          ),
+                          style: p.text(12, p.muted),
+                        ),
+                      ),
+                    if (dim != 'request' &&
+                        (exportedPath != null || exportError != null))
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                        child: Wrap(
+                          spacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (exportedPath case final path?) ...[
+                              Text(
+                                context.strings.exportCompleted(
+                                  File(path).uri.pathSegments.last,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => openExportFolder(path),
+                                child: Text(
+                                  context.strings.openContainingFolder,
+                                ),
+                              ),
+                            ],
+                            if (exportError case final error?)
+                              Text(
+                                context.strings.diagnosticsExportFailed(error),
+                                style: p.text(13, p['danger']),
+                              ),
+                          ],
+                        ),
+                      ),
+                    if (dim == 'request')
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(top: 12, bottom: 18) *
+                            c.preferences.spacing,
+                        child: RequestLog(
+                          controller: c,
+                          identity:
+                              '${period.query}|${d['tool']}|${d['model']}|${d['project']}|${d['missing']}|${d['bucket']}|${c.ledgerVersion}',
+                          filter: c.visibleFilter(
+                            detailFilter(d, picked ?? period.range(c.clock())),
+                          ),
+                          onOpen: (r) {
+                            final sessionId = r.sessionId;
+                            if (sessionId != null) {
+                              widget.onSessions?.call({
+                                ...Uri.splitQueryString(period.query),
+                                'source': r.source,
+                                'session': sessionId,
+                              });
+                            }
+                          },
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          table.ready ? 0 : 18,
+                          12,
+                          table.ready ? 0 : 18,
+                          18,
+                        ),
+                        child: useComparison
+                            ? ResourceBlock(
+                                resource: comparison,
+                                rows: 5,
+                                builder: (_) => view!.content,
+                              )
+                            : ResourceBlock(
+                                resource: table,
+                                rows: 5,
+                                builder: (_) => view!.content,
+                              ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ],
     );
   }

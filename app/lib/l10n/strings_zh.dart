@@ -2,6 +2,45 @@ part of 'app_strings.dart';
 
 final class ChineseStrings extends AppStrings {
   @override
+  String get spansPeriod => '跨时段';
+
+  @override
+  String get copySessionId => '复制会话 ID';
+
+  @override
+  String get sessionIdCopied => '已复制会话 ID';
+
+  @override
+  String heatTokenRange(String from, String to) => '$from–$to token';
+
+  @override
+  String heatTokensAndAbove(String from) => '$from token 以上';
+
+  @override
+  String discoveredLogTools(int count) => '这台电脑上找到 $count 个工具的日志';
+
+  @override
+  String discoveredLogFiles(int count) => '$count 个文件';
+
+  @override
+  String moreDiscoveredTools(int count) => '还有 $count 个';
+
+  @override
+  String get noSupportedToolsDiscovered => '这台电脑上还没找到支持的 AI 编程工具';
+
+  @override
+  String get completionByTool => '按工具拆开';
+
+  @override
+  String completionToolCount(int count) => '$count 个工具';
+
+  @override
+  String otherCompletionTools(int count) => '其他 $count 个工具';
+
+  @override
+  String completionTokenEstimate(String cost) => 'token · 约值 $cost';
+
+  @override
   String get morePeriods => '更多';
 
   @override

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../stats_gateway.dart' show StatsFilter;
 import '../logic/period.dart';
-import '../theme/palette.dart';
+import 'primitives.dart';
 
 String sessionPeriodLabel(
   StatsPeriod period, [
@@ -58,14 +58,15 @@ class SessionStartChip extends StatelessWidget {
     required this.startedAt,
     required this.offsetMinutes,
     required this.now,
+    this.showDate = true,
   });
   final String startedAt;
+  final bool showDate;
   final int offsetMinutes;
   final DateTime now;
 
   @override
   Widget build(BuildContext context) {
-    final p = LensPalette.of(context);
     final date = DateTime.parse(startedAt)
         .toUtc()
         .add(Duration(minutes: offsetMinutes));
@@ -74,17 +75,9 @@ class SessionStartChip extends StatelessWidget {
     final day = date.year == year
         ? strings.calendarDay(date.month, date.day)
         : strings.calendarDayWithYear(date.year, date.month, date.day);
-    return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: p['clay-wash'],
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Text(
-        strings.startedOn(day),
-        style: p.text(11, p['clay-ink'], FontWeight.w500),
-      ),
-    );
+    final started = strings.startedOn(day);
+    return showDate
+        ? LensBadge(started)
+        : Tooltip(message: started, child: LensBadge(strings.spansPeriod));
   }
 }

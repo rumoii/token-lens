@@ -568,9 +568,11 @@ class Heatmap extends StatefulWidget {
     required this.narrow,
     this.unitSystem = 'chinese',
     this.weekStartsOn = DateTime.monday,
+    this.scale,
   });
   final int weekStartsOn;
   final Map<String, int> values;
+  final HeatScale? scale;
   final DateTime now;
   final bool narrow;
   final String unitSystem;
@@ -592,24 +594,12 @@ class _HeatmapState extends State<Heatmap> {
 
   @override
   Widget build(BuildContext context) {
-    final p = LensPalette.of(context), today = widget.now;
-    final start = DateTime(
-      today.year,
-      today.month,
-      today.day -
-          (widget.narrow
-              ? weekdayIndex(today, widget.weekStartsOn) + 133
-              : 364),
-    );
-    final days = <DateTime>[];
-    for (
-      var d = start;
-      !d.isAfter(today);
-      d = DateTime(d.year, d.month, d.day + 1)
-    ) {
-      days.add(d);
-    }
-    final blanks = weekdayIndex(start, widget.weekStartsOn),
+    final p = LensPalette.of(context);
+    final days = heatmapDays(widget.now, widget.narrow, widget.weekStartsOn);
+    final scale =
+        widget.scale ??
+        heatScale(days.map((day) => widget.values[dayKey(day)] ?? 0));
+    final blanks = weekdayIndex(days.first, widget.weekStartsOn),
         weeks = ((blanks + days.length) / 7).ceil();
     return LayoutBuilder(
       builder: (context, box) {
@@ -678,6 +668,7 @@ class _HeatmapState extends State<Heatmap> {
                         blanks,
                         weeks,
                         widget.values,
+                        scale,
                         hot,
                         widget.unitSystem,
                         ms,
@@ -734,6 +725,7 @@ class _HeatPainter extends CustomPainter {
     this.blanks,
     this.weeks,
     this.values,
+    this.scale,
     this.hot,
     this.units,
     this.elapsed,
@@ -743,6 +735,7 @@ class _HeatPainter extends CustomPainter {
   final List<DateTime> days;
   final int blanks, weeks;
   final Map<String, int> values;
+  final HeatScale scale;
   final int? hot;
   final String units;
   final AppStrings strings;
@@ -770,7 +763,7 @@ class _HeatPainter extends CustomPainter {
     }
     for (var i = 0; i < days.length; i++) {
       final value = values[dayKey(days[i])] ?? 0;
-      final level = homeHeatLevel(value);
+      final level = scale.level(value);
       final geometry = heatCellGeometry(i, blanks, weeks, size.width);
       final rect = Rect.fromLTWH(
         geometry.left,

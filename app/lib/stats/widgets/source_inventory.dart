@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import '../../l10n/app_strings.dart';
 import '../../stats_controller.dart';
 import '../../stats_gateway.dart';
 import '../logic/format.dart';
+import '../logic/log_path.dart';
 import '../logic/tools.dart';
 import '../theme/palette.dart';
 import 'primitives.dart';
@@ -159,7 +161,10 @@ class _SourceInventoryState extends State<SourceInventory> {
     );
   }
 
-  Widget path(String value) => _InventoryPath(value);
+  Widget path(String value) => _InventoryPath(
+    value,
+    Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'],
+  );
 
   Widget heading(String value) {
     final p = LensPalette.of(context);
@@ -176,12 +181,12 @@ class _SourceInventoryState extends State<SourceInventory> {
     Widget toggle,
   ) => Row(
     children: [
-      Expanded(flex: 20, child: identity),
-      Expanded(flex: 17, child: status),
-      Expanded(flex: 30, child: folder),
-      Expanded(flex: 7, child: files),
-      Expanded(flex: 15, child: last),
-      SizedBox(width: 96, child: actions),
+      SizedBox(width: 148, child: identity),
+      SizedBox(width: 86, child: status),
+      Expanded(child: folder),
+      SizedBox(width: 44, child: files),
+      SizedBox(width: 88, child: last),
+      SizedBox(width: 56, child: actions),
       SizedBox(width: 58, child: toggle),
     ],
   );
@@ -495,8 +500,9 @@ class _SourceInventoryState extends State<SourceInventory> {
 }
 
 class _InventoryPath extends StatelessWidget {
-  const _InventoryPath(this.value);
+  const _InventoryPath(this.value, this.home);
   final String value;
+  final String? home;
 
   @override
   Widget build(BuildContext context) {
@@ -524,35 +530,23 @@ class _InventoryPath extends StatelessWidget {
             return painter.width <= constraints.maxWidth;
           }
 
-          var result = value;
-          if (!fits(value)) {
-            final units = value.characters.toList();
-            var low = 0, high = units.length;
-            String shorten(int length) {
-              final front = (length + 1) ~/ 2;
-              return '${units.take(front).join()}…'
-                  '${units.skip(units.length - (length - front)).join()}';
-            }
-
-            while (low < high) {
-              final middle = (low + high + 1) ~/ 2;
-              if (fits(shorten(middle))) {
-                low = middle;
-              } else {
-                high = middle - 1;
-              }
-            }
-            result = shorten(low);
-          }
+          final result = shortenLogPath(abbreviateHome(value, home), fits);
+          final needsScale = !fits(result);
           painter.dispose();
-          return RichText(
+          final label = RichText(
             text: TextSpan(text: result, style: style),
             textDirection: direction,
             textScaler: scaler,
             softWrap: false,
             maxLines: 1,
-            overflow: TextOverflow.clip,
           );
+          return needsScale
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: label,
+                )
+              : label;
         },
       ),
     );

@@ -12,11 +12,13 @@ import 'logic/detail_query.dart';
 import 'logic/period.dart';
 import 'logic/format.dart';
 import 'logic/home_data.dart';
+import 'logic/heatmap.dart';
 import 'logic/chart.dart';
 import 'logic/tool_order.dart';
 import 'logic/tools.dart';
 import 'theme/palette.dart';
 import 'widgets/primitives.dart';
+import 'widgets/empty_ledger.dart';
 import 'widgets/sync_status.dart';
 import 'widgets/session_usage.dart';
 import 'widgets/charts.dart';
@@ -175,11 +177,12 @@ class _StatsHomeState extends State<StatsHome> {
         },
         label: context.strings.view2,
       ),
-      PeriodControl(
-        period: c.period,
-        now: c.clock(),
-        onChanged: (v) => unawaited(c.setPeriod(v)),
-      ),
+      if (!c.emptyLedger)
+        PeriodControl(
+          period: c.period,
+          now: c.clock(),
+          onChanged: (v) => unawaited(c.setPeriod(v)),
+        ),
     ],
   );
   Widget header(Widget summary) {
@@ -338,9 +341,7 @@ class _StatsHomeState extends State<StatsHome> {
         ),
       ],
     );
-    final emptyLedger =
-        c.sourcesReadSucceeded &&
-        data.sources.sources.every((source) => source.records == 0);
+    final emptyLedger = c.emptyLedger;
     final strings = context.strings;
     final periodLabel = period.period == 'custom'
         ? strings.selectedPeriodInSentence
@@ -486,44 +487,31 @@ class _StatsHomeState extends State<StatsHome> {
           ),
         ...banner,
         header(Text.rich(TextSpan(children: summary))),
-        if (totals.recordCount == 0)
+        if (emptyLedger)
+          EmptyLedgerCard(controller: c, onTools: widget.onSources)
+        else if (totals.recordCount == 0)
           LensCard(
             child: EmptyState(
-              title: emptyLedger
-                  ? context.strings.noUsageYet
-                  : context.strings.noUsageForPeriod(
-                      period.labelFor(context.strings),
-                    ),
-              hint: emptyLedger
-                  ? context.strings.tokenLensReadsAiCodingToolLogs
-                  : context.strings.usageAppearsHereAfterTheToolWrites,
+              title: strings.noUsageForPeriod(period.labelFor(strings)),
+              hint: strings.usageAppearsHereAfterTheToolWrites,
               action: Wrap(
                 alignment: WrapAlignment.center,
                 spacing: 8,
                 runSpacing: 6,
                 children: [
                   LensButton(
-                    label: emptyLedger
-                        ? context.strings.syncNow
-                        : context.strings.viewThisMonth,
+                    label: strings.viewThisMonth,
                     size: 'sm',
-                    onPressed: emptyLedger
-                        ? () => unawaited(c.sync())
-                        : () => unawaited(
-                            c.setPeriod(const StatsPeriod('month')),
-                          ),
+                    onPressed: () =>
+                        unawaited(c.setPeriod(const StatsPeriod('month'))),
                   ),
                   LensButton(
-                    label: emptyLedger
-                        ? context.strings.viewToolSources
-                        : context.strings.viewAll,
+                    label: strings.viewAll,
                     size: 'sm',
-                    onPressed: emptyLedger
-                        ? widget.onSources
-                        : () =>
-                              unawaited(c.setPeriod(const StatsPeriod('all'))),
+                    onPressed: () =>
+                        unawaited(c.setPeriod(const StatsPeriod('all'))),
                   ),
-                  if (compare != null && !emptyLedger)
+                  if (compare != null)
                     LensTextLink(
                       label: strings.seeWhatChanged,
                       onTap: () => openComparison(period),
@@ -1214,9 +1202,9 @@ class _StatsHomeState extends State<StatsHome> {
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 2, child: left),
+                  Expanded(flex: 13, child: left),
                   const SizedBox(width: 16),
-                  Expanded(child: right),
+                  Expanded(flex: 7, child: right),
                 ],
               )
             : IntrinsicHeight(
@@ -1457,6 +1445,16 @@ class _StatsHomeState extends State<StatsHome> {
     int active,
     int streak,
   ) {
+    final days = heatmapDays(c.clock(), narrow, c.preferences.weekStartsOn);
+    final scale = heatScale(days.map((day) => map[dayKey(day)] ?? 0));
+    String rangeLabel(int level) {
+      final (from, to) = scale.range(level);
+      if (level == 0) return '0 ${context.strings.tokenUnit}';
+      if (to == null) return context.strings.heatTokensAndAbove(nt(from));
+      if (to < from) return '—';
+      return context.strings.heatTokenRange(nt(from), nt(to));
+    }
+
     final entries = map.entries.where((e) => e.value > 0).toList()
       ..sort((a, b) => a.key.compareTo(b.key));
     final busy = entries.isEmpty
@@ -1587,6 +1585,7 @@ class _StatsHomeState extends State<StatsHome> {
                   now: c.clock(),
                   narrow: narrow,
                   unitSystem: c.unitSystem,
+                  scale: scale,
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -1632,13 +1631,16 @@ class _StatsHomeState extends State<StatsHome> {
                       children: [
                         Text(context.strings.less, style: p.text(12, p.muted)),
                         for (var level = 0; level <= 4; level++)
-                          Container(
-                            width: 11,
-                            height: 11,
-                            margin: const EdgeInsets.only(left: 3),
-                            decoration: BoxDecoration(
-                              color: p['heat-$level'],
-                              borderRadius: BorderRadius.circular(3),
+                          Tooltip(
+                            message: rangeLabel(level),
+                            child: Container(
+                              width: 11,
+                              height: 11,
+                              margin: const EdgeInsets.only(left: 3),
+                              decoration: BoxDecoration(
+                                color: p['heat-$level'],
+                                borderRadius: BorderRadius.circular(3),
+                              ),
                             ),
                           ),
                         const SizedBox(width: 3),
