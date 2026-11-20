@@ -31,8 +31,11 @@ flutter pub get --enforce-lockfile
 
 ```sh
 python scripts/desktop-dev.py run
+python scripts/desktop-dev.py demo
 python scripts/desktop-dev.py check
 ```
+
+`demo` 由 `scripts/desktop_demo.py` 生成 Claude Code、Codex、Gemini CLI、Pi 和 Qwen Code 五个工具约 90 天的固定合成日志（日期相对今天，内容全部虚构，含一个未计价模型和一个跨周的 Codex 会话），用命令行的 `sync` 走真实同步写入账本，再用这份数据启动应用。同一天生成两次，日志逐字节相同。`demo --out <新目录或空目录>` 只生成不启动：日志根在 `<目录>/home`，账本在 `<目录>/data/ledger.db`；目录落在 `~/.token-lens` 或应用数据目录内时拒绝执行。截图测试 `test/stats/stats_demo_visual_test.dart` 用 `D34_DEMO_LEDGER` 指向这份账本、`D34_SCREENSHOT_DIR` 指定输出目录，两个变量都设置时才运行。完整检查在 Rust 测试之后也会生成一份演示数据，核对五个工具的记录数和 token 总数与生成器的预期完全相等。
 
 macOS 可用 `python3`。调试运行需同时设置预览数据目录与预览日志根，发现逻辑从预览日志根解析各客户端的默认位置。检查与桌面 CI 共用入口，可加 `--only rust` 或 `--only flutter`。完整检查需要两个发行目标的 Cargo 缓存。
 

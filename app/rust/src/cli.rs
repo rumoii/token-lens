@@ -23,7 +23,7 @@ const HELP: &str = "token-lens-cli [--data-dir ABSOLUTE] [--project-paths] [--pr
   sessions [--sort recent|cost|tokens] [--limit 1..200] [--cursor CURSOR]
   session --tool SOURCE --id SESSION
   --help | --version
-summary, breakdown and sessions accept --period today|week|month|all
+summary, breakdown and sessions accept --period today|week|month|all|yesterday|lastWeek|lastMonth|last7|last30
 or --from YYYY-MM-DD --to YYYY-MM-DD, and --tool, --model and --project filters.";
 
 #[derive(Debug)]
@@ -176,20 +176,31 @@ impl Args {
             }
             (period, None, None) => {
                 let period = period.unwrap_or("month");
-                let from = match period {
-                    "today" => Some(today),
-                    "week" => today.checked_sub_days(Days::new(u64::from(
-                        today.weekday().num_days_from_monday(),
-                    ))),
-                    "month" => today.with_day(1),
-                    "all" => None,
+                let days_ago = |days| today.checked_sub_days(Days::new(days));
+                let weekday = u64::from(today.weekday().num_days_from_monday());
+                let (from, to) = match period {
+                    "today" => (Some(today), Some(today)),
+                    "week" => (days_ago(weekday), Some(today)),
+                    "month" => (today.with_day(1), Some(today)),
+                    "all" => (None, None),
+                    "yesterday" => (days_ago(1), days_ago(1)),
+                    "lastWeek" => (days_ago(weekday + 7), days_ago(weekday + 1)),
+                    "lastMonth" => {
+                        let end = today.with_day(1).and_then(|day| day.pred_opt());
+                        (end.and_then(|day| day.with_day(1)), end)
+                    }
+                    "last7" => (days_ago(6), Some(today)),
+                    "last30" => (days_ago(29), Some(today)),
                     _ => {
                         return Err(Failure::Usage(
-                            "--period requires today, week, month or all.",
+                            "--period requires today, week, month, all, yesterday, lastWeek, lastMonth, last7 or last30.",
                         ))
                     }
                 };
-                (period, from, from.map(|_| today))
+                if period != "all" && (from.is_none() || to.is_none()) {
+                    return Err(Failure::Usage("Period is outside the supported calendar."));
+                }
+                (period, from, to)
             }
             _ => {
                 return Err(Failure::Usage(
@@ -237,9 +248,14 @@ fn parse_day(text: &str) -> CliResult<NaiveDate> {
 }
 
 fn previous_range(period: &str, from: NaiveDate, to: NaiveDate) -> Option<(NaiveDate, NaiveDate)> {
-    if period == "month" {
+    if matches!(period, "month" | "lastMonth") {
         let last = from.pred_opt()?;
-        return Some((last.with_day(1)?, last.with_day(last.day().min(to.day()))?));
+        let end = if period == "month" {
+            last.with_day(last.day().min(to.day()))?
+        } else {
+            last
+        };
+        return Some((last.with_day(1)?, end));
     }
     let days = match period {
         "week" => 7,
@@ -443,6 +459,85 @@ pub fn run(args: impl Iterator<Item = OsString>) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn shortcut_bounds_match_the_app_calendar() {
+        let cases = [
+            (
+                "lastWeek",
+                "2026-11-16",
+                "2026-11-09",
+                "2026-11-15",
+                "2026-11-02",
+                "2026-11-08",
+            ),
+            (
+                "lastMonth",
+                "2026-03-31",
+                "2026-02-01",
+                "2026-02-28",
+                "2026-01-01",
+                "2026-01-31",
+            ),
+            (
+                "lastMonth",
+                "2026-01-01",
+                "2025-12-01",
+                "2025-12-31",
+                "2025-11-01",
+                "2025-11-30",
+            ),
+            (
+                "yesterday",
+                "2026-01-01",
+                "2025-12-31",
+                "2025-12-31",
+                "2025-12-30",
+                "2025-12-30",
+            ),
+            (
+                "last7",
+                "2026-04-02",
+                "2026-03-27",
+                "2026-04-02",
+                "2026-03-20",
+                "2026-03-26",
+            ),
+            (
+                "last30",
+                "2024-03-01",
+                "2024-02-01",
+                "2024-03-01",
+                "2024-01-02",
+                "2024-01-31",
+            ),
+        ];
+        for (period, today, from, to, prior_from, prior_to) in cases {
+            let day = parse_day(today).unwrap();
+            let now = Local
+                .with_ymd_and_hms(day.year(), day.month(), day.day(), 12, 0, 0)
+                .unwrap()
+                .to_utc();
+            let args = Args::parse(
+                ["summary", "--period", period, "--compare"]
+                    .into_iter()
+                    .map(OsString::from),
+            )
+            .unwrap();
+            let (current, previous) = args
+                .scope(now, "UTC")
+                .unwrap_or_else(|error| panic!("{period}: {error:?}"));
+            for (scope, start, end) in [
+                (current, from, to),
+                (previous.unwrap(), prior_from, prior_to),
+            ] {
+                assert_eq!(scope.period, period);
+                assert_eq!(scope.filter["from"], start, "{period} on {today}");
+                assert_eq!(scope.filter["to"], end, "{period} on {today}");
+            }
+        }
+    }
 
     #[test]
     fn platform_path_matches_the_desktop_manifests() {

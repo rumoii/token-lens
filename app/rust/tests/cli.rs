@@ -49,6 +49,47 @@ fn error(out: Output, status: i32, code: &str) {
 }
 
 #[test]
+fn shortcut_summary_compares_full_calendar_months() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let data = temp.path().join("data");
+    let logs = home.join(".claude/projects/demo");
+    fs::create_dir_all(&logs).unwrap();
+    for (session, day, tokens) in [("prior", "2026-01-15", 5), ("current", "2026-02-15", 20)] {
+        let row = json!({
+            "sessionId": session, "timestamp": format!("{day}T12:00:00Z"),
+            "message": {"id": session, "model": "claude-opus-4-6", "usage": {"input_tokens": tokens}}
+        });
+        fs::write(logs.join(format!("{session}.jsonl")), format!("{row}\n")).unwrap();
+    }
+    // Mid-month UTC keeps the target months the same in every local time zone.
+    let out = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_token-lens-cli"))
+            .arg("--data-dir")
+            .arg(&data)
+            .env("TOKEN_LENS_PREVIEW_HOME", &home)
+            .env("TOKEN_LENS_CLI_TEST_NOW", "2026-03-15T12:00:00Z")
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    assert_eq!(success(out(&["sync"]), "sync")["data"]["inserted"], 2);
+    let result = success(
+        out(&["summary", "--period", "lastMonth", "--compare"]),
+        "summary",
+    );
+    assert_eq!(result["query"]["period"], "lastMonth");
+    assert_eq!(result["query"]["from"], "2026-02-01");
+    assert_eq!(result["query"]["to"], "2026-02-28");
+    assert_eq!(result["data"]["current"]["total_tokens"], 20);
+    let previous = &result["data"]["previous"];
+    assert_eq!(previous["query"]["period"], "lastMonth");
+    assert_eq!(previous["query"]["from"], "2026-01-01");
+    assert_eq!(previous["query"]["to"], "2026-01-31");
+    assert_eq!(previous["totals"]["total_tokens"], 5);
+}
+
+#[test]
 fn usage_and_read_only_open_have_distinct_errors() {
     let temp = tempfile::tempdir().unwrap();
     let data = temp.path().join("absent");

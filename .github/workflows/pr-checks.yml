@@ -31,7 +31,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          mapfile -t changed < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          mapfile -d '' -t changed < <(git diff --name-only --no-renames -z "$BASE_SHA...$HEAD_SHA")
           code=false
           if [ "${#changed[@]}" -eq 0 ]; then
             echo "Empty diff; running code checks so the job cannot pass silently."
@@ -39,17 +39,28 @@ jobs:
           else
             printf 'Changed file: %s\n' "${changed[@]}"
             for file in "${changed[@]}"; do
-              if [[ ! "$file" =~ \.md$ ]] && [[ ! "$file" =~ ^\.github/ISSUE_TEMPLATE/ ]]; then
-                code=true
-                break
-              fi
+              case "$file" in
+                specs/*|test/fixtures/*)
+                  code=true
+                  break
+                  ;;
+                *.md|.github/ISSUE_TEMPLATE/*|app/*|scripts/licenses/*|\
+                scripts/desktop-dev.py|scripts/desktop_env.py|scripts/smoke-desktop.py|\
+                scripts/verify-desktop-zip.py|scripts/generate-desktop-notices.dart|\
+                scripts/desktop_demo.py|.github/workflows/desktop.yml|.github/workflows/release.yml)
+                  ;;
+                *)
+                  code=true
+                  break
+                  ;;
+              esac
             done
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
-      - name: Documentation only
+      - name: Legacy checks skipped
         if: steps.scope.outputs.code != 'true'
-        run: echo "Only documentation changed; core and dashboard tests, build and typecheck are skipped."
+        run: echo "Changes are limited to documentation or desktop-only files; legacy checks are skipped."
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

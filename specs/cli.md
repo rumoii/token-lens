@@ -23,9 +23,9 @@ token-lens-cli [--data-dir ABSOLUTE] [--project-paths] [--pretty] COMMAND
 
 `last_sync` 含 `started_at`、`finished_at`、`status`、`trigger`、`age_seconds` 及 `counts`。账本没有同步历史时为 `null`。旧同步历史的触发方式和每工具同步结果可以是 `null`。未处理某工具的同步不覆盖该工具已有的结果。
 
-`summary`、`breakdown` 和 `sessions` 接受 `--period today|week|month|all`，默认 `month`。也可传入 `--from YYYY-MM-DD --to YYYY-MM-DD`，首尾日期均包含。按系统时区处理，周从周一开始，周和月截至当天。三条命令都支持 `--tool`、`--model`、`--project`。项目筛选接受完整匹配路径、项目名称或消歧后的显示名称。存在完全匹配的路径时优先采用该路径。
+`summary`、`breakdown` 和 `sessions` 接受 `--period today|week|month|all|yesterday|lastWeek|lastMonth|last7|last30`，默认 `month`，名字与应用的时段参数相同。也可传入 `--from YYYY-MM-DD --to YYYY-MM-DD`，首尾日期均包含。按系统时区处理，周从周一开始，周和月截至当天。`yesterday` 是昨天；`lastWeek` 是上一个完整的周一到周日；`lastMonth` 是上一个完整的自然月；`last7`、`last30` 是含今天在内的 7 天、30 天。输出的 `query.period` 原样写参数值，`from`、`to` 写实际日期。三条命令都支持 `--tool`、`--model`、`--project`。项目筛选接受完整匹配路径、项目名称或消歧后的显示名称。存在完全匹配的路径时优先采用该路径。
 
-比较在同一个 SQLite 读事务内取本期、上期和本期减上期的结果。当天比较昨天，本周比较上周相同星期范围，本月比较上月 1 日至同日（上月较短则截至月末），自定义范围比较紧挨起点的等长日期区间。`all` 没有上期。
+比较在同一个 SQLite 读事务内取本期、上期和本期减上期的结果。当天比较昨天，本周比较上周相同星期范围，本月比较上月 1 日至同日（上月较短则截至月末），自定义范围比较紧挨起点的等长日期区间。`yesterday` 比较前天，`lastWeek` 比较再前一个完整周，`lastMonth` 比较再前一个完整自然月，`last7`、`last30` 比较紧挨起点的前 7 天、前 30 天，与应用 `period.dart` 的上一期一致。`all` 没有上期。
 
 会话列表默认按最近活动排序，默认每页 20 条，接受 1 到 200。金额顺序中没有任何已计价记录的会话排最后。相同排序值按会话 ID、来源 ID 排序。用相同筛选与排序传回原样的 `next_cursor`，直到它为 `null`。游标基于上一页末条的排序位置。账本发生同步后，重新从第一页开始可得到更新后的完整列表。
 
