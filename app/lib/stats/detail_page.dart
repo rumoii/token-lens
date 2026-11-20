@@ -804,12 +804,11 @@ class _StatsDetailState extends State<StatsDetail> {
       cost: trendCost,
     );
     final sequence = sourceSequence(
-          c.overview?.sources.sources
-                  .where((s) => !c.isHidden(s.source))
-                  .toList() ??
-              [],
-        ),
-        slots = assignToolColors(sequence);
+      c.overview?.sources.sources
+              .where((s) => !c.isHidden(s.source))
+              .toList() ??
+          [],
+    );
     final order = sortByToolOrder(
       buckets
           .expand((b) => b.by.keys)
@@ -817,6 +816,13 @@ class _StatsDetailState extends State<StatsDetail> {
           .where((id) => buckets.any((b) => (b.by[id] ?? 0) > 0))
           .toList(),
       sequence,
+    );
+    final sources = order.toSet();
+    final slots = assignToolColors(
+      value.data.rows
+          .where((row) => sources.contains(row.key ?? ''))
+          .map((row) => (row.key ?? '', row.grossTokens)),
+      p,
     );
     final unit = {
       'hour': context.strings.hour,
@@ -861,7 +867,7 @@ class _StatsDetailState extends State<StatsDetail> {
                           width: 9,
                           height: 9,
                           decoration: BoxDecoration(
-                            color: p.category(slots[id] ?? 0),
+                            color: slots[id],
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),

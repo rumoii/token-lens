@@ -1,3 +1,7 @@
+import 'package:flutter/painting.dart';
+
+import '../theme/palette.dart';
+
 typedef SourceOrderRow = ({
   String source,
   String? firstObservedAt,
@@ -14,10 +18,26 @@ List<String> toolOrder(List<SourceOrderRow> sources) {
   return active.map((s) => s.source).toList();
 }
 
-// Slot 0 is the neutral 'other' colour; the palette owns all actual colours.
-Map<String, int> assignToolColors(List<String> order) => {
-  for (var i = 0; i < order.length; i++) order[i]: i < 8 ? i + 1 : 0,
-};
+Map<String, Color> assignToolColors(
+  Iterable<(String, int)> usage,
+  LensPalette palette,
+) {
+  final totals = <String, int>{};
+  for (final (id, tokens) in usage) {
+    totals.update(id, (total) => total + tokens, ifAbsent: () => tokens);
+  }
+  final ranked = totals.entries.toList()
+    ..sort((a, b) {
+      final byTokens = b.value.compareTo(a.value);
+      return byTokens != 0 ? byTokens : a.key.compareTo(b.key);
+    });
+  var inkRank = 0;
+  return {
+    for (final entry in ranked)
+      entry.key: palette.toolBrand(entry.key) ?? palette.toolInk(++inkRank),
+  };
+}
+
 List<String> sortByToolOrder(List<String> ids, List<String> order) {
   final rank = {for (var i = 0; i < order.length; i++) order[i]: i};
   return ids.toList()..sort((a, b) {

@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats_gateway.dart';
@@ -5,6 +7,25 @@ import 'package:token_lens_app/stats/detail_page.dart' show detailRows;
 
 import 'detail_page_test.dart' show DetailGateway, mountDetail;
 import 'sessions_page_test.dart' show SessionsGateway, mountSessions;
+
+Future<void> withTimingTooltip(
+  WidgetTester tester,
+  Finder target,
+  VoidCallback verify,
+) async {
+  await tester.ensureVisible(target);
+  final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  await mouse.addPointer(location: tester.getCenter(target));
+  try {
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    verify();
+  } finally {
+    await mouse.removePointer();
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+  }
+}
 
 StatsTiming exampleTiming(String method) => StatsTiming(
   requestCount: 4,
@@ -136,9 +157,13 @@ void main() {
         query: 'source=kimi&session=s',
         width: width,
       );
-      expect(find.text('客户端记录的计时'), findsNWidgets(2));
-      expect(find.text('按日志时间戳估算'), findsNWidgets(2));
-      expect(find.text('8 次里 2 次有记录'), findsNWidgets(4));
+      for (final value in ['一般 1.00 秒，慢时 4.00 秒', '约 50.0 token/s']) {
+        await withTimingTooltip(tester, find.text(value), () {
+          expect(find.text('$value · 客户端记录的计时'), findsOneWidget);
+          expect(find.text('$value · 按日志时间戳估算'), findsOneWidget);
+          expect(find.text('8 次请求里 2 次有记录'), findsNWidgets(2));
+        });
+      }
       expect(tester.takeException(), isNull);
     });
     for (final method in ['client_reported', 'log_timestamps']) {
@@ -153,11 +178,12 @@ void main() {
         expect(find.text('速度（回复时每秒出多少）'), findsOneWidget);
         expect(find.text('一般 1.00 秒，慢时 4.00 秒'), findsOneWidget);
         expect(find.text('约 50.0 token/s'), findsOneWidget);
-        expect(find.text('4 次里 2 次有记录'), findsNWidgets(2));
-        expect(
-          find.byTooltip(method == 'client_reported' ? '客户端记录的计时' : '按日志时间戳估算'),
-          findsNWidgets(2),
-        );
+        final source = method == 'client_reported' ? '客户端记录的计时' : '按日志时间戳估算';
+        for (final value in ['一般 1.00 秒，慢时 4.00 秒', '约 50.0 token/s']) {
+          await withTimingTooltip(tester, find.text(value), () {
+            expect(find.text('4 次请求里 2 次有记录 · $source'), findsOneWidget);
+          });
+        }
         expect(tester.takeException(), isNull);
       });
       for (final dim in ['tool', 'model']) {
@@ -172,13 +198,12 @@ void main() {
           expect(find.text('速度（回复时每秒出多少）'), findsOneWidget);
           expect(find.text('一般 1.00 秒，慢时 4.00 秒'), findsOneWidget);
           expect(find.text('约 50.0 token/s'), findsOneWidget);
-          expect(find.text('4 次里 2 次有记录'), findsNWidgets(2));
-          expect(
-            find.byTooltip(
-              method == 'client_reported' ? '客户端记录的计时' : '按日志时间戳估算',
-            ),
-            findsNWidgets(2),
-          );
+          final source = method == 'client_reported' ? '客户端记录的计时' : '按日志时间戳估算';
+          for (final value in ['一般 1.00 秒，慢时 4.00 秒', '约 50.0 token/s']) {
+            await withTimingTooltip(tester, find.text(value), () {
+              expect(find.text('4 次请求里 2 次有记录 · $source'), findsOneWidget);
+            });
+          }
           expect(tester.takeException(), isNull);
         });
       }
@@ -193,7 +218,9 @@ void main() {
       expect(find.byKey(const Key('session-ttft')), findsNothing);
       expect(find.byKey(const Key('session-speed')), findsNothing);
       expect(find.text('每次请求'), findsOneWidget);
-      expect(find.text('日志里没记：首字、速度、平均速度'), findsOneWidget);
+      await withTimingTooltip(tester, find.text('每次请求'), () {
+        expect(find.text('日志里没记：首字、速度、平均速度'), findsOneWidget);
+      });
       expect(find.textContaining('覆盖'), findsNothing);
       expect(tester.takeException(), isNull);
     });

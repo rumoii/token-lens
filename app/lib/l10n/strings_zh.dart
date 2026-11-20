@@ -2321,7 +2321,10 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String timedRequestCoverage(Object? requests, Object? recorded) =>
-      '$requests 次里 $recorded 次有记录';
+      '$requests 次请求里 $recorded 次有记录';
+
+  @override
+  String moreTimingEstimates(int count) => '· 另有 $count 种估算';
 
   @override
   String get timingReportedByTheClient => '客户端记录的计时';

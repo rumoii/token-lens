@@ -9,6 +9,7 @@ import 'package:token_lens_app/stats/widgets/timing.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
 import 'detail_page_test.dart' show DetailGateway, mountDetail;
+import 'timings_test.dart' show withTimingTooltip;
 
 const model = 'synthetic-shared-model-with-a-long-name';
 const sources = [
@@ -140,8 +141,8 @@ void main() {
   for (final turn in [false, true]) {
     for (final kind in TimingKind.values) {
       for (final counts in [
-        (2048, 1024, '2,048 次里 1,024 次有记录'),
-        (65536, 32768, '65,536 次里 32,768 次有记录'),
+        (2048, 1024, '2,048 次请求里 1,024 次有记录'),
+        (65536, 32768, '65,536 次请求里 32,768 次有记录'),
       ]) {
         testWidgets('FIX3 ${kind.name} turn=$turn ${counts.$1} 记录次数千位分隔', (
           tester,
@@ -194,8 +195,18 @@ void main() {
               ),
             ),
           );
-          expect(find.text(counts.$3), findsOneWidget);
-          expect(find.text('${counts.$1} 次里 ${counts.$2} 次有记录'), findsNothing);
+          final value = switch (kind) {
+            TimingKind.ttft => '一般 1.00 秒，慢时 2.00 秒',
+            TimingKind.speed => '约 50.0 token/s',
+            TimingKind.throughput => '约 25.0 token/s',
+          };
+          await withTimingTooltip(tester, find.text(value), () {
+            expect(find.textContaining(counts.$3), findsOneWidget);
+            expect(
+              find.textContaining('${counts.$1} 次请求里 ${counts.$2} 次有记录'),
+              findsNothing,
+            );
+          });
           expect(tester.takeException(), isNull);
         });
       }

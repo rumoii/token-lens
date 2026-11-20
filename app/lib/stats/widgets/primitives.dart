@@ -58,6 +58,56 @@ class _LensInputModality extends ChangeNotifier {
   }
 }
 
+class LensFocusTooltip extends StatefulWidget {
+  const LensFocusTooltip({
+    super.key,
+    required this.description,
+    required this.content,
+    required this.child,
+  });
+
+  final String description;
+  final Widget content;
+  final Widget child;
+
+  @override
+  State<LensFocusTooltip> createState() => _LensFocusTooltipState();
+}
+
+class _LensFocusTooltipState extends State<LensFocusTooltip> {
+  final _tooltip = GlobalKey<TooltipState>();
+  bool _focused = false;
+
+  void _focusChanged(bool value) {
+    _focused = value;
+    if (!value) {
+      Tooltip.dismissAllToolTips();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focused) _tooltip.currentState?.ensureTooltipVisible();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => LensFocusOutline(
+    child: Focus(
+      onFocusChange: _focusChanged,
+      child: Semantics(
+        tooltip: widget.description,
+        child: Tooltip(
+          key: _tooltip,
+          richMessage: WidgetSpan(child: widget.content),
+          excludeFromSemantics: true,
+          ignorePointer: true,
+          waitDuration: const Duration(milliseconds: 250),
+          child: widget.child,
+        ),
+      ),
+    ),
+  );
+}
+
 class LensFocusOutline extends StatefulWidget {
   const LensFocusOutline({
     super.key,
@@ -662,9 +712,10 @@ class _LensSegmentedState extends State<LensSegmented>
 }
 
 class ToolTile extends StatefulWidget {
-  const ToolTile(this.id, {super.key, this.size = 24});
+  const ToolTile(this.id, {super.key, this.size = 24, this.accent});
   final String id;
   final double size;
+  final Color? accent;
   @override
   State<ToolTile> createState() => _ToolTileState();
 }
@@ -685,13 +736,16 @@ class _ToolTileState extends State<ToolTile> {
         ? widget.size
         : 24.0;
     final logo = t.logo != null && !failed;
-    final brand =
-        (p.dark ? darkColors : lightColors)['tool-${widget.id}'] ?? p.muted;
+    final brand = p.toolBrand(widget.id) ?? p.toolInk(1);
+    // At this luminance, black and white have equal contrast.
+    final letterColor = brand.computeLuminance() > .179
+        ? Colors.black
+        : p['tile-ink'];
     Widget fallback() => Center(
       child: Text(
         t.letter,
         style: p
-            .text(s * .46, p['tile-ink'], FontWeight.w600)
+            .text(s * .46, letterColor, FontWeight.w600)
             .copyWith(height: 1),
       ),
     );
@@ -705,11 +759,13 @@ class _ToolTileState extends State<ToolTile> {
           decoration: BoxDecoration(
             color: logo ? p[t.darkGlyph ? 'tile-dark' : 'tile'] : brand,
             borderRadius: BorderRadius.circular(s * .28),
-            border: logo
-                ? Border.all(
-                    color: p[t.darkGlyph ? 'tile-dark-ring' : 'tile-ring'],
-                  )
-                : null,
+            border: switch (widget.accent) {
+              final color? => Border.all(color: color),
+              null when logo => Border.all(
+                color: p[t.darkGlyph ? 'tile-dark-ring' : 'tile-ring'],
+              ),
+              _ => null,
+            },
           ),
           child: logo
               ? Center(

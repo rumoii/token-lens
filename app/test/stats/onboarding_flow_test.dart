@@ -232,7 +232,7 @@ void main() {
     await tester.pump();
     expect(find.text('Qwen Code'), findsNothing);
   });
-  testWidgets('首次发现显示 Antigravity 和字母图标', (tester) async {
+  testWidgets('首次发现显示 Antigravity 和图标', (tester) async {
     final gateway = OnboardingGateway()
       ..found = const [StatsDiscoveredSource(source: 'antigravity', files: 2)];
     await mount(tester, own(gateway));
@@ -240,7 +240,13 @@ void main() {
     final tile = find.byWidgetPredicate(
       (widget) => widget is ToolTile && widget.id == 'antigravity',
     );
-    expect(find.descendant(of: tile, matching: find.text('A')), findsOneWidget);
+    final image = find.descendant(of: tile, matching: find.byType(Image));
+    expect(image, findsOneWidget);
+    expect(
+      tester.widget<Image>(image).image,
+      const AssetImage('assets/tool-logos/antigravity.png'),
+    );
+    expect(find.descendant(of: tile, matching: find.text('A')), findsNothing);
   });
 
   testWidgets('找到 0 个工具，重新检测 fresh=true，失败可重试', (tester) async {

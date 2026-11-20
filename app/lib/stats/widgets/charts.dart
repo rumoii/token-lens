@@ -61,7 +61,7 @@ class TrendChart extends StatefulWidget {
   });
   final List<TrendBucket> buckets;
   final List<String> order;
-  final Map<String, int> slots;
+  final Map<String, Color> slots;
   final String granularity, unitSystem, currency;
   final DateTime now;
   final String? highlight, selected;
@@ -287,9 +287,9 @@ class _TrendChartState extends State<TrendChart> {
                                             width: 8,
                                             height: 8,
                                             decoration: BoxDecoration(
-                                              color: p.category(
-                                                widget.slots[id] ?? 0,
-                                              ),
+                                              color:
+                                                  widget.slots[id] ??
+                                                  p.category(0),
                                               borderRadius:
                                                   BorderRadius.circular(3),
                                             ),
@@ -479,9 +479,9 @@ class _TrendPainter extends CustomPainter {
             topRight: Radius.circular(j == stack.length - 1 ? 5 : 0),
           ),
           Paint()
-            ..color = p
-                .category(w.slots[id] ?? 0)
-                .withValues(alpha: opacity.toDouble()),
+            ..color = (w.slots[id] ?? p.category(0)).withValues(
+              alpha: opacity.toDouble(),
+            ),
         );
         baseline -= height;
       }

@@ -44,26 +44,36 @@
 
 ## 工具图标来源
 
-图标来自固定发布包 `@lobehub/icons-static-svg@1.102.0`，未安装为项目依赖。来源：[LobeHub/lobe-icons](https://github.com/lobehub/lobe-icons)。
+图标来自 [LobeHub/lobe-icons](https://github.com/lobehub/lobe-icons) 的固定发布包 `@lobehub/icons-static-svg`，使用 1.102.0 和 1.104.0 两个版本，未安装为项目依赖。
 
 导入时保留几何数据，统一尺寸并在 SVG metadata 中登记来源；单色图使用中性色，Pi 在既有深底磁贴上使用浅色。包中没有对应工具图标的 ZCode 使用本项目绘制的中性首字母方块。
 
+桌面应用的 1.104.0 PNG 由对应的 SVG 渲染而成。SVG 源文件位于 `app/assets/tool-logos/src/`。
+
 | 文件 | 来源与版本 | 许可 |
 | --- | --- | --- |
-| claude-code.svg | @lobehub/icons-static-svg 1.102.0, icons/claudecode-color.svg | MIT |
+| antigravity.svg | @lobehub/icons-static-svg 1.104.0, icons/antigravity-color.svg | MIT |
+| claude-code.svg | @lobehub/icons-static-svg 1.104.0, icons/claude-color.svg | MIT |
 | cline.svg | @lobehub/icons-static-svg 1.102.0, icons/cline.svg | MIT |
 | codebuddy.svg | @lobehub/icons-static-svg 1.102.0, icons/codebuddy-color.svg | MIT |
 | codex.svg | @lobehub/icons-static-svg 1.102.0, icons/codex-color.svg | MIT |
+| commandcode.svg | @lobehub/icons-static-svg 1.104.0, icons/commandcode.svg | MIT |
 | copilot.svg | @lobehub/icons-static-svg 1.102.0, icons/copilot-color.svg | MIT |
 | cursor.svg | @lobehub/icons-static-svg 1.102.0, icons/cursor.svg | MIT |
 | deepseek.svg | @lobehub/icons-static-svg 1.102.0, icons/deepseek-color.svg | MIT |
 | gemini.svg | @lobehub/icons-static-svg 1.102.0, icons/geminicli-color.svg | MIT |
+| goose.svg | @lobehub/icons-static-svg 1.104.0, icons/goose.svg | MIT |
 | grok.svg | @lobehub/icons-static-svg 1.102.0, icons/grok.svg | MIT |
 | hermes.svg | @lobehub/icons-static-svg 1.102.0, icons/hermesagent.svg | MIT |
+| kilo.svg | @lobehub/icons-static-svg 1.104.0, icons/kilocode.svg | MIT |
 | kimi.svg | @lobehub/icons-static-svg 1.102.0, icons/kimi-color.svg | MIT |
+| minimax.svg | @lobehub/icons-static-svg 1.104.0, icons/minimax-color.svg | MIT |
 | openclaw.svg | @lobehub/icons-static-svg 1.102.0, icons/openclaw-color.svg | MIT |
+| openhands.svg | @lobehub/icons-static-svg 1.104.0, icons/openhands-color.svg | MIT |
 | opencode.svg | @lobehub/icons-static-svg 1.102.0, icons/opencode.svg | MIT |
 | pi.svg | @lobehub/icons-static-svg 1.102.0, icons/pi.svg | MIT |
+| qwen.svg | @lobehub/icons-static-svg 1.104.0, icons/qwen-color.svg | MIT |
+| trae.svg | @lobehub/icons-static-svg 1.104.0, icons/trae-color.svg | MIT |
 | mimo.svg | @lobehub/icons-static-svg 1.102.0, icons/xiaomimimo.svg | MIT |
 | zcode.svg | 本项目绘制：ZCode 首字母方块 | MIT（本项目） |
 

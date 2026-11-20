@@ -298,11 +298,7 @@ class _StatsHomeState extends State<StatsHome> {
         data.sources.sources.where((s) => !c.isHidden(s.source)).toList(),
       ),
     );
-    final slots = assignToolColors(
-      sourceSequence(
-        data.sources.sources.where((s) => !c.isHidden(s.source)).toList(),
-      ),
-    );
+    final slots = assignToolColors(rank.map((g) => (g.id, g.tokens)), p);
     final period = data.period, now = c.clock();
     final compare = period.compare(now, context.strings);
     final buckets = buildBuckets(data.matrix.rows, data.axis, now);
@@ -528,7 +524,7 @@ class _StatsHomeState extends State<StatsHome> {
           kpis(data, buckets, best),
           pair(
             LensEnter(index: 5, child: trend(data, buckets, order, slots)),
-            LensEnter(index: 6, child: modelList(data, models, slots)),
+            LensEnter(index: 6, child: modelList(data, models)),
           ),
           pair(
             c.resourceErrors.containsKey('year') ||
@@ -554,7 +550,7 @@ class _StatsHomeState extends State<StatsHome> {
     StatsHomeData data,
     List<ToolUsage> rank,
     List<String> order,
-    Map<String, int> slots,
+    Map<String, Color> slots,
     int? cmp,
     String comparison,
   ) {
@@ -721,7 +717,7 @@ class _StatsHomeState extends State<StatsHome> {
                           margin: EdgeInsets.only(
                             right: key == order.last ? 0 : 2,
                           ),
-                          color: p.category(slots[key] ?? 0),
+                          color: slots[key],
                         ),
                       ),
                     ),
@@ -769,7 +765,7 @@ class _StatsHomeState extends State<StatsHome> {
                         flex: 180,
                         child: bar(
                           g.tokens / math.max(1, rank.first.tokens),
-                          p.category(slots[g.id] ?? 0),
+                          slots[g.id]!,
                           height: 6,
                           delay: 230 + rank.indexOf(g) * 57,
                         ),
@@ -1226,7 +1222,7 @@ class _StatsHomeState extends State<StatsHome> {
     StatsHomeData data,
     List<TrendBucket> usageBuckets,
     List<String> order,
-    Map<String, int> slots,
+    Map<String, Color> slots,
   ) {
     final buckets = trendCost
         ? buildBuckets(data.matrix.rows, data.axis, c.clock(), cost: true)
@@ -1285,7 +1281,7 @@ class _StatsHomeState extends State<StatsHome> {
                                 width: 9,
                                 height: 9,
                                 decoration: BoxDecoration(
-                                  color: p.category(slots[key] ?? 0),
+                                  color: slots[key],
                                   borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
@@ -1346,11 +1342,7 @@ class _StatsHomeState extends State<StatsHome> {
     );
   }
 
-  Widget modelList(
-    StatsHomeData data,
-    List<ModelUsage> models,
-    Map<String, int> slots,
-  ) => LensCard(
+  Widget modelList(StatsHomeData data, List<ModelUsage> models) => LensCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1371,7 +1363,7 @@ class _StatsHomeState extends State<StatsHome> {
               const EdgeInsets.fromLTRB(18, 14, 18, 18) * c.preferences.spacing,
           child: Column(
             children: [
-              for (final model in models)
+              for (final (i, model) in models.indexed)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: rowLink(
@@ -1424,8 +1416,8 @@ class _StatsHomeState extends State<StatsHome> {
                           const SizedBox(height: 6),
                           bar(
                             model.tokens / math.max(1, models.first.tokens),
-                            p.category(slots[model.topTool] ?? 0),
-                            delay: 230 + models.indexOf(model) * 57,
+                            p.category(i + 1),
+                            delay: 230 + i * 57,
                           ),
                         ],
                       ),

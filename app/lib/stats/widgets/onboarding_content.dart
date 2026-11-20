@@ -769,14 +769,6 @@ class _CompletionTools extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context), s = context.strings;
-    final slots = assignToolColors(
-      sourceSequence(
-        controller.overview?.sources.sources
-                .where((source) => !controller.isHidden(source.source))
-                .toList() ??
-            [],
-      ),
-    );
     final groups =
         breakdown.groups
             .where((group) => group.key?.isNotEmpty == true)
@@ -788,6 +780,10 @@ class _CompletionTools extends StatelessWidget {
     if (groups.isEmpty) return const SizedBox.shrink();
 
     final visible = groups.length <= 5 ? groups : groups.take(4);
+    final colors = assignToolColors(
+      visible.map((group) => (group.key!, group.grossTokens)),
+      p,
+    );
     final other = groups.skip(visible.length).toList();
     final pricedOther = other.where((group) => group.costMicros != null);
     final otherCost = pricedOther.isEmpty
@@ -840,7 +836,7 @@ class _CompletionTools extends StatelessWidget {
                     value: share.clamp(0, 1),
                     minHeight: 5,
                     backgroundColor: p['fill-hover'],
-                    color: p.category(slots[id] ?? 0),
+                    color: colors[id] ?? p.category(0),
                   ),
                 ),
               ),

@@ -9,6 +9,7 @@ import '../stats_controller.dart';
 import 'logic/detail_query.dart';
 import 'logic/period.dart';
 import 'logic/format.dart';
+import 'logic/tool_order.dart';
 import 'logic/tools.dart';
 import 'theme/palette.dart';
 import 'widgets/primitives.dart';
@@ -123,6 +124,10 @@ class _StatsPageState extends State<StatsPage> {
           return delta != 0 ? delta : a.key.compareTo(b.key);
         });
     final total = c.overview?.sidebar.totals.grossTokens ?? 0;
+    final colors = assignToolColors(
+      entries.map((entry) => (entry.key, entry.value)),
+      p,
+    );
     return StatsSidebar(
       closeDrawer: drawer ? () => scaffold.currentState?.closeDrawer() : null,
       content: ListView(
@@ -167,7 +172,11 @@ class _StatsPageState extends State<StatsPage> {
                 StatsNavRow(
                   key: ValueKey('sidebar-tool-${entry.key}'),
                   label: toolOf(entry.key).name,
-                  icon: ToolTile(entry.key, size: 20),
+                  icon: ToolTile(
+                    entry.key,
+                    size: 20,
+                    accent: colors[entry.key],
+                  ),
                   spacing: c.preferences.spacing,
                   onTap: () =>
                       navigate('detail', {'tool': entry.key, 'dim': 'model'}),

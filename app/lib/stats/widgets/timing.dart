@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../stats_gateway.dart';
 import '../logic/format.dart';
 import '../theme/palette.dart';
+import 'primitives.dart';
 
 enum TimingKind {
   ttft,
@@ -73,10 +74,23 @@ class TimingStrip extends StatelessWidget {
         .where((kind) => !kind.hasSamples(timing, turn: turn))
         .map((kind) => kind.copy(context.strings).$2)
         .join(context.strings.listSeparator);
-    final scope = Tooltip(
-      message: turn
-          ? context.strings.thisToolLogsTimingForAWhole2
-          : context.strings.perRequestEstimatesBasedOnLogTimestamps,
+    final hint = turn
+        ? context.strings.thisToolLogsTimingForAWhole2
+        : context.strings.perRequestEstimatesBasedOnLogTimestamps;
+    final missingHint = missing.isEmpty
+        ? null
+        : context.strings.missingFromLogs0(missing);
+    final scope = LensFocusTooltip(
+      description: [hint, ?missingHint].join('\n'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(hint),
+          if (missingHint != null)
+            Text(missingHint, style: p.text(11.5, p.muted)),
+        ],
+      ),
       child: Text(
         turn ? context.strings.perTurn : context.strings.perRequest2,
         style: scopeAsTitle && !turn
@@ -99,11 +113,6 @@ class TimingStrip extends StatelessWidget {
               turn: turn,
               requestCount: requestCount,
             ),
-        if (missing.isNotEmpty)
-          Text(
-            context.strings.missingFromLogs0(missing),
-            style: p.text(11.5, p.muted),
-          ),
       ],
     );
     return scopeAsTitle
@@ -186,6 +195,27 @@ class TimingMetric extends StatelessWidget {
       ],
     };
     if (samples.isEmpty) return const SizedBox.shrink();
+    final primary = samples.firstWhere(
+      (sample) => sample.method == 'client_reported',
+      orElse: () => samples.first,
+    );
+    final multiple = samples.length > 1;
+    final lines = <({String value, String detail})>[
+      for (final sample in samples)
+        (
+          value: multiple
+              ? '${sample.value} · ${source(sample.method, context.strings)}'
+              : sample.value,
+          detail: [
+            if (sample.count < n)
+              context.strings.timedRequestCoverage(
+                toDisplayNumber(n),
+                toDisplayNumber(sample.count),
+              ),
+            if (!multiple) source(sample.method, context.strings),
+          ].join(' · '),
+        ),
+    ];
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,31 +246,73 @@ class TimingMetric extends StatelessWidget {
             ),
           ],
         ),
-        for (final sample in samples)
-          Tooltip(
-            message: source(sample.method, context.strings),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (samples.length > 1)
-                  Text(
-                    source(sample.method, context.strings),
-                    style: p.text(11, p.muted),
-                  ),
-                Text(sample.value, style: p.text(13, p.secondary)),
-                if (sample.count < n)
-                  Text(
-                    context.strings.timedRequestCoverage(
-                      toDisplayNumber(n),
-                      toDisplayNumber(sample.count),
-                    ),
-                    style: p.text(11, p.muted),
-                  ),
+        LensFocusTooltip(
+          description: [
+            for (final line in lines) ...[
+              line.value,
+              if (line.detail.isNotEmpty) line.detail,
+            ],
+          ].join('\n'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (index, line) in lines.indexed) ...[
+                if (index > 0) const SizedBox(height: 6),
+                Text(line.value),
+                if (line.detail.isNotEmpty)
+                  Text(line.detail, style: p.text(11.5, p.muted)),
               ],
-            ),
+            ],
           ),
+          child: Wrap(
+            spacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _TimingValue(primary.value),
+              if (multiple)
+                Text(
+                  context.strings.moreTimingEstimates(samples.length - 1),
+                  style: p.text(11, p.muted),
+                ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _TimingValue extends StatefulWidget {
+  const _TimingValue(this.value);
+
+  final String value;
+
+  @override
+  State<_TimingValue> createState() => _TimingValueState();
+}
+
+class _TimingValueState extends State<_TimingValue> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Text(
+        widget.value,
+        style: p
+            .text(13, p.secondary)
+            .copyWith(
+              decoration: _hovered
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
+              decorationStyle: TextDecorationStyle.dashed,
+              decorationColor: p.faint,
+            ),
+      ),
     );
   }
 }

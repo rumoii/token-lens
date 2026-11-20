@@ -410,13 +410,19 @@ void main() {
     expect(sourceText('A（真实样本）'), findsOneWidget);
     expect(sourceText('累计型：一个会话只有一条快照'), findsOneWidget);
   });
-  testWidgets('来源页显示 Antigravity 和字母图标', (tester) async {
+  testWidgets('来源页显示 Antigravity 和图标', (tester) async {
     await mount(tester, SourcesGateway()..items = [source('antigravity')]);
     expect(sourceText('Antigravity'), findsOneWidget);
     final tile = find.byWidgetPredicate(
       (widget) => widget is ToolTile && widget.id == 'antigravity',
     );
-    expect(find.descendant(of: tile, matching: find.text('A')), findsOneWidget);
+    final image = find.descendant(of: tile, matching: find.byType(Image));
+    expect(image, findsOneWidget);
+    expect(
+      tester.widget<Image>(image).image,
+      const AssetImage('assets/tool-logos/antigravity.png'),
+    );
+    expect(find.descendant(of: tile, matching: find.text('A')), findsNothing);
   });
 
   testWidgets('空来源和零记录不作为找到工具', (tester) async {

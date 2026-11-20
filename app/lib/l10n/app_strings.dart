@@ -835,6 +835,7 @@ abstract class AppStrings {
   String get timedOnly;
   String get timedOut;
   String timedRequestCoverage(Object? requests, Object? recorded);
+  String moreTimingEstimates(int count);
   String get timingReportedByTheClient;
   String get to;
   String get today;

@@ -1,5 +1,7 @@
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats/logic/tool_order.dart';
+import 'package:token_lens_app/stats/theme/palette.dart';
 
 void main() {
   SourceOrderRow row(String source, String? first, [int records = 1]) =>
@@ -27,22 +29,27 @@ void main() {
       ['aider', 'pi', 'qwen'],
     ),
   );
-  test('tool-colors: 8 个槽位及其他', () {
-    final map = assignToolColors(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
-    expect(map['a'], 1);
-    expect(map['h'], 8);
-    expect(map['i'], 0);
+  test('tool-colors: 墨色 5 档，第 5 档复用', () {
+    final map = assignToolColors([
+      ('a', 9),
+      ('b', 8),
+      ('c', 7),
+      ('d', 6),
+      ('e', 5),
+      ('f', 4),
+    ], const LensPalette(false));
+    expect(map['a'], const Color(0xff3b3936));
+    expect(map['e'], const Color(0xffcbc8c0));
+    expect(map['f'], const Color(0xffcbc8c0));
   });
   test(
-    'tool-colors: 与用量无关',
+    'tool-colors: 品牌色与用量无关',
     () => expect(
-      assignToolColors(
-        toolOrder([
-          row('dsh', '2026-10-17T00:00:00Z'),
-          row('codex', '2026-10-18T00:00:00Z'),
-        ]),
-      )['dsh'],
-      1,
+      assignToolColors([
+        ('dsh', 1),
+        ('codex', 2),
+      ], const LensPalette(false))['dsh'],
+      const Color(0xff4d68e8),
     ),
   );
   test(

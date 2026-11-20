@@ -6,7 +6,7 @@ import 'package:token_lens_app/stats_gateway.dart';
 
 import 'detail_page_test.dart' show mountDetail;
 import 'sessions_page_test.dart' show mountSessions;
-import 'timings_test.dart' show TimingDetail, TimingSessions;
+import 'timings_test.dart' show TimingDetail, TimingSessions, withTimingTooltip;
 
 const throughputHint = '整次请求的输出 token 除以总耗时，等待时间也算在内，所以通常比“速度”低。';
 
@@ -103,16 +103,18 @@ Finder cell(String page, String metric, {bool turn = false}) => find.byKey(
   ),
 );
 
-void expectCell(Finder target, String value, String coverage) {
+Future<void> expectCell(
+  WidgetTester tester,
+  Finder target,
+  String value,
+  String coverage,
+) async {
   expect(target, findsOneWidget);
-  expect(
-    find.descendant(of: target, matching: find.text(value)),
-    findsOneWidget,
-  );
-  expect(
-    find.descendant(of: target, matching: find.text(coverage)),
-    findsOneWidget,
-  );
+  final valueText = find.descendant(of: target, matching: find.text(value));
+  expect(valueText, findsOneWidget);
+  await withTimingTooltip(tester, valueText, () {
+    expect(find.text(coverage), findsOneWidget);
+  });
 }
 
 void main() {
@@ -133,7 +135,9 @@ void main() {
         expect(cell('session', 'throughput'), findsNothing);
         expect(cell('session', 'throughput', turn: true), findsNothing);
         expect(find.text('每轮对话'), findsOneWidget);
-        expect(find.text('日志里没记：首字、速度、平均速度'), findsOneWidget);
+        await withTimingTooltip(tester, find.text('每轮对话'), () {
+          expect(find.text('日志里没记：首字、速度、平均速度'), findsOneWidget);
+        });
         expect(tester.takeException(), isNull);
       });
     }
@@ -153,8 +157,18 @@ void main() {
           final request = cell(page, 'throughput');
           final turn = cell(page, 'throughput', turn: true);
           if (state == 'request' || state == 'mixed') {
-            expectCell(request, '约 25.0 token/s', '4 次里 2 次有记录');
-            expectCell(cell(page, 'speed'), '约 50.0 token/s', '4 次里 2 次有记录');
+            await expectCell(
+              tester,
+              request,
+              '约 25.0 token/s',
+              '4 次请求里 2 次有记录 · 客户端记录的计时',
+            );
+            await expectCell(
+              tester,
+              cell(page, 'speed'),
+              '约 50.0 token/s',
+              '4 次请求里 2 次有记录 · 按推理开始事件估算',
+            );
             final speed = tester.getRect(cell(page, 'speed'));
             final throughput = tester.getRect(request);
             if (throughput.top > speed.top + 2) {
@@ -165,7 +179,12 @@ void main() {
             }
             expect(throughput.left, greaterThanOrEqualTo(0));
             expect(throughput.right, lessThanOrEqualTo(width));
-            expect(find.byTooltip('按推理开始事件估算'), findsNWidgets(2));
+            await expectCell(
+              tester,
+              cell(page, 'ttft'),
+              '一般 1.00 秒，慢时 4.00 秒',
+              '4 次请求里 2 次有记录 · 按推理开始事件估算',
+            );
           } else {
             expect(request, findsNothing);
             expect(
@@ -179,13 +198,21 @@ void main() {
             expect(find.text('每轮对话'), findsOneWidget);
             if (state == 'empty') {
               expect(turn, findsNothing);
-              expect(
-                find.text('日志里没记：首字、速度、平均速度'),
-                page == 'session' ? findsNWidgets(2) : findsOneWidget,
-              );
+              for (final scope in ['每轮对话', if (page == 'session') '每次请求']) {
+                await withTimingTooltip(tester, find.text(scope), () {
+                  expect(find.text('日志里没记：首字、速度、平均速度'), findsOneWidget);
+                });
+              }
             } else {
-              expectCell(turn, '约 12.5 token/s', '3 次里 1 次有记录');
-              expect(find.text('日志里没记：速度'), findsOneWidget);
+              await expectCell(
+                tester,
+                turn,
+                '约 12.5 token/s',
+                '3 次请求里 1 次有记录 · 客户端记录的计时',
+              );
+              await withTimingTooltip(tester, find.text('每轮对话'), () {
+                expect(find.text('日志里没记：速度'), findsOneWidget);
+              });
             }
             expect(cell(page, 'speed', turn: true), findsNothing);
             if (state == 'mixed') {

@@ -2481,7 +2481,11 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String timedRequestCoverage(Object? requests, Object? recorded) =>
-      'Recorded for $recorded of $requests ${_isOne(requests) ? 'request' : 'requests'}';
+      '$recorded of $requests requests recorded';
+
+  @override
+  String moreTimingEstimates(int count) =>
+      '· $count more ${count == 1 ? 'estimate' : 'estimates'}';
 
   @override
   String get timingReportedByTheClient => 'Timing reported by the client';

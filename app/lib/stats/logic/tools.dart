@@ -7,7 +7,7 @@ const tools = <String, ToolInfo>{
     darkGlyph: false,
   ),
   'codex': (name: 'Codex', logo: 'codex.png', letter: 'C', darkGlyph: false),
-  'qwen': (name: 'Qwen Code', logo: null, letter: 'Q', darkGlyph: false),
+  'qwen': (name: 'Qwen Code', logo: 'qwen.png', letter: 'Q', darkGlyph: false),
   'dsh': (name: 'DSH', logo: 'deepseek.png', letter: 'D', darkGlyph: false),
   'grok': (name: 'Grok CLI', logo: 'grok.png', letter: 'G', darkGlyph: false),
   'anythingllm': (
@@ -18,7 +18,7 @@ const tools = <String, ToolInfo>{
   ),
   'commandcode': (
     name: 'Command Code',
-    logo: null,
+    logo: 'commandcode.png',
     letter: 'C',
     darkGlyph: false,
   ),
@@ -34,7 +34,7 @@ const tools = <String, ToolInfo>{
   ),
   'antigravity': (
     name: 'Antigravity',
-    logo: null,
+    logo: 'antigravity.png',
     letter: 'A',
     darkGlyph: false,
   ),
@@ -45,17 +45,17 @@ const tools = <String, ToolInfo>{
     letter: 'O',
     darkGlyph: false,
   ),
-  'kilo': (name: 'Kilo Code', logo: null, letter: 'K', darkGlyph: false),
+  'kilo': (name: 'Kilo Code', logo: 'kilo.png', letter: 'K', darkGlyph: false),
   'openhands': (
     name: 'OpenHands CLI',
-    logo: null,
+    logo: 'openhands.png',
     letter: 'O',
     darkGlyph: false,
   ),
-  'goose': (name: 'Goose', logo: null, letter: 'G', darkGlyph: false),
+  'goose': (name: 'Goose', logo: 'goose.png', letter: 'G', darkGlyph: false),
   'zed': (name: 'Zed', logo: null, letter: 'Z', darkGlyph: false),
   'continue': (name: 'Continue', logo: null, letter: 'C', darkGlyph: false),
-  'trae': (name: 'Trae', logo: null, letter: 'T', darkGlyph: false),
+  'trae': (name: 'Trae', logo: 'trae.png', letter: 'T', darkGlyph: false),
   'copilot': (
     name: 'Copilot',
     logo: 'copilot.png',
@@ -70,7 +70,12 @@ const tools = <String, ToolInfo>{
   ),
   'mimo': (name: 'MiMo Code', logo: 'mimo.png', letter: 'M', darkGlyph: false),
   'kimi': (name: 'Kimi', logo: 'kimi.png', letter: 'K', darkGlyph: false),
-  'minimax': (name: 'MiniMax Code', logo: null, letter: 'M', darkGlyph: false),
+  'minimax': (
+    name: 'MiniMax Code',
+    logo: 'minimax.png',
+    letter: 'M',
+    darkGlyph: false,
+  ),
   'zcode': (name: 'ZCode', logo: 'zcode.png', letter: 'Z', darkGlyph: false),
   'codebuddy': (
     name: 'CodeBuddy',

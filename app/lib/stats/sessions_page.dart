@@ -211,6 +211,11 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     ...history,
     if (page.fresh) ...page.data?.items ?? [],
   ];
+  Map<String, Color> toolColors() => assignToolColors(
+    items.map((item) => (item.source, item.grossTokens)),
+    LensPalette.of(context),
+  );
+
   String? get nextCursor => page.fresh ? page.data?.nextCursor : null;
   void filter(String key, String value) {
     final next = {...q};
@@ -333,7 +338,14 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         title: heading.value.title,
         hint: heading.value.hint,
         heading: heading,
-        icon: ToolTile(source, size: 40),
+        icon: ToolTile(
+          source,
+          size: 40,
+          accent:
+              toolColors()[source] ??
+              LensPalette.of(context).toolBrand(source) ??
+              LensPalette.of(context).toolInk(1),
+        ),
         body: SessionDetail(
           controller: c,
           source: source,
@@ -615,6 +627,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       alignment: right ? Alignment.centerRight : Alignment.centerLeft,
       child: child,
     );
+    final colors = toolColors();
     Widget row(StatsSessionItem r) {
       final texts = values(r);
       final title =
@@ -626,7 +639,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       final label = context.strings.viewSession01(title, toolOf(r.source).name);
       final name = Row(
         children: [
-          ToolTile(r.source, size: narrow ? 32 : 28),
+          ToolTile(r.source, size: narrow ? 32 : 28, accent: colors[r.source]),
           SizedBox(width: narrow ? 12 : 10),
           Expanded(
             child: Column(
@@ -1325,14 +1338,6 @@ class _SessionDetailState extends State<SessionDetail> {
       s.cacheWriteTokens,
     ];
     final kindSum = kinds.fold<int>(0, (n, k) => n + (k ?? 0));
-    final slots = assignToolColors(
-      sourceSequence(
-        c.overview?.sources.sources
-                .where((s) => !c.isHidden(s.source))
-                .toList() ??
-            [],
-      ),
-    );
     Widget mini(String label, Widget v, {Key? key}) => Expanded(
       child: Container(
         key: key,
@@ -1698,7 +1703,7 @@ class _SessionDetailState extends State<SessionDetail> {
                     const SizedBox(height: 6),
                     bar(
                       value.models[i].grossTokens / topModel,
-                      p.category(slots[widget.source] ?? 0),
+                      p.category(i + 1),
                     ),
                   ],
                 ),
