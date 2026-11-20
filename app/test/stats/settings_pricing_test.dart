@@ -348,7 +348,7 @@ void main() {
         final summary = t
             .widget<Text>(find.textContaining('按时段计价：36 次在低谷时段'))
             .data!;
-        for (final text in ['100 条区间加权', '37 条周占比估算', '节假日仅登记到 2027 年']) {
+        for (final text in ['100 条区间加权', '37 条周占比估算', '节假日仅登记到 2027年']) {
           expect(summary, isNot(contains(text)));
         }
         await t.tap(find.text('deepseek-flash'));

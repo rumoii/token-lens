@@ -108,11 +108,31 @@ class _OnboardingContentState extends State<OnboardingContent> {
         ?.toLocal();
     final firstSeenText = firstSeen == null
         ? '—'
-        : context.strings.spacedCalendarDayWithYear(
+        : context.strings.calendarDayWithYear(
             firstSeen.year,
             firstSeen.month,
             firstSeen.day,
           );
+    final completionMetrics = [
+      (
+        summary == null
+            ? '—'
+            : tokenCount(
+                summary.totals.grossTokens,
+                mode: c.preferences.tokenMode,
+                unitSystem: c.unitSystem,
+              ),
+        context.strings.tokenUnit,
+      ),
+      (
+        summary == null ? '—' : toDisplayNumber(summary.totals.recordCount),
+        context.strings.recordsNoun(summary?.totals.recordCount ?? 0),
+      ),
+      (
+        summary == null ? '—' : toDisplayNumber(summary.activity.sessions),
+        context.strings.sessionsNoun(summary?.activity.sessions ?? 0),
+      ),
+    ];
     return Material(
       color: p['surface-0'],
       child: Stack(
@@ -182,80 +202,56 @@ class _OnboardingContentState extends State<OnboardingContent> {
                     const SizedBox(height: 28),
                     if (done) ...[
                       LensCard(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Table(
+                          defaultVerticalAlignment:
+                              TableCellVerticalAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          border: TableBorder(
+                            verticalInside: BorderSide(
+                              width: LensPalette.hairline(context),
+                              color: p['line-soft'],
+                            ),
+                          ),
                           children: [
-                            for (final entry in [
-                              (
-                                summary == null
-                                    ? '—'
-                                    : tokenCount(
-                                        summary.totals.grossTokens,
-                                        mode: c.preferences.tokenMode,
-                                        unitSystem: c.unitSystem,
+                            TableRow(
+                              children: [
+                                for (final (index, (number, unit))
+                                    in completionMetrics.indexed)
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      18,
+                                      16,
+                                      18,
+                                      0,
+                                    ),
+                                    child: Tooltip(
+                                      message: index == 0 && summary != null
+                                          ? '${toDisplayNumber(summary.totals.grossTokens)} $unit'
+                                          : '',
+                                      child: Text(
+                                        number,
+                                        style: p
+                                            .serif(width >= 1024 ? 26 : 20)
+                                            .copyWith(height: 1.2),
                                       ),
-                                context.strings.tokenUnit,
-                              ),
-                              (
-                                summary == null
-                                    ? '—'
-                                    : toDisplayNumber(
-                                        summary.totals.recordCount,
-                                      ),
-                                context.strings.recordsNoun(
-                                  summary?.totals.recordCount ?? 0,
-                                ),
-                              ),
-                              (
-                                summary == null
-                                    ? '—'
-                                    : toDisplayNumber(
-                                        summary.activity.sessions,
-                                      ),
-                                context.strings.sessionsNoun(
-                                  summary?.activity.sessions ?? 0,
-                                ),
-                              ),
-                            ].indexed)
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                    vertical: 16,
+                                    ),
                                   ),
-                                  foregroundDecoration: BoxDecoration(
-                                    border: entry.$1 == 0
-                                        ? null
-                                        : Border(
-                                            left: BorderSide(
-                                              width: LensPalette.hairline(
-                                                context,
-                                              ),
-                                              color: p['line-soft'],
-                                            ),
-                                          ),
+                              ],
+                            ),
+                            TableRow(
+                              children: [
+                                for (final (_, unit) in completionMetrics)
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      18,
+                                      0,
+                                      18,
+                                      16,
+                                    ),
+                                    child: text(unit, 12.5, color: p.muted),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Tooltip(
-                                        message:
-                                            entry.$1 == 0 && summary != null
-                                            ? '${toDisplayNumber(summary.totals.grossTokens)} ${context.strings.tokenUnit}'
-                                            : '',
-                                        child: Text(
-                                          entry.$2.$1,
-                                          style: p
-                                              .serif(width >= 1024 ? 26 : 20)
-                                              .copyWith(height: 1.2),
-                                        ),
-                                      ),
-                                      text(entry.$2.$2, 12.5, color: p.muted),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              ],
+                            ),
                           ],
                         ),
                       ),

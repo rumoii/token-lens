@@ -307,7 +307,7 @@ void main() {
     );
     final panel = find.bySemanticsLabel('会话详情');
     expect(
-      find.descendant(of: panel, matching: find.text('Claude Code')),
+      find.descendant(of: panel, matching: find.text('Claude Code 会话')),
       findsOneWidget,
     );
     expect(
@@ -584,7 +584,7 @@ void main() {
   testWidgets('F1-23 empty ledger offers sync and sources', (tester) async {
     await mountPolish(tester, gateway: FakeStatsGateway()..empty = true);
     expect(find.text('还没有任何用量'), findsOneWidget);
-    expect(find.text('看工具来源'), findsOneWidget);
+    expect(find.text('查看工具'), findsOneWidget);
     expect(find.text('看本月'), findsNothing);
     expect(find.text('看全部'), findsNothing);
     expect(find.textContaining('换个时间范围看看'), findsNothing);

@@ -244,44 +244,25 @@ class SettingsUpdate extends StatelessWidget {
                 color: p['line-soft'],
               ),
               const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6, right: 12),
-                    child: LensCheckbox(
-                      value: prefs.autoCheckUpdates,
-                      label: context.strings.checkAutomaticallyOnceADay,
-                      onChanged: (value) =>
-                          unawaited(controller.setAutomatic(value)),
-                    ),
+              LensSwitch(
+                value: prefs.autoCheckUpdates,
+                onChanged: (value) => unawaited(controller.setAutomatic(value)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.strings.checkAutomaticallyOnceADay,
+                        style: p.text(14, null, FontWeight.w500),
+                      ),
+                      Text(
+                        context.strings.asksApiGithubComForTheLatest,
+                        style: p.text(12.5, p.muted),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        LensFocusOutline(
-                          child: InkWell(
-                            onTap: () => unawaited(
-                              controller.setAutomatic(!prefs.autoCheckUpdates),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Text(
-                                context.strings.checkAutomaticallyOnceADay,
-                                style: p.text(13),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Text(
-                          context.strings.asksApiGithubComForTheLatest,
-                          style: p.text(12, p.muted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),

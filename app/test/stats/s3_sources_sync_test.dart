@@ -188,7 +188,7 @@ void main() {
       'S3 inventory searches paths and copies a directory ($language)',
       (tester) async {
         final c = await mountS3(tester, S3Gateway(), language);
-        await tester.tap(find.text(en ? 'Tools' : '工具来源'));
+        await tester.tap(find.text(en ? 'Tools' : '工具'));
         await tester.pumpAndSettle();
         expect(
           find.text(en ? 'Search tools or paths' : '搜工具或路径'),

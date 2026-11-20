@@ -49,9 +49,6 @@ final class EnglishStrings extends AppStrings {
   String get clearSessionSearch => 'Clear';
 
   @override
-  String get sessionSortUsage => 'Usage in period';
-
-  @override
   String get sessionSortCost => 'Cost';
 
   @override
@@ -74,7 +71,8 @@ final class EnglishStrings extends AppStrings {
       'Sessions with usage ($period), sorted by $sort. Totals cover the full session.';
 
   @override
-  String get sessionSortUsageInSentence => 'usage in that period';
+  String sessionSortUsageInSentence(String periodLabel) =>
+      'usage in that period';
 
   @override
   String get sessionSortCostInSentence => 'cost';
@@ -725,14 +723,6 @@ final class EnglishStrings extends AppStrings {
   String get cost => 'Cost';
 
   @override
-  String get costsAreEstimatesAtEachModelS =>
-      'Costs are estimated at each model\'s list price for comparison, not your bill. ';
-
-  @override
-  String get costsAreEstimatesAtEachModelS2 =>
-      'Costs are estimated at each model\'s list price for comparison, not your bill. Subscription users usually pay less.';
-
-  @override
   String get costsAreEstimatesAtEachModelS3 =>
       'Costs are estimated at each model\'s list price for comparison, not your bill. Subscription users usually pay less.';
 
@@ -1051,6 +1041,10 @@ final class EnglishStrings extends AppStrings {
   @override
   String hoursAndMinutesDuration(Object? value1, Object? value2) =>
       '$value1 hr $value2 min';
+
+  @override
+  String daysAndHoursDuration(int days, int hours) =>
+      hours == 0 ? '$days d' : '$days d $hours hr';
 
   @override
   String get howLargeNumbersAreShortened => 'How large numbers are shortened';
@@ -1827,6 +1821,9 @@ final class EnglishStrings extends AppStrings {
   String get sessionDetails => 'Session details';
 
   @override
+  String sessionForTool(String tool) => '$tool session';
+
+  @override
   String sessionHeading(
     Object? tool,
     Object? date,
@@ -1982,13 +1979,6 @@ final class EnglishStrings extends AppStrings {
   @override
   String sourcesNotUpdated(Object? failed) =>
       '$failed ${_isOne(failed) ? 'source' : 'sources'} did not update';
-
-  @override
-  String spacedCalendarDay(int month, int day) => calendarDay(month, day);
-
-  @override
-  String spacedCalendarDayWithYear(int year, int month, int day) =>
-      calendarDayWithYear(year, month, day);
 
   @override
   String get speed => 'Speed';

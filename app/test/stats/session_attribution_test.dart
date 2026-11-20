@@ -186,10 +186,7 @@ void main() {
     testWidgets('E3 首页换算 $unit 与零用量', (tester) async {
       final fake = FakeStatsGateway()..tokens = 350000000;
       final c = await mount(tester, fake, unit: unit);
-      expect(
-        find.text(unit == 'chinese' ? '= 350M token' : '= 3.5亿 token'),
-        findsOneWidget,
-      );
+      expect(find.text('= 350,000,000 token'), findsOneWidget);
       fake.empty = true;
       await c.load();
       await tester.pumpAndSettle();

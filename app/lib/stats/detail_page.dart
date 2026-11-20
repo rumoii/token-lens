@@ -44,6 +44,7 @@ class DetailRow {
     this.eventGrossTokens,
     this.timing,
     this.sub,
+    this.relativeDay,
     this.drill,
     this.tools = const [],
   });
@@ -52,7 +53,7 @@ class DetailRow {
   final List<int?> kinds;
   final int? costMicros, requestCount, eventGrossTokens;
   final StatsTiming? timing;
-  final String? sub;
+  final String? sub, relativeDay;
   final (String, String)? drill;
   final List<String> tools;
 }
@@ -65,26 +66,49 @@ List<DetailRow> detailRows(
   AppStrings strings = chineseStrings,
 }) {
   if (data is StatsTimeseries) {
+    final today = now == null ? null : dayKey(now);
+    final yesterday = now == null
+        ? null
+        : dayKey(DateTime(now.year, now.month, now.day - 1));
+    DetailRow timeRow(StatsBucket r) {
+      final date = data.granularity == 'day'
+          ? DateTime.tryParse(r.bucket)
+          : null;
+      return DetailRow(
+        id: r.bucket,
+        name: date == null
+            ? bucketText(r.bucket, now, strings)
+            : strings.calendarDayWithWeekday(
+                date.month,
+                date.day,
+                date.weekday,
+              ),
+        relativeDay: date == null
+            ? null
+            : r.bucket == today
+            ? strings.today
+            : r.bucket == yesterday
+            ? strings.yesterday
+            : null,
+        tokens: r.grossTokens,
+        requestCount: r.requestCount,
+        eventGrossTokens: r.eventGrossTokens,
+        costMicros: r.costMicros,
+        kinds: [
+          r.inputTokens,
+          r.outputTokens,
+          r.cacheReadTokens,
+          r.cacheWriteTokens,
+        ],
+        drill: detail['bucket']!.isEmpty && !r.bucket.contains('T')
+            ? ('bucket', r.bucket)
+            : null,
+      );
+    }
+
     return [
       for (final r in data.points)
-        if (r.grossTokens > 0)
-          DetailRow(
-            id: r.bucket,
-            name: bucketText(r.bucket, now, strings),
-            tokens: r.grossTokens,
-            requestCount: r.requestCount,
-            eventGrossTokens: r.eventGrossTokens,
-            costMicros: r.costMicros,
-            kinds: [
-              r.inputTokens,
-              r.outputTokens,
-              r.cacheReadTokens,
-              r.cacheWriteTokens,
-            ],
-            drill: detail['bucket']!.isEmpty && !r.bucket.contains('T')
-                ? ('bucket', r.bucket)
-                : null,
-          ),
+        if (r.grossTokens > 0) timeRow(r),
     ];
   }
   if (data is! StatsBreakdown) return [];
@@ -901,14 +925,31 @@ class _StatsDetailState extends State<StatsDetail> {
   }
 
   Widget rowName(DetailRow row) {
-    final name = Text(
-      row.name,
-      overflow: TextOverflow.ellipsis,
-      maxLines: 1,
-      style: p
-          .text(narrow ? 16 : 13, null, FontWeight.w500)
-          .copyWith(height: 1.5),
-    );
+    final style = p
+        .text(narrow ? 16 : 13, null, FontWeight.w500)
+        .copyWith(height: 1.5);
+    final relative = row.relativeDay;
+    final name = relative == null
+        ? Text(
+            row.name,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            style: style,
+          )
+        : Text.rich(
+            TextSpan(
+              text: row.name,
+              children: [
+                TextSpan(
+                  text: ' · $relative',
+                  style: TextStyle(color: p.secondary),
+                ),
+              ],
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            style: style,
+          );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -950,13 +991,13 @@ class _StatsDetailState extends State<StatsDetail> {
   Widget tableContent(({String kind, Object data})? snapshot) {
     final data = snapshot?.data;
     final detail = d, dim = snapshot?.kind ?? detail['dim']!;
-    final nameFlex = dim == 'model'
-        ? 30
-        : dim == 'project'
-        ? 22
-        : dim == 'tool'
-        ? 26
-        : 16;
+    final nameFlex = switch (dim) {
+      'model' => 30,
+      'project' => 22,
+      'tool' => 26,
+      'date' when data is StatsTimeseries && data.granularity == 'day' => 24,
+      _ => 16,
+    };
     var rows = detailRows(
       dim,
       data,
@@ -1800,19 +1841,6 @@ class _StatsDetailState extends State<StatsDetail> {
                 ),
             ],
           ),
-        ),
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              context.strings.costsAreEstimatesAtEachModelS,
-              style: p.text(12, p.muted).copyWith(height: 1.4),
-            ),
-            LensTextLink(
-              label: context.strings.howPricesWork,
-              onTap: widget.onSettings,
-            ),
-          ],
         ),
       ],
     );

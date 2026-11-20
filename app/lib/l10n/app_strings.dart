@@ -52,7 +52,6 @@ abstract class AppStrings {
   String get sessionSearch;
   String noMatchingSessions(String q);
   String get clearSessionSearch;
-  String get sessionSortUsage;
   String get sessionSortCost;
   String get sessionSortStarted;
   String get sessionSortRecent;
@@ -60,7 +59,7 @@ abstract class AppStrings {
   String get sortDescending;
   String get sortAscending;
   String sortedSessions(String period, String sort);
-  String get sessionSortUsageInSentence;
+  String sessionSortUsageInSentence(String periodLabel);
   String get sessionSortCostInSentence;
   String get sessionSortStartedInSentence;
   String get sessionSortRecentInSentence;
@@ -303,8 +302,6 @@ abstract class AppStrings {
   String get community;
   String conditionalPriceTableLabel(Object? value);
   String get cost;
-  String get costsAreEstimatesAtEachModelS;
-  String get costsAreEstimatesAtEachModelS2;
   String get costsAreEstimatesAtEachModelS3;
   String couldNotAccessLogDirectoriesFor0(Object? count);
   String get couldNotCancelWaitForTheCurrent;
@@ -402,6 +399,7 @@ abstract class AppStrings {
   String get hour;
   String hourTick(Object? value);
   String hoursAndMinutesDuration(Object? value1, Object? value2);
+  String daysAndHoursDuration(int days, int hours);
   String get howLargeNumbersAreShortened;
   String get howPricesWork;
   String get huggingFaceLikes;
@@ -644,6 +642,7 @@ abstract class AppStrings {
   String get sentenceSeparator;
   String get session;
   String get sessionDetails;
+  String sessionForTool(String tool);
   String sessionHeading(
     Object? tool,
     Object? date,
@@ -689,8 +688,6 @@ abstract class AppStrings {
   String sourceRecordCount(Object? value);
   String sourcesIntro(Object? found);
   String sourcesNotUpdated(Object? failed);
-  String spacedCalendarDay(int month, int day);
-  String spacedCalendarDayWithYear(int year, int month, int day);
   String get speed;
   String get speed2;
   String get speedTokenS;

@@ -33,10 +33,11 @@ String spanText(
 ]) {
   final a = DateTime.tryParse(start), b = DateTime.tryParse(end);
   if (a == null || b == null) return '—';
-  final minutes = math.max(
-    0,
-    ((b.difference(a).inMilliseconds) / 60000).round(),
-  );
+  final elapsed = b.difference(a);
+  if (elapsed.inDays > 0) {
+    return strings.daysAndHoursDuration(elapsed.inDays, elapsed.inHours % 24);
+  }
+  final minutes = math.max(0, (elapsed.inMilliseconds / 60000).round());
   return minutes < 60
       ? strings.minutesDuration(minutes)
       : strings.hoursAndMinutesDuration(minutes ~/ 60, minutes % 60);
@@ -98,6 +99,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
       ['tool', 'project', 'model'].any((key) => q[key]?.isNotEmpty == true);
   String get periodLabel =>
       sessionUsageLabel(period, usageFilter, context.strings);
+  String get usageLabel => context.strings.periodUsage(periodLabel);
   LensPalette get p => LensPalette.of(context);
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   void changed() {
@@ -230,7 +232,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   }
 
   Map<String, String> sortLabels(AppStrings strings) => {
-    'tokens': strings.sessionSortUsage,
+    'tokens': usageLabel,
     'cost': strings.sessionSortCost,
     'started': strings.sessionSortStarted,
     'recent': strings.sessionSortRecent,
@@ -242,7 +244,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     'started' => strings.sessionSortStartedInSentence,
     'recent' => strings.sessionSortRecentInSentence,
     'requests' => strings.sessionSortRequestsInSentence,
-    _ => strings.sessionSortUsageInSentence,
+    _ => strings.sessionSortUsageInSentence(periodLabel),
   };
 
   Widget searchField() {
@@ -299,12 +301,14 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     final found = items
         .where((r) => r.source == source && r.sessionId == sessionId)
         .firstOrNull;
+    final tool = toolOf(source).name;
+    final fallbackTitle = context.strings.sessionForTool(tool);
     PanelHeading headingFor(String? project, String started, String ended) => (
       title:
           projectName(project, peers: items.map((item) => item.projectKey)) ??
-          toolOf(source).name,
+          fallbackTitle,
       hint: context.strings.sessionHeading(
-        toolOf(source).name,
+        tool,
         usageDate(started, c.clock(), strings: context.strings),
         usageTime(started),
         spanText(started, ended, context.strings),
@@ -314,7 +318,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     final heading = ValueNotifier<PanelHeading>(
       found == null
           ? (
-              title: toolOf(source).name,
+              title: fallbackTitle,
               hint: context.strings.loadingSession,
               tooltip: null,
             )
@@ -472,7 +476,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         ? [
             context.strings.session,
             context.strings.start,
-            periodLabel,
+            usageLabel,
             context.strings.requests0(periodLabel),
             context.strings.total,
             context.strings.totalRequests,
@@ -482,7 +486,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
             context.strings.session,
             context.strings.start,
             context.strings.duration,
-            context.strings.usage,
+            usageLabel,
             context.strings.estCost,
             context.strings.requests,
           ];

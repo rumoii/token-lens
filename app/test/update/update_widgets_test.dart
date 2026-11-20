@@ -46,6 +46,7 @@ void main() {
     Future<bool> Function(Uri)? openLink,
     bool hint = false,
     VoidCallback? onOpen,
+    Widget? networkHeader,
   }) async {
     t.view.devicePixelRatio = 1;
     t.view.physicalSize = Size(width, 1000);
@@ -60,7 +61,11 @@ void main() {
               width: hint ? 212 : width - 80,
               child: hint
                   ? UpdateHint(controller: c, onOpen: onOpen ?? () {})
-                  : SettingsUpdate(controller: c, openLink: openLink),
+                  : SettingsUpdate(
+                      controller: c,
+                      openLink: openLink,
+                      networkHeader: networkHeader,
+                    ),
             ),
           ),
         ),
@@ -214,7 +219,16 @@ void main() {
               version: '0.2.0',
             ),
           );
-          await mount(t, width: width, dark: dark);
+          await mount(
+            t,
+            width: width,
+            dark: dark,
+            networkHeader: LensSwitch(
+              value: true,
+              onChanged: (_) {},
+              child: const Text('AI 热点'),
+            ),
+          );
           final primary = find
               .ancestor(
                 of: find.text('打开下载页'),
@@ -236,17 +250,25 @@ void main() {
           expect(ignoreRect.center.dy, closeTo(outlinedRect.center.dy, 1));
           final shape = t.widget<TextButton>(primary).style!.shape!.resolve({});
           expect(shape, isA<RoundedRectangleBorder>());
-          final checkbox = t.getRect(find.byType(LensCheckbox));
-          final visibleLeft = checkbox.center.dx - 16 / 2;
           final titleLeft = t.getTopLeft(find.text('更新')).dx;
-          expect(visibleLeft, closeTo(titleLeft, 1));
           final dot = find.byWidgetPredicate(
             (w) =>
                 w is Container &&
                 w.constraints?.maxWidth == 8 &&
                 w.constraints?.maxHeight == 8,
           );
-          expect(t.getTopLeft(dot).dx, closeTo(visibleLeft, 1));
+          expect(t.getTopLeft(dot).dx, closeTo(titleLeft, 1));
+          Rect track(String label) => t.getRect(
+            find.descendant(
+              of: find.widgetWithText(LensSwitch, label),
+              matching: find.byWidgetPredicate(
+                (w) => w is AnimatedContainer && w.constraints?.maxWidth == 44,
+              ),
+            ),
+          );
+          final auto = track('每天自动检查一次');
+          expect(t.getRect(find.text('每天自动检查一次')).right, lessThan(auto.left));
+          expect(auto.right, closeTo(track('AI 热点').right, 1));
 
           await mount(t, width: width, dark: dark, hint: true);
           await t.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -308,7 +330,7 @@ void main() {
             for (final finder in [
               find.byType(Text),
               find.byKey(const Key('update-check-button')),
-              find.byType(LensCheckbox),
+              find.byType(LensSwitch),
             ]) {
               for (final element in finder.evaluate()) {
                 final rect = t.getRect(find.byWidget(element.widget));

@@ -49,9 +49,6 @@ final class ChineseStrings extends AppStrings {
   String get clearSessionSearch => '清除';
 
   @override
-  String get sessionSortUsage => '时段内用量';
-
-  @override
   String get sessionSortCost => '约值';
 
   @override
@@ -74,7 +71,8 @@ final class ChineseStrings extends AppStrings {
       '$period有用量的会话，按$sort排序。累计是整个会话的总数。';
 
   @override
-  String get sessionSortUsageInSentence => '时段内用量';
+  String sessionSortUsageInSentence(String periodLabel) =>
+      periodUsage(periodLabel);
 
   @override
   String get sessionSortCostInSentence => '约值';
@@ -687,13 +685,6 @@ final class ChineseStrings extends AppStrings {
   String get cost => '金额';
 
   @override
-  String get costsAreEstimatesAtEachModelS => '金额按各模型的公开标准价估算，用来比较和感知，不是你的账单。 ';
-
-  @override
-  String get costsAreEstimatesAtEachModelS2 =>
-      '金额按各模型的公开标准价估算，用来比较和感知，不是你的账单。套餐用户的实际花费通常更低。';
-
-  @override
   String get costsAreEstimatesAtEachModelS3 =>
       '金额是按各模型的公开价算出来的，用来比较和感知，不是你的账单。用套餐的话，实际花费通常更低。';
 
@@ -981,7 +972,7 @@ final class ChineseStrings extends AppStrings {
       '$holidays$range；未登记年份仍按星期和时段判断。';
 
   @override
-  String holidaysListedThrough0(Object? value) => '节假日仅登记到 $value 年';
+  String holidaysListedThrough0(Object? value) => '节假日仅登记到 $value年';
 
   @override
   String get hour => '小时';
@@ -992,6 +983,10 @@ final class ChineseStrings extends AppStrings {
   @override
   String hoursAndMinutesDuration(Object? value1, Object? value2) =>
       '$value1 小时 $value2 分';
+
+  @override
+  String daysAndHoursDuration(int days, int hours) =>
+      hours == 0 ? '$days 天' : '$days 天 $hours 小时';
 
   @override
   String get howLargeNumbersAreShortened => '大数字怎么缩写';
@@ -1727,6 +1722,9 @@ final class ChineseStrings extends AppStrings {
   String get sessionDetails => '会话详情';
 
   @override
+  String sessionForTool(String tool) => '$tool 会话';
+
+  @override
   String sessionHeading(
     Object? tool,
     Object? date,
@@ -1856,13 +1854,6 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String sourcesNotUpdated(Object? failed) => '$failed 个来源没更新';
-
-  @override
-  String spacedCalendarDay(int month, int day) => '$month 月 $day 日';
-
-  @override
-  String spacedCalendarDayWithYear(int year, int month, int day) =>
-      '$year 年 $month 月 $day 日';
 
   @override
   String get speed => '速度';
@@ -2231,7 +2222,7 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String get tokenLensReadsAiCodingToolLogs =>
-      'Token Lens 读取 AI 编程工具的日志。去「工具来源」看看找到了哪些工具，或者立即同步。';
+      'Token Lens 读取 AI 编程工具的日志。去「工具」页看看找到了哪些工具，或者立即同步。';
 
   @override
   String get tokenLensSyncsOnceEachTimeIt => '每次打开 Token Lens 会自动同步一次，也可以手动同步。';
@@ -2250,7 +2241,7 @@ final class ChineseStrings extends AppStrings {
   String get tool => '工具';
 
   @override
-  String get toolSources => '工具来源';
+  String get toolSources => '工具';
 
   @override
   String get toolUpdates => '工具更新';
@@ -2485,7 +2476,7 @@ final class ChineseStrings extends AppStrings {
   String get viewThisMonth => '看本月';
 
   @override
-  String get viewToolSources => '看工具来源';
+  String get viewToolSources => '查看工具';
 
   @override
   String get viewUpdateDetails => '点开看怎么更新';

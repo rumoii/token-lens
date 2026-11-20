@@ -225,28 +225,23 @@ class _NewsPageState extends State<NewsPage> {
   Widget _header(LensPalette p, bool narrow) {
     final controller = widget.controller;
     final snapshot = controller.snapshot;
-    final title = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Semantics(
-          header: true,
-          child: Text(
-            context.strings.aiNews,
-            style: p
-                .serif(narrow ? 26 : 30, weight: FontWeight.w500)
-                .copyWith(height: 1.25, letterSpacing: -.3),
-          ),
-        ),
-        const SizedBox(height: 6),
-        _subtitle(p),
-      ],
+    final title = Semantics(
+      header: true,
+      child: Text(
+        context.strings.aiNews,
+        style: p
+            .serif(narrow ? 26 : 30, weight: FontWeight.w500)
+            .copyWith(height: 1.25, letterSpacing: -.3),
+      ),
     );
     final busy =
         snapshot.refreshing ||
         controller.loadingSnapshot ||
         controller.updatingSourceId != null;
-    final actions = Row(
-      mainAxisSize: MainAxisSize.min,
+    final actions = Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
       children: [
         LensButton(
           key: const Key('manage-sources'),
@@ -255,7 +250,6 @@ class _NewsPageState extends State<NewsPage> {
           focusNode: _manageFocus,
           onPressed: _manageSources,
         ),
-        const SizedBox(width: 8),
         snapshot.refreshing
             ? LensButton(
                 key: const Key('refresh-news'),
@@ -280,12 +274,10 @@ class _NewsPageState extends State<NewsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.end,
-          spacing: 16,
-          runSpacing: 12,
-          children: [title, actions],
+        LensPageHeader(
+          title: title,
+          controls: actions,
+          description: _subtitle(p),
         ),
         ..._notices(p),
         if (controller.hotTabs.isNotEmpty) ...[

@@ -75,7 +75,13 @@ void main() {
             find.descendant(of: row, matching: find.text('110')),
             findsOneWidget,
           );
-          expect(find.text('筛选后'), findsOneWidget);
+          expect(
+            find.descendant(
+              of: find.byKey(const Key('sessions-header-tokens')),
+              matching: find.text('筛选后用量'),
+            ),
+            findsOneWidget,
+          );
           expect(find.text('筛选后请求'), findsOneWidget);
           expect(find.text('累计请求'), findsOneWidget);
           expect(find.text('筛选后约值'), findsOneWidget);
@@ -103,9 +109,16 @@ void main() {
       );
       expect(find.textContaining('累计 110'), findsNothing);
       expect(find.text('累计请求'), findsNothing);
-      expect(find.text('筛选后'), findsNothing);
+      expect(find.text('筛选后用量'), findsNothing);
       if (width >= 768) {
-        for (final label in ['时长', '用量', '约值', '请求']) {
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('sessions-header-tokens')),
+            matching: find.text('全部用量'),
+          ),
+          findsOneWidget,
+        );
+        for (final label in ['时长', '约值', '请求']) {
           expect(
             find.descendant(
               of: find.byType(StatsSessionsPage),

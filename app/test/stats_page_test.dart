@@ -50,7 +50,7 @@ void main() {
   testWidgets('空账本给同步和工具来源入口', (tester) async {
     await show(tester, FakeStatsGateway()..empty = true);
     expect(find.text('还没有任何用量'), findsOneWidget);
-    expect(find.text('看工具来源'), findsOneWidget);
+    expect(find.text('查看工具'), findsOneWidget);
     expect(find.text('趋势'), findsNothing);
   });
   testWidgets('NULL token 和未定价不当零', (tester) async {

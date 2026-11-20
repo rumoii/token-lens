@@ -269,7 +269,7 @@ void main() {
       await language.navigate(tester, 'news');
       expect(find.byKey(const Key('home-hero')), findsOneWidget);
       await language.navigate(tester, 'settings');
-      final toggle = find.byType(LensSwitch);
+      final toggle = find.widgetWithText(LensSwitch, 'AI news');
       await tester.ensureVisible(toggle);
       await tester.pumpAndSettle();
       await tester.tap(toggle);

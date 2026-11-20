@@ -79,7 +79,9 @@ class TimingStrip extends StatelessWidget {
           : context.strings.perRequestEstimatesBasedOnLogTimestamps,
       child: Text(
         turn ? context.strings.perTurn : context.strings.perRequest2,
-        style: p.text(12, p['clay']),
+        style: scopeAsTitle && !turn
+            ? p.text(14.5, null, FontWeight.w600)
+            : p.text(12, p['clay']),
       ),
     );
     final metrics = Wrap(

@@ -115,7 +115,7 @@ const sidebarStops = [
   '用量总览',
   '用量明细',
   '会话记录',
-  '工具来源',
+  '工具',
   '价格与设置',
   'Claude Code',
   'Codex',

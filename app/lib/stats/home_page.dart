@@ -378,7 +378,7 @@ class _StatsHomeState extends State<StatsHome> {
             text: strings.overviewTrackingSince(
               first == null
                   ? strings.theEarliestRecord
-                  : strings.spacedCalendarDay(first.month, first.day),
+                  : strings.calendarDay(first.month, first.day),
             ),
           ),
         );
@@ -557,10 +557,6 @@ class _StatsHomeState extends State<StatsHome> {
                 : LensEnter(index: 8, child: recent(data)),
             alignStart: true,
           ),
-          Text(
-            context.strings.costsAreEstimatesAtEachModelS2,
-            style: p.text(12, p.muted),
-          ),
         ],
       ],
     );
@@ -633,7 +629,7 @@ class _StatsHomeState extends State<StatsHome> {
         ),
         if (total.grossTokens > 0 && total.recordCount > 0)
           Text(
-            '= ${context.strings.isChinese ? tokenCount(total.grossTokens, unitSystem: c.unitSystem == 'chinese' ? 'english' : 'chinese') : toDisplayNumber(total.grossTokens)} ${context.strings.tokenUnit}',
+            '= ${toDisplayNumber(total.grossTokens)} ${context.strings.tokenUnit}',
             key: const Key('home-conversion'),
             style: p.text(13, p.muted),
           ),
@@ -682,9 +678,27 @@ class _StatsHomeState extends State<StatsHome> {
             ),
           )
         else
-          Text(
-            context.strings.estimatedAtListPrices,
-            style: p.text(12.5, p.muted),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                flex: 2,
+                child: Text(
+                  context.strings.estimatedAtListPrices,
+                  style: p.text(12.5, p.muted),
+                ),
+              ),
+              Text(' · ', style: p.text(12.5, p.muted)),
+              Flexible(
+                child: LensTextLink(
+                  label: context.strings.howPricesWork,
+                  fontSize: 12.5,
+                  onTap: widget.onSettings,
+                ),
+              ),
+            ],
           ),
       ],
     );
@@ -896,68 +910,67 @@ class _StatsHomeState extends State<StatsHome> {
         ],
       ],
     );
-    Widget card(
-      String title,
-      Widget value,
-      Widget hint, {
-      Widget? spark,
-    }) => LensCard(
-      child: Stack(
-        children: [
-          Padding(
-            padding:
-                const EdgeInsets.fromLTRB(18, 16, 18, 14) *
-                c.preferences.spacing,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                title.startsWith(context.strings.cache)
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
+    Widget card(String title, Widget value, Widget hint, {Widget? spark}) =>
+        LensCard(
+          padding:
+              const EdgeInsets.fromLTRB(18, 16, 18, 14) * c.preferences.spacing,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              title.startsWith(context.strings.cache)
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            context.strings.cacheSavings,
+                            style: p.text(13, p.muted),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Tooltip(
+                          message:
+                              context.strings.whenRepeatedContextHitsTheCacheIt,
+                          child: Container(
+                            width: 15,
+                            height: 15,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                width: LensPalette.hairline(context),
+                                color: p['line-strong'],
+                              ),
+                            ),
                             child: Text(
-                              context.strings.cacheSavings,
-                              style: p.text(13, p.muted),
+                              '?',
+                              style: p.text(10, p.muted).copyWith(height: 1),
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Tooltip(
-                            message: context
-                                .strings
-                                .whenRepeatedContextHitsTheCacheIt,
-                            child: Container(
-                              width: 15,
-                              height: 15,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  width: LensPalette.hairline(context),
-                                  color: p['line-strong'],
-                                ),
-                              ),
-                              child: Text(
-                                '?',
-                                style: p.text(10, p.muted).copyWith(height: 1),
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Text(title, style: p.text(13, p.muted)),
-                const SizedBox(height: 4),
-                value,
-                const SizedBox(height: 4),
-                hint,
-              ],
-            ),
+                        ),
+                      ],
+                    )
+                  : Text(title, style: p.text(13, p.muted)),
+              const SizedBox(height: 4),
+              if (spark == null)
+                value
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(flex: 3, child: value),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      flex: 2,
+                      child: SizedBox(width: 76, height: 28, child: spark),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 4),
+              hint,
+            ],
           ),
-          if (spark != null)
-            Positioned(right: 16, top: 18, width: 76, height: 28, child: spark),
-        ],
-      ),
-    );
+        );
     final items = <Widget>[];
     if (period.period == 'today' && data.axis.granularity == 'hour') {
       final live = buckets.where((b) => !b.future).toList()
@@ -1589,7 +1602,7 @@ class _StatsHomeState extends State<StatsHome> {
                                 ? context.strings.yearNewcomerLead(
                                     first == null
                                         ? ''
-                                        : context.strings.spacedCalendarDay(
+                                        : context.strings.calendarDay(
                                             first.month,
                                             first.day,
                                           ),

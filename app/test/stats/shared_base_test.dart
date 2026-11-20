@@ -279,7 +279,7 @@ void main() {
     expect(stats.openLink, same(open));
     expect(find.byType(StatsOnboardingGate), findsOneWidget);
     for (final entry in [
-      ('工具来源', 'StatsSourcesPage'),
+      ('工具', 'StatsSourcesPage'),
       ('价格与设置', 'StatsSettingsPage'),
     ]) {
       await tester.tap(find.text(entry.$1).first);
@@ -295,7 +295,7 @@ void main() {
     final uri = Uri.parse('https://example.invalid/pricing');
     expect(await settings.openLink!(uri), true);
     expect(opened, [uri]);
-    await tester.tap(find.text('工具来源').first);
+    await tester.tap(find.text('工具').first);
     await tester.pumpAndSettle();
     tester.widget<StatsSourcesPage>(find.byType(StatsSourcesPage)).onDetail({
       'tool': 'codex',

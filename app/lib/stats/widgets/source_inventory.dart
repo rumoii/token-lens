@@ -439,8 +439,7 @@ class _SourceInventoryState extends State<SourceInventory> {
                     ),
                   ),
                 for (final section in sections.entries)
-                  if (section.value.isNotEmpty ||
-                      filter == 'all' && needle.isEmpty)
+                  if (section.value.isNotEmpty)
                     LensCard(
                       padding: EdgeInsets.zero,
                       child: Column(
