@@ -1,5 +1,291 @@
 use super::*;
 use crate::stats::{clock::Clock, ingest::Environment, ledger::Ledger};
+
+#[test]
+fn s6a_second_news_client_reports_already_running() {
+    use crate::api::news::NewsClient;
+
+    let temp = tempfile::tempdir().unwrap();
+    let data = temp.path().to_string_lossy().into_owned();
+    let first = NewsClient::new(data.clone()).unwrap();
+    let error = NewsClient::new(data).err().unwrap();
+    assert!(error.starts_with("already_running:"), "{error}");
+    drop(first);
+}
+
+#[test]
+fn s6a_stats_open_classifies_corrupt_ledger() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join("ledger.db"), "not a ledger").unwrap();
+    let error = crate::api::stats::StatsClient::new(
+        temp.path().to_string_lossy().into_owned(),
+        Some(temp.path().to_string_lossy().into_owned()),
+    )
+    .err()
+    .unwrap();
+    assert!(error.starts_with("ledger_corrupt:"), "{error}");
+}
+
+#[test]
+fn s6a_stats_open_refuses_newer_ledger_with_both_versions_before_writing() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("ledger.db");
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.pragma_update(None, "user_version", 8).unwrap();
+    drop(db);
+    let before = fs::read(&path).unwrap();
+    let error = crate::api::stats::StatsClient::new(
+        temp.path().to_string_lossy().into_owned(),
+        Some(temp.path().to_string_lossy().into_owned()),
+    )
+    .err()
+    .unwrap();
+    assert!(
+        fs::read(&path).unwrap() == before,
+        "database bytes changed: {error}"
+    );
+    assert!(error.starts_with("ledger_too_new:8:7: "), "{error}");
+}
+
+#[test]
+fn s6a_typed_io_and_sqlite_errors_keep_their_category() {
+    use crate::stats::Error;
+    use rusqlite::ffi;
+    use std::io::{self, ErrorKind};
+
+    for (error, code) in [
+        (
+            io::Error::from(ErrorKind::PermissionDenied),
+            "data_dir_denied",
+        ),
+        (io::Error::from(ErrorKind::StorageFull), "disk_full"),
+    ] {
+        assert_eq!(error_kind(&Error::from(error).0), code);
+    }
+    for (result, code) in [
+        (ffi::SQLITE_FULL, "disk_full"),
+        (ffi::SQLITE_READONLY, "data_dir_denied"),
+        (ffi::SQLITE_PERM, "data_dir_denied"),
+        (ffi::SQLITE_CORRUPT, "ledger_corrupt"),
+        (ffi::SQLITE_NOTADB, "ledger_corrupt"),
+        (ffi::SQLITE_CANTOPEN, "operation_failed"),
+    ] {
+        let error = rusqlite::Error::SqliteFailure(ffi::Error::new(result), None);
+        assert_eq!(error_kind(&Error::from(error).0), code);
+    }
+    #[cfg(windows)]
+    assert_eq!(
+        error_kind(&Error::from(io::Error::from_raw_os_error(112)).0),
+        "disk_full"
+    );
+    let cannot_open = rusqlite::Error::SqliteFailure(ffi::Error::new(ffi::SQLITE_CANTOPEN), None);
+    assert_eq!(
+        error_kind(
+            &Error::sqlite(
+                cannot_open,
+                Some(&io::Error::from(ErrorKind::PermissionDenied))
+            )
+            .0
+        ),
+        "data_dir_denied"
+    );
+}
+
+#[test]
+fn s6a_error_kind_recognizes_startup_codes_and_preserves_legacy_codes() {
+    for code in [
+        "already_running",
+        "app_files_missing",
+        "data_dir_denied",
+        "disk_full",
+        "ledger_corrupt",
+        "ledger_too_new",
+        "startup_failed",
+        "SYNC_BUSY",
+        "LEGACY_SYNC_LOCK",
+        "INVALID_RANGE",
+        "INVALID_PARAM",
+    ] {
+        assert_eq!(error_kind(&format!("{code}: detail")), code);
+    }
+    assert_eq!(error_kind("cancelled"), "cancelled");
+    assert_eq!(error_kind("closed"), "closed");
+    assert_eq!(error_kind("unclassified error"), "operation_failed");
+}
+
+fn s6a_export(data: &Path, home: &Path, destination: &Path, code: &str) -> String {
+    let path = crate::api::diagnostics::export_startup_diagnostics(
+        Some(data.to_string_lossy().into_owned()),
+        Some(home.to_string_lossy().into_owned()),
+        destination.to_string_lossy().into_owned(),
+        code.into(),
+        format!("failed to read {}", home.join("private-file").display()),
+    )
+    .unwrap();
+    let path = PathBuf::from(path);
+    assert!(chrono::NaiveDateTime::parse_from_str(
+        path.file_name().unwrap().to_str().unwrap(),
+        "token-lens-diagnostics-%Y%m%d-%H%M%S.txt",
+    )
+    .is_ok());
+    let text = fs::read_to_string(path).unwrap();
+    assert!(!text.contains(&*home.to_string_lossy()), "{text}");
+    text
+}
+
+#[test]
+fn s6a_export_can_read_logs_and_discovery_with_a_corrupt_ledger() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("private-home");
+    let logs = home.join(".claude/projects");
+    fs::create_dir_all(&logs).unwrap();
+    fs::write(logs.join("sample.jsonl"), "PRIVATE_CONVERSATION").unwrap();
+    let data = home.join("data");
+    fs::create_dir(&data).unwrap();
+    let path = data.join("ledger.db");
+    fs::write(&path, "PRIVATE_CORRUPT_LEDGER").unwrap();
+    let log = RuntimeLog::new(&data, Some(&home));
+    log.write("INFO", "test", "recent runtime event");
+    log.write_at(
+        Local::now() - Duration::days(7),
+        "INFO",
+        "test",
+        "old runtime event",
+    );
+    let text = s6a_export(&data, &home, &temp.path().join("exports"), "ledger_corrupt");
+    for fragment in [
+        "Token Lens 诊断日志",
+        "[应用]",
+        "version=",
+        "commit=",
+        "os=",
+        "data-dir=~",
+        "code=ledger_corrupt",
+        "failed to read ~",
+        "账本：无法打开（ledger_corrupt）",
+        "source=claude files=1",
+        "[运行日志]",
+        "recent runtime event",
+    ] {
+        assert!(text.contains(fragment), "missing {fragment}: {text}");
+    }
+    assert!(!text.contains("PRIVATE_CONVERSATION"));
+    assert!(!text.contains("PRIVATE_CORRUPT_LEDGER"));
+    assert!(!text.contains("old runtime event"));
+    assert_eq!(fs::read(&path).unwrap(), b"PRIVATE_CORRUPT_LEDGER");
+    assert_eq!(fs::read_dir(&data).unwrap().count(), 2);
+}
+
+#[test]
+fn s6a_export_never_creates_a_missing_ledger_or_data_directory() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir(&home).unwrap();
+    let existing = home.join("existing");
+    fs::create_dir(&existing).unwrap();
+    let missing = home.join("missing");
+    for (index, data) in [&existing, &missing].into_iter().enumerate() {
+        let text = s6a_export(
+            data,
+            &home,
+            &temp.path().join(format!("exports-{index}")),
+            "data_dir_denied",
+        );
+        assert!(text.contains("账本：无法打开（startup_failed）"));
+        assert!(!data.join("ledger.db").exists());
+    }
+    assert!(!missing.exists());
+    assert_eq!(fs::read_dir(&existing).unwrap().count(), 0);
+}
+
+#[test]
+fn s6a_export_reads_ten_sync_runs_from_a_current_ledger() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let data = home.join("data");
+    let path = data.join("ledger.db");
+    let ledger = Ledger::open(&path, Clock::Fixed(1768478400000)).unwrap();
+    for _ in 0..12 {
+        let id = ledger.begin_run().unwrap();
+        ledger.fail_run(id, "disk_full: raw detail").unwrap();
+    }
+    drop(ledger);
+    let before = fs::read(&path).unwrap();
+    let text = s6a_export(
+        &data,
+        &home,
+        &temp.path().join("exports"),
+        "already_running",
+    );
+    assert!(text.contains("schema=7"));
+    assert_eq!(text.matches("run id=").count(), 10);
+    assert!(text.contains("run id=3 "));
+    assert!(text.contains("run id=12 "));
+    assert!(text.contains("run_failed: disk_full"));
+    assert!(!text.contains("raw detail"));
+    assert_eq!(fs::read(path).unwrap(), before);
+}
+
+#[test]
+fn s6a_export_declines_newer_ledger_without_modifying_it() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir(&home).unwrap();
+    let path = home.join("ledger.db");
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.pragma_update(None, "user_version", 8).unwrap();
+    drop(db);
+    let before = fs::read(&path).unwrap();
+    let text = s6a_export(&home, &home, &temp.path().join("exports"), "ledger_too_new");
+    assert!(text.contains("账本：无法打开（ledger_too_new）"));
+    assert_eq!(fs::read(path).unwrap(), before);
+    assert_eq!(fs::read_dir(&home).unwrap().count(), 1);
+}
+
+#[test]
+fn s6a_settings_export_preserves_its_text_bytes() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let data = home.join("data");
+    fs::create_dir_all(&data).unwrap();
+    let ledger = Ledger::open(Path::new(":memory:"), Clock::System).unwrap();
+    let file = RuntimeLog::new(&data, Some(&home))
+        .export(
+            &ledger,
+            &temp.path().join("exports"),
+            &home,
+            &Environment::default(),
+        )
+        .unwrap();
+    let text = fs::read_to_string(file).unwrap();
+    let generated = text
+        .lines()
+        .nth(2)
+        .unwrap()
+        .strip_prefix("generated=")
+        .unwrap();
+    chrono::DateTime::parse_from_rfc3339(generated).unwrap();
+    let environment = Environment::default();
+    let mut expected = format!(
+        "Token Lens 诊断日志\n[应用]\ngenerated={generated}\nversion={}\ncommit={}\nos={}\ndata-dir=~{}data\nschema=7\n\n[最近同步]\n\n[来源]\n",
+        env!("CARGO_PKG_VERSION"),
+        option_env!("TOKEN_LENS_BUILD_COMMIT").unwrap_or("unavailable"),
+        os_version(),
+        std::path::MAIN_SEPARATOR,
+    );
+    for (source, files) in discovery::discover_with_env(&home, &environment).unwrap() {
+        assert!(files.is_empty());
+        expected.push_str(&format!(
+            "source={source} files=0 latest-file-mtime=unknown records=0 last-record=unknown\n"
+        ));
+        for root in discovery::scan_roots(&home, &environment, &source) {
+            expected.push_str(&format!("  scan-root={}\n", root.display()));
+        }
+    }
+    expected.push_str("\n[运行日志]\n");
+    let expected = redact_home(&expected, Some(&home));
+    assert_eq!(text, expected);
+}
 use chrono::{Duration, Local};
 use std::{fs, sync::Arc};
 

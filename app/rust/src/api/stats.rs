@@ -675,7 +675,8 @@ impl StatsClient {
         );
         log.ffi(
             "StatsClient.new",
-            Self::with_clock(data_dir, logs_home, Clock::System),
+            Self::with_clock(data_dir, logs_home, Clock::System)
+                .map_err(crate::startup_error::StartupCode::fallback),
         )
     }
     #[flutter_rust_bridge::frb(ignore)]

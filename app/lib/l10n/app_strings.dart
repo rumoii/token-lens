@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../startup_failure.dart';
+
 part 'strings_en.dart';
 part 'strings_zh.dart';
 
@@ -36,7 +38,25 @@ extension AppStringsContext on BuildContext {
       chineseStrings;
 }
 
+typedef StartupFailureCopy = ({String title, String body, List<String> steps});
+
 abstract class AppStrings {
+  StartupFailureCopy startupFailureCopy(StartupFailure failure);
+  String get startupOpenLogFolder;
+  String get startupOpenAppFolder;
+  String get startupExportFailureHelp;
+  String get startupExportDestinationUnavailable;
+  String get startupDiagnosticsPrivacy;
+  String get startupPrivacyWithoutCore;
+  String get startupDetails;
+  String get startupErrorCode;
+  String get startupDataFolder;
+  String get startupMessage;
+  String get startupStatisticsUnavailable;
+  String get startupNewsStillWorks;
+  String get startupOverview;
+  String get startupDetail;
+  String get startupSessions;
   String get morePeriods;
   String get lastSevenDays;
   String get lastThirtyDays;
@@ -283,9 +303,7 @@ abstract class AppStrings {
   String get canceled;
   String get canceling;
   String get cancelingRefresh;
-  String get cannotOpenTheUsageLedgerCheckThat;
   String get cannotReadLogDirectory;
-  String get cannotStartTokenLensCheckTheApp;
   String chartSpanningSessions(Object? tokens, Object? unit);
   String chartUnallocatedUsage(
     Object? tokens,
@@ -822,7 +840,6 @@ abstract class AppStrings {
   String get today;
   String today0(Object? base);
   String get tokenBreakdown;
-  String get tokenLensIsAlreadyUsingThisData;
   String get tokenLensOnlyReadsLogFilesCheck;
   String get tokenLensReadsAiCodingToolLogs;
   String get tokenLensSyncsOnceEachTimeIt;

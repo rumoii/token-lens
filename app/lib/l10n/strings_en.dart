@@ -2,6 +2,106 @@ part of 'app_strings.dart';
 
 final class EnglishStrings extends AppStrings {
   @override
+  StartupFailureCopy startupFailureCopy(
+    StartupFailure failure,
+  ) => switch (failure.code) {
+    StartupErrorCode.alreadyRunning => (
+      title: 'Token Lens is already running',
+      body: 'Another Token Lens window is using this data folder. Return to that window.',
+      steps: const [
+        'Look for the Token Lens window on the taskbar.',
+        'If you cannot find it, end token-lens.exe in Task Manager and open the app again.',
+      ],
+    ),
+    StartupErrorCode.appFilesMissing => (
+      title: 'App files are incomplete',
+      body: 'The Token Lens core could not load. Usually only token-lens.exe was copied, or the archive was not fully extracted.',
+      steps: const [
+        'Extract the whole archive again.',
+        'Keep token-lens.exe next to its DLLs and the data folder.',
+      ],
+    ),
+    StartupErrorCode.dataDirDenied => (
+      title: 'No permission to use the data folder',
+      body: 'Token Lens reads and writes its ledger and settings in the folder below, but access was denied.',
+      steps: const [
+        'Check that the folder is not read-only or blocked by security software.',
+        'If it is inside a synced folder such as OneDrive, wait for syncing to finish.',
+      ],
+    ),
+    StartupErrorCode.diskFull => (
+      title: 'Not enough disk space',
+      body: 'The disk that holds the data folder is full, so Token Lens cannot write its ledger. Free up some space and open the app again.',
+      steps: const [],
+    ),
+    StartupErrorCode.ledgerCorrupt => (
+      title: 'The usage ledger is damaged',
+      body: 'ledger.db cannot be read. Do not delete it: export diagnostics for the maintainer before deciding how to recover.',
+      steps: const [],
+    ),
+    StartupErrorCode.ledgerTooNew => (
+      title: 'The ledger is from a newer Token Lens',
+      body:
+          'This ledger uses structure version ${failure.ledgerVersion ?? '—'}; this Token Lens supports up to ${failure.supportedVersion ?? '—'}. To keep your data safe it will not write to it. Use the newer Token Lens instead.',
+      steps: const [],
+    ),
+    StartupErrorCode.startupFailed => (
+      title: 'Token Lens could not start',
+      body: 'Startup hit an unexpected error. Exporting diagnostics for the maintainer helps find the cause.',
+      steps: const [],
+    ),
+  };
+
+  @override
+  String get startupOpenLogFolder => 'Open log folder';
+
+  @override
+  String get startupOpenAppFolder => 'Open app folder';
+
+  @override
+  String get startupDiagnosticsPrivacy =>
+      'Diagnostics include app and system versions, the cause and the last 7 days of runtime logs. No ledger, no conversation content; your home folder shows as ~.';
+
+  @override
+  String get startupPrivacyWithoutCore =>
+      'The app core did not load, so diagnostics cannot be exported from this page.';
+
+  @override
+  String get startupDetails => 'Details';
+
+  @override
+  String get startupErrorCode => 'Error code';
+
+  @override
+  String get startupDataFolder => 'Data folder';
+
+  @override
+  String get startupMessage => 'Message';
+
+  @override
+  String get startupStatisticsUnavailable => 'Statistics unavailable';
+
+  @override
+  String get startupOverview => 'Overview';
+
+  @override
+  String get startupDetail => 'Detail';
+
+  @override
+  String get startupSessions => 'Sessions';
+
+  @override
+  String get startupNewsStillWorks => 'AI news still works.';
+
+  @override
+  String get startupExportFailureHelp =>
+      'Open the log folder and send the latest log to the maintainer instead.';
+
+  @override
+  String get startupExportDestinationUnavailable =>
+      'The Downloads and data folders are unavailable.';
+
+  @override
   String get spansPeriod => 'Spans period';
 
   @override
@@ -668,15 +768,7 @@ final class EnglishStrings extends AppStrings {
   String get cancelingRefresh => 'Canceling refresh…';
 
   @override
-  String get cannotOpenTheUsageLedgerCheckThat =>
-      'Cannot open the usage ledger. Check that the data directory is readable and writable.';
-
-  @override
   String get cannotReadLogDirectory => 'No permission to read log directory';
-
-  @override
-  String get cannotStartTokenLensCheckTheApp =>
-      'Cannot start Token Lens. Check that the app files are intact and the data directory is readable and writable.';
 
   @override
   String chartSpanningSessions(Object? tokens, Object? unit) =>
@@ -2405,10 +2497,6 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String get tokenBreakdown => 'Token breakdown';
-
-  @override
-  String get tokenLensIsAlreadyUsingThisData =>
-      'Token Lens is already using this data directory. Switch to the open window.';
 
   @override
   String get tokenLensOnlyReadsLogFilesCheck =>

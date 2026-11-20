@@ -12,6 +12,17 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    let buildChannel = FlutterMethodChannel(
+      name: "token_lens/build",
+      binaryMessenger: flutterViewController.engine.binaryMessenger)
+    buildChannel.setMethodCallHandler { call, result in
+      guard call.method == "version" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      result(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+    }
+
     super.awakeFromNib()
   }
 }

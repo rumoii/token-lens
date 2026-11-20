@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1173002403;
+  int get rustContentHash => 607196295;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -251,6 +251,14 @@ abstract class RustLibApi extends BaseApi {
     required int offsetMinutes,
   });
 
+  Future<String> crateApiDiagnosticsExportStartupDiagnostics({
+    String? dataDir,
+    String? logsHome,
+    required String directory,
+    required String errorCode,
+    required String message,
+  });
+
   Future<NewsSnapshot> crateApiNewsNewsSnapshotDefault();
 
   Future<void> crateApiDiagnosticsRuntimeExit({
@@ -262,6 +270,8 @@ abstract class RustLibApi extends BaseApi {
     required String dataDir,
     String? logsHome,
   });
+
+  Future<String> crateApiDiagnosticsStartupBuildInfo();
 
   Future<StatsCounts> crateApiStatsStatsCountsDefault();
 
@@ -1540,6 +1550,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiDiagnosticsExportStartupDiagnostics({
+    String? dataDir,
+    String? logsHome,
+    required String directory,
+    required String errorCode,
+    required String message,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_opt_String(dataDir, serializer);
+          sse_encode_opt_String(logsHome, serializer);
+          sse_encode_String(directory, serializer);
+          sse_encode_String(errorCode, serializer);
+          sse_encode_String(message, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 33,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiDiagnosticsExportStartupDiagnosticsConstMeta,
+        argValues: [dataDir, logsHome, directory, errorCode, message],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDiagnosticsExportStartupDiagnosticsConstMeta =>
+      const TaskConstMeta(
+        debugName: "export_startup_diagnostics",
+        argNames: ["dataDir", "logsHome", "directory", "errorCode", "message"],
+      );
+
+  @override
   Future<NewsSnapshot> crateApiNewsNewsSnapshotDefault() {
     return handler.executeNormal(
       NormalTask(
@@ -1548,7 +1599,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1580,7 +1631,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1615,7 +1666,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1637,6 +1688,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiDiagnosticsStartupBuildInfo() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 37,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDiagnosticsStartupBuildInfoConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDiagnosticsStartupBuildInfoConstMeta =>
+      const TaskConstMeta(debugName: "startup_build_info", argNames: []);
+
+  @override
   Future<StatsCounts> crateApiStatsStatsCountsDefault() {
     return handler.executeNormal(
       NormalTask(
@@ -1645,7 +1723,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1672,7 +1750,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1710,7 +1788,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 40,
             port: port_,
           );
         },

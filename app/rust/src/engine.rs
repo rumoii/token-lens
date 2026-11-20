@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::api::news::{plain_text, safe_url, NewsError, NewsItem, NewsSnapshot, SourceState};
 use crate::sources::{Category, ItemKind, PopularityKind, RawItem, Source};
+use crate::startup_error::StartupCode;
 
 const MAX_ITEMS: usize = 50;
 const MAX_CACHE_BYTES: usize = 32 * 1024 * 1024;
@@ -112,16 +113,26 @@ impl NewsEngine {
         {
             return Err("cache: Registry source ids must be nonempty and unique.".into());
         }
-        std::fs::create_dir_all(data_dir).map_err(|_| "cache: Cannot create cache directory.")?;
+        let io_failure = |error: std::io::Error| {
+            StartupCode::from_io(&error)
+                .unwrap_or(StartupCode::StartupFailed)
+                .message(error)
+        };
+        std::fs::create_dir_all(data_dir).map_err(io_failure)?;
         let lock = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
             .open(data_dir.join("news.lock"))
-            .map_err(|_| "cache: Cannot open cache lock.")?;
-        lock.try_lock_exclusive()
-            .map_err(|_| "busy: Cache directory is in use.")?;
+            .map_err(io_failure)?;
+        lock.try_lock_exclusive().map_err(|error| {
+            if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() {
+                StartupCode::AlreadyRunning.message("Cache directory is in use.")
+            } else {
+                io_failure(error)
+            }
+        })?;
         let cache_path = data_dir.join("news-cache.json");
         let state_path = data_dir.join("news-state.json");
         let (items, state_error) = match state::load(&state_path) {

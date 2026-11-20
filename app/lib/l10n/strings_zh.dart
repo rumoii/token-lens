@@ -2,6 +2,100 @@ part of 'app_strings.dart';
 
 final class ChineseStrings extends AppStrings {
   @override
+  StartupFailureCopy startupFailureCopy(
+    StartupFailure failure,
+  ) => switch (failure.code) {
+    StartupErrorCode.alreadyRunning => (
+      title: 'Token Lens 已经在运行',
+      body: '这个数据目录正被另一个 Token Lens 窗口使用。请回到已打开的窗口。',
+      steps: const [
+        '在任务栏或系统托盘里找 Token Lens 的窗口。',
+        '找不到的话，在任务管理器里结束 token-lens.exe，再重新打开。',
+      ],
+    ),
+    StartupErrorCode.appFilesMissing => (
+      title: '程序文件不完整',
+      body: 'Token Lens 的核心组件没能加载，通常是只拷了 token-lens.exe，或者解压不完整。',
+      steps: const ['重新解压整个压缩包。', 'token-lens.exe 要和同一文件夹里的 dll、data 文件夹放在一起。'],
+    ),
+    StartupErrorCode.dataDirDenied => (
+      title: '没有权限读写数据目录',
+      body: 'Token Lens 需要在下面这个文件夹里读写账本和设置，但系统拒绝了访问。',
+      steps: const [
+        '检查这个文件夹是否被设为只读，或被安全软件拦截。',
+        '数据目录在同步盘里（如 OneDrive）时，等同步完成后再打开。',
+      ],
+    ),
+    StartupErrorCode.diskFull => (
+      title: '磁盘空间不足',
+      body: '数据目录所在的磁盘没有剩余空间，Token Lens 无法写入账本。腾出一些空间后重新打开。',
+      steps: const [],
+    ),
+    StartupErrorCode.ledgerCorrupt => (
+      title: '统计账本已损坏',
+      body: '账本文件 ledger.db 无法读取。请不要删除它：导出诊断日志发给维护者，再决定怎么恢复。',
+      steps: const [],
+    ),
+    StartupErrorCode.ledgerTooNew => (
+      title: '账本来自更新版的 Token Lens',
+      body:
+          '这个账本的结构版本是 ${failure.ledgerVersion ?? '—'}，这个版本的 Token Lens 只支持到 ${failure.supportedVersion ?? '—'}。为了不损坏数据，它不会写入这个账本。请改用更新版的 Token Lens。',
+      steps: const [],
+    ),
+    StartupErrorCode.startupFailed => (
+      title: '无法启动 Token Lens',
+      body: '启动时遇到了没有预料到的错误。导出诊断日志发给维护者，可以帮助找到原因。',
+      steps: const [],
+    ),
+  };
+
+  @override
+  String get startupOpenLogFolder => '打开日志文件夹';
+
+  @override
+  String get startupOpenAppFolder => '打开程序所在文件夹';
+
+  @override
+  String get startupDiagnosticsPrivacy =>
+      '诊断日志包含应用和系统版本、出错原因和最近 7 天的运行日志，不包含账本和任何对话内容；用户目录显示成 ~。';
+
+  @override
+  String get startupPrivacyWithoutCore => '程序核心没能加载，这一页导不出诊断日志。';
+
+  @override
+  String get startupDetails => '详细信息';
+
+  @override
+  String get startupErrorCode => '错误代码';
+
+  @override
+  String get startupDataFolder => '数据目录';
+
+  @override
+  String get startupMessage => '原始信息';
+
+  @override
+  String get startupStatisticsUnavailable => '统计不可用';
+
+  @override
+  String get startupOverview => '总览';
+
+  @override
+  String get startupDetail => '明细';
+
+  @override
+  String get startupSessions => '会话';
+
+  @override
+  String get startupNewsStillWorks => 'AI 热点仍可使用。';
+
+  @override
+  String get startupExportFailureHelp => '可以点「打开日志文件夹」，把里面最近的日志直接发给维护者。';
+
+  @override
+  String get startupExportDestinationUnavailable => '下载文件夹和数据目录都不可用。';
+
+  @override
   String get spansPeriod => '跨时段';
 
   @override
@@ -633,14 +727,7 @@ final class ChineseStrings extends AppStrings {
   String get cancelingRefresh => '正在取消刷新…';
 
   @override
-  String get cannotOpenTheUsageLedgerCheckThat => '无法打开统计账本，请检查数据目录是否可读写。';
-
-  @override
   String get cannotReadLogDirectory => '没有权限读取日志目录';
-
-  @override
-  String get cannotStartTokenLensCheckTheApp =>
-      '无法启动 Token Lens。请检查应用文件是否完整，以及数据目录是否可读写。';
 
   @override
   String chartSpanningSessions(Object? tokens, Object? unit) =>
@@ -2250,10 +2337,6 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String get tokenBreakdown => 'token 构成';
-
-  @override
-  String get tokenLensIsAlreadyUsingThisData =>
-      'Token Lens 已在运行，当前数据目录正在使用。请回到已打开的窗口。';
 
   @override
   String get tokenLensOnlyReadsLogFilesCheck =>

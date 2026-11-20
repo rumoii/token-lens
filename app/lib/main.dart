@@ -14,6 +14,8 @@ import 'app_shell.dart';
 import 'news_controller.dart';
 import 'news_page.dart';
 import 'rust_gateway.dart';
+import 'startup_failure.dart';
+import 'startup_failure_page.dart';
 import 'src/rust/api/news.dart' as native;
 import 'src/rust/frb_generated.dart';
 import 'src/rust/api/stats.dart' as stats;
@@ -32,7 +34,7 @@ final _runtimeErrors = RuntimeErrors();
 Future<bool> _openLink(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
 
-void main() {
+void main(List<String> args) {
   runZonedGuarded(() {
     WidgetsFlutterBinding.ensureInitialized();
     FlutterError.onError = (details) {
@@ -46,27 +48,34 @@ void main() {
       _runtimeErrors.report(error, stack);
       return true;
     };
-    runApp(const TokenLensApp());
+    const versionArg = '--token-lens-build-version=';
+    final version = args.isNotEmpty && args.last.startsWith(versionArg)
+        ? args.last.substring(versionArg.length)
+        : null;
+    runApp(TokenLensApp(executableVersion: version));
   }, _runtimeErrors.report);
 }
 
 class TokenLensApp extends StatefulWidget {
-  const TokenLensApp({super.key});
+  const TokenLensApp({super.key, this.executableVersion});
+
+  final String? executableVersion;
 
   @override
   State<TokenLensApp> createState() => _TokenLensAppState();
 }
-
-enum _StartupFailure { previewDirectories, busy, initialization }
 
 class _TokenLensAppState extends State<TokenLensApp>
     with WidgetsBindingObserver {
   late final AppLifecycleListener _lifecycle;
   NewsController? _controller;
   StatsController? _statsController;
-  bool _statsInitializationFailed = false;
-  _StartupFailure? _initializationError;
+  StartupFailure? _statsFailure;
+  StartupFailure? _startupFailure;
+  bool _previewDirectoriesMissing = false;
+  bool _rustReady = false;
   bool _closing = false;
+  String? _dataDir, _logDirectory, _buildInfo;
   String? _runtimeData;
   UiPreferences _preferences = const UiPreferences();
   void _statsChanged() {
@@ -90,12 +99,30 @@ class _TokenLensAppState extends State<TokenLensApp>
               override.trim().isEmpty ||
               logsHome == null ||
               logsHome.trim().isEmpty)) {
-        throw StateError('preview-directory-required');
+        if (mounted && !_closing) {
+          setState(() => _previewDirectoriesMissing = true);
+        }
+        return;
       }
-      final dataDir =
-          override ??
-          '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}data';
-      await RustLib.init();
+      _dataDir = override;
+      try {
+        await RustLib.init();
+        _rustReady = true;
+      } catch (error, stack) {
+        try {
+          _dataDir ??= await _defaultDataDir();
+        } catch (_) {
+          // The loader failure is the primary error.
+        }
+        await _showStartupFailure(
+          StartupFailure(StartupErrorCode.appFilesMissing, error.toString()),
+          error,
+          stack,
+        );
+        return;
+      }
+      final dataDir = _dataDir ??= await _defaultDataDir();
+      if (!mounted || _closing) return;
       _runtimeData = dataDir;
       _runtimeErrors.sink = (type, message, stack) =>
           diagnostics.writeRuntimeError(
@@ -132,7 +159,8 @@ class _TokenLensAppState extends State<TokenLensApp>
         );
       } catch (error, stack) {
         _runtimeErrors.report(error, stack);
-        _statsInitializationFailed = true;
+        _statsFailure = parseStartupFailure(error);
+        await _loadFailureDetails();
       }
       if (!mounted || _closing) {
         await statsController?.shutdown();
@@ -149,18 +177,102 @@ class _TokenLensAppState extends State<TokenLensApp>
       statsController?.addListener(_statsChanged);
       if (statsController != null) unawaited(statsController.start());
     } catch (error, stack) {
-      _runtimeErrors.report(error, stack);
-      if (!mounted || _closing) return;
-      final text = error.toString();
-      setState(() {
-        _initializationError = text.contains('preview-directory-required')
-            ? _StartupFailure.previewDirectories
-            : text.contains('busy:')
-            ? _StartupFailure.busy
-            : _StartupFailure.initialization;
-      });
+      await _showStartupFailure(parseStartupFailure(error), error, stack);
     }
   }
+
+  Future<String> _defaultDataDir() async =>
+      '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}data';
+
+  Future<void> _showStartupFailure(
+    StartupFailure failure,
+    Object error,
+    StackTrace stack,
+  ) async {
+    _runtimeErrors.report(error, stack);
+    await _loadFailureDetails();
+    if (mounted && !_closing) setState(() => _startupFailure = failure);
+  }
+
+  Future<void> _loadFailureDetails() async {
+    if (_rustReady) {
+      try {
+        _buildInfo = await diagnostics.startupBuildInfo();
+      } catch (_) {
+        // Build metadata is optional when the core cannot return it.
+      }
+    }
+    if (_buildInfo == null) {
+      var version = widget.executableVersion;
+      if (version == null && Platform.isMacOS) {
+        try {
+          version = await const MethodChannel('token_lens/build')
+              .invokeMethod<String>('version')
+              .timeout(const Duration(milliseconds: 300));
+        } catch (_) {
+          // The system version still identifies the platform when metadata is unavailable.
+        }
+      }
+      _buildInfo = '${version ?? '—'} · ${Platform.operatingSystemVersion}';
+    }
+    if (_dataDir case final dataDir?) {
+      final logs = Directory('$dataDir${Platform.pathSeparator}logs');
+      try {
+        _logDirectory = await logs.exists()
+            ? logs.path
+            : await Directory(dataDir).exists()
+            ? dataDir
+            : null;
+      } on FileSystemException {
+        _logDirectory = null;
+      }
+    }
+  }
+
+  Future<String> _exportFailure(
+    StartupFailure failure,
+    AppStrings strings,
+  ) async {
+    Directory? downloads;
+    try {
+      downloads = await getDownloadsDirectory();
+    } catch (_) {
+      // The data directory is the fallback when Downloads is unavailable.
+    }
+    final dataDir = _dataDir;
+    if (downloads == null &&
+        (dataDir == null || !await Directory(dataDir).exists())) {
+      throw StateError(strings.startupExportDestinationUnavailable);
+    }
+    return diagnostics.exportStartupDiagnostics(
+      dataDir: dataDir,
+      logsHome: Platform.environment['TOKEN_LENS_PREVIEW_HOME'],
+      directory: downloads?.path ?? '$dataDir${Platform.pathSeparator}exports',
+      errorCode: failure.code.wire,
+      message: failure.message,
+    );
+  }
+
+  void _close() =>
+      ServicesBinding.instance.exitApplication(AppExitType.required);
+
+  StartupFailureCard _failureCard(
+    StartupFailure failure,
+    AppStrings strings, {
+    required bool full,
+  }) => StartupFailureCard(
+    failure: failure,
+    dataDir: _dataDir,
+    version: _buildInfo ?? '—',
+    exportDiagnostics: _rustReady
+        ? () => _exportFailure(failure, strings)
+        : null,
+    logDirectory: _logDirectory,
+    appDirectory: File(Platform.resolvedExecutable).parent.path,
+    openLink: _openLink,
+    onClose: full ? _close : null,
+    newsEnabled: !full && _preferences.newsEnabled,
+  );
 
   Future<AppExitResponse> _exit() async {
     _closing = true;
@@ -209,13 +321,6 @@ class _TokenLensAppState extends State<TokenLensApp>
       prefs.language,
       PlatformDispatcher.instance.locale.languageCode,
     );
-    final initializationError = switch (_initializationError) {
-      _StartupFailure.previewDirectories =>
-        strings.debugRunsRequireTokenLensPreviewData,
-      _StartupFailure.busy => strings.tokenLensIsAlreadyUsingThisData,
-      _StartupFailure.initialization => strings.cannotStartTokenLensCheckTheApp,
-      null => null,
-    };
     final themeMode = switch (prefs.appearance) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -241,15 +346,20 @@ class _TokenLensAppState extends State<TokenLensApp>
         theme: const LensPalette(false).theme,
         darkTheme: const LensPalette(true).theme,
         themeMode: themeMode,
-        home: _controller != null
+        home: _startupFailure != null
+            ? StartupFailurePage(
+                card: _failureCard(_startupFailure!, strings, full: true),
+              )
+            : _controller != null
             ? AppShell(
                 statsController: _statsController,
                 openLink: _openLink,
-                statsInitializationError: _statsInitializationFailed
-                    ? strings.cannotOpenTheUsageLedgerCheckThat
-                    : null,
+                failureCard: _statsFailure == null
+                    ? null
+                    : _failureCard(_statsFailure!, strings, full: false),
                 news: NewsPage(controller: _controller!, openLink: _openLink),
                 newsEnabled: prefs.newsEnabled,
+                sidebarSpacing: prefs.spacing,
                 newsListenable: _controller,
                 newsUnread: () => _controller?.totalUnread ?? 0,
               )
@@ -257,7 +367,7 @@ class _TokenLensAppState extends State<TokenLensApp>
                 body: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(32),
-                    child: _initializationError == null
+                    child: !_previewDirectoriesMissing
                         ? Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -272,13 +382,12 @@ class _TokenLensAppState extends State<TokenLensApp>
                               const Icon(Icons.info_outline, size: 32),
                               const SizedBox(height: 16),
                               Text(
-                                initializationError!,
+                                strings.debugRunsRequireTokenLensPreviewData,
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 20),
                               LensButton(
-                                onPressed: () => ServicesBinding.instance
-                                    .exitApplication(AppExitType.required),
+                                onPressed: _close,
                                 label: strings.close,
                               ),
                             ],

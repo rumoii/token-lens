@@ -3,6 +3,7 @@ mod diagnostics;
 mod engine;
 mod frb_generated;
 mod sources;
+mod startup_error;
 mod stats;
 
 #[doc(hidden)]

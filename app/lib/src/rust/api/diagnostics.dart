@@ -7,6 +7,23 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+Future<String> exportStartupDiagnostics({
+  String? dataDir,
+  String? logsHome,
+  required String directory,
+  required String errorCode,
+  required String message,
+}) => RustLib.instance.api.crateApiDiagnosticsExportStartupDiagnostics(
+  dataDir: dataDir,
+  logsHome: logsHome,
+  directory: directory,
+  errorCode: errorCode,
+  message: message,
+);
+
+Future<String> startupBuildInfo() =>
+    RustLib.instance.api.crateApiDiagnosticsStartupBuildInfo();
+
 Future<void> runtimeStart({required String dataDir, String? logsHome}) =>
     RustLib.instance.api.crateApiDiagnosticsRuntimeStart(
       dataDir: dataDir,

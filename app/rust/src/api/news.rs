@@ -70,6 +70,7 @@ impl NewsClient {
                 sources::registry(),
                 chrono::Utc::now().timestamp_millis(),
             )
+            .map_err(crate::startup_error::StartupCode::fallback)
             .inspect_err(|e| {
                 crate::diagnostics::RuntimeLog::new(Path::new(&data_dir), None)
                     .ffi::<()>("NewsClient.new", Err(e.clone()))

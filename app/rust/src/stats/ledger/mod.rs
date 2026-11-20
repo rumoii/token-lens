@@ -283,8 +283,10 @@ impl Ledger {
             Err(error) => return Err(ReadOpenError::Unavailable(error.into())),
             Ok(_) => {}
         }
-        let db = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| ReadOpenError::Unavailable(e.into()))?;
+        let db =
+            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| {
+                ReadOpenError::Unavailable(crate::startup_error::sqlite_open_error(e, path, false))
+            })?;
         let ledger = Self::from_connection(db, clock);
         Ok(ledger)
     }
@@ -306,14 +308,31 @@ impl Ledger {
                 std::fs::create_dir_all(parent)?;
             }
         }
-        let db = Connection::open(path)?;
-        db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;")?;
-        let current: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        let db = Connection::open(path)
+            .map_err(|e| crate::startup_error::sqlite_open_error(e, path, true))?;
+        let classify = |e: rusqlite::Error| {
+            let system_error = if matches!(
+                e.sqlite_error_code(),
+                Some(rusqlite::ErrorCode::CannotOpen | rusqlite::ErrorCode::SystemIoFailure)
+            ) {
+                // This connection is still open and the failing operation was its last call.
+                let errno = unsafe { rusqlite::ffi::sqlite3_system_errno(db.handle()) };
+                (errno != 0).then(|| std::io::Error::from_raw_os_error(errno))
+            } else {
+                None
+            };
+            Error::sqlite(e, system_error.as_ref())
+        };
+        let current: i64 = db
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .map_err(classify)?;
         if current > LEDGER_VERSION {
+            let code = crate::startup_error::StartupCode::LedgerTooNew.as_str();
             return Err(Error(format!(
-                "账本结构版本 {current} 高于本程序支持的 7，拒绝以旧版本写入"
+                "{code}:{current}:{LEDGER_VERSION}: 账本结构版本 {current} 高于本程序支持的 {LEDGER_VERSION}，拒绝以旧版本写入"
             )));
         }
+        db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;").map_err(classify)?;
         if current < 5 {
             let transaction = db.unchecked_transaction()?;
             // ECMAScript template literals normalize source CRLF to LF.

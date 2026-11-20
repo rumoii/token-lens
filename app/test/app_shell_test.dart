@@ -5,8 +5,11 @@ import 'package:token_lens_app/news_controller.dart';
 import 'package:token_lens_app/news_gateway.dart';
 import 'package:token_lens_app/news_page.dart';
 import 'package:token_lens_app/smooth_wheel.dart';
+import 'package:token_lens_app/startup_failure.dart';
+import 'package:token_lens_app/startup_failure_page.dart';
 import 'package:token_lens_app/stats/home_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/stats_controller.dart';
 
 import 'stats/fake_gateway.dart';
@@ -137,18 +140,26 @@ void main() {
     );
   });
 
-  testWidgets('statistics failure keeps an error banner and usable news', (
+  testWidgets('statistics failure shows a card and keeps news usable', (
     tester,
   ) async {
     final gateway = FakeNewsGateway(cached: cachedNews);
     final controller = NewsController(gateway);
     addTearDown(controller.dispose);
     final opened = <Uri>[];
-    const error = '无法打开统计账本，请检查数据目录是否可读写。';
     await tester.pumpWidget(
       MaterialApp(
         home: AppShell(
-          statsInitializationError: error,
+          failureCard: StartupFailureCard(
+            failure: const StartupFailure(
+              StartupErrorCode.ledgerCorrupt,
+              'fixture',
+            ),
+            dataDir: null,
+            version: 'fixture',
+            openLink: (_) async => true,
+            newsEnabled: true,
+          ),
           news: NewsPage(
             controller: controller,
             openLink: (uri) async {
@@ -160,15 +171,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text(error), findsOneWidget);
-    expect(find.byType(MaterialBanner), findsOneWidget);
-    expect(find.text('AI 热点'), findsOneWidget);
+    expect(find.text('统计账本已损坏'), findsOneWidget);
+    expect(find.byType(LensCard), findsOneWidget);
+    await tester.tap(find.byKey(const Key('nav-news')));
+    await tester.pumpAndSettle();
     expect(find.text('Cached article'), findsOneWidget);
     expect(gateway.refreshCalls, 0);
-    expect(
-      tester.getBottomLeft(find.byType(MaterialBanner)).dy,
-      lessThanOrEqualTo(tester.getTopLeft(find.byType(NewsPage)).dy),
-    );
+    expect(find.byType(StartupFailureCard), findsNothing);
     await tester.tap(find.text('Cached article'));
     await tester.pumpAndSettle();
     expect(opened, [Uri.parse(cachedItem.url)]);

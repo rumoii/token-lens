@@ -315,7 +315,9 @@ pub(crate) fn safe_anomaly(note: &str, discovered_files: &[PathBuf]) -> String {
 }
 
 pub(crate) fn error_kind(error: &str) -> &'static str {
-    if error == "cancelled" {
+    if let Some(code) = crate::startup_error::StartupCode::from_message(error) {
+        code.as_str()
+    } else if error == "cancelled" {
         "cancelled"
     } else if error == "closed" {
         "closed"
@@ -606,31 +608,111 @@ impl RuntimeLog {
         home: &Path,
         env: &Environment,
     ) -> Result<PathBuf, String> {
-        let result = self.export_inner(ledger, directory, home, env);
+        let result = self.export_inner(Ok(ledger), directory, Some(home), env, None);
         self.ffi("export_diagnostics", result)
     }
+
+    pub(crate) fn export_startup(
+        &self,
+        directory: &Path,
+        home: Option<&Path>,
+        env: &Environment,
+        code: crate::startup_error::StartupCode,
+        message: &str,
+    ) -> Result<PathBuf, String> {
+        use crate::startup_error::StartupCode;
+        use crate::stats::{clock::Clock, ledger::ReadOpenError};
+
+        if self.data.is_absolute() && directory.starts_with(&self.data) && !self.data.is_dir() {
+            return Err(
+                "export requires an existing data directory or an external destination".into(),
+            );
+        }
+        let ledger = if self.data.is_absolute() {
+            Ledger::open_read_only(&self.data.join("ledger.db"), Clock::System).and_then(|ledger| {
+                ledger
+                    .db
+                    .execute_batch("BEGIN DEFERRED")
+                    .map_err(|error| ReadOpenError::Unavailable(error.into()))?;
+                ledger.check_read_version()?;
+                Ok(ledger)
+            })
+        } else {
+            Err(ReadOpenError::Missing)
+        };
+        let ledger = ledger.as_ref().map_err(|error| match error {
+            ReadOpenError::Version(version) if *version > ledger::LEDGER_VERSION => {
+                StartupCode::LedgerTooNew
+            }
+            ReadOpenError::Unavailable(error) => {
+                StartupCode::from_message(&error.0).unwrap_or(StartupCode::StartupFailed)
+            }
+            _ => StartupCode::StartupFailed,
+        });
+        self.export_inner(ledger, directory, home, env, Some((code, message)))
+    }
+
     fn export_inner(
         &self,
-        ledger: &Ledger,
+        ledger: Result<&Ledger, crate::startup_error::StartupCode>,
         directory: &Path,
-        home: &Path,
+        home: Option<&Path>,
         env: &Environment,
+        startup: Option<(crate::startup_error::StartupCode, &str)>,
     ) -> Result<PathBuf, String> {
         if !directory.is_absolute() {
             return Err("export directory must be absolute".into());
         }
         let now = Local::now();
-        let schema: i64 = ledger
-            .db
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-        let mut text = format!("Token Lens 诊断日志\n[应用]\ngenerated={}\nversion={}\ncommit={}\nos={}\ndata-dir={}\nschema={schema}\n\n[最近同步]\n", now.to_rfc3339(), env!("CARGO_PKG_VERSION"), option_env!("TOKEN_LENS_BUILD_COMMIT").unwrap_or("unavailable"), os_version(), self.data.display());
-        let mut discovered = discovery::discover_with_env(home, env).map_err(|e| e.to_string())?;
+        let mut text = format!("Token Lens 诊断日志\n[应用]\ngenerated={}\nversion={}\ncommit={}\nos={}\ndata-dir={}\n", now.to_rfc3339(), env!("CARGO_PKG_VERSION"), option_env!("TOKEN_LENS_BUILD_COMMIT").unwrap_or("unavailable"), os_version(), self.data.display());
+        let (schema, runs, statuses, unavailable) = match ledger {
+            Ok(ledger) => {
+                let read = || -> crate::stats::Result<_> {
+                    let schema: i64 = ledger
+                        .db
+                        .query_row("PRAGMA user_version", [], |row| row.get(0))?;
+                    let runs = ledger::rows(&ledger.db, "SELECT id,started_at,finished_at,status,attempted,inserted,updated,unchanged,rejected,counts,notes FROM ingest_runs ORDER BY id DESC LIMIT 10", &[])?;
+                    Ok((Some(schema), runs, ledger.source_status()?, None))
+                };
+                match read() {
+                    Ok(data) => data,
+                    Err(error) if startup.is_some() => (
+                        None,
+                        Vec::new(),
+                        Vec::new(),
+                        Some(
+                            crate::startup_error::StartupCode::from_message(&error.0)
+                                .unwrap_or(crate::startup_error::StartupCode::StartupFailed),
+                        ),
+                    ),
+                    Err(error) => return Err(error.to_string()),
+                }
+            }
+            Err(code) => (None, Vec::new(), Vec::new(), Some(code)),
+        };
+        if let Some(schema) = schema {
+            text.push_str(&format!("schema={schema}\n"));
+        }
+        if let Some((code, message)) = startup {
+            let message = short_message(&self.sanitize_startup(message), 4096);
+            text.push_str(&format!(
+                "\n[启动失败]\ncode={}\nmessage={message}\n",
+                code.as_str()
+            ));
+        }
+        text.push_str("\n[最近同步]\n");
+        if let Some(code) = unavailable {
+            text.push_str(&format!("账本：无法打开（{}）\n", code.as_str()));
+        }
+        let mut discovered = home
+            .map(|home| discovery::discover_with_env(home, env))
+            .transpose()
+            .map_err(|e| e.to_string())?
+            .unwrap_or_default();
         let discovered_files: Vec<_> = discovered
             .iter()
             .flat_map(|(_, files)| files.iter().cloned())
             .collect();
-        let runs = ledger::rows(&ledger.db, "SELECT id,started_at,finished_at,status,attempted,inserted,updated,unchanged,rejected,counts,notes FROM ingest_runs ORDER BY id DESC LIMIT 10", &[]).map_err(|e| e.to_string())?;
         for row in runs.iter().rev() {
             let duration = row["finished_at"]
                 .as_i64()
@@ -679,7 +761,6 @@ impl RuntimeLog {
             }
         }
         text.push_str("\n[来源]\n");
-        let statuses = ledger.source_status().map_err(|e| e.to_string())?;
         for status in &statuses {
             if let Some(source) = status["source"].as_str() {
                 if !discovered.iter().any(|(s, _)| s == source) {
@@ -703,7 +784,9 @@ impl RuntimeLog {
                 .max()
                 .map(|v| DateTime::<Local>::from(v).to_rfc3339())
                 .unwrap_or_else(|| "unknown".into());
-            let roots = discovery::scan_roots(home, env, &source);
+            let roots = home
+                .map(|home| discovery::scan_roots(home, env, &source))
+                .unwrap_or_default();
             text.push_str(&format!(
                 "source={label} files={} latest-file-mtime={latest} records={} last-record={}\n",
                 files.len(),
@@ -720,13 +803,26 @@ impl RuntimeLog {
             }
         }
         text.push_str("\n[运行日志]\n");
-        let mut text = self.sanitize(&text);
+        let sanitize = |text: &str| {
+            if startup.is_some() {
+                self.sanitize_startup(text)
+            } else {
+                self.sanitize(text)
+            }
+        };
+        let mut text = sanitize(&text);
         let mut budget = EXPORT_LIMIT.saturating_sub(text.len().saturating_add(256));
         let mut skipped = 0_u64;
         let log_dir = self.data.join("logs");
-        if checked_existing_directory(&log_dir) {
-            let mut files: Vec<_> = fs::read_dir(&log_dir)
-                .map_err(|e| e.to_string())?
+        if (startup.is_none() || self.data.is_absolute()) && checked_existing_directory(&log_dir) {
+            let entries = match fs::read_dir(&log_dir) {
+                Ok(entries) => Some(entries),
+                Err(_) if startup.is_some() => None,
+                Err(error) => return Err(error.to_string()),
+            };
+            let mut files: Vec<_> = entries
+                .into_iter()
+                .flatten()
                 .flatten()
                 .filter(|e| {
                     ordinary(&e.path())
@@ -739,15 +835,23 @@ impl RuntimeLog {
             files.sort();
             let mut tails = Vec::new();
             for path in files.into_iter().rev() {
-                let length = fs::metadata(&path).map_err(|e| e.to_string())?.len();
+                let length = match fs::metadata(&path) {
+                    Ok(metadata) => metadata.len(),
+                    Err(_) if startup.is_some() => continue,
+                    Err(error) => return Err(error.to_string()),
+                };
                 if budget == 0 {
                     skipped = skipped.saturating_add(length);
                     continue;
                 }
                 let count = length.min(budget as u64) as usize;
-                let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
-                let (tail, omitted) =
-                    read_log_tail(&mut file, length, budget).map_err(|e| e.to_string())?;
+                let (tail, omitted) = match fs::File::open(path)
+                    .and_then(|mut file| read_log_tail(&mut file, length, budget))
+                {
+                    Ok(tail) => tail,
+                    Err(_) if startup.is_some() => continue,
+                    Err(error) => return Err(error.to_string()),
+                };
                 budget -= count;
                 skipped = skipped.saturating_add(omitted);
                 tails.push(String::from_utf8(tail).map_err(|e| e.to_string())?);
@@ -756,7 +860,7 @@ impl RuntimeLog {
                 text.push_str(&tail);
             }
         }
-        let text = self.sanitize(&text);
+        let text = sanitize(&text);
         let text = if skipped > 0 {
             format!("[截断：已省略最早的 {skipped} 字节，仅保留最新部分]\n{text}")
         } else {
@@ -777,6 +881,17 @@ impl RuntimeLog {
         file.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
         Ok(path)
     }
+
+    fn sanitize_startup(&self, text: &str) -> String {
+        let home = user_home();
+        self.sanitize(&redact_home(text, home.as_deref()))
+    }
+}
+
+pub(crate) fn user_home() -> Option<PathBuf> {
+    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
 }
 
 pub(crate) const COUNT_KEYS: &[&str] = &[
