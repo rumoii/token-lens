@@ -291,7 +291,38 @@ fn s0a_acl_discovery_and_last_sync_report_permission_denied() {
         .unwrap();
     assert!(output.status.success(), "{output:?}");
     let denied = DenyList { path: &logs, sid };
-    let error = fs::read_dir(&logs).unwrap_err();
+    let error = match fs::read_dir(&logs) {
+        Err(error) => error,
+        Ok(entries) => {
+            drop(entries);
+            let privileges = Command::new("whoami")
+                .args(["/priv", "/fo", "csv", "/nh"])
+                .output();
+            let backup_enabled = privileges.as_ref().is_ok_and(|output| {
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout).lines().any(|row| {
+                        row.starts_with("\"SeBackupPrivilege\",") && row.ends_with(",\"Enabled\"")
+                    })
+            });
+            if backup_enabled {
+                use std::io::Write;
+                writeln!(
+                    std::io::stderr(),
+                    "Skipping Windows ACL discovery test: read_dir succeeded after denying \
+                     directory listing and SeBackupPrivilege is enabled"
+                )
+                .unwrap();
+                return;
+            }
+            let acl = Command::new("icacls").arg(&logs).output();
+            panic!(
+                "read_dir({logs:?}) succeeded after denying {}:(RD), but an enabled \
+                 SeBackupPrivilege could not be confirmed.\nwhoami /priv: {privileges:?}\n\
+                 icacls: {acl:?}",
+                denied.sid
+            );
+        }
+    };
     assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
     assert_eq!(error.raw_os_error(), Some(5));
     eprintln!("Windows read_dir: {error:?}");

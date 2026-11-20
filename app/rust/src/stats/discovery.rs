@@ -1116,7 +1116,7 @@ pub(crate) fn discover_profiled(
     add(&mut scan, "antigravity", files);
     out
 }
-#[cfg(test)]
+#[cfg(all(test, windows))]
 pub fn discover(home: &Path) -> Result<Vec<(String, Vec<PathBuf>)>> {
     discover_with_env(
         home,

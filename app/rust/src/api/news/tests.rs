@@ -32,6 +32,7 @@ impl NewsSnapshot {
             .or_else(|| self.sources.iter().find_map(|s| s.error.as_ref()))
     }
 }
+#[cfg(windows)]
 use std::fs::OpenOptions;
 const MAX_BYTES: usize = 4 * 1024 * 1024;
 
