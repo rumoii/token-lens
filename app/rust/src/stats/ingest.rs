@@ -911,6 +911,7 @@ fn sync_profiled(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stats::native_golden_path;
     #[test]
     fn sync_reports_phases_and_counts_without_paths() {
         let directory = tempfile::tempdir().unwrap();
@@ -1030,17 +1031,20 @@ mod tests {
             .map(|r| r["expected"].clone())
             .collect();
         for row in &mut expected {
+            let source_file = native_golden_path(row["source_file"].as_str().unwrap());
             if row["source"] == "codex" {
                 // Explicit Rust-only short-ID divergence; Node golden and all other fields stay pinned.
                 assert_eq!(row["record_key"], "codex|codex-s|response-local");
                 assert_eq!(row["parser_rev"], 4);
-                let file = home.join(row["source_file"].as_str().unwrap());
+                // The short-ID fallback hashes the native absolute path of the fixture.
+                let file = home.join(&source_file);
                 row["record_key"] = json!(format!(
                     "codex|codex-s|{}:2",
                     adapters::file_tag(file.to_str().unwrap())
                 ));
                 row["parser_rev"] = json!(5);
             }
+            row["source_file"] = json!(source_file);
         }
         assert_eq!(actual, expected);
     }

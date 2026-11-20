@@ -638,7 +638,7 @@ mod ledger_b3_tests {
         clock::Clock,
         ingest,
         ledger::{self, Ledger},
-        service,
+        native_golden_path, service,
     };
     use super::*;
     use std::sync::atomic::AtomicBool;
@@ -703,7 +703,12 @@ mod ledger_b3_tests {
             .lines()
             .map(|line| serde_json::from_str::<Value>(line).unwrap())
             .filter(|r| r["type"] == "ledger_row")
-            .map(|r| r["expected"].clone())
+            .map(|r| {
+                let mut row = r["expected"].clone();
+                row["source_file"] =
+                    json!(native_golden_path(row["source_file"].as_str().unwrap()));
+                row
+            })
             .collect::<Vec<_>>();
         assert_eq!(actual, expected);
         for line in include_str!("../../../tests/golden/ingest-b3.jsonl").lines() {
@@ -807,7 +812,7 @@ mod ledger_b2_tests {
         clock::Clock,
         ingest,
         ledger::{self, Ledger},
-        service,
+        native_golden_path, service,
     };
     use super::*;
     use std::sync::atomic::AtomicBool;
@@ -890,7 +895,12 @@ mod ledger_b2_tests {
             .lines()
             .map(|s| serde_json::from_str::<Value>(s).unwrap())
             .filter(|r| r["type"] == "ledger_row")
-            .map(|r| r["expected"].clone())
+            .map(|r| {
+                let mut row = r["expected"].clone();
+                row["source_file"] =
+                    json!(native_golden_path(row["source_file"].as_str().unwrap()));
+                row
+            })
             .collect::<Vec<_>>();
         assert_eq!(actual, expected);
         for line in include_str!("../../../tests/golden/ingest-b2.jsonl").lines() {

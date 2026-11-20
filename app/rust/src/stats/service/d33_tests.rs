@@ -120,6 +120,11 @@ fn d33_queries_match_node_golden_and_conserve() {
         .enumerate()
     {
         let row: Value = serde_json::from_str(line).unwrap();
+        // Scenario B's fixtures and query goldens use Windows APPDATA/LOCALAPPDATA roots.
+        #[cfg(not(windows))]
+        if row["scenario"] == "B" {
+            continue;
+        }
         match row["type"].as_str().unwrap() {
             "context" => assert_eq!(row["now"], NOW),
             "setup" => {
@@ -301,5 +306,8 @@ fn d33_queries_match_node_golden_and_conserve() {
             kind => panic!("unknown golden row {kind}"),
         }
     }
-    assert_eq!(compared, 5747);
+    let expected_queries = 5743; // Scenarios A and invalid.
+    #[cfg(windows)]
+    let expected_queries = expected_queries + 4; // Scenario B.
+    assert_eq!(compared, expected_queries);
 }

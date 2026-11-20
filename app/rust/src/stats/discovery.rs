@@ -1338,12 +1338,13 @@ mod platform_tests {
 #[cfg(test)]
 mod b3_tests {
     use super::*;
+    use crate::stats::native_golden_path;
     use serde_json::{json, Value};
     fn expand(value: &Value, home: &Path) -> Value {
         if let Some(path) = value.get("home").and_then(Value::as_str) {
             let path = format!(
                 "{}{}",
-                normalize(&home.join(path)).display(),
+                normalize(&home.join(native_golden_path(path))).display(),
                 value["suffix"].as_str().unwrap_or("")
             );
             json!(if value["slashes"] == "forward" {
@@ -1433,9 +1434,14 @@ mod b3_tests {
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
+                let expected_suffixes: Vec<_> = row["identity_suffixes"][source]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|suffix| native_golden_path(suffix.as_str().unwrap()))
+                    .collect();
                 assert_eq!(
-                    json!(suffixes),
-                    row["identity_suffixes"][source],
+                    suffixes, expected_suffixes,
                     "identity {} {source}",
                     row["scenario"]
                 );

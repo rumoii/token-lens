@@ -332,6 +332,7 @@ void main() {
     testWidgets(
       'R2B 01 sessions and overview align their period control $locale',
       (tester) async {
+        if (!zh && !requireWindowsVariableFont()) return;
         await _mount(tester, locale, 1180, _Gateway());
         final period = find.byType(PeriodControl);
         final right = tester.getTopRight(period).dx;

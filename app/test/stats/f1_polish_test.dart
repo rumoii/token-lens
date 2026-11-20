@@ -63,6 +63,8 @@ class DelayedPolishGateway extends PolishGateway {
 }
 
 class PolishGateway extends FakeStatsGateway {
+  // Keep the fixture at local midnight on the controller's fixed test day.
+  static final _sessionStart = demoNow.toUtc();
   int input = 4, cached = 996;
   bool hasProject = true;
   PolishGateway() {
@@ -80,8 +82,10 @@ class PolishGateway extends FakeStatsGateway {
       source: source,
       sessionId: sessionId,
       projectKey: hasProject ? '/synthetic/team/long-project-name' : null,
-      startedAt: '2026-11-09T05:00:00Z',
-      lastSeenAt: '2026-11-09T08:20:00Z',
+      startedAt: _sessionStart.toIso8601String(),
+      lastSeenAt: _sessionStart
+          .add(const Duration(hours: 3, minutes: 20))
+          .toIso8601String(),
       grossTokens: 123456,
       inputTokens: input,
       cacheReadTokens: cached,

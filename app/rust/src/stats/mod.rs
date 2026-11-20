@@ -17,6 +17,12 @@ mod timing_fix1_tests;
 mod timing_tests;
 
 #[cfg(test)]
+fn native_golden_path(path: &str) -> String {
+    // The frozen Node goldens were generated on Windows.
+    path.replace('\\', std::path::MAIN_SEPARATOR_STR)
+}
+
+#[cfg(test)]
 fn golden_fixture(path: &str) -> std::path::PathBuf {
     // Goldens use legacy path strings as inputs to record identity.
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

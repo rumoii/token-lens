@@ -15,11 +15,24 @@ import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
+const _segoeVariableFont = 'SegUIVar.ttf';
+
+File _windowsFontFile(String name) =>
+    File('${Platform.environment['SystemRoot']}/Fonts/$name');
+
+bool requireWindowsVariableFont() {
+  if (Platform.isWindows && _windowsFontFile(_segoeVariableFont).existsSync()) {
+    return true;
+  }
+  markTestSkipped('Requires Segoe UI Variable Text (Windows SegUIVar.ttf).');
+  return false;
+}
+
 Future<void> loadSystemFonts(WidgetTester tester) async {
   if (!Platform.isWindows) return;
   await tester.runAsync(() async {
     for (final e in {
-      'Segoe UI Variable Text': ['SegUIVar.ttf'],
+      'Segoe UI Variable Text': [_segoeVariableFont],
       'Segoe UI': ['segoeui.ttf', 'segoeuib.ttf'],
       'Microsoft YaHei': ['msyh.ttc', 'msyhbd.ttc'],
       'Noto Serif SC': ['NotoSerifSC-VF.ttf'],
@@ -28,7 +41,7 @@ Future<void> loadSystemFonts(WidgetTester tester) async {
     }.entries) {
       final loader = FontLoader(e.key);
       for (final name in e.value) {
-        final file = File('${Platform.environment['SystemRoot']}/Fonts/$name');
+        final file = _windowsFontFile(name);
         if (await file.exists()) {
           loader.addFont(
             Future.value(ByteData.sublistView(await file.readAsBytes())),
