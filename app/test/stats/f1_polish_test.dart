@@ -24,7 +24,8 @@ import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
-import 'demo_visual_support.dart' show loadSystemFonts;
+import 'demo_visual_support.dart'
+    show loadSystemFonts, requireWindowsLayoutFonts;
 import 'fake_gateway.dart';
 
 class ProjectsGateway extends PolishGateway {
@@ -327,6 +328,8 @@ void main() {
       ..cached = 567890;
     final c = await mountPolish(
       tester,
+      // The full-width sheet gives Ahem room for the unrelated daily table.
+      width: Platform.isWindows ? 1440 : 720,
       page: 'sessions',
       query: 'source=claude&session=polish',
       gateway: fake,
@@ -810,6 +813,7 @@ void main() {
         width: width,
         period: const StatsPeriod('month'),
       );
+      if (width != 720 && !requireWindowsLayoutFonts()) return;
       final card = find.byKey(const Key('home-hero'));
       for (final name in ['Claude Code', 'Qwen Code', 'OpenCode']) {
         final text = find.descendant(of: card, matching: find.text(name)).last;

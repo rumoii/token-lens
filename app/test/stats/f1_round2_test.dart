@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 import 'package:token_lens_app/stats/widgets/primitives.dart';
 
+import 'demo_visual_support.dart' show requireWindowsLayoutFonts;
 import 'f1_polish_test.dart'
     show mountPolish, PolishGateway, singleLine, insideCard;
 import 'fake_gateway.dart';
@@ -187,6 +188,7 @@ void main() {
         gateway: DaysGateway(),
         now: DateTime(2026, 11, 17),
       );
+      if (width != 720 && !requireWindowsLayoutFonts(chinese: true)) return;
       for (final day in [(17, '二', '今天'), (16, '一', '昨天'), (15, '日', null)]) {
         final row = find.byKey(Key('session-day-2026-11-${day.$1}'));
         final calendar = find.descendant(
@@ -328,6 +330,7 @@ void main() {
       tester,
     ) async {
       await mountPolish(tester, width: width, page: 'sources');
+      if (width == 1024 && !requireWindowsLayoutFonts(chinese: true)) return;
       for (final prefix in ['最近一次使用 ', '本月 ']) {
         final units = find.textContaining(RegExp('^$prefix'));
         expect(units, findsWidgets);

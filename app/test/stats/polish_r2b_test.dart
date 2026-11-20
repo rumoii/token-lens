@@ -332,8 +332,10 @@ void main() {
     testWidgets(
       'R2B 01 sessions and overview align their period control $locale',
       (tester) async {
-        if (!zh && !requireWindowsVariableFont()) return;
         await _mount(tester, locale, 1180, _Gateway());
+        if (!zh && !requireWindowsLayoutFonts(serif: true, diagnose: true)) {
+          return;
+        }
         final period = find.byType(PeriodControl);
         final right = tester.getTopRight(period).dx;
         await navigate(tester, 'sessions', {'period': 'month'});
@@ -452,6 +454,7 @@ void main() {
       tester,
     ) async {
       await _mount(tester, locale, 1180, _Gateway());
+      if (!zh && !requireWindowsLayoutFonts()) return;
       await navigate(tester, 'detail', {'period': 'month'});
       final grouping = find.byWidgetPredicate(
         (w) => w is LensSegmented && w.label == s.groupBy,

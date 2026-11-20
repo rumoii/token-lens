@@ -227,8 +227,11 @@ void _layoutTests() {
     testWidgets(
       'FIX1 header title and controls share a row above a full-width description $locale',
       (tester) async {
-        if (locale == 'en' && !requireWindowsVariableFont()) return;
         await _mount(tester, locale, desktop);
+        if (locale == 'en' &&
+            !requireWindowsLayoutFonts(serif: true, diagnose: true)) {
+          return;
+        }
         for (final page in ['home', 'detail']) {
           await language.navigate(tester, page);
           final title = _within(

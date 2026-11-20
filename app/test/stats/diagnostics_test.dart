@@ -30,10 +30,13 @@ void main() {
   testWidgets('诊断说明、点击导出、保存位置与打开文件夹', (t) async {
     final g = DiagnosticsSettingsGateway();
     final opened = <Uri>[];
+    final downloads = Directory(
+      Platform.isWindows ? r'C:\Synthetic\Downloads' : '/synthetic/Downloads',
+    );
     await showSettings(
       t,
       g,
-      downloadsDirectory: () async => Directory(r'C:\Synthetic\Downloads'),
+      downloadsDirectory: () async => downloads,
       openLink: (uri) async {
         opened.add(uri);
         return true;
@@ -45,7 +48,7 @@ void main() {
     await t.ensureVisible(find.text('导出诊断日志'));
     await t.tap(find.text('导出诊断日志'));
     await t.pumpAndSettle();
-    expect(g.directories, ['C:\\Synthetic\\Downloads']);
+    expect(g.directories, [downloads.path]);
     expect(
       find.textContaining('token-lens-diagnostics-20261116-120000.txt'),
       findsOneWidget,
@@ -54,7 +57,7 @@ void main() {
     await t.tap(find.text('打开所在文件夹'));
     await t.pumpAndSettle();
     expect(opened.single.scheme, 'file');
-    expect(opened.single.toString(), contains('Downloads'));
+    expect(opened.single, Uri.directory(downloads.path));
     expect(t.takeException(), isNull);
   });
 

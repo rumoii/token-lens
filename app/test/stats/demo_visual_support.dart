@@ -15,37 +15,84 @@ import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
-const _segoeVariableFont = 'SegUIVar.ttf';
+const _windowsFonts = {
+  'Segoe UI Variable Text': ['SegUIVar.ttf'],
+  'Segoe UI': ['segoeui.ttf', 'segoeuib.ttf'],
+  'Microsoft YaHei': ['msyh.ttc', 'msyhbd.ttc'],
+  'Noto Serif SC': ['NotoSerifSC-VF.ttf'],
+  'Georgia': ['georgia.ttf', 'georgiab.ttf'],
+  'SimSun': ['simsun.ttc'],
+};
+final _fontReadResults = <String, String>{};
 
 File _windowsFontFile(String name) =>
     File('${Platform.environment['SystemRoot']}/Fonts/$name');
 
-bool requireWindowsVariableFont() {
-  if (Platform.isWindows && _windowsFontFile(_segoeVariableFont).existsSync()) {
-    return true;
+double _fontSampleWidth(String family) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: 'Token Lens 123.5K',
+      style: TextStyle(fontFamily: family, fontSize: 16),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  final width = painter.width;
+  painter.dispose();
+  return width;
+}
+
+// Call after loadSystemFonts. The test engine can return Ahem even after a
+// FontLoader completes, including when only a fallback family was loaded.
+bool requireWindowsLayoutFonts({
+  bool serif = false,
+  bool chinese = false,
+  bool diagnose = false,
+}) {
+  final families = [
+    'Segoe UI Variable Text',
+    if (serif) 'Noto Serif SC',
+    if (chinese) 'Microsoft YaHei',
+  ];
+  final ahem = _fontSampleWidth('Ahem');
+  final widths = {
+    for (final family in families) family: _fontSampleWidth(family),
+  };
+  final missing = families
+      .where(
+        (family) => !Platform.isWindows || (widths[family]! - ahem).abs() < .1,
+      )
+      .toList();
+  if (diagnose || missing.isNotEmpty && Platform.isWindows) {
+    debugPrint(
+      'Windows layout fonts: files=$_fontReadResults; '
+      '16 px "Token Lens 123.5K": Ahem=$ahem, $widths',
+    );
   }
-  markTestSkipped('Requires Segoe UI Variable Text (Windows SegUIVar.ttf).');
+  if (missing.isEmpty) return true;
+  markTestSkipped(
+    'Requires loaded Windows layout fonts: ${missing.join(', ')}.',
+  );
   return false;
 }
 
 Future<void> loadSystemFonts(WidgetTester tester) async {
   if (!Platform.isWindows) return;
+  _fontReadResults.clear();
   await tester.runAsync(() async {
-    for (final e in {
-      'Segoe UI Variable Text': [_segoeVariableFont],
-      'Segoe UI': ['segoeui.ttf', 'segoeuib.ttf'],
-      'Microsoft YaHei': ['msyh.ttc', 'msyhbd.ttc'],
-      'Noto Serif SC': ['NotoSerifSC-VF.ttf'],
-      'Georgia': ['georgia.ttf', 'georgiab.ttf'],
-      'SimSun': ['simsun.ttc'],
-    }.entries) {
+    for (final e in _windowsFonts.entries) {
       final loader = FontLoader(e.key);
       for (final name in e.value) {
         final file = _windowsFontFile(name);
-        if (await file.exists()) {
-          loader.addFont(
-            Future.value(ByteData.sublistView(await file.readAsBytes())),
-          );
+        if (!await file.exists()) {
+          _fontReadResults[name] = 'missing';
+          continue;
+        }
+        try {
+          final bytes = await file.readAsBytes();
+          _fontReadResults[name] = '${bytes.length} bytes';
+          loader.addFont(Future.value(ByteData.sublistView(bytes)));
+        } on FileSystemException catch (error) {
+          _fontReadResults[name] = 'read error (${error.osError?.errorCode})';
         }
       }
       await loader.load();

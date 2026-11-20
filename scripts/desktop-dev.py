@@ -52,8 +52,15 @@ def check(environment, only):
               environment, "Run dart format on the files listed above.")
         stage("Flutter analyze", ["flutter", "analyze", "--no-pub"],
               environment, "Resolve locked Flutter packages first, then inspect the analyzer diagnostics.")
+        test_environment = environment
+        if sys.platform == "darwin":
+            # Flutter tester builds a dylib here. FRB otherwise looks for an app framework.
+            test_environment = {
+                **environment,
+                "FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR": str(APP / "build/native_assets/macos"),
+            }
         stage("Flutter tests", ["flutter", "test", "--no-pub"],
-              environment, "See the failing Flutter test or native build diagnostic above.")
+              test_environment, "See the failing Flutter test or native build diagnostic above.")
     if only is None:
         stage("Third-party notices", ["dart", "--packages=.dart_tool/package_config.json",
                                       "../scripts/generate-desktop-notices.dart", "--check"],

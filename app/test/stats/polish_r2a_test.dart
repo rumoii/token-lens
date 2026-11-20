@@ -330,6 +330,7 @@ void main() {
         'R2A 04 daily rows show date, weekday and muted relative marker $locale $width',
         (tester) async {
           await _mount(tester, locale, width: width);
+          if (!zh && width == 1920 && !requireWindowsLayoutFonts()) return;
           await navigate(tester, 'detail', {'period': 'month', 'dim': 'date'});
           for (final (bucket, date, relative) in [
             (
