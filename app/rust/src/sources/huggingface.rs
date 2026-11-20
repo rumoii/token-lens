@@ -1,4 +1,4 @@
-//! Hugging Face sources: trending models, trending Spaces, and daily papers (specs/news.md).
+//! Hugging Face sources: trending models, trending Spaces, and daily papers (docs/development/news.md).
 //!
 //! Each source parses one Hugging Face public API response: a JSON array of entries. Entries
 //! missing `id` or a title are skipped; when every entry is skipped the response is a `ParseError`.

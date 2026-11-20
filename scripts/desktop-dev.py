@@ -73,7 +73,7 @@ def run_preview(environment):
     data = Path(environment["TOKEN_LENS_PREVIEW_DATA_DIR"])
     home = Path(environment["TOKEN_LENS_PREVIEW_HOME"])
     seed_preferences_and_news(data)
-    fixture = REPO / "test/fixtures/parity/claude.jsonl"
+    fixture = REPO / "app/rust/tests/fixtures/parity/claude.jsonl"
     with fixture.open(encoding="utf-8") as source:
         record = json.loads(source.readline())
     # Keep the fixture visible in the default date ranges year-round.

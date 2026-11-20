@@ -29,7 +29,7 @@ def verify_cli(executable, data):
     print("PASS: CLI status refused a missing ledger without writing data", flush=True)
 
 
-def verify(archive):
+def verify(archive, empty_home=False):
     with tempfile.TemporaryDirectory(prefix="token-lens-zip-", dir=os.environ.get("RUNNER_TEMP")) as folder:
         root = Path(folder)
         paths = ["LICENSE", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_LICENSES.txt"]
@@ -46,7 +46,8 @@ def verify(archive):
             executable = "Token Lens.app/Contents/MacOS/Token Lens"
             cli = "Token Lens.app/Contents/MacOS/token-lens-cli"
             frameworks = "Token Lens.app/Contents/Frameworks"
-            paths.extend([f"{frameworks}/FlutterMacOS.framework/FlutterMacOS",
+            paths.extend(["Token Lens.app/Contents/Info.plist",
+                          f"{frameworks}/FlutterMacOS.framework/FlutterMacOS",
                           f"{frameworks}/App.framework/Resources/flutter_assets/NOTICES.Z"])
         else:
             raise SystemExit("Desktop ZIP smoke requires Windows or macOS.")
@@ -58,13 +59,16 @@ def verify(archive):
         verify_cli(root / cli, root / "empty-cli-data")
         smoke = Path(__file__).with_name("smoke-desktop.py")
         subprocess.run([sys.executable, smoke, root / executable], check=True)
+        if empty_home:
+            subprocess.run([sys.executable, smoke, root / executable, "--empty-home"], check=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
+    parser.add_argument("--empty-home", action="store_true", help="Also smoke test an empty log home")
     args = parser.parse_args()
-    verify(args.archive.resolve(strict=True))
+    verify(args.archive.resolve(strict=True), args.empty_home)
 
 
 if __name__ == "__main__":

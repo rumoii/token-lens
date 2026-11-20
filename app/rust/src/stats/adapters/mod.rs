@@ -326,7 +326,6 @@ mod tests {
     }
     #[test]
     fn adapters_match_node() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         for line in include_str!("../../../tests/golden/adapters.jsonl").lines() {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "adapter_record" {
@@ -334,13 +333,13 @@ mod tests {
                 let (mut records, notes) = parse(
                     row["source"].as_str().unwrap(),
                     file,
-                    &root.join(file),
+                    &crate::stats::golden_fixture(file),
                     &LocalZone::Fixed(480),
                 )
                 .unwrap();
                 let mut expected = row["records"].clone();
                 // E4 desktop-only timing contract; old fixtures have no first-output evidence.
-                // Keep Node goldens and every existing usage field unchanged (specs/stats.md).
+                // Keep Node goldens and every existing usage field unchanged (docs/development/stats.md).
                 for record in &mut records {
                     if let Some(timing) = record.as_object_mut().unwrap().remove("timing") {
                         assert!(matches!(
@@ -399,8 +398,8 @@ mod tests {
                 }
             }
             if row["fn"] == "zstd" {
-                let bytes = std::fs::read(root.join(format!(
-                    "test/fixtures/parity/zstd-{}.bin",
+                let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+                    "tests/fixtures/parity/zstd-{}.bin",
                     row["name"].as_str().unwrap()
                 )))
                 .unwrap();
@@ -489,7 +488,7 @@ mod revision_tests {
         for line in include_str!("../../../tests/golden/parser-rev.jsonl").lines() {
             let row: serde_json::Value = serde_json::from_str(line).unwrap();
             if row["source"] == "codex" {
-                // Node is the independent rollback path; see specs/stats.md, allowed differences.
+                // Node is the independent rollback path; see docs/development/stats.md, allowed differences.
                 assert_eq!(row["expected"], 4);
                 assert_eq!(super::parser_rev("codex"), 5);
                 continue;
@@ -508,7 +507,6 @@ mod b2_tests {
     use super::*;
     #[test]
     fn adapters_match_node_b2() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         for line in include_str!("../../../tests/golden/adapters-b2.jsonl").lines() {
             let row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "adapter_record" {
@@ -516,7 +514,7 @@ mod b2_tests {
                 let result = parse(
                     row["source"].as_str().unwrap(),
                     file,
-                    &root.join(file),
+                    &crate::stats::golden_fixture(file),
                     &LocalZone::Fixed(480),
                 );
                 if row["error"] == true {
@@ -554,7 +552,6 @@ mod b3_tests {
     use super::*;
     #[test]
     fn adapters_match_node_b3() {
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut setup = Value::Null;
         let mut scenarios = 0;
         let mut records_count = 0;
@@ -566,7 +563,7 @@ mod b3_tests {
                 "setup" => setup = row,
                 "adapter_record" => {
                     let dir = tempfile::tempdir().unwrap();
-                    let writers = sqlite::materialize(&repo, dir.path(), &setup);
+                    let writers = sqlite::materialize(dir.path(), &setup);
                     let file = row["file"].as_str().unwrap();
                     let actual = dir.path().join(file);
                     let snapshots = if setup["kind"].as_str().unwrap().starts_with("wal-") {
@@ -646,7 +643,6 @@ mod ledger_b3_tests {
     use super::*;
     use std::sync::atomic::AtomicBool;
     fn setup_b3(home: &Path) {
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let setup: Value = include_str!("../../../tests/golden/ingest-b3.jsonl")
             .lines()
             .map(|line| serde_json::from_str::<Value>(line).unwrap())
@@ -654,7 +650,7 @@ mod ledger_b3_tests {
             .unwrap();
         for entry in setup["files"].as_array().unwrap() {
             let setup = json!({"source":entry["source"],"file":entry["target"],"kind":"seed","seed":entry["input"]});
-            assert!(sqlite::materialize(&repo, home, &setup).is_empty());
+            assert!(sqlite::materialize(home, &setup).is_empty());
         }
     }
     fn environment(home: &Path) -> ingest::Environment {
@@ -729,7 +725,6 @@ mod ledger_b3_tests {
         let dir = tempfile::tempdir().unwrap();
         let home = dir.path().join("home");
         let data = dir.path().join("data");
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let setup: Value = include_str!("../../../tests/golden/ingest-b2.jsonl")
             .lines()
             .map(|line| serde_json::from_str::<Value>(line).unwrap())
@@ -738,7 +733,11 @@ mod ledger_b3_tests {
         for entry in setup["files"].as_array().unwrap() {
             let target = home.join(entry["target"].as_str().unwrap());
             std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-            std::fs::copy(repo.join(entry["input"].as_str().unwrap()), target).unwrap();
+            std::fs::copy(
+                crate::stats::golden_fixture(entry["input"].as_str().unwrap()),
+                target,
+            )
+            .unwrap();
         }
         setup_b3(&home);
         // Keep the 27 Node fixtures and their golden comparisons separate from Rust-only fixtures.
@@ -813,7 +812,6 @@ mod ledger_b2_tests {
     use super::*;
     use std::sync::atomic::AtomicBool;
     fn setup(home: &Path, all: bool) {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let row: Value = include_str!("../../../tests/golden/ingest-b2.jsonl")
             .lines()
             .map(|s| serde_json::from_str::<Value>(s).unwrap())
@@ -823,7 +821,11 @@ mod ledger_b2_tests {
             if all || entry["ledger"] == true {
                 let target = home.join(entry["target"].as_str().unwrap());
                 std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-                std::fs::copy(root.join(entry["input"].as_str().unwrap()), target).unwrap();
+                std::fs::copy(
+                    crate::stats::golden_fixture(entry["input"].as_str().unwrap()),
+                    target,
+                )
+                .unwrap();
             }
         }
     }

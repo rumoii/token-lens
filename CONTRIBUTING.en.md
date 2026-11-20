@@ -25,7 +25,7 @@ The desktop app lives in `app/`: a Flutter interface and a Rust core, connected 
 
 Always run and test through `scripts/desktop-dev.py`. A debug build refuses to start unless both `TOKEN_LENS_PREVIEW_DATA_DIR` (ledger and settings) and `TOKEN_LENS_PREVIEW_HOME` (where tool logs are found) are set. The script points both at temporary folders, so the app never reads your real logs or ledger during development. Never point them at your real home or app data folder.
 
-More detail: [app/README.md](app/README.md). To support a new AI coding tool, read [docs/adding-a-source.md](docs/adding-a-source.md) (in Chinese).
+More detail: [app/README.md](app/README.md). To support a new AI coding tool, read [docs/development/adding-a-source.md](docs/development/adding-a-source.md) (in Chinese).
 
 ## Issues
 

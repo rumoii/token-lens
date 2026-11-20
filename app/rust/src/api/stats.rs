@@ -1330,7 +1330,7 @@ mod tests {
         std::fs::create_dir_all(home.join(".claude/projects")).unwrap();
         std::fs::copy(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../test/fixtures/parity/ingest-a.jsonl"),
+                .join("tests/fixtures/parity/ingest-a.jsonl"),
             home.join(".claude/projects/a.jsonl"),
         )
         .unwrap();

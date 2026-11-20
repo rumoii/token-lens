@@ -32,7 +32,7 @@ https://github.com/rumoii/token-lens/security/advisories/new
 4. **联网面**（详见 [隐私说明](PRIVACY.md#什么时候联网)）：
    - AI 热点：每个来源只请求固定地址，不加载远程图片；条目链接在 Rust 端只保留 http/https 地址（`safe_url`），其他协议的链接被丢弃。
    - 汇率：只在用户点「更新汇率」时请求一次。
-   - 检查更新：只向 `api.github.com` 请求本项目最新正式版本，不跟随重定向，响应超过 512 KiB 中止；下载页地址由校验过的版本号拼出，不使用响应里的链接（[specs/update.md](specs/update.md)）。
+   - 检查更新：只向 `api.github.com` 请求本项目最新正式版本，不跟随重定向，响应超过 512 KiB 中止；下载页地址由校验过的版本号拼出，不使用响应里的链接（[docs/development/update.md](docs/development/update.md)）。
    - 所有外部链接交给系统默认浏览器打开。
 5. **诊断导出**（`app/rust/src/diagnostics.rs`）：只在用户点击时生成；不含账本和对话内容；先把用户主目录替换成 `~`，再过滤敏感字段，最后截断。
 

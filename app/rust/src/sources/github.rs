@@ -1,4 +1,4 @@
-//! Source module; see `super::Source` and specs/news.md.
+//! Source module; see `super::Source` and docs/development/news.md.
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::Deserialize;

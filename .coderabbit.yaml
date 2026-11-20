@@ -15,19 +15,15 @@ reviews:
     - '!**/dist/**'
     - '!**/*.min.js'
   path_instructions:
-    - path: src/core/adapters/**
+    - path: app/rust/src/stats/adapters/**
       instructions: >-
         Record identity must survive token updates. Follow the adapter contract for
         deduplication, event versus cumulative records, inclusive cache fields and
         reasoning output. Decode all concatenated compressed frames.
-    - path: src/core/pricing/**
+    - path: app/rust/src/stats/pricing*
       instructions: >-
         Catalog entries own IDs, aliases, rates, evidence and conditions. Never infer
         a rate from a model family. Keep money in integer micro-USD and preserve
         unknown cache-write prices as unknown.
-    - path: dashboard/**
-      instructions: >-
-        This application is a Vite SPA. Page prose follows the existing Chinese
-        convention; shared shell strings use copy(). Keep instructions specific to Vite.
 chat:
   auto_reply: true

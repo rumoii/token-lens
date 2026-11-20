@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="dashboard/public/app-icon.png" width="96" alt="">
+<img src="app/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png" width="96" alt="">
 
 # Token Lens
 
@@ -92,7 +92,7 @@ token-lens-cli sessions --sort cost --limit 10 # the 10 most expensive sessions
 token-lens-cli sync                            # sync once
 ```
 
-Every command except `sync` only reads the ledger: it never goes online or triggers a sync, and `freshness` in the output says when the data was last synced. See [specs/cli.md](specs/cli.md) (in Chinese) for every option and exit code.
+Every command except `sync` only reads the ledger: it never goes online or triggers a sync, and `freshness` in the output says when the data was last synced. See [docs/development/cli.md](docs/development/cli.md) (in Chinese) for every option and exit code.
 
 ## Supported tools
 
@@ -127,13 +127,13 @@ Every command except `sync` only reads the ledger: it never goes online or trigg
 | Trae / Trae CN | trae | Experimental, synthetic-only | JSONL id semantics unconfirmed |
 | Zed | zed | Experimental, synthetic-only | payload may be a zstd BLOB |
 
-Verified = checked against real logs (field by field by hand, against the client's own reported totals, or by reconciling with the ledger); these checks were first run on the legacy tool, and the desktop app then matched the legacy tool field for field on the same real logs. Real samples, pending verification = real logs exist but have too little usage or nothing to compare against. Experimental = verified against synthetic samples, still waiting for real-log acceptance; real samples are welcome. Field meanings and known limitations are in the [adapter contract](specs/adapters.md) and [log field facts](specs/log-schemas.yaml).
+Verified = checked against real logs (field by field by hand, against the client's own reported totals, or by reconciling with the ledger); these checks were first run on the legacy tool, and the desktop app then matched the legacy tool field for field on the same real logs. Real samples, pending verification = real logs exist but have too little usage or nothing to compare against. Experimental = verified against synthetic samples, still waiting for real-log acceptance; real samples are welcome. Field meanings and known limitations are in the [adapter contract](docs/development/adapters.md) and [log field facts](docs/development/log-schemas.yaml).
 
 ## Data and privacy
 
 - **Reads local logs only**: Token Lens reads and parses the tools' logs on this computer and extracts only usage metadata (the four token kinds, model, time, session, project path). Prompts, replies, code and credentials in those logs are never written to the ledger or sent anywhere, and the tools' files are never modified.
 - **Data stays on this computer**: usage, preferences and the news cache live in a `data` folder under the system's application support directory: `%APPDATA%\Token Lens\Token Lens\data` on Windows, `~/Library/Application Support/io.github.rumoii.token-lens/data` on macOS. Delete that folder to remove everything.
-- **Only three things use the network**: AI news, while it is on, refreshes its sources on the schedule above; clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [specs/news.md](specs/news.md); the update check is described in [specs/update.md](specs/update.md).
+- **Only three things use the network**: AI news, while it is on, refreshes its sources on the schedule above; clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [docs/development/news.md](docs/development/news.md); the update check is described in [docs/development/update.md](docs/development/update.md).
 - No accounts, uploads, telemetry or third-party analytics. See the [privacy policy](PRIVACY.md) for details.
 
 ## How it works
@@ -145,13 +145,13 @@ Verified = checked against real logs (field by field by hand, against the client
 
 - The UI is Flutter. Collection, pricing and news refresh run in a Rust library shipped with the app and called in-process through flutter_rust_bridge; there is no local web server and no WebView.
 - Reading the same record again never counts it twice, and usage already recorded stays even after a client prunes its logs.
-- Amounts are stored as integer micro-dollars (USD × 10⁶); pricing rules are in [specs/pricing.md](specs/pricing.md).
-- Per-request timings are stored separately and never change usage or cost; definitions are in [specs/stats.md](specs/stats.md).
+- Amounts are stored as integer micro-dollars (USD × 10⁶); pricing rules are in [docs/development/pricing.md](docs/development/pricing.md).
+- Per-request timings are stored separately and never change usage or cost; definitions are in [docs/development/stats.md](docs/development/stats.md).
 
 | Directory | Contents |
 | --- | --- |
 | `app/` | The desktop app: Flutter UI (`app/lib/`) and Rust core (`app/rust/`) |
-| `specs/` | Adapter contracts, log fields, statistics and pricing specs, news sources |
+| `docs/development/` | Adapter contracts, log fields, statistics and pricing specs, news sources |
 | `src/core/`, `dashboard/`, `desktop/`, `bin/` | The legacy Node/React tool, see [Legacy](#legacy-nodereact-tool) |
 | `scripts/`, `test/` | Legacy scripts and tests; `scripts/parity/` uses the legacy code to generate the desktop app's parity baselines |
 
@@ -180,7 +180,7 @@ npm run dashboard:build
 npm start          # starts the local dashboard and prints its address (http://127.0.0.1:3456 unless that port is taken); open it in a browser
 ```
 
-CLI usage: `node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`. Always pass `--data-dir` when pointing anywhere other than a test directory. See [specs/features.md](specs/features.md) for the feature spec and [CLAUDE.md](CLAUDE.md) for data-directory rules and test conventions.
+CLI usage: `node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`. Always pass `--data-dir` when pointing anywhere other than a test directory. See [docs/archive/features.md](docs/archive/features.md) for the feature spec and `CLAUDE.md` for data-directory rules and test conventions.
 
 ## Documentation
 
@@ -188,16 +188,16 @@ The specifications are written in Simplified Chinese.
 
 | Document | Description |
 | --- | --- |
-| [specs/desktop.md](specs/desktop.md) | Desktop app technical decisions |
-| [specs/stats.md](specs/stats.md) | Statistics, timing and UI rules |
-| [specs/news.md](specs/news.md) | News sources and network boundary |
-| [specs/update.md](specs/update.md) | Update check requests and boundary |
-| [specs/cli.md](specs/cli.md) | CLI and export output contract |
-| [specs/adapters.md](specs/adapters.md) | Adapter contract |
-| [specs/log-schemas.yaml](specs/log-schemas.yaml) | Log field facts |
-| [specs/pricing.md](specs/pricing.md) | Pricing contract |
+| [docs/development/desktop.md](docs/development/desktop.md) | Desktop app technical decisions |
+| [docs/development/stats.md](docs/development/stats.md) | Statistics, timing and UI rules |
+| [docs/development/news.md](docs/development/news.md) | News sources and network boundary |
+| [docs/development/update.md](docs/development/update.md) | Update check requests and boundary |
+| [docs/development/cli.md](docs/development/cli.md) | CLI and export output contract |
+| [docs/development/adapters.md](docs/development/adapters.md) | Adapter contract |
+| [docs/development/log-schemas.yaml](docs/development/log-schemas.yaml) | Log field facts |
+| [docs/development/pricing.md](docs/development/pricing.md) | Pricing contract |
 | [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | Contributing guide and getting started |
-| [docs/adding-a-source.md](docs/adding-a-source.md) | Adding a tool (in Chinese) |
+| [docs/development/adding-a-source.md](docs/development/adding-a-source.md) | Adding a tool (in Chinese) |
 | [SECURITY.md](SECURITY.md) | Security policy |
 | [PRIVACY.md](PRIVACY.md) | Privacy policy |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party notices |

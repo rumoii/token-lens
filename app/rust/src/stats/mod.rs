@@ -16,6 +16,14 @@ mod timing_fix1_tests;
 #[cfg(test)]
 mod timing_tests;
 
+#[cfg(test)]
+fn golden_fixture(path: &str) -> std::path::PathBuf {
+    // Goldens use legacy path strings as inputs to record identity.
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(path.strip_prefix("test/fixtures/").unwrap())
+}
+
 #[derive(Debug)]
 pub struct Error(pub String);
 impl Error {

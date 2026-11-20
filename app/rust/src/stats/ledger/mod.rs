@@ -1153,10 +1153,9 @@ mod tests {
 
     #[test]
     fn writer_and_migrations_match_node() {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../../../test/fixtures/parity/ledger.json"
-        ))
-        .unwrap();
+        let fixture: Value =
+            serde_json::from_str(include_str!("../../../tests/fixtures/parity/ledger.json"))
+                .unwrap();
         let expected: Vec<Value> = include_str!("../../../tests/golden/ledger.jsonl")
             .lines()
             .map(|s| serde_json::from_str(s).unwrap())
@@ -1259,10 +1258,10 @@ mod tests {
             let path = directory.path().join("ledger.db");
             let initial = Connection::open(&path).unwrap();
             let sql = match golden["version"].as_i64().unwrap() {
-                1 => include_str!("../../../../../test/fixtures/parity/v1.sql"),
-                2 => include_str!("../../../../../test/fixtures/parity/v2.sql"),
-                3 => include_str!("../../../../../test/fixtures/parity/v3.sql"),
-                _ => include_str!("../../../../../test/fixtures/parity/v4.sql"),
+                1 => include_str!("../../../tests/fixtures/parity/v1.sql"),
+                2 => include_str!("../../../tests/fixtures/parity/v2.sql"),
+                3 => include_str!("../../../tests/fixtures/parity/v3.sql"),
+                _ => include_str!("../../../tests/fixtures/parity/v4.sql"),
             };
             initial.execute_batch(sql).unwrap();
             drop(initial);

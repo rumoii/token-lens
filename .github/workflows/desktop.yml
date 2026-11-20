@@ -9,36 +9,38 @@ on:
   pull_request:
     paths:
       - 'app/**'
-      - 'specs/**'
-      - 'test/fixtures/**'
+      - 'docs/development/**'
       - '.github/workflows/desktop.yml'
       - 'scripts/smoke-desktop.py'
       - 'scripts/desktop-dev.py'
       - 'scripts/desktop_demo.py'
       - 'scripts/desktop_env.py'
       - 'scripts/verify-desktop-zip.py'
+      - 'scripts/desktop-release-assets.py'
       - 'scripts/generate-desktop-notices.dart'
       - 'scripts/licenses/**'
       - 'THIRD_PARTY_NOTICES.md'
       - 'LICENSE'
       - '.github/workflows/release.yml'
+      - '.github/workflows/verify-draft-release.yml'
   push:
     branches: [main]
     paths:
       - 'app/**'
-      - 'specs/**'
-      - 'test/fixtures/**'
+      - 'docs/development/**'
       - '.github/workflows/desktop.yml'
       - 'scripts/smoke-desktop.py'
       - 'scripts/desktop-dev.py'
       - 'scripts/desktop_demo.py'
       - 'scripts/desktop_env.py'
       - 'scripts/verify-desktop-zip.py'
+      - 'scripts/desktop-release-assets.py'
       - 'scripts/generate-desktop-notices.dart'
       - 'scripts/licenses/**'
       - 'THIRD_PARTY_NOTICES.md'
       - 'LICENSE'
       - '.github/workflows/release.yml'
+      - '.github/workflows/verify-draft-release.yml'
 
 permissions:
   contents: read

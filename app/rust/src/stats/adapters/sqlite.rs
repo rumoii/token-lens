@@ -160,7 +160,7 @@ pub(super) fn directory(
 }
 
 #[cfg(test)]
-pub(super) fn materialize(repo: &Path, root: &Path, setup: &Value) -> Vec<Connection> {
+pub(super) fn materialize(root: &Path, setup: &Value) -> Vec<Connection> {
     let file = root.join(setup["file"].as_str().unwrap());
     assert!(file.starts_with(root));
     std::fs::create_dir_all(file.parent().unwrap()).unwrap();
@@ -172,7 +172,10 @@ pub(super) fn materialize(repo: &Path, root: &Path, setup: &Value) -> Vec<Connec
         "garbage" => std::fs::write(&file, vec![0x5a; 1024]).unwrap(),
         "open-error" => std::fs::create_dir(&file).unwrap(),
         "csv" | "csv-crlf" => {
-            let mut bytes = std::fs::read(repo.join(setup["input"].as_str().unwrap())).unwrap();
+            let mut bytes = std::fs::read(crate::stats::golden_fixture(
+                setup["input"].as_str().unwrap(),
+            ))
+            .unwrap();
             if kind == "csv-crlf" {
                 bytes = String::from_utf8(bytes)
                     .unwrap()
@@ -196,7 +199,10 @@ pub(super) fn materialize(repo: &Path, root: &Path, setup: &Value) -> Vec<Connec
                 .unwrap();
             writer
                 .execute_batch(
-                    &std::fs::read_to_string(repo.join(setup["seed"].as_str().unwrap())).unwrap(),
+                    &std::fs::read_to_string(crate::stats::golden_fixture(
+                        setup["seed"].as_str().unwrap(),
+                    ))
+                    .unwrap(),
                 )
                 .unwrap();
             if kind == "wal-leftover" {
@@ -214,7 +220,10 @@ pub(super) fn materialize(repo: &Path, root: &Path, setup: &Value) -> Vec<Connec
             let sql = if kind == "missing-table" {
                 "CREATE TABLE unrelated (id)".into()
             } else {
-                std::fs::read_to_string(repo.join(setup["seed"].as_str().unwrap())).unwrap()
+                std::fs::read_to_string(crate::stats::golden_fixture(
+                    setup["seed"].as_str().unwrap(),
+                ))
+                .unwrap()
             };
             db.execute_batch(&sql).unwrap();
         }
@@ -228,7 +237,7 @@ pub(super) fn materialize(repo: &Path, root: &Path, setup: &Value) -> Vec<Connec
             .unwrap()
             .join(sibling["file"].as_str().unwrap())
             .to_string_lossy());
-        writers.extend(materialize(repo, root, &sibling));
+        writers.extend(materialize(root, &sibling));
     }
     writers
 }

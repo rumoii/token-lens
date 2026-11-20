@@ -88,8 +88,7 @@ fn d33_queries_match_node_golden_and_conserve() {
         .iter()
         .filter(|source| evidence.get(**source).is_some())
         .count();
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/fixtures/parity/queries");
-    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/queries");
     let temp = tempfile::tempdir().unwrap();
     let home = temp.path().join("home");
     let data = temp.path().join("data");
@@ -148,7 +147,7 @@ fn d33_queries_match_node_golden_and_conserve() {
                 for entry in row["files"].as_array().unwrap() {
                     let target = home.join(entry["target"].as_str().unwrap());
                     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-                    let input = repo.join(entry["input"].as_str().unwrap());
+                    let input = crate::stats::golden_fixture(entry["input"].as_str().unwrap());
                     if input.extension().is_some_and(|s| s == "sql") {
                         let db = rusqlite::Connection::open(&target).unwrap();
                         db.execute_batch(&std::fs::read_to_string(input).unwrap())

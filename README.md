@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="dashboard/public/app-icon.png" width="96" alt="">
+<img src="app/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png" width="96" alt="">
 
 # Token Lens
 
@@ -90,7 +90,7 @@ token-lens-cli sessions --sort cost --limit 10 # 最贵的 10 个会话
 token-lens-cli sync                            # 同步一次
 ```
 
-除了 `sync`，命令都只读账本，不联网，也不会触发同步；结果里的 `freshness` 写明数据是什么时候同步的。完整说明和退出码见 [specs/cli.md](specs/cli.md)。
+除了 `sync`，命令都只读账本，不联网，也不会触发同步；结果里的 `freshness` 写明数据是什么时候同步的。完整说明和退出码见 [docs/development/cli.md](docs/development/cli.md)。
 
 ## 支持的工具
 
@@ -125,13 +125,13 @@ token-lens-cli sync                            # 同步一次
 | Trae / Trae CN | trae | 实验性·合成验证 | JSONL id 语义未确认 |
 | Zed | zed | 实验性·合成验证 | payload 可能是 zstd BLOB |
 
-实测 = 用真实日志核对过（逐字段手核、与客户端自报的总量对照，或与账本对账）；这些核对最初在旧版上做，桌面版又在同一份真实日志上与旧版逐字段一致。有样本·待对照 = 有真实日志，但用量太少或没有可对照的数字。实验性 = 合成样本验证通过、还缺真实日志验收，欢迎反馈真实样本。各工具的字段含义和已知限制见 [适配器契约](specs/adapters.md) 与 [日志字段事实](specs/log-schemas.yaml)。
+实测 = 用真实日志核对过（逐字段手核、与客户端自报的总量对照，或与账本对账）；这些核对最初在旧版上做，桌面版又在同一份真实日志上与旧版逐字段一致。有样本·待对照 = 有真实日志，但用量太少或没有可对照的数字。实验性 = 合成样本验证通过、还缺真实日志验收，欢迎反馈真实样本。各工具的字段含义和已知限制见 [适配器契约](docs/development/adapters.md) 与 [日志字段事实](docs/development/log-schemas.yaml)。
 
 ## 数据与隐私
 
 - **只读本机日志**：在本机读取并解析各工具的日志，只提取用量元数据（四类 token、模型、时间、会话、项目路径）；日志里的提示词、回复、代码和凭据不会写进账本，也不会发出去。不修改这些工具的任何文件。
 - **数据只在本机**：用量、偏好和新闻缓存都在系统的应用支持目录下的 `data` 文件夹里：Windows 上是 `%APPDATA%\Token Lens\Token Lens\data`，macOS 上是 `~/Library/Application Support/io.github.rumoii.token-lens/data`。不再需要时整个删掉即可。
-- **会联网的只有三件事**：AI 热点开着时按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）。请求不带账号、凭据或用量数据。来源清单和请求方式见 [specs/news.md](specs/news.md)，检查更新见 [specs/update.md](specs/update.md)。
+- **会联网的只有三件事**：AI 热点开着时按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）。请求不带账号、凭据或用量数据。来源清单和请求方式见 [docs/development/news.md](docs/development/news.md)，检查更新见 [docs/development/update.md](docs/development/update.md)。
 - 没有账号、上传、遥测或第三方分析。完整说明见 [隐私说明](PRIVACY.md)。
 
 ## 工作原理
@@ -143,13 +143,13 @@ token-lens-cli sync                            # 同步一次
 
 - 界面是 Flutter，统计、计价和新闻刷新都在随程序分发的 Rust 库里，通过 flutter_rust_bridge 在进程内调用；没有本地网页服务，也不用 WebView。
 - 同一条记录重复读取不会重复计数；日志被客户端清理后，已经记下的用量仍然保留。
-- 金额以整数微美元（USD × 10⁶）存储，计价规则见 [specs/pricing.md](specs/pricing.md)。
-- 每次请求的计时单独存放，不影响用量和金额，口径见 [specs/stats.md](specs/stats.md)。
+- 金额以整数微美元（USD × 10⁶）存储，计价规则见 [docs/development/pricing.md](docs/development/pricing.md)。
+- 每次请求的计时单独存放，不影响用量和金额，口径见 [docs/development/stats.md](docs/development/stats.md)。
 
 | 目录 | 内容 |
 | --- | --- |
 | `app/` | 桌面应用：Flutter 界面（`app/lib/`）和 Rust 核心（`app/rust/`） |
-| `specs/` | 适配器契约、日志字段、统计与计价规格、新闻来源 |
+| `docs/development/` | 适配器契约、日志字段、统计与计价规格、新闻来源 |
 | `src/core/`、`dashboard/`、`desktop/`、`bin/` | 旧版 Node/React 统计工具，见[旧版](#旧版-nodereact) |
 | `scripts/`、`test/` | 旧版的脚本和测试；`scripts/parity/` 用旧版生成桌面版对拍用的基准数据 |
 
@@ -178,7 +178,7 @@ npm run dashboard:build
 npm start          # 启动本地看板，终端会打印地址（默认 http://127.0.0.1:3456，端口被占用时顺延），在浏览器里打开它
 ```
 
-CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`。指向测试目录以外的地方时，一律显式传 `--data-dir`。功能规格见 [specs/features.md](specs/features.md)，数据目录规则和测试约定见 [CLAUDE.md](CLAUDE.md)。
+CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`。指向测试目录以外的地方时，一律显式传 `--data-dir`。功能规格见 [docs/archive/features.md](docs/archive/features.md)，数据目录规则和测试约定见 `CLAUDE.md`。
 
 ## 文档索引
 
@@ -186,16 +186,16 @@ CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>
 
 | 文档 | 说明 |
 | --- | --- |
-| [specs/desktop.md](specs/desktop.md) | 桌面应用的技术决定 |
-| [specs/stats.md](specs/stats.md) | 统计、计时与界面规则 |
-| [specs/news.md](specs/news.md) | 新闻来源与联网边界 |
-| [specs/update.md](specs/update.md) | 检查更新的请求与边界 |
-| [specs/cli.md](specs/cli.md) | 命令行与导出的输出契约 |
-| [specs/adapters.md](specs/adapters.md) | 适配器契约 |
-| [specs/log-schemas.yaml](specs/log-schemas.yaml) | 日志字段事实 |
-| [specs/pricing.md](specs/pricing.md) | 定价契约 |
+| [docs/development/desktop.md](docs/development/desktop.md) | 桌面应用的技术决定 |
+| [docs/development/stats.md](docs/development/stats.md) | 统计、计时与界面规则 |
+| [docs/development/news.md](docs/development/news.md) | 新闻来源与联网边界 |
+| [docs/development/update.md](docs/development/update.md) | 检查更新的请求与边界 |
+| [docs/development/cli.md](docs/development/cli.md) | 命令行与导出的输出契约 |
+| [docs/development/adapters.md](docs/development/adapters.md) | 适配器契约 |
+| [docs/development/log-schemas.yaml](docs/development/log-schemas.yaml) | 日志字段事实 |
+| [docs/development/pricing.md](docs/development/pricing.md) | 定价契约 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南和开发快速开始 |
-| [docs/adding-a-source.md](docs/adding-a-source.md) | 新增一个工具来源 |
+| [docs/development/adding-a-source.md](docs/development/adding-a-source.md) | 新增一个工具来源 |
 | [SECURITY.md](SECURITY.md) | 安全政策 |
 | [PRIVACY.md](PRIVACY.md) | 隐私说明 |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | 第三方声明 |

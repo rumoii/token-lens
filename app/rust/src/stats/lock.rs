@@ -37,6 +37,16 @@ impl Drop for SyncLock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        io::{self, BufRead, BufReader, Read, Write},
+        process::{Child, Command, Stdio},
+        sync::mpsc,
+        thread,
+        time::Duration,
+    };
+
+    const LOCK_OWNER_DIR: &str = "TOKEN_LENS_TEST_LOCK_OWNER_DIR";
+
     #[test]
     fn exclusion_release_and_legacy_refusal() {
         let directory = tempfile::tempdir().unwrap();
@@ -55,34 +65,68 @@ mod tests {
             .0
             .starts_with("LEGACY_SYNC_LOCK:"));
     }
+
+    fn spawn_lock_owner(directory: &Path) -> Child {
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "stats::lock::tests::rust_processes_share_lock_and_killed_owner_releases",
+                "--nocapture",
+                "--format=terse",
+            ])
+            .env(LOCK_OWNER_DIR, directory)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let (send_ready, ready) = mpsc::channel();
+        thread::spawn(move || {
+            let mut lines = BufReader::new(stdout).lines();
+            if lines
+                .by_ref()
+                .map_while(std::result::Result::ok)
+                .any(|line| line == "ready")
+            {
+                let _ = send_ready.send(());
+            }
+            // Keep reading until libtest has finished writing its output.
+            drop(send_ready);
+            for _ in lines {}
+        });
+        if let Err(error) = ready.recv_timeout(Duration::from_secs(10)) {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("Lock owner did not report readiness: {error}");
+        }
+        child
+    }
+
     #[test]
-    fn node_and_rust_share_lock_and_killed_owner_releases() {
-        use std::{
-            io::{BufRead, BufReader, Write},
-            process::{Command, Stdio},
-        };
+    fn rust_processes_share_lock_and_killed_owner_releases() {
+        if let Some(directory) = std::env::var_os(LOCK_OWNER_DIR) {
+            let _lock = SyncLock::acquire(Path::new(&directory)).unwrap();
+            println!("ready");
+            io::stdout().flush().unwrap();
+            let _ = io::stdin().read(&mut [0]).unwrap();
+            return;
+        }
+
         let directory = tempfile::tempdir().unwrap();
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let mut child=Command::new("node").current_dir(root).args(["--input-type=module","-e","import { acquireSyncLock } from './src/core/sync-lock.js'; const lock=acquireSyncLock(process.argv[1]); console.log('ready'); process.stdin.resume(); process.stdin.on('data',()=>{lock.release();process.exit(0)});",directory.path().to_str().unwrap()]).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn().unwrap();
-        let mut line = String::new();
-        BufReader::new(child.stdout.take().unwrap())
-            .read_line(&mut line)
-            .unwrap();
+        let mut child = spawn_lock_owner(directory.path());
         let busy = SyncLock::acquire(directory.path()).err().map(|e| e.0);
-        child.stdin.as_mut().unwrap().write_all(b"release").unwrap();
-        let status = child.wait().unwrap();
-        assert_eq!(line.trim(), "ready");
-        assert!(status.success());
-        assert!(busy.unwrap().starts_with("SYNC_BUSY:"));
+        drop(child.stdin.take());
+        assert!(child.wait().unwrap().success());
+        assert!(
+            busy.as_deref()
+                .is_some_and(|error| error.starts_with("SYNC_BUSY:")),
+            "Expected SYNC_BUSY: while another process holds the lock, got {busy:?}"
+        );
         drop(SyncLock::acquire(directory.path()).unwrap());
-        let mut child=Command::new("node").current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--input-type=module","-e","import { acquireSyncLock } from './src/core/sync-lock.js'; acquireSyncLock(process.argv[1]); console.log('ready'); process.stdin.resume();",directory.path().to_str().unwrap()]).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
-        line.clear();
-        BufReader::new(child.stdout.take().unwrap())
-            .read_line(&mut line)
-            .unwrap();
+
+        let mut child = spawn_lock_owner(directory.path());
         child.kill().unwrap();
-        child.wait().unwrap();
-        assert_eq!(line.trim(), "ready");
+        assert!(!child.wait().unwrap().success());
         drop(SyncLock::acquire(directory.path()).unwrap());
     }
 }

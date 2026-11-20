@@ -1,6 +1,6 @@
 # Token Lens 桌面应用
 
-Token Lens 的桌面应用：Flutter 界面加 Rust 核心。它包括完整的统计界面（用量总览、明细、会话、工具、价格与设置、首次引导；28 个来源的采集和查询）、AI 热点（20 个新闻与工具更新来源，按天分组、本机已读与收藏、当前热点、条目类型筛选、来源内热度排序、启停、本地缓存、每 30 分钟自动刷新与手动刷新）和检查更新。仓库里的旧版 Node/React 工具仍可运行，可以作为回退。技术决定见 [desktop.md](../specs/desktop.md)，数据与联网边界见 [news.md](../specs/news.md)、[stats.md](../specs/stats.md)、[update.md](../specs/update.md)。
+Token Lens 的桌面应用：Flutter 界面加 Rust 核心。它包括完整的统计界面（用量总览、明细、会话、工具、价格与设置、首次引导；28 个来源的采集和查询）、AI 热点（20 个新闻与工具更新来源，按天分组、本机已读与收藏、当前热点、条目类型筛选、来源内热度排序、启停、本地缓存、每 30 分钟自动刷新与手动刷新）和检查更新。仓库里的旧版 Node/React 工具仍可运行，可以作为回退。技术决定见 [desktop.md](../docs/development/desktop.md)，数据与联网边界见 [news.md](../docs/development/news.md)、[stats.md](../docs/development/stats.md)、[update.md](../docs/development/update.md)。
 
 启动打开用量总览，侧栏按「用量 / 资讯 / 设置」分组，「AI 热点」位于资讯组。第一次打开时首次引导只列出找到的工具，点「开始统计」后才读取日志；之后统计在窗口打开时采集一次，每 5 分钟采集一次，也可点「同步用量」。新闻的联网时机见下方「运行与回退」。账本是应用数据目录下的 `ledger.db`，不读取旧版数据目录变量。
 

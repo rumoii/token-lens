@@ -504,7 +504,7 @@ dart --packages=app/.dart_tool/package_config.json scripts/generate-desktop-noti
 dart --packages=app/.dart_tool/package_config.json scripts/generate-desktop-notices.dart --rust-licenses THIRD_PARTY_LICENSES.txt --target x86_64-pc-windows-msvc
 ```
 
-脚本不安装工具、不解析新版本，Cargo 始终 locked/offline；缓存缺失、许可证无法识别或所需标准文本缺失时失败。默认模式只替换本生成标记之后的内容，保留前面的旧版声明。`--check` 不写文件，清单过期时返回非零。发布包附 `LICENSE`、本清单和 `THIRD_PARTY_LICENSES.txt`；Dart/Flutter 许可全文保留在 Flutter 产物 NOTICES 中。
+脚本不安装工具、不解析新版本，Cargo 始终 locked/offline；缓存缺失、许可证无法识别或所需标准文本缺失时失败。默认模式只替换本生成标记及之后的内容，保留文档前言。`--check` 不写文件，清单过期时返回非零。发布包附 `LICENSE`、本清单和 `THIRD_PARTY_LICENSES.txt`；Dart/Flutter 许可全文保留在 Flutter 产物 NOTICES 中。
 ''';
 }
 

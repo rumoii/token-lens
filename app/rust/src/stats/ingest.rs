@@ -979,7 +979,7 @@ mod tests {
     fn ingestion_matches_node() {
         let directory = tempfile::tempdir().unwrap();
         let home = directory.path().join("home");
-        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/fixtures/parity");
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity");
         for (input, output) in [
             ("ingest-a.jsonl", ".claude/projects/a.jsonl"),
             ("ingest-b.jsonl", ".claude/projects/b.jsonl"),
@@ -1050,7 +1050,7 @@ mod tests {
         let home = directory.path().join("home");
         let logs = home.join(".codex").join("sessions");
         std::fs::create_dir_all(&logs).unwrap();
-        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/fixtures/parity");
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity");
         std::fs::copy(
             fixtures.join("zstd-garbage.bin"),
             logs.join("rollout-broken.jsonl.zst"),

@@ -839,7 +839,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let home = directory.path().join("home");
         let data = directory.path().join("data");
-        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/fixtures/parity");
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity");
         for (input, output) in [
             ("ingest-a.jsonl", ".claude/projects/a.jsonl"),
             ("ingest-b.jsonl", ".claude/projects/b.jsonl"),

@@ -1,0 +1,112 @@
+name: Verify draft release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Numeric draft Release ID
+        required: true
+        type: string
+      expected_commit:
+        description: Full source commit SHA on main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-desktop-draft-${{ inputs.release_id }}
+  cancel-in-progress: false
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # GitHub requires push access to read a draft release.
+    outputs:
+      version: ${{ steps.assets.outputs.version }}
+    env:
+      RELEASE_ID: ${{ inputs.release_id }}
+      SOURCE_SHA: ${{ inputs.expected_commit }}
+    steps:
+      - name: Check dispatch ref and inputs
+        shell: bash
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify source identity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$SOURCE_SHA" "$GITHUB_SHA"
+          status=$(git status --porcelain --untracked-files=all)
+          test -z "$status"
+
+      - name: Download and verify draft attachments
+        id: assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/desktop-release-assets.py download \
+            "$RUNNER_TEMP/token-lens-draft" "$RELEASE_ID" "$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Share verified attachments with smoke jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-desktop-draft
+          path: ${{ runner.temp }}/token-lens-draft/*
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke:
+    needs: assets
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            python: python
+          - os: macos-latest
+            platform: macos
+            python: python3
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    env:
+      RELEASE_VERSION: ${{ needs.assets.outputs.version }}
+      ARCHIVE_PLATFORM: ${{ matrix.platform }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_commit }}
+          persist-credentials: false
+
+      - name: Download verified attachments
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-desktop-draft
+          path: ${{ runner.temp }}/token-lens-draft
+
+      - name: Verify extracted ZIP and smoke test ingestion
+        shell: bash
+        run: |
+          assets="$RUNNER_TEMP/token-lens-draft"
+          ${{ matrix.python }} scripts/desktop-release-assets.py check "$assets" "$RELEASE_VERSION"
+          archive="$assets/token-lens-$RELEASE_VERSION-$ARCHIVE_PLATFORM.zip"
+          if [[ "$ARCHIVE_PLATFORM" = windows-x64 ]]; then
+            ${{ matrix.python }} scripts/verify-desktop-zip.py "$archive" --empty-home
+          else
+            ${{ matrix.python }} scripts/verify-desktop-zip.py "$archive"
+          fi

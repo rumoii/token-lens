@@ -1,0 +1,812 @@
+# Token-Lens 外部日志事实规范 (Observable Facts Specification)
+# 说明：本文件仅记录各 AI 编码工具在操作系统中客观生成的日志路径与 JSON 结构事实，不包含任何业务代码。
+# 净室原则：后续所有 Adapter 均基于本事实规范从零独立编写，严禁参考或复用任何旧项目源码。
+
+claude_code:
+  description: "Anthropic Claude Code CLI 工具的本地项目会话记录"
+  locations:
+    win32: "%USERPROFILE%\\.claude\\projects"
+    darwin: "~/.claude/projects"
+    linux: "~/.claude/projects"
+  file_pattern: "**/*.jsonl"
+  format: "JSONL (单行一个 JSON 对象)"
+  key_fields:
+    type: "$.type (通常为 message/response)"
+    session_id: "$.sessionId"
+    timestamp: "$.timestamp (ISO8601 字符串)"
+    model: "$.message.model 或 $.model"
+    usage:
+      input_tokens: "$.message.usage.input_tokens"
+      output_tokens: "$.message.usage.output_tokens"
+      cache_read_tokens: "$.message.usage.cache_read_input_tokens"
+      cache_write_tokens: "$.message.usage.cache_creation_input_tokens"
+  request_timing:
+    timing_rev: 2
+    fields: "type=api-request 的唯一 id/timestamp，经 requestRef 关联至消息最后有效 usage 块 timestamp（ISO 毫秒）"
+    method: "log_timestamps"
+    scope: "request"
+    completion: "最后有效 usage 块 message.stop_reason 为非空字符串时 completed，否则 partial；只取该块标志，不继承早先块，不从后续消息推断结束"
+    limits: "仅整次耗时；缺关联、缺消息 id、同请求多消息、重复请求 id 或消息引用冲突 NULL；不改 observed_at；非正差值、单位不明或配对歧义 NULL"
+
+codex_cli:
+  description: "OpenAI Codex CLI 工具的本地会话记录与 Rollout"
+  locations:
+    win32: "%USERPROFILE%\\.codex\\sessions"
+    darwin: "~/.codex/sessions"
+    linux: "~/.codex/sessions"
+  file_pattern: "**/rollout-*.jsonl (或 .jsonl.zst 压缩文件)"
+  format: "JSONL"
+  evidence: "真实 rollout 会话样本：含 usage 的行逐条核对，cached 合计与客户端 total_tokens 对平"
+  provider_evidence: "https://github.com/openai/codex/blob/b7f7e7f7e85a1c63e520f27cac42b836f242d9f7/codex-rs/protocol/src/protocol.rs#L3378-L3392"
+  key_fields:
+    provider: "$.payload.model_provider（type=session_meta）；只在该会话内继承，下一 session_meta 缺失则清空，不从模型名推断"
+    record_type: "只有 $.type == 'token_usage_record' 的 payload 带 per-response 用量；其余行必须跳过"
+    session_id: "$.payload.session_id"
+    identity: "Rust revision 5：可靠 response_id 保留 codex|<session>|<response_id>；只按 id 形状判定，去掉开头 resp_ 后为空、全 ASCII 数字或少于 16 字符的 id 不可靠，改用 codex|<session>|<用量行 thread_id>|<原始时间戳>；同一新键按文件内有效用量行顺序加 #2、#3。缺 thread_id 或原始时间戳则用去掉末尾 .zst 的路径 hash＋物理行号。每条新身份 replaces 旧响应键；无 response_id 保持既有位置回退。正常形状长 id 被上游复用时仍按旧 key 合并、原地更新，与 E1 之前相同。Node revision 4 仍保留旧规则，见 docs/development/stats.md「允许的差异」"
+    timestamp: "$.timestamp (ISO8601)"
+    model: "$.payload.usage.model，缺失时沿用会话内已见的模型名"
+    usage:
+      input_tokens: "$.payload.usage.input_tokens（**已含** cached_input_tokens）"
+      output_tokens: "$.payload.usage.output_tokens"
+      cache_read_tokens: "$.payload.usage.cached_input_tokens"
+      cache_write_tokens: "落库为 NULL。2026-10 起 usage 带 cache_write_input_tokens，本机样本全为 0；是否含在 input_tokens 里要等非零样本确认，确认前不读"
+    redundant_totals:
+      - "$.payload.turn_token_usage（本轮累计）"
+      - "$.payload.thread_token_usage（整段会话累计）"
+      - "$.type == 'event_msg' 且 $.payload.type == 'token_count' 时的 $.payload.info.last_token_usage / total_token_usage"
+      - 结论: "四种表示只能取一种，取 $.payload.usage，其余一律不读，否则同一笔用量被计多次"
+    cross_check: "usage.input_tokens + usage.output_tokens == usage.total_tokens（真实样本里逐条成立）"
+  token_semantics: "cached ⊂ input。落库前须算 input_exclusive = input_tokens - cached_input_tokens；旧实现直接落 input_tokens 且漏读 cached_input_tokens，两个方向都错"
+  request_timing:
+    timing_rev: 1
+    method: "log_timestamps"
+    start: "之前最近的边界外层 timestamp：response_item.message role=user、event_msg.item_completed.UserMessage、response_item.function_call_output/custom_tool_call_output、event_msg.task_started/turn_started；developer 消息不是边界"
+    first_output: "event_msg.payload.type=item_completed，payload.item.type 为 Reasoning 或 AgentMessage，仅 payload.completed_at_ms 存在且大于 started_at_ms 的项合格，取最小 payload.started_at_ms（Unix 毫秒）；不读正文"
+    end: "本次 token_usage_record 的外层 timestamp"
+    formula: "ttft_ms=first-start，generation_ms=end-first，分别要求差值>0；timing_output_tokens 取该用量记录 output_tokens"
+    limits: "turn_aborted、新回合开始、每条 usage 消费后清空未配对窗口；旧日志没有 started_at_ms 时保持 NULL；零时长项只有隐藏推理的完成时刻，缺完成时间/完成早于开始也跳过，无合格项则两项 NULL，不回退其他时间。输出下限在 usage、turn_aborted、回合开始、用户消息及工具结果边界推进到该行落盘时间，只增不减；边界或中断的时间早于下限或无法解析时整行忽略，不清首输出、不重置起点，普通边界严格晚于下限、或等于下限且尚无首输出时才重置；等于下限且已有首输出时整行忽略；turn_aborted 不早于下限就仍清空窗口；started_at_ms 必须 >= 下限，早到旧请求的晚到项直接忽略，中断无 usage 也同样保护。工具调用/命令执行/文件修改等生命周期项不作首输出或工具结果消息，工具专用请求可能没有首点；落盘与缓冲影响近似精度"
+
+qwen_code:
+  description: "Qwen Code CLI 工具与侧车账本 (token-usage / opus-usage)"
+  locations:
+    win32: "%USERPROFILE%\\.qwen\\usage"
+    darwin: "~/.qwen/usage"
+    linux: "~/.qwen/usage"
+  file_pattern: "*-usage-*.jsonl"
+  format: "JSONL (schemaVersion 1 驼峰格式为主，兼容旧版下划线)"
+  key_fields:
+    session_id: "$.sessionId 或 $.session_id"
+    timestamp: "$.timestamp (ISO8601 或 Unix 戳)"
+    model: "$.model"
+    usage:
+      input_tokens: "$.inputTokens / $.input_tokens / $.prompt_tokens；inputTokens 存在（含 NULL）时扣缓存，否则旧字段已是未缓存输入"
+      output_tokens: "$.outputTokens / $.output_tokens / $.completion_tokens；thoughts 是否另加见 token_semantics"
+      cache_read_tokens: "$.cachedTokens / $.cached_tokens / $.cache_read_tokens"
+      cache_write_tokens: "$.cacheWriteTokens / $.cache_write_tokens / $.cache_creation_tokens"
+  token_semantics:
+    - "token 别名按列出的顺序逐字段取第一个非 NULL/undefined 的值，0 不回退；接受非负整数与去除首尾空白后的纯数字字符串，非法首选值不回退到其他别名。thoughts 同序取 thoughtsTokens / thoughts_tokens；缓存未知按未报缓存处理，扣减后输入不小于 0。适配器与 oracle 使用独立实现，不按整行选择命名格式。"
+    - "outputTokens 来自 candidatesTokenCount，不存在对所有认证方式都成立的 thoughts 包含关系。QwenLM/qwen-code@99adce25e19dce4ea3bf90466ac84c8d6878becd 的 packages/core/src/telemetry/types.ts:404-425（ApiResponseEvent）逐字段透传；packages/core/src/services/tokenUsageService.ts:231-255（apiResponseEventToTokenUsageRecord）写入 outputTokens、thoughtsTokens、totalTokens。"
+    - "同一上游 packages/core/src/core/openaiContentGenerator/converter.ts:1357-1474（convertOpenAIResponseToLlm）和 :1491-2009（convertOpenAIChunkToLlm）把 completion_tokens 写入 candidatesTokenCount，reasoning_tokens 单列到 thoughtsTokenCount（缺省时可能估算），不从 completion 中扣除；完整 completion 已含 reasoning，不能把其明细再加一次。openaiResponsesContentGenerator/responses-converter.ts:478-493（makeFinalResponse）同样透传 output_tokens 与其 reasoning 明细；completion 缺失或仅有估算时不保证可还原完整输出。"
+    - "Gemini 原生 UsageMetadata 的 candidates 与 thoughts 分列；无 tool-use prompt 时 total = prompt + candidates + thoughts，须把 thoughts 并入账本 output。依据 https://ai.google.dev/api/generate-content#UsageMetadata（2026-11-01）；有独立 toolUsePromptTokenCount 时不能仅凭 total 的余量推断 thoughts。"
+    - "最终规则（qwen PARSER_REV=7，适配器与独立 oracle 均实现）：authType 为 openai、openai-responses、qwen-oauth、anthropic 时输出取 rawOutput；rawOutput 未知且 thoughts>0 时取 thoughts 作为已知下界并记一次 bad_fields，无正 thoughts 则仍为 NULL。rawOutput 已知但小于 thoughts 时保留 rawOutput（含 0）并记一次 bad_fields；诊断先于零用量过滤。为 gemini、vertex-ai 时取 rawOutput + thoughts，忽略 total 的归属推断。相加时一项未知取另一已知项，两项未知才为 NULL；不把 tool-use prompt 的余量加到输出。"
+    - "认证映射依据同一上游 packages/core/src/utils/auth-type.ts:8-15 与 core/contentGenerator.ts:553-604；qwen/qwenContentGenerator.ts:25-43 的 QwenContentGenerator 继承 OpenAIContentGenerator；core/anthropicContentGenerator/usage.ts:44-64 的 buildAnthropicUsageMetadata 保留完整 output 为 candidates，不额外登记 thoughts。"
+    - "total 不一定是服务端自报：上游 tokenUsageService.ts:219-228（calculateTotalTokens）在 total 缺失或为 0 时回填 input + output + thoughts。已知认证不依赖 total；未知/缺失认证仅在 rawInput、rawOutput 均已知且 total 为正安全整数并等于 rawInput + rawOutput 时取 rawOutput，否则保留分列相加的兼容回退。rawInput 是扣缓存前的输入；未知认证的默认分列不是已证实的上游语义。"
+  request_timing:
+    timing_rev: 1
+    fields: "apiDurationMs（毫秒）"
+    method: "client_reported"
+    scope: "request"
+    limits: "completed；无独立首输出点；非正差值、单位不明或配对歧义 NULL"
+
+deepseek_harness:
+  description: "DeepSeek Harness (DSH) 本地任务会话记录"
+  locations:
+    win32: "%USERPROFILE%\\.dsh\\storages\\session_projcache\\sessions"
+    darwin: "~/.dsh/storages/session_projcache/sessions"
+    linux: "~/.dsh/storages/session_projcache/sessions"
+  file_pattern: "*.json"
+  format: "JSON (单个会话对象)"
+  key_fields:
+    session_id: "生产适配器取 basename(file, '.json')，仅剥除开头一个 session-；例如 session-<id>.json → <id>；不从 $.record.identity 取值"
+    timestamp: "$.record.identity.createdAt (Unix ms)"
+    ended_at: "$.record.rows.timeContext.val.lastMessageTime (Unix ms，最后一条消息)"
+    model: "$.record.rows.modelSelection.val.lastUsed.model"
+    usage:
+      input_tokens: "$.record.rows.tokenUsage.val.totals.uncachedInputTokens"
+      output_tokens: "$.record.rows.tokenUsage.val.totals.outputTokens"
+      cache_read_tokens: "$.record.rows.tokenUsage.val.totals.cacheReadTokens"
+      cache_write_tokens: "$.record.rows.tokenUsage.val.totals.cacheWriteTokens"
+  identity_semantics:
+    - "生产记录键为 dsh|<session_id>，kind=cumulative；token 数、模型和时间均不进入身份。依据 src/core/adapters/dsh.js:33-54。session- 来自文件 stem 的命名部分，不是从 identity 对象字段拼接；identity 对象在适配器中提供 createdAt 与 cwd。"
+    - "独立 oracle/dsh.mjs 与生产适配器的 session ID 已对齐：同用 basename(file, '.json').replace(/^session-/, '')，不把字符串 identity 当 ID；没有前缀则保留 stem，重复前缀只剥一个。不再产生 session_filename_prefix issue；同会话多份累计快照仍按结束时间、文件路径取最新一份。"
+    - "session- 是否属于客户端原始 ID 的上游生成函数未确认；消费侧按文件名剥一次前缀的规则固定。L3 历史归档的身份差异不代表当前 oracle 行为；全零快照是否保留的差异独立于身份规则。"
+
+grok_build:
+  description: "xAI Grok Build CLI 本地会话与用量事件"
+  locations:
+    win32: "%USERPROFILE%\\.grok\\sessions"
+    darwin: "~/.grok/sessions"
+    linux: "~/.grok/sessions"
+  file_pattern: "*/*/updates.jsonl"
+  format: "JSONL"
+  key_fields:
+    session_id: "$.params.sessionId"
+    timestamp: "$.timestamp 或 $._meta.agentTimestampMs"
+    event_type: "$.params.update.sessionUpdate == 'turn_completed'"
+    usage:
+      input_tokens: "$.params.update.usage.inputTokens (或 input_tokens)"
+      output_tokens: "$.params.update.usage.outputTokens (或 output_tokens)"
+      cache_read_tokens: "$.params.update.usage.cachedReadTokens (或 cache_read_input_tokens)"
+      cache_write_tokens: "$.params.update.usage.cachedWriteTokens (或 cache_creation_tokens)"
+    model: "同级 summary.json 中的 current_model_id 或 grok-4"
+  request_timing:
+    timing_rev: 1
+    fields: "params._meta.agentTimestampMs 的首个 user_message_chunk/首个非空 agent_message_chunk；turn_completed.usage.apiDurationMs（毫秒）"
+    method: "首字 log_timestamps；整次 client_reported"
+    scope: "turn"
+    limits: "回合独立汇总和覆盖率；不混入请求分位数；无生成时长；非正差值、单位不明或配对歧义 NULL"
+
+aider:
+  description: "Aider 终端 AI 编程助手交互日志 (.aider.llm.history)"
+  locations:
+    project_level:
+      all: ".aider.llm.history"
+    global_level:
+      win32: "%USERPROFILE%\\.aider.llm.history"
+      darwin: "~/.aider.llm.history"
+      linux: "~/.aider.llm.history"
+  file_pattern: "**/.aider.llm.history"
+  format: "JSONL"
+  key_fields:
+    model: "$.model 或 $.response.model"
+    timestamp: "$.timestamp 或 $.created"
+    usage:
+      input_tokens: "$.usage.prompt_tokens 或 $.usage.input_tokens"
+      output_tokens: "$.usage.completion_tokens 或 $.usage.output_tokens"
+      cache_read_tokens: "$.usage.cache_read_input_tokens 或 $.usage.prompt_tokens_details.cached_tokens"
+      cache_write_tokens: "$.usage.cache_creation_input_tokens"
+
+pi_agent:
+  description: "Pi (Pi Coding Agent Harness) 本地会话交互日志"
+  locations:
+    win32: "%USERPROFILE%\\.pi\\agent\\sessions"
+    darwin: "~/.pi/agent/sessions"
+    linux: "~/.pi/agent/sessions"
+  file_pattern: "**/*.jsonl"
+  evidence: "2026-10-26 只读核对真实 sessions 目录：会话文件既有在一层子目录下的，也有在三层子目录下的，因此保留递归发现"
+  format: "JSONL"
+  provider_evidence:
+    - "https://github.com/badlogic/pi-mono/blob/6c384aa30f619d7b28963f2bab24d8dacbe73cb6/packages/ai/src/types.ts#L585-L590"
+    - "https://github.com/badlogic/pi-mono/blob/6c384aa30f619d7b28963f2bab24d8dacbe73cb6/packages/coding-agent/src/core/session-manager.ts#L74-L78"
+  key_fields:
+    provider: "$.message.provider；消息未自报 model 时可随 model_change.modelId 继承该行 provider；新 model_change 缺 provider 会清空，消息自报模型不借用旧提供方"
+    session_id: "首行 type=='session' 的 id，或文件名提取"
+    model: "$.message.model 或 model_change 事件的 modelId"
+    timestamp: "$.timestamp 或 $.message.timestamp"
+    usage:
+      input_tokens: "$.message.usage.input"
+      output_tokens: "$.message.usage.output"
+      cache_read_tokens: "$.message.usage.cacheRead"
+      cache_write_tokens: "$.message.usage.cacheWrite"
+  request_timing:
+    timing_rev: 1
+    fields: "message.durationMs（毫秒）；缺失时外层 timestamp - message.timestamp（Unix 毫秒）"
+    method: "client_reported / log_timestamps"
+    scope: "request"
+    limits: "stop/length/toolUse completed；error failed；aborted cancelled；其余 unknown；显式无效不回退；非正差值、单位不明或配对歧义 NULL"
+
+hermes_agent:
+  description: "Hermes Agent 本地状态与用量数据库 (state.db)"
+  locations:
+    win32: "%LOCALAPPDATA%\\hermes\\state.db"
+    darwin: "~/.hermes/state.db"
+    linux: "~/.hermes/state.db"
+  file_pattern: "state.db"
+  format: "SQLite"
+  key_fields:
+    table: "session_model_usage 或 sessions"
+    session_id: "session_id (或 id)"
+    model: "model"
+    timestamp: "last_seen (或 first_seen / started_at)"
+    usage:
+      input_tokens: "input_tokens"
+      output_tokens: "output_tokens"
+      cache_read_tokens: "cache_read_tokens"
+      cache_write_tokens: "cache_write_tokens"
+
+cline_and_roo:
+  description: "Cline 与 Roo Code (VS Code 扩展) 任务与 API 对话记录"
+  locations:
+    win32: "%APPDATA%\\{Code,Code - Insiders,VSCodium,Cursor}\\User\\globalStorage\\{saoudrizwan.claude-dev,rooveterinaryinc.roo-cline}\\tasks"
+    darwin: "~/Library/Application Support/{Code,Code - Insiders,VSCodium,Cursor}/User/globalStorage/{saoudrizwan.claude-dev,rooveterinaryinc.roo-cline}/tasks"
+    linux: "~/.config/{Code,Code - Insiders,VSCodium,Cursor}/User/globalStorage/{saoudrizwan.claude-dev,rooveterinaryinc.roo-cline}/tasks"
+  file_pattern: "*/api_conversation_history.json"
+  format: "JSON (Message 数组)"
+  key_fields:
+    session_id: "任务目录名 (taskId)"
+    timestamp: "$.ts (Unix ms)"
+    model: "$.model 或从同级 ui_messages.json 的 api_req_started 事件中反查"
+    usage:
+      input_tokens: "$.usage.input_tokens"
+      output_tokens: "$.usage.output_tokens"
+      cache_read_tokens: "$.usage.cache_read_input_tokens"
+      cache_write_tokens: "$.usage.cache_creation_input_tokens"
+  provenance: "未证实：Cline（c35b729049c7 及历史版本）与 Roo Code（b867ec914575）源码里没有找到写入 usage.* 的版本。当前 Cline SDK 版用量在 <sessionId>.messages.json 的 metrics.*（input 含缓存读写），经典版 3.39.2 起在 metrics.tokens（cached = 缓存读 + 写），更早只在 ui_messages.json 的 api_req_started；Roo Code 在 ui_messages.json 的 api_req_started，约 3.29.4 改过 tokensIn 口径且无版本标记。以上格式均未接入，等真实样本。"
+
+gemini_cli:
+  description: "Google 官方 Gemini CLI 会话与交互日志"
+  locations:
+    win32: "%USERPROFILE%\\.gemini\\sessions"
+    darwin: "~/.gemini/sessions"
+    linux: "~/.gemini/sessions"
+  file_pattern: "**/*.{json,jsonl}"
+  format: "JSON / JSONL"
+  key_fields:
+    session_id: "$.id 或文件名提取"
+    timestamp: "$.startTime 或 $.createTime 或 $.timestamp"
+    model: "$.model 或 $.modelId 或 model 回复中的 model 字段"
+    usage:
+      input_tokens: "$.usageMetadata.promptTokenCount (扣减 cachedContentTokenCount) 或 $.input_tokens"
+      output_tokens: "$.usageMetadata.candidatesTokenCount 或 $.output_tokens"
+      cache_read_tokens: "$.usageMetadata.cachedContentTokenCount 或 $.cache_read_tokens"
+
+cursor:
+  description: "Cursor AI 编辑器会话库 (state.vscdb) 与官方导出 CSV 账本"
+  locations:
+    database:
+      win32: "%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb"
+      darwin: "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+      linux: "~/.config/Cursor/User/globalStorage/state.vscdb"
+    csv_exports:
+      all: "**/*cursor*.csv"
+  file_pattern: "state.vscdb 或 *cursor*.csv"
+  format: "SQLite (ItemTable) / CSV"
+  key_fields:
+    sqlite:
+      table: "ItemTable"
+      keys: "composerData, workbench.panel.aichat.view.aichat.chatdata"
+    csv:
+      headers: "Date, Model, Input (w/ Cache Write), Input (w/o Cache Write), Cache Read, Output Tokens, Total Tokens, Cost"
+
+opencode:
+  description: "OpenCode (anomalyco/opencode) 本地任务会话数据库 (opencode.db)"
+  locations:
+    win32: "%USERPROFILE%\\.local\\share\\opencode\\opencode.db（上游 global-roots.ts 各平台同一规则，不用 LOCALAPPDATA 或 APPDATA）"
+    darwin: "~/.local/share/opencode/opencode.db（上游 packages/util/src/global-roots.ts 在 macOS 也用 XDG 数据目录，不用 Application Support）"
+    linux: "~/.local/share/opencode/opencode.db"
+  file_pattern: "opencode.db（或显式 OPENCODE_DB 指定的普通文件）"
+  environment: "XDG_DATA_HOME 替代 ~/.local/share（去掉 CR/LF；相对值忽略），再拼 opencode。OPENCODE_DB 未设置时发现默认库和 ~/.opencode/opencode.db；已设置时仅发现指定的普通文件：绝对路径原样使用，相对路径（含 ../）相对数据目录解析，CR/LF 保留；:memory:、空串（解析为数据目录）、不存在或非普通文件均不发现，不回退。不扫描 opencode-*.db 或 opencode-next.db：渠道名任意，无法与备份和迁移残留可靠区分；需用 OPENCODE_DB 显式指定渠道库。"
+  discovery_evidence:
+    - "https://github.com/anomalyco/opencode/blob/3ba597f7769e19cc3b5f67e3d6667e7b6318f6a3/packages/cli/src/database-path.ts#L4-L12"
+    - "https://github.com/anomalyco/opencode/blob/3ba597f7769e19cc3b5f67e3d6667e7b6318f6a3/packages/core/src/database/v1-migration.bun.ts#L799-L934"
+  format: "SQLite"
+  provider_evidence:
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/schema/src/model.ts#L17-L23"
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/schema/src/session-message.ts#L215-L226"
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/schema/src/v1/session.ts#L460-L464"
+  project_evidence:
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/core/src/session/sql.ts#L27-L95"
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/core/src/session/projector.ts#L477-L518"
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/core/src/database/path.ts#L6-L65"
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/core/src/location-service-map.ts#L38-L47"
+    - "https://github.com/anomalyco/opencode/blob/ffc000de8e446c63d41a2e352d119d9ff43530d0/packages/opencode/src/session/session.sql.ts#L12-L47"
+    - "https://github.com/anomalyco/opencode/blob/ffc000de8e446c63d41a2e352d119d9ff43530d0/packages/opencode/src/session/index.ts#L195-L205"
+    - "https://github.com/anomalyco/opencode/blob/ffc000de8e446c63d41a2e352d119d9ff43530d0/packages/opencode/src/session/index.ts#L267-L290"
+    - "https://github.com/anomalyco/opencode/blob/ffc000de8e446c63d41a2e352d119d9ff43530d0/packages/opencode/src/project/instance.ts#L22-L50"
+  project_semantics: "会话目录与 project_id、项目根、相对 path 分开；v1 创建时取 Instance.directory，v2 取 location.directory，Moved 可更新目录；v2 directoryColumn 在 Windows 入库时将反斜杠转为 /。仅对数据库原值调用统一 projectFromCwd，不还原历史目录。"
+  key_fields:
+    provider: "session_message.data.model.providerID（v2）；message.data.providerID（v1）；仅取非空字符串"
+    tables: "session_message (v2) 或 message (v1)"
+    session_id: "session_id (或 sessionID)"
+    project_key: "按消息 session_id 关联会话 id：session_message（v2）取 session_v2.directory，message（v1）取 session.directory；缺表、缺列、缺会话或空目录为 NULL，不跨版本表回填，也不从消息或数据库路径猜测；用 projectFromCwd 统一路径"
+    model: "$.data.model.id 或 $.data.modelID 或 $.data.model"
+    timestamp: "time_updated 或 time_created (Unix ms)"
+    usage:
+      input_tokens: "$.data.tokens.input"
+      output_tokens: "$.data.tokens.output + ($.data.tokens.reasoning || 0)"
+      cache_read_tokens: "$.data.tokens.cache.read"
+      cache_write_tokens: "$.data.tokens.cache.write"
+  request_timing:
+    timing_rev: 1
+    fields: "data.time.created/completed，首个 data.content[type=reasoning].time.created（Unix 毫秒）"
+    method: "首字/生成 content_event_proxy；整次 log_timestamps"
+    scope: "request"
+    limits: "有 completed 为 completed，否则 partial；任一推理缺起点则首字/生成未知；文本无等价首点；非正差值、单位不明或配对歧义 NULL"
+
+kilo_code:
+  description: "Kilo Code 新内核 SQLite 账本；仅 session_message，旧版 JSON 任务目录未接入"
+  source_revision: "Kilo-Org/kilocode@21bcdec484a0b181346088b904eace174a2c6cae"
+  locations:
+    win32: "%USERPROFILE%\\.local\\share\\kilo\\kilo.db"
+    darwin: "~/.local/share/kilo/kilo.db"
+    linux: "~/.local/share/kilo/kilo.db"
+  overrides: "XDG_DATA_HOME 替代 ~/.local/share（去掉 CR/LF 后仅采用绝对路径，相对 XDG_DATA_HOME 忽略，回退 ~/.local/share）；KILO_DB 绝对路径直接用，相对路径相对 data/kilo，:memory: 不发现；KILO_HOME 不参与路径"
+  channels: "latest/beta/prod 默认 kilo.db；开发 channel 为 kilo-<channel>.db，可回退已有 opencode-<channel>.db；本适配器仅自动发现 kilo.db，其他文件需 KILO_DB"
+  file_pattern: "kilo.db（或显式 KILO_DB）"
+  format: "SQLite，只读打开，不执行迁移或 checkpoint"
+  key_fields:
+    table: "session_message WHERE type = 'assistant'"
+    identity: "表列 session_id + id；data 省略 id/type，不从 JSON 猜身份"
+    timestamp: "data.time.created（Unix ms）；不用 time.completed 或表列 time_updated"
+    model: "data.model.id；缺失、空串、legacy 为 NULL"
+    provider: "data.model.providerID；仅取非空字符串，缺失为 NULL；schema v5 存入 provider"
+    project_key: "session_message.session_id → session.id → session.directory；缺表、缺列、缺会话或空目录为 NULL；仅经统一 projectFromCwd 规范化，不从消息或数据库路径猜测"
+    usage:
+      input_tokens: "data.tokens.input（nonCachedInputTokens，不再扣缓存）"
+      output_tokens: "data.tokens.output（visibleOutputTokens）+ data.tokens.reasoning"
+      cache_read_tokens: "data.tokens.cache.read"
+      cache_write_tokens: "data.tokens.cache.write；未提供缓存写档位"
+    excluded: "session.tokens_* 汇总、message 兼容消息、part 的 step-finish；不回退、不叠加"
+  token_semantics: "四类互不重叠；未知字段为 NULL；同消息覆写用量保持身份；kind=event"
+  project_semantics: "directory 是会话 location.directory，与 project_id、项目根和相对 path 分开；创建时写入，Moved 可更新。directoryColumn 校验绝对路径，Windows 入库时将反斜杠转为 /，旧会话允许空串；不还原历史目录。"
+  evidence:
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session.ts#L209-L244"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/projector.ts#L47-L57"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/projector.ts#L263-L274"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/database/path.ts#L5-L63"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/system-context/builtins.ts#L13-L20"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/global.ts#L3-L24"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/package.json#L85"
+    - "https://github.com/sindresorhus/xdg-basedir/blob/v5.1.0/index.js#L1-L8"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/database/database.ts#L50-L67"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/sql.ts#L20-L153"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/projector.ts#L95-L134"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/database/migration/20260510033149_session_usage.ts#L16-L54"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/projector.ts#L217-L227"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/message-updater.ts#L196-L214"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/schema/src/session-message.ts#L165-L191"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/schema/src/model.ts#L15-L19"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/core/src/session/runner/publish-llm-event.ts#L18-L27"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/llm/src/schema/events.ts#L9-L68"
+    - "https://github.com/Kilo-Org/kilocode/blob/21bcdec484a0b181346088b904eace174a2c6cae/packages/kilo-vscode/src/legacy-migration/sessions/lib/messages.ts#L55-L76"
+  request_timing:
+    timing_rev: 1
+    fields: "session_message.data.time.created/completed 与 content[type=reasoning].time.created（Unix 毫秒）"
+    method: "首字/生成 content_event_proxy；整次 log_timestamps"
+    scope: "request"
+    limits: "本机无样本，合成验证，现场待验收；非正差值、单位不明或配对歧义 NULL"
+
+openhands:
+  description: "OpenHands CLI 原生会话；不支持 SDK 自定义脚本、ACP、服务端／容器／远程 runtime"
+  source_revision: "OpenHands/OpenHands-CLI@283c6ac3610f4299f405f7389f65766dcb83e12a；uv.lock 锁定 SDK v1.28.1，对应 edaac806d1599a4ee1662fd4008fbcd7b537ecd1"
+  locations:
+    win32: "%USERPROFILE%\\.openhands\\conversations"
+    darwin: "~/.openhands/conversations"
+    linux: "~/.openhands/conversations"
+  overrides: "OPENHANDS_CONVERSATIONS_DIR 直接替代会话根；否则 OPENHANDS_PERSISTENCE_DIR 替代 ~/.openhands 后拼 conversations。覆盖值原样使用，不展开 ~ 或环境变量；OpenHands 把相对路径和空串解释为它自己进程的 cwd，Token Lens 无从得知，因此只接受绝对路径的覆盖值，相对或空的覆盖值不发现任何会话（不按采集进程的 cwd 解释）。Windows 默认 expanduser 用 USERPROFILE，否则 HOMEDRIVE+HOMEPATH；POSIX 用 HOME，否则 passwd home。"
+  file_pattern: "*/base_state.json，以及 */subagents/*/base_state.json、*/subagents/*/subagents/*/base_state.json 等；只沿 subagents/会话 精确迭代展开，不限深度，不跟随子目录链接，不收其他 JSON；中间缺状态仍发现后代"
+  format: "JSON 覆写快照；关联相邻 events/event-<序号>-<事件 UUID>.json"
+  key_fields:
+    session_id: "$.id（conversation UUID）；不从文件路径猜身份"
+    agent: "$.agent.kind = Agent；ACPAgent 不读"
+    usage: "$.stats.usage_to_metrics[usageId].token_usages[]"
+    identity: "openhands|<conversation>|<usageId>|<response_id>；三段分别 encodeURIComponent；同 usageId 内重复响应按列表出现顺序加 #2、#3，并计 duplicate_response_ids"
+    timestamp: "事件 llm_response_id = TokenUsage.response_id，取有效 timestamp 的最早值；Event.timestamp 是 datetime.now().isoformat()，无时区时由 normalizeTimestamp 按采集机本地时区解释，精度到毫秒"
+    model: "TokenUsage.model；不回填 metrics.model_name 或当前 agent.llm.model；缺失、空白、default、unknown 为 NULL"
+    project_key: "NULL；workspace 不是进程 cwd"
+    tokens:
+      input_tokens: "prompt_tokens - cache_read_tokens - cache_write_tokens；任一项缺失或非法则 NULL；负结果计 bad_fields 并为 NULL，不夹成 0"
+      output_tokens: "completion_tokens 原样，已含 reasoning_tokens，不再相加"
+      cache_read_tokens: "cache_read_tokens"
+      cache_write_tokens: "cache_write_tokens；SDK 1.28.1 来自 LiteLLM usage._cache_creation_input_tokens，不是后续 SDK 的 prompt_tokens_details.cache_creation_tokens"
+    missing: "SDK TokenUsage 各 token 字段默认 0，已写出的 0 原样保留；文件实际缺键则 NULL，不能反推提供方是否报告过零缓存"
+    excluded: "accumulated_token_usage、事件里的 stats 快照、completion logs 均不累计，也不回退"
+  token_semantics: "kind=event；四类互不重叠；只记有响应 ID 且有匹配事件时间的逐次用量"
+  limits:
+    - "只计能在本会话自己的 events 里关联到的逐次用量；空 response_id 或没有有效匹配事件时不入账，不能用会话时间、mtime 或 Cost.timestamp 补请求时间"
+    - "CLI 创建 agent、condenser；本版本不调用 fork、reset_metrics、ask_agent 或 generate_title。APIBasedCritic 不经 LLM metrics 记账。"
+    - "子会话（task、delegate、agent hook）的用量从子会话自己的状态与 events 读取；父会话里的副本没有本会话事件，不重复计数；不按 usageId 前缀直接跳过，hook 自己的有效用量正常入账"
+    - "未关联的 task:、delegate:、agent-hook: 条目计独立 note subagent_copies；其他未关联条目仍计 bad_times。前缀只分类 notes，不决定入账，也不要求复制入口唯一"
+    - "task/delegate 位于当前父会话的 subagents/<子 UUID hex>，可继续嵌套；hook 位于当前父会话持久化目录的上一级根/<hook UUID hex>，有自己的 events；LocalConversation.close 不删除这些持久化文件"
+    - "无时区时间依赖采集机时区；跨时区移动日志或采集机时区改变可能改变日期归属"
+    - "ingest 每轮重读 base_state.json，不按 mtime 跳过；只有 events 变化也会在下次采集重新关联，无需改入口文件时间"
+    - "只有合成验证，没有本机真实 OpenHands 样本；其他版本与运行方式未验收"
+  evidence:
+    - "https://github.com/OpenHands/OpenHands-CLI/blob/283c6ac3610f4299f405f7389f65766dcb83e12a/openhands_cli/locations.py#L5-L23"
+    - "https://github.com/OpenHands/OpenHands-CLI/blob/283c6ac3610f4299f405f7389f65766dcb83e12a/uv.lock#L1813-L1815"
+    - "https://github.com/OpenHands/OpenHands-CLI/blob/283c6ac3610f4299f405f7389f65766dcb83e12a/openhands_cli/setup.py#L147-L155"
+    - "https://github.com/OpenHands/OpenHands-CLI/blob/283c6ac3610f4299f405f7389f65766dcb83e12a/openhands_cli/stores/agent_store.py#L497-L519"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/llm/utils/metrics.py#L34-L72"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/llm/utils/telemetry.py#L190-L247"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/event/base.py#L21-L32"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/agent/response_dispatch.py#L282-L337"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/agent/agent.py#L954-L1131"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/context/condenser/llm_summarizing_condenser.py#L176-L201"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-tools/openhands/tools/task/manager.py#L398-L407"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-tools/openhands/tools/delegate/impl.py#L341-L349"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-tools/openhands/tools/task/manager.py#L126-L137"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-tools/openhands/tools/task/manager.py#L280-L307"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-tools/openhands/tools/delegate/impl.py#L189-L211"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py#L718-L740"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/hooks/executor.py#L236-L292"
+    - "https://github.com/OpenHands/software-agent-sdk/blob/edaac806d1599a4ee1662fd4008fbcd7b537ecd1/openhands-sdk/openhands/sdk/hooks/executor.py#L354-L365"
+    - "https://github.com/BerriAI/litellm/blob/v1.87.0/litellm/llms/anthropic/chat/transformation.py#L2162-L2250"
+  request_timing:
+    timing_rev: 1
+    fields: "stats.usage_to_metrics[usageId].response_latencies[].latency（秒）按唯一 response_id 对应同组 token_usages"
+    method: "client_reported"
+    scope: "request"
+    limits: "重复 usage/latency 为 NULL；本机无样本，合成验证；非正差值、单位不明或配对歧义 NULL"
+
+block_goose:
+  description: "Block Goose (block/goose) 本地 Agent 会话数据库 (sessions.db / data.db)"
+  locations:
+    win32: "%APPDATA%\\goose\\sessions\\sessions.db 或 %LOCALAPPDATA%\\block\\goose\\data.db"
+    darwin: "~/Library/Application Support/goose/sessions/sessions.db"
+    linux: "~/.local/share/goose/sessions/sessions.db"
+  file_pattern: "sessions.db 或 data.db"
+  format: "SQLite"
+  provider_evidence: "https://github.com/block/goose/blob/2c6812a358db1b11953b9fafc05c6126eb818788/crates/goose/src/session/session_manager.rs#L101"
+  key_fields:
+    provider: "sessions.provider_name（与当前适配器的会话累计行同级）；缺失为 NULL，不从 model_config_json 推断"
+    table: "sessions 或 usage_ledger"
+    session_id: "id"
+    model: "$.model_config_json.model_name 或 model"
+    timestamp: "created_at (RFC3339 或 ISO 字符串)"
+    usage:
+      input_tokens: "accumulated_input_tokens (优先) 或 input_tokens"
+      output_tokens: "accumulated_output_tokens (优先) 或 output_tokens"
+      total_tokens: "accumulated_total_tokens (优先) 或 total_tokens"
+
+zed_editor:
+  description: "Zed Editor (zed-industries/zed) 内置 AI Assistant 线程数据库 (threads.db)"
+  locations:
+    win32: "%LOCALAPPDATA%\\Zed\\threads\\threads.db"
+    darwin: "~/Library/Application Support/Zed/threads/threads.db"
+    linux: "~/.local/share/zed/threads/threads.db"
+  file_pattern: "threads.db"
+  format: "SQLite (BLOB 字段支持 raw JSON 或 zstd 压缩)"
+  key_fields:
+    table: "threads"
+    session_id: "id"
+    timestamp: "updated_at (或 created_at)"
+    blob_format: "data_type ('json' 或 'zstd')"
+    payload_fields:
+      model: "$.model.model 或 $.model"
+      imported: "$.imported (若为 true 则跳过外部导入会话)"
+      usage: "request_token_usage 轮次累加 (优先) 或 cumulative_token_usage"
+      input_tokens: "input_tokens"
+      output_tokens: "output_tokens"
+      cache_read_tokens: "cache_read_input_tokens"
+      cache_write_tokens: "cache_creation_input_tokens"
+
+continue_dev:
+  description: "Continue.dev (continuedev/continue) 开源 IDE 扩展本地会话记录"
+  locations:
+    win32: "%USERPROFILE%\\.continue\\sessions"
+    darwin: "~/.continue/sessions"
+    linux: "~/.continue/sessions"
+  file_pattern: "*.json"
+  format: "JSON (单会话对象)"
+  key_fields:
+    session_id: "$.sessionId 或文件名提取"
+    title: "$.title"
+    timestamp: "$.dateCreated 或 $.history[*].timestamp"
+    rounds: "$.history (数组)"
+    round_fields:
+      role: "$.role 或 $.message.role ('assistant')"
+      model: "$.modelTitle 或 $.model 或 $.selectedModel.title"
+      usage:
+        input_tokens: "$.promptTokens 或 $.usage.prompt_tokens 或 $.tokenCount.input"
+        output_tokens: "$.completionTokens 或 $.usage.completion_tokens 或 $.tokenCount.output"
+        cache_read_tokens: "$.cachedTokens 或 $.usage.cache_read_input_tokens"
+
+trae_and_trae_cn:
+  description: "Trae / Trae CN (字节跳动 AI 编辑器) 本地会话记录与用量快照"
+  locations:
+    win32: "%APPDATA%\\{TRAE SOLO,Trae CN,TRAE SOLO CN,trae}\\User\\globalStorage"
+    darwin: "~/Library/Application Support/{TRAE SOLO,Trae CN,TRAE SOLO CN,trae}/User/globalStorage"
+    linux: "~/.config/{TRAE SOLO,Trae CN,TRAE SOLO CN,trae}/User/globalStorage"
+  file_pattern: "*trae*.json 或 *trae*.jsonl"
+  discovery_pattern: "app-data 安装根下仅查 User/globalStorage/**/*trae*.{json,jsonl}；HOME 根仅查 *trae*.{json,jsonl}"
+  format: "JSON / JSONL"
+  key_fields:
+    session_id: "$.session_id 或 $.id"
+    model: "$.model_name 或 $.model (如 doubao-pro, doubao-lite)"
+    timestamp: "$.usage_time (Unix s/ms) 或 $.timestamp"
+    usage:
+      input_tokens: "$.input_token (或 inputTokens / extra_info.input_token)"
+      output_tokens: "$.output_token (或 outputTokens / extra_info.output_token)"
+      cache_read_tokens: "$.cache_read_token (或 cachedTokens)"
+      cache_write_tokens: "$.cache_write_token"
+
+github_copilot:
+  description: "GitHub Copilot (CLI & App) 本地会话与用量数据库 (session-store.db / data.db)"
+  locations:
+    win32: "%USERPROFILE%\\.copilot\\{session-store.db,data.db}"
+    darwin: "~/.copilot/{session-store.db,data.db}"
+    linux: "~/.copilot/{session-store.db,data.db}"
+  file_pattern: "session-store.db 或 data.db"
+  format: "SQLite"
+  key_fields:
+    session_store_db:
+      table: "assistant_usage_events"
+      session_id: "session_id"
+      model: "model"
+      timestamp: "created_at"
+      usage:
+        input_tokens: "input_tokens"
+        output_tokens: "output_tokens + (reasoning_tokens || 0)"
+        cache_read_tokens: "cache_read_tokens"
+        cache_write_tokens: "cache_write_tokens"
+    app_db:
+      table: "sessions"
+      session_id: "id"
+      model: "model"
+      timestamp: "updated_at (或 created_at)"
+      usage:
+        input_tokens: "total_input_tokens"
+        output_tokens: "total_output_tokens + (total_reasoning_tokens || 0)"
+        cache_read_tokens: "total_cached_tokens"
+
+openclaw:
+  description: "OpenClaw 本地 Agent 会话与转录日志"
+  locations:
+    win32: "%USERPROFILE%\\.openclaw\\agents\\*\\{sessions,session-sqlite-import-archive}"
+    darwin: "~/.openclaw/agents/*/{sessions,session-sqlite-import-archive}"
+    linux: "~/.openclaw/agents/*/{sessions,session-sqlite-import-archive}"
+  file_pattern: "*.jsonl*"
+  format: "JSONL"
+  provider_evidence: "https://github.com/openclaw/openclaw/blob/d66e12fe7f89bc88dd71a17d04a7fa9973bfb79d/packages/llm-core/src/types.ts#L525-L542"
+  key_fields:
+    provider: "$.message.provider（顶层消息格式为 $.provider）；仅消息自报值，不从模型、api 或 model_change 推测"
+    session_id: "$.session_id 或文件名前缀"
+    model: "$.message.model 或 $.model"
+    timestamp: "$.timestamp (ISO8601 字符串)"
+    usage:
+      input_tokens: "$.message.usage.input (或 prompt_tokens)"
+      output_tokens: "$.message.usage.output (或 completion_tokens)"
+      cache_read_tokens: "$.message.usage.cacheRead (或 cachedTokens)"
+      cache_write_tokens: "$.message.usage.cacheWrite"
+
+mimo:
+  description: "MiMo Code（OpenCode 分支）的逐消息用量；source 为 mimo"
+  upstream: "https://github.com/XiaomiMiMo/MiMo-Code/tree/3e92e0d8f0308603180ad03dbc67828c94c09ec4"
+  evidence:
+    - "packages/shared/src/global.ts: resolveMimocodeHome"
+    - "packages/cli/src/storage/db.ts: getChannelPath、Database.Path；packages/cli/src/flag/flag.ts: MIMOCODE_DISABLE_CHANNEL_DB"
+    - "packages/cli/src/session/session.sql.ts: MessageTable、SessionTable；message-v2.ts: Assistant"
+    - "packages/cli/src/session/session.ts: getUsage（input 扣缓存读写，output 扣 reasoning 后单列）"
+  locations:
+    win32: "%USERPROFILE%\\.local\\share\\mimocode\\mimocode.db；另尝试 %APPDATA%\\Xiaomi MiMo\\mimocode\\mimocode.db（第三方路径，未核实）"
+    darwin: "~/.local/share/mimocode/mimocode.db"
+    linux: "~/.local/share/mimocode/mimocode.db"
+  environment: "MIMOCODE_HOME 非空绝对路径时用 <HOME>/data；空串按未设置，非空相对值不发现。否则用 <XDG_DATA_HOME 或 ~/.local/share>/mimocode。MIMOCODE_DB 覆盖库路径（绝对或相对数据目录），:memory: 不发现。"
+  file_pattern: "mimocode.db；仅 MIMOCODE_DISABLE_CHANNEL_DB=false/0 时额外发现 mimocode-*.db"
+  discovery_pattern: "默认不扫 channel 或备份库；显式 DB 覆盖目录扫描；旧 ~/.mimo 等 JSON 路径不发现"
+  format: "SQLite；message.data 为 JSON，与 OpenCode v1 同构；解析器也兼容 session_message v2"
+  retention: "MessageTable.session_id 外键 onDelete=cascade；删会话会删消息，账本保留同版本消失行的用量"
+  key_fields:
+    identity: "message.id；record_key = mimo|<session>|<id>，缺 id 回退文件 hash+时间+查询序号"
+    session_id: "message.session_id，回退 data.sessionID / data.session_id"
+    project_key: "按 session_id 取 session.directory，经 projectFromCwd 规范化；未知存 NULL"
+    model: "data.model 字符串、data.model.id 或 data.modelID（如 mimo-v2.6-pro）"
+    provider: "仅 data.model.providerID 或 data.providerID；不从模型名推断"
+    timestamp: "time_updated，回退 time_created、data.time.completed、data.time.created；毫秒转 UTC ISO"
+    usage:
+      input_tokens: "data.tokens.input（不含缓存）"
+      output_tokens: "data.tokens.output + data.tokens.reasoning（独立推理）"
+      cache_read_tokens: "data.tokens.cache.read"
+      cache_write_tokens: "data.tokens.cache.write"
+  request_timing:
+    timing_rev: 1
+    fields: "同 OpenCode 的消息起止及 reasoning.time.created（Unix 毫秒），缺字段 NULL"
+    method: "首字/生成 content_event_proxy；整次 log_timestamps"
+    scope: "request"
+    limits: "本机无样本，合成验证，现场待验收；非正差值、单位不明或配对歧义 NULL"
+
+kimi_and_kimi_code:
+  description: "Kimi / Kimi Code (月之暗面 Moonshot AI 编码工具与插件) 会话与转录日志"
+  locations:
+    win32: "%USERPROFILE%\\.kimi\\{sessions,logs}、%APPDATA%\\kimi 或 %USERPROFILE%\\.kimi-code\\sessions"
+    darwin: "~/.kimi/{sessions,logs}、~/.config/kimi 或 ~/.kimi-code/sessions（上游 kimi_cli/share.py 各平台都用 ~/.kimi，没有 Application Support 路径）"
+    linux: "~/.kimi/sessions 或 ~/.config/kimi"
+  file_pattern: "*.json 或 *.jsonl；当前 Kimi Code 为 sessions/*/*/agents/*/wire.jsonl"
+  discovery_pattern: "工具根下 {sessions,logs}/**/*.{json,jsonl}；app-data 不扫根目录配置或 cache；.kimi-code 单独保留 wire 规则"
+  environment: "KIMI_SHARE_DIR 非空时替代 ~/.kimi（上游 kimi_cli/share.py）；相对值相对 Kimi 进程的 cwd，不发现。"
+  format: "JSON / JSONL"
+  key_fields:
+    session_id: "$.session_id 或 $.id 或文件名前缀；wire 取 session_<id> 目录"
+    model: "$.model 或 $.message.model (如 moonshot-v1-8k, moonshot-v1-32k, kimi-k2.7-code)"
+    timestamp: "$.timestamp、$.created_at 或 wire 的 $.time（毫秒）"
+    usage:
+      input_tokens: "$.usage.prompt_tokens (或 input_tokens / input)；wire 为 inputOther"
+      output_tokens: "$.usage.completion_tokens (或 output_tokens / output)；wire 为 output"
+      cache_read_tokens: "$.usage.cached_tokens (或 cache_read_tokens)；wire 为 inputCacheRead"
+      cache_write_tokens: "$.usage.cache_write_tokens；wire 为 inputCacheCreation"
+    usage_scope: "wire 的 turn 与 session 都是单次调用；session 是会话压缩，不是累计汇总"
+    wire_non_usage: "wire 里只有 type == 'usage.record' 是一次调用。subagent.completed 的 $.usage 是该子 agent 整次运行的汇总，子 agent 自己的 wire.jsonl 已逐条记录，不另计"
+    cross_check: "同一 agent、同一 time 的 token_counting.measured.tokens 等于 usage.record 的 inputOther + output + inputCacheRead + inputCacheCreation"
+  request_timing:
+    timing_rev: 1
+    event: "$.type=context.append_loop_event，$.event.type=step.end"
+    ttft_ms: "$.event.llmFirstTokenLatencyMs，客户端时钟，不改用 llmServerFirstTokenMs"
+    generation_ms: "$.event.llmStreamDurationMs，客户端首次内容到流结束"
+    method: "两个时长都为 client_reported"
+    association: "step.begin/end 范围内，step.end.event.usage 与唯一一条 usage.record.usage 完全相等；只给这条用量记录挂计时，step.end 不另计用量"
+    status: "event.finishReason 的 end_turn/tool_use/stop/length/max_tokens 为 completed；cancelled/aborted 为 cancelled；error/failed 为 failed；其余 unknown"
+    limits: "缺字段/负值按指标独立为 NULL；关联不唯一则两项未知。无 step.end 的压缩调用和旧格式未知，短流/缓冲可产生很高的近似速度"
+
+minimax_code:
+  description: "MiniMax Code 的逐请求用量；source 为 minimax"
+  upstream: "https://github.com/MiniMax-AI/minimax-code/tree/da22f11c55d4748155d7162c1030414228a00565"
+  evidence:
+    - "packages/shared/src/local-runtime-paths.ts: resolveV2DirectoryContract；packages/local-runtime-v2/src/infra/db/client.ts"
+    - "packages/local-runtime-v2/src/infra/db/schema/usage.ts；service/session-system/usage/pi-usage.ts"
+    - "third_party/pi-mono/packages/ai/src/providers/openai-completions.ts: completion_tokens 已含 reasoning；anthropic.ts: output_tokens 原值"
+  locations:
+    win32: "%USERPROFILE%\\.minimax\\v2\\sqlite\\runtime-state.sqlite（含 .minimax-<profile>、旧源码构建 .minimax-code）"
+    darwin: "~/{.minimax,.minimax-<profile>,.minimax-code}/v2/sqlite/runtime-state.sqlite"
+    linux: "~/{.minimax,.minimax-<profile>,.minimax-code}/v2/sqlite/runtime-state.sqlite"
+  environment: "MINIMAX_DATA_DIR 覆盖数据根，设置后仅发现该根下的 v2/sqlite/runtime-state.sqlite；不再读取 MINIMAX_HOME"
+  file_pattern: "v2/sqlite/runtime-state.sqlite"
+  discovery_pattern: "未覆盖时扫描 ~/.minimax 与 ~/.minimax-*；旧 {sessions,logs}/**/*.{json,jsonl}、AppData 与 .config 猜测路径不发现"
+  format: "SQLite；local_runtime_token_usage 逐请求，id 为 INTEGER PRIMARY KEY AUTOINCREMENT"
+  retention: "rewind 与删会话删除用量行；账本保留同版本消失行的用量"
+  key_fields:
+    identity: "record_key = minimax|<session_id>|<id>，不含 token 数"
+    session_id: "local_runtime_token_usage.session_id"
+    project_key: "按 session_id 取 local_runtime_sessions.workspace_dir，经 projectFromCwd 规范化；未知存 NULL"
+    model: "local_runtime_token_usage.model（如 MiniMax-M3）；缺失存 NULL"
+    provider: "用量表无显式字段，存 NULL"
+    timestamp: "local_runtime_token_usage.ts（毫秒 Unix 时间，转 UTC ISO）"
+    usage:
+      input_tokens: "input_tokens（pi usage.input，不含缓存读写）"
+      output_tokens: "output_tokens（pi usage.output 已含 reasoning，不再叠加 reasoning_tokens）"
+      cache_read_tokens: "cache_read_tokens"
+      cache_write_tokens: "cache_write_tokens"
+
+zcode:
+  description: "ZCode CLI 与桌面版的逐请求用量；source 为 zcode，只读 db.sqlite"
+  upstream: "https://github.com/zai-org/ZCode/tree/3c5b227649371507ddc4eb46ac5133afe6db1cab"
+  evidence:
+    - "apps/zcode-cli/packages/adapters/src/storage/session-store/paths.ts: getDefaultSessionDbPath；schema.baseline.sql: model_usage、session；repositories/usage.ts: recordModelUsage、pruneUsage"
+    - "apps/zcode-cli/packages/core/src/runtime/methods/usage-observability.ts: recordModelUsageFact、modelUsageId；docs/design/v2/model/token-usage.md"
+    - "packages/services/src/runtime-tools/providerRuntimeResolver.ts；packages/desktop/src/main/desktopDataBaseDirBootstrap.ts"
+  locations:
+    win32: "%USERPROFILE%\\.zcode\\cli\\db\\db.sqlite"
+    darwin: "~/.zcode/cli/db/db.sqlite"
+    linux: "~/.zcode/cli/db/db.sqlite"
+  environment: "ZCODE_DATA_BASE_DIR 或 ~/.zcode/v2/setting.json 的 dataBaseDir 增加数据根；ZCODE_SESSION_DB_PATH、ZCODE_SESSION_DB 或各根 .zcode/cli/config.json 的 storage.sessionDbPath 增加显式库路径。仅绝对或 ~/ 路径，不按采集进程 cwd 解释相对值；保留默认历史库并去重。"
+  file_pattern: "db.sqlite 或显式配置的数据库；不读 rollout"
+  format: "SQLite；model_usage 逐请求，id 为 TEXT PRIMARY KEY，同 id upsert"
+  retention: "pruneUsage 清理 30 天前用量；账本保留同版本消失行的用量"
+  key_fields:
+    identity: "record_key = zcode|<session_id>|<id>；缺会话用 -，缺 id 跳过"
+    session_id: "model_usage.session_id"
+    project_key: "按 session_id 取 session.directory，经 projectFromCwd 规范化；未知存 NULL"
+    model: "model_usage.model_id（如 GLM-5.3）"
+    provider: "仅 model_usage.provider_id 显式值；不推断"
+    timestamp: "model_usage.started_at（毫秒 Unix 时间，转 UTC ISO）"
+    usage:
+      input_tokens: "input_tokens - cache_read_input_tokens - cache_creation_input_tokens；扣成负数存 NULL 并记 bad_fields"
+      output_tokens: "output_tokens（AI SDK v6 的 outputTokens 已含 reasoning，不另加 reasoning_tokens）"
+      cache_read_tokens: "cache_read_input_tokens"
+      cache_write_tokens: "cache_creation_input_tokens"
+    usage_scope: "不叠加 turn_usage 等汇总或 provider/computed total；失败/重试有用量照计，四项全零/未知时跳过"
+  request_timing:
+    timing_rev: 1
+    evidence: "上面 upstream commit 的 schema.baseline.sql:model_usage、usage-observability.ts；本机无真实样本，使用合成表验证"
+    ttft_ms: "model_usage.time_to_first_token_ms；仅缺失时回退 first_token_at-started_at"
+    generation_ms: "model_usage.completed_at-model_usage.first_token_at；时间列均为 Unix 毫秒"
+    method: "client_reported"
+    status: "model_usage.status completed/error/cancelled/running -> completed/failed/cancelled/partial；缺失或其他为 unknown"
+    limits: "旧表缺计时列按 NULL，显式负首字不回退，负差值为 NULL，0 ms 为已知值但不作速度分母；首点捕获非空 text/reasoning delta，工具专用输出可能无首点；只有 completed 进入速度统计"
+
+commandcode:
+  description: "Command Code CLI 的 v3 transcript；source 为 commandcode，证据 B（合成）"
+  upstream: "https://registry.npmjs.org/command-code/-/command-code-1.88.2.tgz"
+  documentation: "https://commandcode.ai/docs/sessions（2026-11-01 访问）"
+  evidence:
+    - "dist/cli.mjs: appendMessage、toSessionUsage、createSessionRecorder、estimateCatalogCostUsd"
+  locations:
+    win32: "%USERPROFILE%\\.commandcode\\projects\\<slug>\\<session-id>.jsonl"
+    darwin: "~/.commandcode/projects/<slug>/<session-id>.jsonl"
+    linux: "~/.commandcode/projects/<slug>/<session-id>.jsonl"
+  discovery_pattern: "projects/*/*.jsonl；排除 *.checkpoints.jsonl、*.prompts.jsonl；不读 *.meta.json 或 *.share.json"
+  format: "JSONL；首条 type=session/version=3；逐条 type=message/message.role=assistant/usage"
+  key_fields:
+    identity: "commandcode|<header.id>|<entry.id>；无 ID 或 v1/v2 跳过"
+    session_id: "首条 session.id"
+    project_key: "仅 header.cwd，经 projectFromCwd"
+    model: "entry.model，缺失 NULL"
+    provider: "已核实持久化记录无 provider，存 NULL"
+    timestamp: "entry.timestamp（UTC ISO）"
+    usage:
+      input_tokens: "entry.usage.inputTokens - cacheReadTokens - cacheWriteTokens；负数存 NULL、记 bad_fields"
+      output_tokens: "entry.usage.outputTokens，AI SDK v6 output 已含 reasoning"
+      cache_read_tokens: "entry.usage.cacheReadTokens"
+      cache_write_tokens: "entry.usage.cacheWriteTokens"
+      cache_write_1h_tokens: "可选 cacheWriteTokens1h；0 <= 1h <= write 时保留，否则 NULL 并记 bad_fields"
+      cache_write_5m_tokens: "已知合法 1h 时为 write - 1h，否则 NULL"
+  retention: "所有已发生分支事件均计；同版本删行保留已采集用量"
+
+anythingllm:
+  description: "AnythingLLM Desktop SQLite；source 为 anythingllm，证据 B（合成）"
+  upstream: "https://github.com/Mintplex-Labs/anything-llm/tree/9caf2b4c29d9782f1cba4142be2525ebfa0ecd43"
+  evidence:
+    - "server/prisma/schema.prisma: workspace_chats、datasource db；migrations/20230921191814_init/migration.sql"
+    - "server/utils/helpers/chat/LLMPerformanceMonitor.js: measureStream、endMeasurement；server/models/workspaceChats.js: new、markHistoryInvalid、delete"
+    - "server/endpoints/workspaces.js: 删除 workspace 调用 WorkspaceChats.delete；server/utils/chats/stream.js: completedChat.response.metrics"
+    - "https://github.com/Mintplex-Labs/anythingllm-docs/blob/master/pages/installation-desktop/storage.mdx（2026-11-01 访问）"
+  locations:
+    win32: "%APPDATA%\\anythingllm-desktop\\storage\\anythingllm.db"
+    darwin: "~/Library/Application Support/anythingllm-desktop/storage/anythingllm.db"
+    linux: "~/.config/anythingllm-desktop/storage/anythingllm.db"
+  environment: "STORAGE_DIR 不覆盖 Prisma 的固定 SQLite URL（file:../storage/anythingllm.db）；不据此拼接 DB 路径。服务端、Docker 内库未自动发现。"
+  format: "只读 SQLite，workspace_chats.response 为 JSON；不按 include 过滤"
+  key_fields:
+    identity: "anythingllm|<workspaceId>|<id>，不含 token 数"
+    session_id: "workspaceId + api_session_id（若有），否则 thread_id；无 thread 时 main"
+    project_key: "无 cwd，NULL"
+    model: "response.metrics.model 显式值，否则 NULL"
+    provider: "response.metrics.provider 显式值，否则 NULL"
+    timestamp: "workspace_chats.createdAt（Prisma 毫秒；SQL CURRENT_TIMESTAMP 按 UTC）"
+    usage:
+      input_tokens: "response.metrics.prompt_tokens；默认本地 tiktoken 估算，可被 provider reportedUsage 覆盖，缓存包含关系随 provider，无法统一拆分"
+      output_tokens: "response.metrics.completion_tokens；保留上游值，不另加 total_tokens"
+      cache_read_tokens: "NULL（无统一可靠细分，未知不是零）"
+      cache_write_tokens: "NULL（无统一可靠细分，未知不是零）"
+  retention: "include=false 只是软隐藏，照计；删除 workspace 在应用层批量删 chats，账本保留已采集用量"
+  request_timing:
+    timing_rev: 1
+    fields: "response.metrics.duration（秒）"
+    method: "client_reported"
+    scope: "request"
+    limits: "completed；无首点；本机无样本，合成验证；非正差值、单位不明或配对歧义 NULL"
+
+antigravity:
+  description: "Google Antigravity CLI（agy）；source 为 antigravity，仅桌面版，证据 A"
+  evidence: "Windows 上同一真实会话的两轮生成与 agy JSON 自报用量逐项对照；仓库测试使用合成夹具"
+  locations:
+    win32: "%USERPROFILE%\\.gemini\\antigravity-cli\\conversations\\*.db"
+    darwin: "~/.gemini/antigravity-cli/conversations/*.db（实际客户端路径待核实）"
+    workspace: "~/.gemini/antigravity-cli/conversation_summaries.db"
+  format: "只读 SQLite；gen_metadata.data 为 protobuf，每行一次模型生成；用量块 1.4 缺失或三项计数全零时跳过"
+  key_fields:
+    identity: "antigravity:<request_id>；request_id 取 1.20 键值对。缺失时用 antigravity:<conversation_id>:<gen_metadata.idx>"
+    session_id: "会话库文件名去掉 .db，即 conversation_id"
+    project_key: "conversation_summaries 按 conversation_id 查 workspace_uris JSON 数组，取第一个 file:// URI，转本地路径；缺失为 NULL"
+    model: "gen_metadata.data 的 1.19"
+    provider: "NULL"
+    timestamp: "在 1.20 中取 last_step_index，先读该索引后首个 step_type=15 的 steps.metadata 1.1，再读 last_step_index+1 的同字段，最后读 trajectory_metadata_blob.data 的 2.1；Unix 秒转 UTC，全部缺失时拒绝"
+    usage:
+      input_tokens: "1.4.2，已扣缓存读；缺失为零"
+      output_tokens: "1.4.3，已含思考；缺失为零"
+      cache_read_tokens: "1.4.5；缺失为零"
+      cache_write_tokens: "NULL，客户端未报告"
+
+codebuddy_and_workbuddy:
+  description: "CodeBuddy / WorkBuddy CLI 与桌面请求索引；第三方逆向依据，证据 B（合成）"
+  upstream: "https://github.com/NextAgentX/qoder-trae-workbuddy-switch/blob/ab5afe42ef3b0e558ef279b4c9f01ede45ccc963/crates/buddy-switch-core/src/modules/token_stats.rs"
+  evidence:
+    - "第三方 token_stats.rs: usage、Totals::value、files、codebuddy_extension_data_dir、is_ide_conversation_index、ide_request_usage、ide_source"
+  locations:
+    win32: "CLI ~/{.codebuddy,.workbuddy,.workbuddy-ai}/projects；桌面 %LOCALAPPDATA%/CodeBuddyExtension/Data"
+    darwin: "CLI ~/{.codebuddy,.workbuddy,.workbuddy-ai}/projects；桌面 ~/Library/Application Support/CodeBuddyExtension/Data"
+    linux: "CLI ~/{.codebuddy,.workbuddy,.workbuddy-ai}/projects；桌面 ~/.local/share/CodeBuddyExtension/Data"
+  discovery_pattern: "CLI projects/**/*.jsonl（跳过 subagents）；桌面 **/history/<workspace>/<conversation>/index.json，跳过 messages/check-point/backups/Public，不跟随目录链接"
+  environment: "CODEBUDDY_HOME/WORKBUDDY_HOME 与旧 sessions/logs 路径无依据，不使用"
+  format: "CLI JSONL；桌面 requests[].usage；不读 messages 正文"
+  key_fields:
+    identity: "CLI codebuddy|<文件名会话>|f<路径hash>:<物理行>；桌面 codebuddy|<会话目录>|<request.id>，缺 id 用文件hash+数组位置"
+    session_id: "CLI 文件名；桌面会话目录名；不把 entry.id 当会话 ID"
+    project_key: "CLI 明写 cwd 经 projectFromCwd；桌面 NULL，不从编码目录猜"
+    model: "CLI providerData.model / model / message.model；桌面上级 workspace index.conversations 的 selectedModelId/modelId/model"
+    provider: "第三方未验证持久化 provider 字段，NULL"
+    timestamp: "CLI timestamp/ts；桌面 timestamp/ts/startedAt（毫秒或数字字符串）；兼容 ISO"
+    usage:
+      input_tokens: "优先 prompt_cache_miss_tokens（未缓存输入）；否则 input_tokens/inputTokens/prompt_tokens - cache_read"
+      output_tokens: "output_tokens/outputTokens/completion_tokens"
+      cache_read_tokens: "cache_read_input_tokens/cacheReadInputTokens/prompt_cache_hit_tokens/cached_tokens；支持 prompt_tokens_details.cached_tokens、inputTokensDetails[].cached_tokens；桌面另有 cacheTokens"
+      cache_write_tokens: "cache_write_input_tokens/cacheWriteInputTokens/cache_creation_input_tokens/prompt_cache_write_tokens；也从其他 usage 与 providerData.rawUsage 补充；桌面另有 cachedWriteTokens；miss 绝不当 write"
+    usage_scope: "CLI 只取 message.usage > providerData.usage > usage 一份输入输出；缓存正值优先于过时零别名；未知存 NULL；扣成负数记 bad_fields"
+  limits: "第三方 Totals::value 表明 input 含缓存读、write 单列；CLI 无已验证消息 ID，移动/重排无法稳定去重；是否漏独有子任务用量未确认；同版本删行保留已采集值"
+
+local_provider_ids:
+  catalog: "src/core/pricing/catalog.js: LOCAL_PROVIDERS = ollama, lmstudio；大小写不敏感"
+  evidence:
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/web/src/content/docs/providers.mdx#L1498-L1524"
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/web/src/content/docs/providers.mdx#L1694-L1723"
+    - "https://github.com/anomalyco/opencode/blob/8b17d2edb4a046b2ee41ad023a3d951816a0c53b/packages/core/src/plugin/provider/ollama.ts#L45-L46"
+  limits: "提供方 ID 是配置标识，不证明端点位置；官方示例允许自定义 ID，其他别名不自动视为本地；ollama-cloud 不在名单。"

@@ -48,7 +48,7 @@ fn system_timezone_allows_first_source_to_reuse_cache() {
     let fixture = Fixture::new();
     fixture.file(
         ".claude/projects/synthetic.jsonl",
-        include_bytes!("../../../../test/fixtures/parity/ingest-a.jsonl"),
+        include_bytes!("../../tests/fixtures/parity/ingest-a.jsonl"),
     );
     let run = || {
         sync(
@@ -350,9 +350,7 @@ fn grok_sidecar_add_modify_remove_invalidates_unchanged_log() {
     let fixture = Fixture::new();
     fixture.file(
         ".grok/sessions/p/ledger/updates.jsonl",
-        include_bytes!(
-            "../../../../test/fixtures/parity/grok/.grok/sessions/p/ledger/updates.jsonl"
-        ),
+        include_bytes!("../../tests/fixtures/parity/grok/.grok/sessions/p/ledger/updates.jsonl"),
     );
     assert_eq!(fixture.run(0)["parsedFiles"], 1);
     let side = ".grok/sessions/p/ledger/summary.json";
@@ -386,7 +384,7 @@ fn sqlite_wal_is_read_each_round_without_fingerprinting_main_file() {
     let source = rusqlite::Connection::open(&path).unwrap();
     source
         .execute_batch(include_str!(
-            "../../../../test/fixtures/parity/opencode/ledger.sql"
+            "../../tests/fixtures/parity/opencode/ledger.sql"
         ))
         .unwrap();
     source

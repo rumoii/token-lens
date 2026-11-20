@@ -28,31 +28,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          import re
-          import tomllib
-
-          tag = os.environ['RELEASE_TAG']
-          number = r'(?:0|[1-9][0-9]*)'
-          identifier = r'(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
-          pattern = rf'v({number}\.{number}\.{number}(?:-{identifier}(?:\.{identifier})*)?)'
-          match = re.fullmatch(pattern, tag)
-          if match is None:
-              raise SystemExit('Tag must be v<semantic version>, without build metadata.')
-          versions = re.findall(r'^version:\s*([^\s#]+)\s*(?:#.*)?$', Path('app/pubspec.yaml').read_text(encoding='utf-8'), re.MULTILINE)
-          if len(versions) != 1:
-              raise SystemExit('Expected exactly one version in app/pubspec.yaml.')
-          version = versions[0].split('+', 1)[0]
-          cargo_version = tomllib.loads(Path('app/rust/Cargo.toml').read_text(encoding='utf-8'))['package']['version']
-          if cargo_version != version:
-              raise SystemExit(f'pubspec.yaml version {version} does not match rust/Cargo.toml package version {cargo_version}.')
-          if match[1] != version:
-              raise SystemExit(f'Tag version {match[1]} does not match pubspec version {version}.')
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f'version={version}\n')
-          PY
+          python3 scripts/desktop-release-assets.py version "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
   check:
     needs: version
@@ -159,27 +135,11 @@ jobs:
           ${{ matrix.python }} ../scripts/verify-desktop-zip.py
           "dist/token-lens-$RELEASE_VERSION-$ARCHIVE_PLATFORM.zip"
 
-      - name: Write SHA-256 checksum
-        run: |
-          ${{ matrix.python }} - <<'PY'
-          import hashlib
-          import os
-          from pathlib import Path
-
-          archive = Path('dist') / f"token-lens-{os.environ['RELEASE_VERSION']}-{os.environ['ARCHIVE_PLATFORM']}.zip"
-          digest = hashlib.sha256()
-          with archive.open('rb') as source:
-              for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                  digest.update(chunk)
-          with archive.with_suffix('.zip.sha256').open('w', encoding='utf-8', newline='\n') as checksum:
-              checksum.write(f'{digest.hexdigest()}  {archive.name}\n')
-          PY
-
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.archive }}
-          path: app/dist/*
+          path: app/dist/*.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -190,12 +150,23 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: desktop-*
           merge-multiple: true
           path: dist
+
+      - name: Write combined SHA-256 checksums
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: python3 scripts/desktop-release-assets.py write dist "$RELEASE_VERSION"
 
       - name: Create draft release
         working-directory: dist
@@ -204,5 +175,5 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          sha256sum --check *.sha256
-          gh release create "$RELEASE_TAG" * --draft --verify-tag --title "$RELEASE_TAG"
+          sha256sum --check SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" ./*.zip SHA256SUMS.txt --draft --verify-tag --title "$RELEASE_TAG"

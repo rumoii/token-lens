@@ -1,4 +1,4 @@
-//! News source contract (specs/news.md, "D2 多来源契约").
+//! News source contract (docs/development/news.md, "D2 多来源契约").
 //!
 //! Each module implements `Source` for one or more registry entries. Sources are pure: they build a
 //! URL and parse a response body. The client owns requests, limits, plain-text normalisation, URL
@@ -56,7 +56,7 @@ pub struct Popularity {
     pub value: i64,
 }
 
-/// What an entry asks of a developer (specs/news.md, "D2.5"). `General` when nothing decides it.
+/// What an entry asks of a developer (docs/development/news.md, "D2.5"). `General` when nothing decides it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemKind {
     Release,

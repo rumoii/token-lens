@@ -156,7 +156,7 @@ pub(super) fn parse(
             let suffix = id.strip_prefix("resp_").unwrap_or(&id);
             suffix.chars().count() < 16 || suffix.bytes().all(|c| c.is_ascii_digit())
         };
-        // Rust intentionally differs from Node for unreliable response IDs (specs/stats.md).
+        // Rust intentionally differs from Node for unreliable response IDs (docs/development/stats.md).
         let key = if bad_id {
             if let (Some(thread), Some(timestamp)) = (
                 payload["thread_id"].as_str().filter(|s| !s.is_empty()),

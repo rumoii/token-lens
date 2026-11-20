@@ -61,14 +61,14 @@ python scripts/desktop-dev.py check
 | `app/rust/src/stats/discovery.rs` | 去哪里找各工具的日志 |
 | `app/rust/src/stats/ledger/`、`service/` | 账本读写和统计查询 |
 | `app/rust/src/cli.rs` | 只读 JSON 命令行 `token-lens-cli` |
-| `specs/` | 契约：日志字段、适配器口径、统计规则、命令行格式、价格 |
+| `docs/development/` | 契约：日志字段、适配器口径、统计规则、命令行格式、价格 |
 
 ### 常见改动从哪里开始
 
-- **支持一个新工具**：读 [新增一个工具来源](docs/adding-a-source.md)。
+- **支持一个新工具**：读 [新增一个工具来源](docs/development/adding-a-source.md)。
 - **改界面文字**：在 `app/lib/l10n/app_strings.dart` 声明，`strings_zh.dart` 和 `strings_en.dart` 各写一份。
 - **改了 Rust 对 Flutter 公开的接口**：在 `app/` 运行 `flutter_rust_bridge_codegen generate`，生成的文件一起提交。
-- **改模型价格**：见 [specs/pricing.md](specs/pricing.md) 第 9 节，单独开 PR。
+- **改模型价格**：见 [docs/development/pricing.md](docs/development/pricing.md) 第 9 节，单独开 PR。
 
 ## 提交 Issue
 
@@ -86,9 +86,9 @@ python scripts/desktop-dev.py check
 - 一 PR 只做一件事；混了多件事的 PR 会被要求拆分。
 - 按 [.github/pull_request_template.md](.github/pull_request_template.md) 填写。
 - 改动了桌面应用（`app/`）：提交前跑 `python scripts/desktop-dev.py check`，见上面的「开发快速开始」。改了界面的话附前后截图，用 `python scripts/desktop-dev.py demo` 的演示数据截，不要用你自己的真实数据。
-- 旧版（`src/core/`、`dashboard/`、`desktop/`、`bin/`）已冻结，只接受影响回退使用的缺陷修复，不接受新功能和新来源。修复时本地环境用 Node >= 24.21.0，依赖用 `npm ci` 和 `npm ci --prefix dashboard` 安装；提交前跑 `npm run ci:local`（核心测试 + 仪表盘测试 + 构建 + 类型检查，在临时用户目录与显式数据目录下执行，结束后清理）。测试约定见 [CLAUDE.md](CLAUDE.md)。
+- 旧版（`src/core/`、`dashboard/`、`desktop/`、`bin/`）已冻结，只接受影响回退使用的缺陷修复，不接受新功能和新来源。修复时本地环境用 Node >= 24.21.0，依赖用 `npm ci` 和 `npm ci --prefix dashboard` 安装；提交前跑 `npm run ci:local`（核心测试 + 仪表盘测试 + 构建 + 类型检查，在临时用户目录与显式数据目录下执行，结束后清理）。测试约定见 `CLAUDE.md`。
 - 自动检查：
-  - `desktop.yml`：改动 `app/`、`specs/`、`test/fixtures/`、桌面相关脚本、第三方声明或发布流程时，在 Windows 和 macOS 上构建、测试并冒烟。
+  - `desktop.yml`：改动 `app/`、`docs/development/`、`app/rust/tests/fixtures/`、桌面相关脚本、第三方声明或发布流程时，在 Windows 和 macOS 上构建、测试并冒烟。
   - `pr-checks.yml`：旧版的 `npm run ci:local` 和旧版桌面构建。只改了 Markdown、issue 模板，或者只改了桌面版的文件（`app/` 和桌面专用的脚本、工作流）时跳过。
 
 ## 依赖升级
