@@ -523,7 +523,7 @@ class _StatsHomeState extends State<StatsHome> {
           kpis(data, buckets, best),
           pair(
             LensEnter(index: 5, child: trend(data, buckets, order, slots)),
-            LensEnter(index: 6, child: modelList(data, models)),
+            LensEnter(index: 6, child: modelList(data, models, slots)),
           ),
           pair(
             c.resourceErrors.containsKey('year') ||
@@ -1341,7 +1341,11 @@ class _StatsHomeState extends State<StatsHome> {
     );
   }
 
-  Widget modelList(StatsHomeData data, List<ModelUsage> models) => LensCard(
+  Widget modelList(
+    StatsHomeData data,
+    List<ModelUsage> models,
+    Map<String, Color> slots,
+  ) => LensCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1415,7 +1419,7 @@ class _StatsHomeState extends State<StatsHome> {
                           const SizedBox(height: 6),
                           bar(
                             model.tokens / math.max(1, models.first.tokens),
-                            p.category(i + 1),
+                            slots[model.topTool]!,
                             delay: 230 + i * 57,
                           ),
                         ],

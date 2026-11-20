@@ -84,7 +84,7 @@ void main() {
         )
         .first;
     final modelColors = swatches(tester, models);
-    expect(modelColors, contains(const LensPalette(false).category(1)));
-    expect(modelColors, isNot(contains(const Color(0xffd97757))));
+    expect(modelColors, contains(const Color(0xffd97757)));
+    expect(modelColors, isNot(contains(const LensPalette(false).category(1))));
   });
 }

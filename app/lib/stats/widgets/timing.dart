@@ -1,7 +1,8 @@
-import '../../l10n/app_strings.dart';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_strings.dart';
 import '../../stats_gateway.dart';
 import '../logic/format.dart';
 import '../theme/palette.dart';
@@ -80,6 +81,11 @@ class TimingStrip extends StatelessWidget {
     final missingHint = missing.isEmpty
         ? null
         : context.strings.missingFromLogs0(missing);
+    final requestLabel = context.strings.perRequest2;
+    final turnLabel = context.strings.perTurn;
+    final scopeStyle = scopeAsTitle && !turn
+        ? p.text(14.5, null, FontWeight.w600)
+        : p.text(12, p['clay']);
     final scope = LensFocusTooltip(
       description: [hint, ?missingHint].join('\n'),
       content: Column(
@@ -91,36 +97,65 @@ class TimingStrip extends StatelessWidget {
             Text(missingHint, style: p.text(11.5, p.muted)),
         ],
       ),
-      child: Text(
-        turn ? context.strings.perTurn : context.strings.perRequest2,
-        style: scopeAsTitle && !turn
-            ? p.text(14.5, null, FontWeight.w600)
-            : p.text(12, p['clay']),
-      ),
+      child: Text(turn ? turnLabel : requestLabel, style: scopeStyle),
     );
-    final metrics = Wrap(
-      spacing: 24,
+    final metrics = [
+      for (final kind in TimingKind.values)
+        if (kind.hasSamples(timing, turn: turn))
+          TimingMetric(
+            key: metricKey(kind),
+            timing: timing,
+            kind: kind,
+            turn: turn,
+            requestCount: requestCount,
+          ),
+    ];
+    const spacing = 24.0;
+    Widget wrap(List<Widget> children) => Wrap(
+      spacing: spacing,
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        if (!scopeAsTitle) scope,
-        for (final kind in TimingKind.values)
-          if (kind.hasSamples(timing, turn: turn))
-            TimingMetric(
-              key: metricKey(kind),
-              timing: timing,
-              kind: kind,
-              turn: turn,
-              requestCount: requestCount,
-            ),
-      ],
+      children: children,
     );
-    return scopeAsTitle
-        ? Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [scope, const SizedBox(height: 8), metrics],
-          )
-        : metrics;
+    if (scopeAsTitle) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [scope, const SizedBox(height: 8), wrap(metrics)],
+      );
+    }
+
+    final labelStyle = DefaultTextStyle.of(context).style
+        .merge(scopeStyle)
+        .copyWith(
+          fontWeight: MediaQuery.boldTextOf(context) ? FontWeight.bold : null,
+          letterSpacing: MediaQuery.maybeLetterSpacingOverrideOf(context),
+          wordSpacing: MediaQuery.maybeWordSpacingOverrideOf(context),
+        );
+    double labelWidth(String label) => TextPainter.computeWidth(
+      text: TextSpan(text: label, style: labelStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      locale: Localizations.maybeLocaleOf(context),
+    );
+    final label = SizedBox(
+      width: math.max(labelWidth(requestLabel), labelWidth(turnLabel)),
+      child: Align(alignment: AlignmentDirectional.centerStart, child: scope),
+    );
+    return wrap([
+      if (metrics.isEmpty)
+        label
+      else ...[
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            label,
+            const SizedBox(width: spacing),
+            Flexible(child: metrics.first),
+          ],
+        ),
+        ...metrics.skip(1),
+      ],
+    ]);
   }
 }
 

@@ -303,13 +303,14 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     }
   }
 
-  Future<void> open(String source, String sessionId) async {
+  Future<void> open(String source, String sessionId, {Color? listColor}) async {
     if (_panel || c.isHidden(source)) return;
     _panel = true;
     final found = items
         .where((r) => r.source == source && r.sessionId == sessionId)
         .firstOrNull;
     final tool = toolOf(source).name;
+    final accent = listColor ?? p.toolBrand(source) ?? p.toolInk(1);
     final fallbackTitle = context.strings.sessionForTool(tool);
     PanelHeading headingFor(String? project, String started, String ended) => (
       title:
@@ -339,18 +340,12 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
         title: heading.value.title,
         hint: heading.value.hint,
         heading: heading,
-        icon: ToolTile(
-          source,
-          size: 40,
-          accent:
-              toolColors()[source] ??
-              LensPalette.of(context).toolBrand(source) ??
-              LensPalette.of(context).toolInk(1),
-        ),
+        icon: ToolTile(source, size: 40, accent: accent),
         body: SessionDetail(
           controller: c,
           source: source,
           sessionId: sessionId,
+          toolColor: accent,
           onLoaded: (session) {
             if (receiving) {
               heading.value = headingFor(
@@ -729,7 +724,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
           child: LensFocusOutline(
             child: InkWell(
               key: Key('session-row-${r.source}:${r.sessionId}'),
-              onTap: () => unawaited(open(r.source, r.sessionId)),
+              onTap: () => unawaited(
+                open(r.source, r.sessionId, listColor: colors[r.source]),
+              ),
               child: Container(
                 padding: EdgeInsets.fromLTRB(
                   narrow ? 10 : 0,
@@ -1160,6 +1157,7 @@ class SessionDetail extends StatefulWidget {
     required this.source,
     required this.sessionId,
     required this.onDetail,
+    this.toolColor,
     this.period,
     this.onLoaded,
     this.filter,
@@ -1168,6 +1166,7 @@ class SessionDetail extends StatefulWidget {
   final StatsFilter? filter;
   final StatsController controller;
   final String source, sessionId;
+  final Color? toolColor;
   final ValueChanged<StatsSessionSummary>? onLoaded;
   final ValueChanged<Map<String, String>> onDetail;
   @override
@@ -1332,6 +1331,8 @@ class _SessionDetailState extends State<SessionDetail> {
       1,
       (n, m) => math.max(n, m.grossTokens),
     );
+    final modelColor =
+        widget.toolColor ?? p.toolBrand(widget.source) ?? p.toolInk(1);
     final kinds = [
       s.inputTokens,
       s.outputTokens,
@@ -1702,10 +1703,7 @@ class _SessionDetailState extends State<SessionDetail> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    bar(
-                      value.models[i].grossTokens / topModel,
-                      p.category(i + 1),
-                    ),
+                    bar(value.models[i].grossTokens / topModel, modelColor),
                   ],
                 ),
               ),
