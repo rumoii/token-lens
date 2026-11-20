@@ -16,6 +16,11 @@ pub(super) struct PruneCache {
     estimates: usize,
 }
 
+pub(crate) struct BreakdownTimings {
+    pub groups: HashMap<String, Value>,
+    pub models: HashMap<String, Value>,
+}
+
 const SUMS:&str="count(*) AS record_count,sum(input_tokens) AS input_tokens,sum(output_tokens) AS output_tokens,sum(cache_read_tokens) AS cache_read_tokens,sum(cache_write_tokens) AS cache_write_tokens,sum(cost_micros IS NULL) AS unpriced_records,sum(cost_micros) AS cost_micros";
 
 const REQUESTS: &str = "nullif(sum(kind='event'),0) AS request_count";
@@ -122,19 +127,12 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
     Ok((clauses.join(" AND "), args))
 }
 
-fn summarize_timing(records: &[Value]) -> Value {
-    let requests: Vec<_> = records
-        .iter()
-        .filter(|r| r["source"] != "grok" && r["scope"] != "turn")
-        .cloned()
-        .collect();
-    let turns: Vec<_> = records
-        .iter()
-        .filter(|r| r["source"] == "grok" || r["scope"] == "turn")
-        .cloned()
-        .collect();
-    let mut result = summarize_scope(&requests);
-    let mut turn = summarize_scope(&turns);
+fn summarize_timing<'a>(records: impl Iterator<Item = &'a Value> + Clone) -> Value {
+    let is_turn = |r: &Value| r["source"] == "grok" || r["scope"] == "turn";
+    let requests = records.clone().filter(|r| !is_turn(r));
+    let turns = records.filter(|r| is_turn(r));
+    let mut result = summarize_scope(requests);
+    let mut turn = summarize_scope(turns);
     turn["turn_count"] = turn
         .as_object_mut()
         .unwrap()
@@ -143,16 +141,18 @@ fn summarize_timing(records: &[Value]) -> Value {
     result["turn"] = turn;
     result
 }
-fn summarize_scope(records: &[Value]) -> Value {
-    let mut ttft = std::collections::BTreeMap::<String, Vec<i64>>::new();
-    let mut speed = std::collections::BTreeMap::<String, (i64, i64, i64)>::new();
-    let mut throughput = std::collections::BTreeMap::<String, (i64, i64, i64)>::new();
+fn summarize_scope<'a>(records: impl Iterator<Item = &'a Value>) -> Value {
+    let mut ttft = std::collections::BTreeMap::<&str, Vec<i64>>::new();
+    let mut speed = std::collections::BTreeMap::<&str, (i64, i64, i64)>::new();
+    let mut throughput = std::collections::BTreeMap::<&str, (i64, i64, i64)>::new();
+    let mut count = 0_usize;
     for r in records {
+        count += 1;
         if let (Some(method), Some(ms)) = (
             r["ttft_method"].as_str(),
             r["ttft_ms"].as_i64().filter(|n| *n >= 0),
         ) {
-            ttft.entry(method.into()).or_default().push(ms);
+            ttft.entry(method).or_default().push(ms);
         }
         if r["status"] != "completed" {
             continue;
@@ -166,7 +166,7 @@ fn summarize_scope(records: &[Value]) -> Value {
                 r[field].as_i64().filter(|n| *n > 0),
                 r["timing_output_tokens"].as_i64().filter(|n| *n >= 0),
             ) {
-                let group = groups.entry(method.into()).or_default();
+                let group = groups.entry(method).or_default();
                 group.0 += output;
                 group.1 += ms;
                 group.2 += 1;
@@ -181,7 +181,7 @@ fn summarize_scope(records: &[Value]) -> Value {
     }).collect();
     let speed:Vec<_>=speed.into_iter().map(|(method,(output,ms,n))|json!({"method":method,"sample_count":n,"output_tokens":output,"generation_ms":ms,"tokens_per_second":output as f64*1000.0/ms as f64})).collect();
     let throughput:Vec<_>=throughput.into_iter().map(|(method,(output,ms,n))|json!({"method":method,"sample_count":n,"output_tokens":output,"duration_ms":ms,"tokens_per_second":output as f64*1000.0/ms as f64})).collect();
-    json!({"request_count":records.len(),"ttft":if ttft.is_empty(){Value::Null}else{json!(ttft)},"speed":if speed.is_empty(){Value::Null}else{json!(speed)},"throughput":if throughput.is_empty(){Value::Null}else{json!(throughput)}})
+    json!({"request_count":count,"ttft":if ttft.is_empty(){Value::Null}else{json!(ttft)},"speed":if speed.is_empty(){Value::Null}else{json!(speed)},"throughput":if throughput.is_empty(){Value::Null}else{json!(throughput)}})
 }
 
 impl Ledger {
@@ -378,25 +378,39 @@ impl Ledger {
         rows(&self.db,&format!("SELECT u.source,u.model,u.project_key,t.scope,t.ttft_ms,t.ttft_method,t.generation_ms,t.generation_method,t.duration_ms,t.duration_method,t.timing_output_tokens,t.status FROM (SELECT record_key,source,model,project_key FROM usage_records WHERE {clause} AND kind='event') u LEFT JOIN usage_timings t ON t.record_key=u.record_key"),&args)
     }
     pub fn timing_summary(&self, filter: &Value) -> Result<Value> {
-        Ok(summarize_timing(&self.timing_rows(filter)?))
+        Ok(summarize_timing(self.timing_rows(filter)?.iter()))
     }
-    pub fn timing_groups(&self, by: &str, filter: &Value) -> Result<HashMap<String, Value>> {
-        if by != "source_model" {
-            dimension(by)?;
-        }
-        let mut groups = HashMap::<String, Vec<Value>>::new();
-        for row in self.timing_rows(filter)? {
-            let key = if by == "source_model" {
-                json!([row["source"], row["model"]]).to_string()
+    pub fn timing_groups(&self, by: &str, filter: &Value) -> Result<BreakdownTimings> {
+        let column = if by == "source_model" {
+            None
+        } else {
+            Some(dimension(by)?)
+        };
+        let rows = self.timing_rows(filter)?;
+        let mut groups = HashMap::<String, Vec<&Value>>::new();
+        let mut models = HashMap::<String, Vec<&Value>>::new();
+        for row in &rows {
+            let key = if let Some(column) = column {
+                row[column].to_string()
             } else {
-                row[if by == "project" { "project_key" } else { by }].to_string()
+                models
+                    .entry(row["model"].to_string())
+                    .or_default()
+                    .push(row);
+                json!([row["source"], row["model"]]).to_string()
             };
             groups.entry(key).or_default().push(row);
         }
-        Ok(groups
-            .into_iter()
-            .map(|(key, rows)| (key, summarize_timing(&rows)))
-            .collect())
+        let summarize = |groups: HashMap<String, Vec<&Value>>| {
+            groups
+                .into_iter()
+                .map(|(key, rows)| (key, summarize_timing(rows.iter().copied())))
+                .collect()
+        };
+        Ok(BreakdownTimings {
+            groups: summarize(groups),
+            models: summarize(models),
+        })
     }
     pub fn data_version(&self) -> Result<i64> {
         Ok(self

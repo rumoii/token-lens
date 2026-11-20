@@ -1,6 +1,7 @@
 use super::{ledger::Ledger, pricing, Result};
 use chrono::{DateTime, Duration};
 use serde_json::{json, Value};
+use std::borrow::Cow;
 use std::collections::HashMap;
 #[cfg(test)]
 #[path = "service/d33_tests.rs"]
@@ -137,22 +138,34 @@ pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resu
             row[if by == "project" { "project_key" } else { by }].to_string()
         }
     };
-    for row in ledger.cost_rows(&filter)? {
-        let group = kinds.entry(group_key(&row)).or_insert(([0; 4], false));
-        if row["price_version"] != pricing::PRICE_VERSION {
-            group.1 = true;
-            continue;
-        }
-        let price = pricing::price_record(&row);
-        if price["cost_micros"].is_null() || price["cost_micros"] != row["cost_micros"] {
-            group.1 = true;
-            continue;
-        }
-        for (index, key) in ["input", "output", "cache_read", "cache_write"]
-            .iter()
-            .enumerate()
-        {
-            group.0[index] += price["parts"][*key].as_i64().unwrap();
+    {
+        let rows = ledger.cost_rows(&filter)?;
+        let mut prices = HashMap::new();
+        for row in &rows {
+            let group = kinds.entry(group_key(row)).or_insert(([0; 4], false));
+            if row["price_version"] != pricing::PRICE_VERSION {
+                group.1 = true;
+                continue;
+            }
+            let prices = &mut prices;
+            let price = pricing::price_record_with(row, move || {
+                let model = row["model"].as_str();
+                Cow::Borrowed(
+                    prices
+                        .entry(model)
+                        .or_insert_with(|| pricing::find_price(model)),
+                )
+            });
+            if price["cost_micros"].is_null() || price["cost_micros"] != row["cost_micros"] {
+                group.1 = true;
+                continue;
+            }
+            for (index, key) in ["input", "output", "cache_read", "cache_write"]
+                .iter()
+                .enumerate()
+            {
+                group.0[index] += price["parts"][*key].as_i64().unwrap();
+            }
         }
     }
     let raw = if by == "source_model" {
@@ -161,11 +174,6 @@ pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resu
         ledger.breakdown(by, &filter)?
     };
     let timings = ledger.timing_groups(by, &filter)?;
-    let model_timings = if by == "source_model" {
-        ledger.timing_groups("model", &filter)?
-    } else {
-        HashMap::new()
-    };
     let groups: Vec<Value> = raw
         .iter()
         .map(|row| {
@@ -192,11 +200,13 @@ pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resu
                 key.to_string()
             };
             result["timing"] = timings
+                .groups
                 .get(&kind_key)
                 .cloned()
                 .unwrap_or(json!({"request_count":0,"ttft":null,"speed":null}));
             if by == "source_model" {
-                result["model_timing"] = model_timings
+                result["model_timing"] = timings
+                    .models
                     .get(&key.to_string())
                     .cloned()
                     .unwrap_or(json!({"request_count":0,"ttft":null,"speed":null}));

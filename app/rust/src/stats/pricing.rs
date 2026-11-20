@@ -1,6 +1,7 @@
 use chrono::{DateTime, Datelike, Utc};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
 use std::sync::OnceLock;
 
 pub const PRICE_VERSION: &str = "7a41a11013b21c6b";
@@ -242,6 +243,13 @@ fn overlap(tod: &Value, day: i64, from: i64, to: i64) -> i64 {
 }
 
 pub fn price_record(record: &Value) -> Value {
+    price_record_with(record, || Cow::Owned(find_price(record["model"].as_str())))
+}
+
+pub(super) fn price_record_with<'a>(
+    record: &Value,
+    model_price: impl FnOnce() -> Cow<'a, Value>,
+) -> Value {
     let provider = record["provider"].as_str().map(str::to_lowercase);
     if let Some(provider) = provider.filter(|p| {
         catalog()["localProviders"]
@@ -251,7 +259,7 @@ pub fn price_record(record: &Value) -> Value {
     }) {
         return json!({"cost_micros":0,"price_version":PRICE_VERSION,"price_source":format!("local:{provider}"),"parts":{"input":0,"output":0,"cache_read":0,"cache_write":0}});
     }
-    let price = find_price(record["model"].as_str());
+    let price = model_price();
     if price.is_null() {
         return json!({"cost_micros":null,"price_version":PRICE_VERSION,"price_source":null,"parts":null});
     }
@@ -403,6 +411,27 @@ pub fn allocate_display(values: &[i64], total: i64, scale: usize) -> Vec<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn borrowed_model_price_preserves_record_pricing() {
+        for line in include_str!("../../tests/golden/pricing.jsonl").lines() {
+            let row: Value = serde_json::from_str(line).unwrap();
+            if row["type"] == "price" {
+                let record = &row["record"];
+                let price = find_price(record["model"].as_str());
+                assert_eq!(
+                    price_record_with(record, || Cow::Borrowed(&price)),
+                    row["expected"],
+                    "{line}"
+                );
+            }
+        }
+        let local = json!({"model":"claude-opus-5-5","provider":"OLLaMa"});
+        let result = price_record_with(&local, || panic!("local pricing takes precedence"));
+        assert_eq!(result["cost_micros"], 0);
+        assert_eq!(result["price_source"], "local:ollama");
+    }
+
     #[test]
     fn pricing_matches_node() {
         assert_eq!(catalog_version(), PRICE_VERSION);
