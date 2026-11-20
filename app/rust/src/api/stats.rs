@@ -1201,9 +1201,19 @@ impl StatsClient {
         self.state.log.flutter_error(&error_type, &message, &stack);
     }
     pub async fn shutdown(&self) {
+        use crate::diagnostics::{flush_runtime_log, LOG_FLUSH_TIMEOUT};
+        use tokio::time::{timeout_at, Instant};
+
         self.state.closed.store(true, Ordering::Release);
         while self.state.running.load(Ordering::Acquire) {
             tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let deadline = Instant::now() + LOG_FLUSH_TIMEOUT;
+        let mut flush = tokio::task::spawn_blocking(move || {
+            flush_runtime_log(deadline.saturating_duration_since(Instant::now()))
+        });
+        if timeout_at(deadline, &mut flush).await.is_err() {
+            flush.abort();
         }
     }
 }

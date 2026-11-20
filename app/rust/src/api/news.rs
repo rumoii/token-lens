@@ -129,6 +129,14 @@ impl NewsClient {
 
     #[flutter_rust_bridge::frb(ignore)]
     fn logged_snapshot(&self, operation: &str, snapshot: NewsSnapshot) -> NewsSnapshot {
+        // Rejected calls after shutdown can still carry stale per-source errors.
+        if snapshot
+            .error
+            .as_ref()
+            .is_some_and(|error| error.kind == "closed")
+        {
+            return snapshot;
+        }
         let log = crate::diagnostics::RuntimeLog::new(&self.data, None);
         for error in snapshot.error.iter().chain(snapshot.state_error.iter()) {
             log.write("ERROR", "ffi", &format!("{operation}: {}", error.kind));
@@ -180,6 +188,7 @@ impl NewsClient {
     }
     pub fn shutdown(&self) {
         self.engine.shutdown();
+        let _ = crate::diagnostics::flush_runtime_log(crate::diagnostics::LOG_FLUSH_TIMEOUT);
     }
 
     #[cfg(test)]

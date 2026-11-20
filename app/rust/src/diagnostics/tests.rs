@@ -594,6 +594,104 @@ fn diag_log_runtime_exit_flushes_before_returning() {
     assert!(text.ends_with(" INFO app exit\n"));
 }
 
+fn log_at_shutdown(
+    data: &Path,
+    gate: std::sync::MutexGuard<'_, ()>,
+    shutdown: impl FnOnce() + Send + 'static,
+) -> std::io::Result<String> {
+    let (reached, release) = std::sync::mpsc::channel();
+    *writer::FLUSH_STARTED.lock().unwrap() = Some(reached.clone());
+    let data = data.to_owned();
+    let caller = std::thread::spawn(move || {
+        shutdown();
+        let log = fs::read_dir(data.join("logs")).and_then(|entries| {
+            let mut text = String::new();
+            for entry in entries {
+                let path = entry?.path();
+                if log_date(&path).is_some() {
+                    text.push_str(&fs::read_to_string(path)?);
+                }
+            }
+            Ok(text)
+        });
+        let _ = reached.send(());
+        log
+    });
+    // Release the write thread once shutdown starts flushing or has already read the log.
+    let event = release.recv_timeout(StdDuration::from_secs(2));
+    drop(gate);
+    let result = caller.join().unwrap();
+    writer::FLUSH_STARTED.lock().unwrap().take();
+    assert!(
+        event.is_ok(),
+        "shutdown neither reached the flush nor returned"
+    );
+    result
+}
+
+#[test]
+fn diag_log_news_shutdown_flushes_pending_lines() {
+    if run_lock_test_in_child("diagnostics::tests::diag_log_news_shutdown_flushes_pending_lines") {
+        return;
+    }
+    use crate::api::news::NewsClient;
+    let temp = tempfile::tempdir().unwrap();
+    let data = temp.path();
+    let client = NewsClient::new_for_local_test(data.to_str().unwrap().into(), vec![]).unwrap();
+    let gate = WRITER.lock().unwrap();
+    RuntimeLog::new(data, None).write("ERROR", "news", "refresh source=local-1 kind=rate_limited");
+    let log = log_at_shutdown(data, gate, move || client.shutdown()).unwrap();
+    assert!(log.contains(" ERROR news refresh source=local-1 kind=rate_limited"));
+}
+
+#[test]
+fn diag_log_stats_shutdown_flushes_pending_lines() {
+    if run_lock_test_in_child("diagnostics::tests::diag_log_stats_shutdown_flushes_pending_lines") {
+        return;
+    }
+    use crate::api::stats::StatsClient;
+    let temp = tempfile::tempdir().unwrap();
+    let data = temp.path().join("data");
+    let home = temp.path().join("home");
+    fs::create_dir(&home).unwrap();
+    let client = StatsClient::new(
+        data.to_str().unwrap().into(),
+        Some(home.to_str().unwrap().into()),
+    )
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let gate = WRITER.lock().unwrap();
+    client.sync_isolated().unwrap();
+    let log = log_at_shutdown(&data, gate, move || runtime.block_on(client.shutdown())).unwrap();
+    assert!(log.contains(" INFO sync start trigger=manual"));
+}
+
+#[tokio::test]
+async fn diag_log_news_closed_calls_do_not_queue_more_logs() {
+    use crate::api::news::NewsClient;
+    let temp = tempfile::tempdir().unwrap();
+    let data = temp.path();
+    let client = NewsClient::new_for_local_test(data.to_str().unwrap().into(), vec![]).unwrap();
+    client.shutdown();
+    assert_eq!(client.refresh(None).await.error.unwrap().kind, "closed");
+    assert_eq!(
+        client
+            .set_source_enabled("local-0".into(), false)
+            .error
+            .unwrap()
+            .kind,
+        "closed"
+    );
+    wait_for_logs();
+    assert!(
+        !data.join("logs").exists(),
+        "closed calls created runtime logs"
+    );
+}
+
 #[test]
 fn diag_log_queue_byte_budget_includes_pending_batches() {
     if run_lock_test_in_child(

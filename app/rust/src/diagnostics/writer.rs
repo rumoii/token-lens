@@ -22,6 +22,8 @@ const BATCH_LINES: usize = 128;
 
 #[cfg(test)]
 pub(super) static WRITER: Mutex<()> = Mutex::new(());
+#[cfg(test)]
+pub(super) static FLUSH_STARTED: Mutex<Option<std::sync::mpsc::Sender<()>>> = Mutex::new(None);
 
 static QUEUE: Queue = Queue {
     state: Mutex::new(State {
@@ -90,6 +92,10 @@ pub(super) fn flush(timeout: StdDuration) -> bool {
     let state = QUEUE.state.lock().unwrap();
     // Wait for the accepted prefix, even if producers keep submitting new lines.
     let target = state.accepted;
+    #[cfg(test)]
+    if let Some(started) = FLUSH_STARTED.lock().unwrap().take() {
+        let _ = started.send(());
+    }
     let (state, _) = QUEUE
         .drained
         .wait_timeout_while(state, timeout, |state| state.completed < target)
