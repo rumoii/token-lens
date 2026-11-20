@@ -179,6 +179,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     final filter = usageFilter;
     final at = cursor;
     final gateway = c.gateway;
+    final queryGateway = gateway.sessionQueryGateway;
     final options = StatsSessionQuery(
       q: query,
       sort: sort,
@@ -188,9 +189,9 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
     );
     page.read(
       '$identity|$cursor',
-      () => gateway is StatsSessionQueryGateway
-          ? (gateway as StatsSessionQueryGateway).querySessions(filter, options)
-          : gateway.sessions(filter, limit: 50, cursor: at),
+      () =>
+          queryGateway?.querySessions(filter, options) ??
+          gateway.sessions(filter, limit: 50, cursor: at),
       retainData: retainData,
     );
     sources.read(c.ledgerVersion, () => c.gateway.sources());
@@ -461,7 +462,7 @@ class _StatsSessionsPageState extends State<StatsSessionsPage> {
   Widget list() {
     final filter = usageFilter;
     final groupByDate =
-        (sort == 'recent' || c.gateway is! StatsSessionQueryGateway) &&
+        (sort == 'recent' || c.gateway.sessionQueryGateway == null) &&
         ![filter.from, filter.to].any((value) => value?.isNotEmpty == true);
     final groups = <({String key, List<StatsSessionItem> rows})>[];
     for (final row in items) {

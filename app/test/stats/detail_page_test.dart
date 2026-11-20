@@ -64,6 +64,7 @@ Future<StatsController> mountDetail(
   final c = StatsController(
     fake,
     clock: () => demoNow,
+    prefetchEnabled: false,
     preferences: UiPreferences(
       period: StatsPeriod.parse(query),
       onboarded: true,
@@ -72,6 +73,7 @@ Future<StatsController> mountDetail(
   addTearDown(c.dispose);
   await c.load();
   fake.reads.clear();
+  c.ledgerVersion++;
   await tester.pumpWidget(
     MaterialApp(
       theme: LensPalette(dark).theme,

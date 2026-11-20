@@ -71,21 +71,25 @@ class RustStatsGateway
         StatsComparisonGateway {
   RustStatsGateway(this.client);
   final StatsClient client;
-  int get _offset => DateTime.now().timeZoneOffset.inMinutes;
+  int get offsetMinutes => DateTime.now().timeZoneOffset.inMinutes;
   @override
   Future<StatsRequests> requestList(
     StatsFilter filter,
     StatsRequestQuery query,
-  ) => client.requests(filter: filter, query: query, offsetMinutes: _offset);
+  ) => client.requests(
+    filter: filter,
+    query: query,
+    offsetMinutes: offsetMinutes,
+  );
   @override
   Future<StatsSummary> summary(StatsFilter filter) =>
-      client.summary(filter: filter, offsetMinutes: _offset);
+      client.summary(filter: filter, offsetMinutes: offsetMinutes);
   @override
   Future<StatsTimeseries> timeseries(String granularity, StatsFilter filter) =>
       client.timeseries(
         granularity: granularity,
         filter: filter,
-        offsetMinutes: _offset,
+        offsetMinutes: offsetMinutes,
       );
   @override
   Future<StatsMatrix> matrix(
@@ -96,11 +100,11 @@ class RustStatsGateway
     granularity: granularity,
     by: by,
     filter: filter,
-    offsetMinutes: _offset,
+    offsetMinutes: offsetMinutes,
   );
   @override
   Future<StatsBreakdown> breakdown(String by, StatsFilter filter) =>
-      client.breakdown(by: by, filter: filter, offsetMinutes: _offset);
+      client.breakdown(by: by, filter: filter, offsetMinutes: offsetMinutes);
   @override
   Future<StatsSessions> sessions(
     StatsFilter filter, {
@@ -110,7 +114,7 @@ class RustStatsGateway
     filter: filter,
     limit: limit,
     cursor: cursor,
-    offsetMinutes: _offset,
+    offsetMinutes: offsetMinutes,
   );
   @override
   Future<StatsSessions> querySessions(
@@ -119,7 +123,7 @@ class RustStatsGateway
   ) => client.querySessions(
     filter: filter,
     query: query,
-    offsetMinutes: _offset,
+    offsetMinutes: offsetMinutes,
   );
 
   @override
@@ -131,7 +135,7 @@ class RustStatsGateway
     by: by,
     current: current,
     previous: previous,
-    offsetMinutes: _offset,
+    offsetMinutes: offsetMinutes,
   );
   @override
   Future<StatsSessionDetail?> sessionDetail(
@@ -144,7 +148,7 @@ class RustStatsGateway
     sessionId: sessionId,
     granularity: granularity,
     filter: filter,
-    offsetMinutes: _offset,
+    offsetMinutes: offsetMinutes,
   );
   @override
   Future<StatsSources> sources() => client.sources();
@@ -180,7 +184,7 @@ class RustStatsGateway
       projectPaths: projectPaths,
       directory: directory,
     ),
-    offsetMinutes: _offset,
+    offsetMinutes: offsetMinutes,
   );
   @override
   Future<void> logError(String type, String message, String stack) =>

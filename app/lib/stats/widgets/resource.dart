@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../stats_cache.dart';
 import '../theme/palette.dart';
 import 'primitives.dart';
 
@@ -37,11 +38,17 @@ class LensResource<T> {
     if (_closed || _loader == null) return;
     final ticket = ++_generation;
     final load = _loader!;
-    loading = true;
     error = null;
-    changed();
     try {
-      final result = await load();
+      final request = load();
+      final T result;
+      if (request case StatsCacheHit<T>(:final value)) {
+        result = value;
+      } else {
+        loading = true;
+        changed();
+        result = await request;
+      }
       if (_closed || ticket != _generation) return;
       data = result;
       ready = true;

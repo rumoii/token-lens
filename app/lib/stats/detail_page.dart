@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../stats_controller.dart';
+import '../stats_cache.dart';
 import '../stats_gateway.dart';
 import 'logic/detail_query.dart';
 import 'logic/comparison.dart';
@@ -428,15 +429,15 @@ class _StatsDetailState extends State<StatsDetail> {
         '${current.query}|$range|${filter.source}|${filter.model}|${filter.project}|${filter.missing}|${c.ledgerVersion}|$scope';
     final sk =
         '$pk|${picked != null || detail['bucket']!.contains('T') ? detail['bucket'] : ''}';
-    Future<PeriodAxis> axis() async => current.axis(
-      now,
-      current.period == 'all'
-          ? (await c.gateway.summary(base)).activity.firstSeen
-          : null,
-    );
+    Future<PeriodAxis> axis() => current.period == 'all'
+        ? mapStats(
+            c.gateway.summary(base),
+            (value) => current.axis(now, value.activity.firstSeen),
+          )
+        : StatsCacheHit(current.axis(now));
     options.read(
       '${current.query}|$range|${c.ledgerVersion}|$scope',
-      () => Future.wait([
+      () => waitForStats([
         c.gateway.breakdown('source_model', base),
         c.gateway.breakdown('project', base),
       ]),
@@ -450,48 +451,49 @@ class _StatsDetailState extends State<StatsDetail> {
         retainData: false,
       );
     }
-    trend.read(pk, () async {
-      final a = await axis();
-      return (
-        axis: a,
-        data: await c.gateway.matrix(a.granularity, 'source', filter),
-      );
-    }, retainData: retainData);
+    trend.read(
+      pk,
+      () => mapStats(
+        axis(),
+        (a) => mapStats(
+          c.gateway.matrix(a.granularity, 'source', filter),
+          (data) => (axis: a, data: data),
+        ),
+      ),
+      retainData: retainData,
+    );
     final prior = current.compare(now);
     final dimension = comparisonGroups[detail['dim']];
-    final gateway = c.gateway;
+    final compareGateway = c.gateway.comparisonGateway;
     if (detail['compare'] == '1' &&
         prior != null &&
         dimension != null &&
-        gateway is StatsComparisonGateway) {
+        compareGateway != null) {
       final previous = c.visibleFilter(
         detailFilter(detail, (from: prior.from, to: prior.to)),
       );
       comparison.read(
         (sk, dimension, prior.from, prior.to, detail['missing']),
-        () => (gateway as StatsComparisonGateway).comparison(
-          dimension,
-          scoped,
-          previous,
-        ),
+        () => compareGateway.comparison(dimension, scoped, previous),
         retainData: false,
       );
     }
     if (detail['dim'] == 'request') return;
-    table.read('$sk|${detail['dim']}', () async {
+    table.read('$sk|${detail['dim']}', () {
       if (detail['dim'] == 'date') {
-        final a = await axis();
-        return (
-          kind: 'date',
-          data: await c.gateway.timeseries(
-            picked != null ? 'day' : a.granularity,
-            scoped,
+        return mapStats(
+          axis(),
+          (a) => mapStats(
+            c.gateway.timeseries(
+              picked != null ? 'day' : a.granularity,
+              scoped,
+            ),
+            (data) => (kind: 'date', data: data),
           ),
         );
       }
-      return (
-        kind: detail['dim']!,
-        data: await c.gateway.breakdown(
+      return mapStats(
+        c.gateway.breakdown(
           const {
             'tool': 'source',
             'model': 'source_model',
@@ -499,6 +501,7 @@ class _StatsDetailState extends State<StatsDetail> {
           }[detail['dim']]!,
           scoped,
         ),
+        (data) => (kind: detail['dim']!, data: data),
       );
     }, retainData: retainData);
   }
@@ -1760,7 +1763,7 @@ class _StatsDetailState extends State<StatsDetail> {
             child: LayoutBuilder(
               builder: (context, box) {
                 final useComparison =
-                    comparing && gateway is StatsComparisonGateway;
+                    comparing && gateway.comparisonGateway != null;
                 final ready = useComparison
                     ? comparison.ready && comparison.error == null
                     : table.ready && table.error == null;
@@ -1782,8 +1785,8 @@ class _StatsDetailState extends State<StatsDetail> {
                           : filtered
                           ? context.strings.alreadyFilteredByThisFieldTryAnother
                           : context.strings.selectARowToAddItTo,
-                      action: dim != 'request' && gateway is StatsUsageExporter
-                          ? exportMenu(gateway as StatsUsageExporter, exportBy)
+                      action: dim != 'request' && gateway.usageExporter != null
+                          ? exportMenu(gateway.usageExporter!, exportBy)
                           : null,
                     ),
                     toolbar(view?.sort),

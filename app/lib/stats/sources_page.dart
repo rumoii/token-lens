@@ -47,7 +47,7 @@ class _StatsSourcesPageState extends State<StatsSourcesPage> {
     }
     final range = const StatsPeriod('month').range(c.clock());
     final identity = (c.gateway, c.ledgerVersion, range.from, range.to);
-    sources.read(identity, () => c.gateway.sources());
+    sources.read(identity, c.gateway.sourcesFresh);
     inventory.read((
       c.gateway,
       c.syncDiscoveryRevision,

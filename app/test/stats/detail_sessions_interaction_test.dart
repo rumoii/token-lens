@@ -136,7 +136,7 @@ void main() {
   });
   testWidgets('明细：独立块失败、重试、空态', (tester) async {
     final fake = d.DetailGateway()..failingResource = 'timeseries:day';
-    await d.mountDetail(tester, fake);
+    final c = await d.mountDetail(tester, fake);
     expect(
       find.descendant(
         of: find.byType(StatsDetail),
@@ -146,6 +146,7 @@ void main() {
     );
     expect(find.byType(TrendChart), findsOneWidget);
     fake.failingResource = null;
+    c.ledgerVersion++;
     await tester.tap(
       find.descendant(of: find.byType(StatsDetail), matching: find.text('重试')),
     );
@@ -158,6 +159,7 @@ void main() {
       findsNothing,
     );
     fake.empty = true;
+    c.ledgerVersion++;
     (tester.state(find.byType(StatsPage)) as dynamic).navigate('detail', {
       'dim': 'project',
     });
@@ -166,9 +168,10 @@ void main() {
   });
   testWidgets('明细：过期结果丢弃，刷新保留旧指标，销毁后不通知', (tester) async {
     final fake = DelayedDetail();
-    await d.mountDetail(tester, fake);
+    final c = await d.mountDetail(tester, fake);
     final old = await fake.summary(const StatsFilter());
     fake.delayed = Completer<StatsSummary>();
+    c.ledgerVersion++;
     (tester.state(find.byType(StatsPage)) as dynamic).navigate('detail', {
       'tool': 'dsh',
     });
@@ -190,6 +193,7 @@ void main() {
       777777,
     );
     fake.delayed = Completer<StatsSummary>();
+    c.ledgerVersion++;
     (tester.state(find.byType(StatsPage)) as dynamic).navigate('detail', {
       'tool': 'dsh',
     });

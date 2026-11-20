@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'stats_cache.dart';
 import 'stats_gateway.dart';
 import 'stats/logic/period.dart';
 import 'stats/logic/tools.dart';
@@ -52,15 +53,17 @@ enum StatsSyncErrorKind { sync, status }
 
 class StatsController extends ChangeNotifier {
   StatsController(
-    this.gateway, {
+    StatsGateway gateway, {
     this.store,
     UiPreferences preferences = const UiPreferences(),
     this.news,
     DateTime Function()? clock,
     String Function()? systemLanguage,
+    this.prefetchEnabled = true,
     this.updateRequest = requestUpdate,
     this.updateTimer = Timer.new,
-  }) : preferences = preferences,
+  }) : gateway = CachedStatsGateway(gateway, clock ?? DateTime.now),
+       preferences = preferences,
        _period = preferences.defaultPeriod == 'last'
            ? preferences.period
            : StatsPeriod(preferences.defaultPeriod),
@@ -72,9 +75,10 @@ class StatsController extends ChangeNotifier {
   AppStrings get strings =>
       resolveStrings(preferences.language, _systemLanguage());
   String get unitSystem => preferences.unitSystemFor(strings.languageCode);
-  final StatsGateway gateway;
+  final CachedStatsGateway gateway;
   final PreferencesStore? store;
   final DateTime Function() clock;
+  final bool prefetchEnabled;
   final UpdateRequest updateRequest;
   final UpdateTimer updateTimer;
   late final updates = UpdateController(
@@ -123,7 +127,14 @@ class StatsController extends ChangeNotifier {
   StatsSyncErrorKind? syncErrorKind;
   bool loading = false;
   bool sourcesReadSucceeded = false;
-  int ledgerVersion = 0, syncDiscoveryRevision = 0;
+  int _ledgerVersion = 0, syncDiscoveryRevision = 0;
+  int get ledgerVersion => _ledgerVersion;
+  set ledgerVersion(int version) {
+    if (version == _ledgerVersion) return;
+    _ledgerVersion = version;
+    gateway.clear();
+  }
+
   Future<StatsDiscovery>? _emptyLedgerDiscovery;
   int? _emptyLedgerDiscoveryRevision;
 
@@ -218,12 +229,12 @@ class StatsController extends ChangeNotifier {
   }
 
   void _startProgress() {
-    final provider = gateway;
-    if (provider is! StatsProgressGateway) return;
+    final provider = gateway.progressGateway;
+    if (provider == null) return;
     final id = _syncId;
     _progressTimer = Timer.periodic(
       const Duration(milliseconds: 300),
-      (_) => unawaited(_pollProgress(provider as StatsProgressGateway, id)),
+      (_) => unawaited(_pollProgress(provider, id)),
     );
   }
 
@@ -242,7 +253,7 @@ class StatsController extends ChangeNotifier {
       if (fullSyncRunning && next.index > _refreshedThrough + 1 && !loading) {
         _refreshedThrough = next.index - 1;
         ledgerVersion++;
-        unawaited(load());
+        unawaited(_load());
       } else {
         _notify();
       }
@@ -330,7 +341,7 @@ class StatsController extends ChangeNotifier {
         }),
       );
     }
-    await load();
+    await _load();
     if (await onboarding || _closed) return;
     _startSyncTimer();
     await sync(trigger: 'startup');
@@ -373,6 +384,7 @@ class StatsController extends ChangeNotifier {
       _period = selected ?? value.period;
     }
     final newsChanged = value.newsEnabled != preferences.newsEnabled;
+    final enteredApp = value.onboarded && !preferences.onboarded;
     preferences = value;
     if (newsChanged) _applyNewsPreference();
     final periodChanged =
@@ -382,25 +394,33 @@ class StatsController extends ChangeNotifier {
     if (visibilityChanged) overview = null;
     _notify();
     final save = store?.write(value);
-    if (periodChanged || visibilityChanged) await load();
+    if (periodChanged || visibilityChanged || enteredApp) await _load();
     await save;
   }
 
   Future<void> setPeriod(StatsPeriod period) =>
       _savePreferences(preferences.copyWith(period: period), selected: period);
+
+  // The explicit retry reloads the current overview, including its dependencies.
   Future<void> load() {
+    gateway.clear();
+    return _load();
+  }
+
+  Future<void> _load() {
     if (_closed) return Future.value();
+    _stopPrefetch();
     final work = _read(++_generation, period);
     _reads.add(work);
     unawaited(work.whenComplete(() => _reads.remove(work)));
     return work;
   }
 
-  Future<void> _read(int ticket, StatsPeriod period) async {
-    loading = true;
-    sourcesReadSucceeded = false;
-    _notify();
-    final readErrors = <String, String>{};
+  Future<StatsHomeData?> _queryOverview(
+    StatsPeriod period,
+    bool Function() current, {
+    Map<String, String>? readErrors,
+  }) {
     final now = clock();
     final range = period.range(now), compare = period.compare(now);
     final filter = visibleFilter(StatsFilter(from: range.from, to: range.to));
@@ -413,7 +433,7 @@ class StatsController extends ChangeNotifier {
     final prevFilter = visibleFilter(
       StatsFilter(from: compare?.from, to: compare?.to),
     );
-    final stats = gateway;
+    final comparison = gateway.comparisonGateway;
     const emptySnapshot = StatsSnapshot(
       generatedAt: '',
       priceVersion: '',
@@ -425,123 +445,142 @@ class StatsController extends ChangeNotifier {
       unpricedRecords: 0,
       recordCount: 0,
     );
-    Future<T> resource<T>(String key, Future<T> request, T fallback) async {
-      try {
-        return await request;
-      } catch (failure) {
-        readErrors[key] = failure.toString();
-        return fallback;
-      }
-    }
+    Future<T> resource<T>(String key, Future<T> request, T fallback) =>
+        readErrors == null || request is StatsCacheHit<T>
+        ? request
+        : request.then(
+            (value) => value,
+            onError: (Object failure) {
+              readErrors[key] = failure.toString();
+              return fallback;
+            },
+          );
 
-    try {
-      final results = await Future.wait<Object?>([
-        gateway.summary(filter),
-        gateway.timeseries('day', filter),
-        gateway.breakdown('source_model', filter),
-        resource(
-          'year',
-          gateway.timeseries('day', yearFilter),
-          overview?.year ??
-              const StatsTimeseries(
-                granularity: 'day',
-                points: [],
-                snapshot: emptySnapshot,
-              ),
-        ),
-        resource(
-          'yearTools',
-          gateway.breakdown('source', yearFilter),
-          overview?.yearTools ??
-              const StatsBreakdown(
-                by: 'source',
-                groups: [],
-                totals: emptyTotals,
-                snapshot: emptySnapshot,
-              ),
-        ),
-        resource(
-          'recent',
-          gateway.sessions(filter),
-          overview?.recent ??
-              const StatsSessions(items: [], snapshot: emptySnapshot),
-        ),
-        resource(
-          'sources',
-          gateway.sources(),
-          overview?.sources ??
-              const StatsSources(sources: [], snapshot: emptySnapshot),
-        ),
-        resource(
-          'pricing',
-          gateway.pricing(),
-          overview?.pricing ??
-              const StatsPricing(
-                priceVersion: '',
-                currency: 'USD',
-                provisional: false,
-                models: [],
-                counts: StatsPriceCounts(
-                  verified: 0,
-                  aggregate: 0,
-                  unknown: 0,
-                  local: 0,
-                ),
-                snapshot: emptySnapshot,
-              ),
-        ),
-        gateway.breakdown('source', filter),
-        if (compare != null && period.period != 'today')
-          gateway.summary(prevFilter)
-        else
-          Future.value(null),
-        if (compare != null)
-          gateway.timeseries(
-            period.period == 'today' ? 'hour' : 'day',
-            prevFilter,
-          )
-        else
-          Future.value(null),
-        if (compare != null && stats is StatsComparisonGateway)
-          resource<StatsComparison?>(
-            'comparison',
-            (stats as StatsComparisonGateway).comparison(
-              'project',
-              filter,
-              prevFilter,
+    final reads = waitForStats<Object?>([
+      gateway.summary(filter),
+      gateway.timeseries('day', filter),
+      gateway.breakdown('source_model', filter),
+      resource(
+        'year',
+        gateway.timeseries('day', yearFilter),
+        overview?.year ??
+            const StatsTimeseries(
+              granularity: 'day',
+              points: [],
+              snapshot: emptySnapshot,
             ),
-            null,
-          )
-        else
-          Future.value(null),
-      ]);
-      if (_closed || ticket != _generation) return;
+      ),
+      resource(
+        'yearTools',
+        gateway.breakdown('source', yearFilter),
+        overview?.yearTools ??
+            const StatsBreakdown(
+              by: 'source',
+              groups: [],
+              totals: emptyTotals,
+              snapshot: emptySnapshot,
+            ),
+      ),
+      resource(
+        'recent',
+        gateway.sessions(filter),
+        overview?.recent ??
+            const StatsSessions(items: [], snapshot: emptySnapshot),
+      ),
+      resource(
+        'sources',
+        gateway.sources(),
+        overview?.sources ??
+            const StatsSources(sources: [], snapshot: emptySnapshot),
+      ),
+      resource(
+        'pricing',
+        gateway.pricing(),
+        overview?.pricing ??
+            const StatsPricing(
+              priceVersion: '',
+              currency: 'USD',
+              provisional: false,
+              models: [],
+              counts: StatsPriceCounts(
+                verified: 0,
+                aggregate: 0,
+                unknown: 0,
+                local: 0,
+              ),
+              snapshot: emptySnapshot,
+            ),
+      ),
+      gateway.breakdown('source', filter),
+      if (compare != null && period.period != 'today')
+        gateway.summary(prevFilter)
+      else
+        StatsCacheHit<Object?>(null),
+      if (compare != null)
+        gateway.timeseries(
+          period.period == 'today' ? 'hour' : 'day',
+          prevFilter,
+        )
+      else
+        StatsCacheHit<Object?>(null),
+      if (compare != null && comparison != null)
+        resource<StatsComparison?>(
+          'comparison',
+          comparison.comparison('project', filter, prevFilter),
+          null,
+        )
+      else
+        StatsCacheHit<Object?>(null),
+    ]);
+    return mapStats(reads, (results) {
+      if (!current()) return null;
       final summary = results[0] as StatsSummary;
       final axis = period.axis(now, summary.activity.firstSeen);
-      final matrix = await gateway.matrix(axis.granularity, 'source', filter);
-      if (_closed || ticket != _generation) return;
-      overview = StatsHomeData(
-        period: period,
-        summary: summary,
-        days: results[1] as StatsTimeseries,
-        pairs: results[2] as StatsBreakdown,
-        year: results[3] as StatsTimeseries,
-        yearTools: results[4] as StatsBreakdown,
-        recent: results[5] as StatsSessions,
-        sources: results[6] as StatsSources,
-        pricing: results[7] as StatsPricing,
-        sidebar: results[8] as StatsBreakdown,
-        previous: results[9] as StatsSummary?,
-        previousDays: period.period == 'today'
-            ? null
-            : results[10] as StatsTimeseries?,
-        previousHours: period.period == 'today'
-            ? results[10] as StatsTimeseries?
-            : null,
-        matrix: matrix,
-        axis: axis,
-        comparison: results[11] as StatsComparison?,
+      return mapStats(
+        gateway.matrix(axis.granularity, 'source', filter),
+        (matrix) => StatsHomeData(
+          period: period,
+          summary: summary,
+          days: results[1] as StatsTimeseries,
+          pairs: results[2] as StatsBreakdown,
+          year: results[3] as StatsTimeseries,
+          yearTools: results[4] as StatsBreakdown,
+          recent: results[5] as StatsSessions,
+          sources: results[6] as StatsSources,
+          pricing: results[7] as StatsPricing,
+          sidebar: results[8] as StatsBreakdown,
+          previous: results[9] as StatsSummary?,
+          previousDays: period.period == 'today'
+              ? null
+              : results[10] as StatsTimeseries?,
+          previousHours: period.period == 'today'
+              ? results[10] as StatsTimeseries?
+              : null,
+          matrix: matrix,
+          axis: axis,
+          comparison: results[11] as StatsComparison?,
+        ),
       );
+    });
+  }
+
+  Future<void> _read(int ticket, StatsPeriod period) async {
+    bool current() => !_closed && ticket == _generation;
+    final readErrors = <String, String>{};
+    var loaded = false;
+    try {
+      final request = _queryOverview(period, current, readErrors: readErrors);
+      final StatsHomeData? data;
+      if (request case StatsCacheHit<StatsHomeData?>(:final value)) {
+        data = value;
+      } else {
+        loading = true;
+        sourcesReadSucceeded = false;
+        _notify();
+        data = await request;
+      }
+      if (!current() || data == null) return;
+      overview = data;
       error = null;
       resourceErrors
         ..clear()
@@ -550,6 +589,7 @@ class StatsController extends ChangeNotifier {
       if (!emptyLedger) _emptyLedgerDiscovery = null;
       _hasSucceeded |=
           syncSuccessful || overview!.sources.hasSuccessfulSync == true;
+      loaded = true;
     } catch (failure) {
       if (!_closed && ticket == _generation) {
         _error = (strings) => strings.requestFailed0(failure);
@@ -558,6 +598,52 @@ class StatsController extends ChangeNotifier {
       if (!_closed && ticket == _generation) {
         loading = false;
         _notify();
+        if (loaded && current()) _schedulePrefetch(ticket);
+      }
+    }
+  }
+
+  Timer? _prefetchTimer;
+  int? _prefetchTicket;
+  Future<void>? _prefetchWork;
+
+  bool get _canPrefetch =>
+      prefetchEnabled && preferences.onboarded && !_closed && !busy;
+
+  void _stopPrefetch() {
+    _prefetchTicket = null;
+    _prefetchTimer?.cancel();
+    _prefetchTimer = null;
+  }
+
+  void _schedulePrefetch(int ticket) {
+    if (!_canPrefetch || ticket != _generation) return;
+    _prefetchTicket = ticket;
+    if (_prefetchTimer != null || _prefetchWork != null) return;
+    _prefetchTimer = Timer(Duration.zero, () {
+      _prefetchTimer = null;
+      final ticket = _prefetchTicket!;
+      _prefetchWork = _prefetch(ticket).whenComplete(() {
+        _prefetchWork = null;
+        final next = _prefetchTicket;
+        if (next != null && next != ticket) _schedulePrefetch(next);
+      });
+    });
+  }
+
+  Future<void> _prefetch(int ticket) async {
+    bool current() => _canPrefetch && !loading && _prefetchTicket == ticket;
+    final selected = period;
+    for (final name in const ['today', 'week', 'month', 'all']) {
+      if (!current()) return;
+      if (name == selected.period) continue;
+      try {
+        await _queryOverview(
+          StatsPeriod(name).withWeekStart(selected.weekStartsOn),
+          current,
+        );
+      } catch (_) {
+        // Foreground reads can retry any failed query.
       }
     }
   }
@@ -570,6 +656,7 @@ class StatsController extends ChangeNotifier {
   Future<void> rereadLogs() => sync(trigger: 'reread');
 
   Future<void> _synchronize(String trigger) async {
+    _stopPrefetch();
     _statusGeneration++;
     _conflictTimer?.cancel();
     _syncTrigger = trigger;
@@ -596,10 +683,10 @@ class StatsController extends ChangeNotifier {
       _hasSucceeded = true;
       if (!wasFullSync &&
           _warnings.isEmpty &&
-          gateway is StatsProgressGateway) {
+          gateway.progressGateway != null) {
         _showSynced();
       }
-      await load();
+      await _load();
     } catch (failure) {
       if (_closed) return;
       _stopProgress();
@@ -613,7 +700,7 @@ class StatsController extends ChangeNotifier {
         // A failed ingestion can still have committed earlier files.
         syncDiscoveryRevision++;
         ledgerVersion++;
-        await load();
+        await _load();
       }
     } finally {
       _notify();
@@ -633,6 +720,7 @@ class StatsController extends ChangeNotifier {
     if (_closed) return Future.value();
     if (_statusRead != null) return _statusRead!;
     if (_sync != null) return _sync!;
+    _stopPrefetch();
     _conflictTimer?.cancel();
     final ticket = ++_statusGeneration;
     phase = StatsSyncPhase.conflict;
@@ -647,7 +735,7 @@ class StatsController extends ChangeNotifier {
 
   Future<void> _readStatus(DateTime started, int ticket) async {
     try {
-      final status = await gateway.sources();
+      final status = await gateway.sourcesFresh();
       if (_closed || ticket != _statusGeneration) return;
       final run = status.lastRun;
       if (run?.status == 'ok' || run?.status == 'completed_with_anomalies') {
@@ -656,12 +744,14 @@ class StatsController extends ChangeNotifier {
         syncError = null;
         syncErrorKind = null;
         _warnings = run!.anomalies;
-        await load();
+        await _load();
       } else if (run?.status == 'failed' || run?.status == 'abandoned') {
+        // An external run may have committed files before failing.
+        ledgerVersion++;
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
         _syncError = (strings) => strings.recentSyncIncomplete;
-        await load();
+        await _load();
       } else if (clock().difference(started) >= const Duration(minutes: 2)) {
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
@@ -714,6 +804,7 @@ class StatsController extends ChangeNotifier {
   Future<void> shutdown() => _shutdown ??= _close();
   Future<void> _close() async {
     _closed = true;
+    _stopPrefetch();
     updates.close();
     _generation++;
     _statusGeneration++;
@@ -724,6 +815,7 @@ class StatsController extends ChangeNotifier {
     await gateway.shutdown();
     await _sync;
     await _statusRead;
+    await _prefetchWork;
     await Future.wait(_reads.toList());
     await _onboardingRequired;
     await store?.flush();

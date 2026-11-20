@@ -225,7 +225,7 @@ void main() {
   });
   testWidgets('请求空态、错误和重试', (tester) async {
     final fake = RequestGateway()..count = 0;
-    await d.mountDetail(
+    final c = await d.mountDetail(
       tester,
       fake,
       query: 'period=month&view=detail&dim=request',
@@ -237,10 +237,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('这段时间的请求都没有计时记录。'), findsOneWidget);
     fake.requestFailure = true;
+    c.ledgerVersion++;
     await tester.tap(find.text('只看有计时的'));
     await tester.pumpAndSettle();
     expect(find.text('加载失败（request_failed）'), findsOneWidget);
     fake.requestFailure = false;
+    c.ledgerVersion++;
     await tester.tap(find.text('重试'));
     await tester.pumpAndSettle();
     expect(find.text('加载失败（request_failed）'), findsNothing);

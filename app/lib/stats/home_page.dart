@@ -6,7 +6,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../stats_controller.dart';
-import '../stats_gateway.dart';
 import 'logic/comparison.dart';
 import 'logic/detail_query.dart';
 import 'logic/period.dart';
@@ -93,9 +92,9 @@ class _StatsHomeState extends State<StatsHome> {
   }
 
   void openComparison(StatsPeriod period) {
-    final gateway = c.gateway;
+    final gateway = c.gateway.comparisonGateway;
     final previous = period.compare(c.clock(), context.strings);
-    if (previous == null || gateway is! StatsComparisonGateway) return;
+    if (previous == null || gateway == null) return;
     final current = period.range(c.clock());
     final prior = (from: previous.from, to: previous.to);
     final title = context.strings.whatChangedFromPrevious;
@@ -111,7 +110,7 @@ class _StatsHomeState extends State<StatsHome> {
         body: Builder(
           builder: (panelContext) => ComparisonPanel(
             controller: c,
-            gateway: gateway as StatsComparisonGateway,
+            gateway: gateway,
             current: current,
             previous: prior,
             onPick: (filter, value) {

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import '../../stats_controller.dart';
+import '../../stats_cache.dart';
 import '../../stats_gateway.dart';
 import '../logic/display.dart';
 import '../logic/format.dart';
@@ -92,17 +93,21 @@ class _RequestLogState extends State<RequestLog> {
       includeSummary: !more,
     );
     final filter = widget.filter;
-    resource.read(++generation, () async {
-      final next = await c.gateway.requestList(filter, query);
-      return previous == null
-          ? next
-          : StatsRequests(
-              items: [...previous.items, ...next.items],
-              total: previous.total,
-              slow: previous.slow,
-              snapshot: next.snapshot,
-            );
-    }, retainData: retainData);
+    resource.read(
+      ++generation,
+      () => mapStats(
+        c.gateway.requestList(filter, query),
+        (next) => previous == null
+            ? next
+            : StatsRequests(
+                items: [...previous.items, ...next.items],
+                total: previous.total,
+                slow: previous.slow,
+                snapshot: next.snapshot,
+              ),
+      ),
+      retainData: retainData,
+    );
   }
 
   void order(String key) {

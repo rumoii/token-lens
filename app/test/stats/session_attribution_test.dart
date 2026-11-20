@@ -156,6 +156,7 @@ void main() {
     FakeStatsGateway fake, {
     String unit = 'chinese',
     String period = 'today',
+    bool prefetchEnabled = true,
   }) async {
     tester.view.physicalSize = const Size(1600, 1800);
     tester.view.devicePixelRatio = 1;
@@ -164,6 +165,7 @@ void main() {
     final c = StatsController(
       fake,
       clock: () => demoNow,
+      prefetchEnabled: prefetchEnabled,
       preferences: UiPreferences(
         onboarded: true,
         unitSystem: unit,
@@ -195,7 +197,7 @@ void main() {
   }
   testWidgets('E3 最近会话按时段查询、两行数字和开始日期', (tester) async {
     final fake = AttributionGateway();
-    await mount(tester, fake);
+    await mount(tester, fake, prefetchEnabled: false);
     expect(fake.recentFilter!.from, '2026-11-09');
     expect(find.text('今天的会话'), findsOneWidget);
     expect(find.text('今天 7089万'), findsOneWidget);

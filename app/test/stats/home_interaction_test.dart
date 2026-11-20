@@ -20,6 +20,7 @@ void main() {
     bool reduced = false,
     bool loaded = true,
     double width = 1440,
+    bool prefetchEnabled = true,
   }) async {
     tester.view.physicalSize = Size(width, 1000);
     tester.view.devicePixelRatio = 1;
@@ -28,6 +29,7 @@ void main() {
     final controller = StatsController(
       fake,
       clock: () => demoNow,
+      prefetchEnabled: prefetchEnabled,
       preferences: const UiPreferences(onboarded: true),
     );
     addTearDown(controller.dispose);
@@ -78,7 +80,7 @@ void main() {
   });
   testWidgets('切周期旧画面保留，数据到齐后整体替换', (tester) async {
     final fake = FakeStatsGateway();
-    final c = await mount(tester, fake);
+    final c = await mount(tester, fake, prefetchEnabled: false);
     final old = c.overview;
     fake.readBarrier = Completer<void>();
     await tester.tap(find.text('本月'));
