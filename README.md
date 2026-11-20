@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="app/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png" width="96" alt="">
+<img src="docs/images/app-icon.png" width="96" alt="">
 
 # Token Lens
 
