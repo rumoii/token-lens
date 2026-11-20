@@ -6,7 +6,6 @@
 | --- | --- |
 | 最新发布的桌面版（0.x 期间是最新的 0.y.z） | 接收安全修复 |
 | 更早的桌面版 | 不回补安全修复，请升级到最新版 |
-| 仓库里的旧版 Node/React 工具 | 只在 main 上修复，不单独发布 |
 
 ## 报告漏洞
 
@@ -47,19 +46,10 @@ https://github.com/rumoii/token-lens/security/advisories/new
 - 未结合本项目实际调用面的纯依赖审计告警；
 - 社会工程学攻击。
 
-## 旧版 Node/React 工具
-
-仓库里保留的旧版（`src/core/`、`dashboard/`、`desktop/`）有另一套边界，报告时请注明是旧版：
-
-- HTTP 准入闸门 `src/core/http/gate.js`：只接受回环 Host（其余返回 421）；`/api/*` 需要 bearer 令牌（缺失或错误返回 401）；写请求的 Origin 须同源或缺省（否则 403）；从不下发 CORS 头。服务只绑定 127.0.0.1（`src/core/http/port.js`）。
-- API 令牌 `src/core/http/token.js`：存于 `<data-dir>/api-token`，POSIX 上权限 0600（Windows 上依赖用户目录 ACL）；比较用定长比较。
-- 数据目录裁决 `src/core/paths.js`：`--data-dir` > `TOKEN_LENS_DATA_DIR` > `DB_PATH` > 默认 `~/.token-lens`；互相冲突时直接报错。
-- 旧版桌面壳 `desktop/src/`（wry WebView）：窗口只导航到 `http://127.0.0.1:3456` 和内联页面，其他链接交给系统浏览器；Windows 版的自解压先校验载荷的 SHA-256，拒绝越界路径、重复路径、截断与超限数据。
-
 ## 处理流程
 
 收悉 → 复现与影响评估 → 修复合入 main → 通知报告者 → 可选致谢（需报告者同意）。
 
 ## English Summary
 
-Token Lens runs entirely on the local machine. The desktop app is a Flutter UI calling a Rust library in-process: it runs no local server, listens on no port and uses no WebView. It reads AI tools' local logs read-only (SQLite databases are opened read-only) and never modifies them. It uses the network for three things only: refreshing AI news from fixed source URLs (item links are limited to http/https), fetching an exchange rate when the user clicks "Update rate", and checking GitHub for a newer release at most once a day (no redirects, response size capped, the download link is built from the validated version). No usage data or telemetry is ever uploaded and no account is involved. The legacy Node/React tool kept in the repository serves its dashboard on 127.0.0.1 only, rejects non-loopback Host headers and requires a bearer token for `/api/*`. Please report vulnerabilities privately through GitHub's private vulnerability reporting channel.
+Token Lens runs entirely on the local machine. The desktop app is a Flutter UI calling a Rust library in-process: it runs no local server, listens on no port and uses no WebView. It reads AI tools' local logs read-only (SQLite databases are opened read-only) and never modifies them. It uses the network for three things only: refreshing AI news from fixed source URLs (item links are limited to http/https), fetching an exchange rate when the user clicks "Update rate", and checking GitHub for a newer release at most once a day (no redirects, response size capped, the download link is built from the validated version). No usage data or telemetry is ever uploaded and no account is involved. Please report vulnerabilities privately through GitHub's private vulnerability reporting channel.

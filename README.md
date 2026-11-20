@@ -6,16 +6,26 @@
 
 纯本地的 AI 编程工具 token 用量与花费统计
 
+[![版本](https://img.shields.io/github/v/release/rumoii/token-lens?label=%E7%89%88%E6%9C%AC&color=2a8f7b)](https://github.com/rumoii/token-lens/releases/latest)
+[![下载量](https://img.shields.io/github/downloads/rumoii/token-lens/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=2a8f7b)](https://github.com/rumoii/token-lens/releases)
 [![Stars](https://img.shields.io/github/stars/rumoii/token-lens?label=Stars&color=2a8f7b)](https://github.com/rumoii/token-lens/stargazers)
 [![许可证](https://img.shields.io/github/license/rumoii/token-lens?label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](LICENSE)
 ![系统](https://img.shields.io/badge/%E7%B3%BB%E7%BB%9F-Windows%20%C2%B7%20macOS-4b6b8a)
 [![隐私](https://img.shields.io/badge/%E9%9A%90%E7%A7%81-%E7%BA%AF%E6%9C%AC%E5%9C%B0%20%C2%B7%20%E9%9B%B6%E9%81%A5%E6%B5%8B-4b6b8a)](PRIVACY.md)
 
-**[下载](#下载与安装)** · [功能](#功能) · [数据与隐私](#数据与隐私) · [从源码构建](#从源码构建) · [隐私说明](PRIVACY.md) · [English](README.en.md)
+**[下载](https://github.com/rumoii/token-lens/releases/latest)** · [安装指南](INSTALL.md) · [使用](#使用) · [隐私说明](PRIVACY.md) · [English](README.en.md)
 
 </div>
 
 Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen Code 等 28 款 AI 编程工具写在本机的日志，算出每个工具、模型、项目、会话用了多少 token，按各模型的公开价估算值多少钱，还能看到每次请求要等多久才开始回复、回复得多快。不登录、不上传、没有遥测。
+
+## 亮点
+
+- **一处看全**：28 款工具的用量汇进同一个本地账本，按工具、模型、项目、会话、时间随意拆开，和上一期比多了还是少了。
+- **数据不出本机**：只读日志里的用量字段，提示词、回复和代码不进账本，也不发出去；不修改这些工具的任何文件。
+- **账记得准**：同一条记录重复读取不会重复计数；客户端清理了日志，已经记下的用量照样保留；按任何维度分组，各组之和都等于总数。
+- **看得到快慢**：每次请求等了多久才开始回复、每秒出多少 token，按会话、按请求都能看。
+- **给脚本和 AI 助手用**：随程序附带只读的 JSON 命令行 `token-lens-cli`，明细也能导出成 CSV 或 JSON。
 
 ## 功能
 
@@ -48,49 +58,6 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 </table>
 
 截图里的用量是合成的演示数据，项目路径均为虚构。
-
-## 下载与安装
-
-从 [Releases](https://github.com/rumoii/token-lens/releases) 下载对应系统的 zip，每个文件旁边有同名的 `.sha256` 校验文件。不需要安装 Node、Python 或其他运行环境。
-
-想确认下载完整：Windows 在 PowerShell 里运行 `Get-FileHash .\token-lens-<版本>-windows-x64.zip`，把输出的哈希和 `.sha256` 文件里的对一下（大小写不同不要紧）；macOS 把两个文件放在同一个文件夹，在终端里运行 `shasum -a 256 -c token-lens-<版本>-macos.zip.sha256`，看到 `OK` 即可。
-
-### Windows
-
-- 系统要求：Windows 10 / 11，x64。
-- 把 `token-lens-<版本>-windows-x64.zip` 解压到任意文件夹，双击里面的 `token-lens.exe`。文件夹里的 exe、DLL 和 `data/` 要放在一起，不能只复制 exe。
-- 程序没有签名，第一次运行时 Windows SmartScreen 可能拦截，点「更多信息 → 仍要运行」。
-- 升级：关掉 Token Lens，用新版解压出的文件替换旧文件夹的内容。用量数据不在这个文件夹里，替换不会丢数据。
-- 卸载：删掉程序文件夹；不再需要数据时，再删掉数据目录（见[数据与隐私](#数据与隐私)）。
-
-### macOS
-
-- 系统要求：Apple 芯片（M 系列）的 Mac，macOS 12 或更新。
-- 解压 `token-lens-<版本>-macos.zip`，把 `Token Lens.app` 拖进「应用程序」再打开。
-- 升级：关掉 Token Lens，用新的 `Token Lens.app` 替换「应用程序」里的旧版。卸载：删掉 `Token Lens.app`；不再需要数据时，再删掉数据目录（见[数据与隐私](#数据与隐私)）。
-- 程序没有签名和公证，第一次打开时系统会提示无法验证开发者。点「完成」（不要点「移到废纸篓」），到「系统设置 → 隐私与安全性」（macOS 12 是「系统偏好设置 → 安全性与隐私 → 通用」），在下方点「仍要打开」。放行只对当时那一份程序有效，所以先拖进「应用程序」再打开；升级替换后要再放行一次。
-
-## 使用
-
-第一次打开时，Token Lens 会列出在这台电脑上找到的工具，点「开始统计」后才读取日志内容，第一遍会读完全部日志。之后每次打开都会同步一次，窗口开着时每 5 分钟同步一次，也可以随时点「同步用量」。关掉窗口程序就退出，不留后台进程，也不开机自启。
-
-重复打开时只会激活已经开着的那个窗口。
-
-### 导出和命令行
-
-「明细」页下方的「导出」把当前筛选和分组存成 CSV 或 JSON，放进“下载”文件夹。项目默认只写名字，勾选「包含完整项目路径」才写路径。
-
-`token-lens-cli` 和程序放在一起：Windows 是解压文件夹里的 `token-lens-cli.exe`，macOS 是 `Token Lens.app/Contents/MacOS/token-lens-cli`。它读同一个账本，每条命令输出一个 JSON 对象。
-
-```sh
-token-lens-cli status                          # 账本和上次同步
-token-lens-cli summary --period week --compare # 本周用量、花费，和上周比
-token-lens-cli breakdown --by model            # 按模型拆开
-token-lens-cli sessions --sort cost --limit 10 # 最贵的 10 个会话
-token-lens-cli sync                            # 同步一次
-```
-
-除了 `sync`，命令都只读账本，不联网，也不会触发同步；结果里的 `freshness` 写明数据是什么时候同步的。完整说明和退出码见 [docs/development/cli.md](docs/development/cli.md)。
 
 ## 支持的工具
 
@@ -125,14 +92,38 @@ token-lens-cli sync                            # 同步一次
 | Trae / Trae CN | trae | 实验性·合成验证 | JSONL id 语义未确认 |
 | Zed | zed | 实验性·合成验证 | payload 可能是 zstd BLOB |
 
-实测 = 用真实日志核对过（逐字段手核、与客户端自报的总量对照，或与账本对账）；这些核对最初在旧版上做，桌面版又在同一份真实日志上与旧版逐字段一致。有样本·待对照 = 有真实日志，但用量太少或没有可对照的数字。实验性 = 合成样本验证通过、还缺真实日志验收，欢迎反馈真实样本。各工具的字段含义和已知限制见 [适配器契约](docs/development/adapters.md) 与 [日志字段事实](docs/development/log-schemas.yaml)。
+实测 = 用真实日志核对过（逐字段手核、与客户端自报的总量对照，或与账本对账）。有样本·待对照 = 有真实日志，但用量太少或没有可对照的数字。实验性 = 合成样本验证通过、还缺真实日志验收，欢迎反馈真实样本。各工具的字段含义和已知限制见 [适配器契约](docs/development/adapters.md) 与 [日志字段事实](docs/development/log-schemas.yaml)。
 
-## 数据与隐私
+## 安装
 
-- **只读本机日志**：在本机读取并解析各工具的日志，只提取用量元数据（四类 token、模型、时间、会话、项目路径）；日志里的提示词、回复、代码和凭据不会写进账本，也不会发出去。不修改这些工具的任何文件。
-- **数据只在本机**：用量、偏好和新闻缓存都在系统的应用支持目录下的 `data` 文件夹里：Windows 上是 `%APPDATA%\Token Lens\Token Lens\data`，macOS 上是 `~/Library/Application Support/io.github.rumoii.token-lens/data`。不再需要时整个删掉即可。
-- **会联网的只有三件事**：AI 热点开着时按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）。请求不带账号、凭据或用量数据。来源清单和请求方式见 [docs/development/news.md](docs/development/news.md)，检查更新见 [docs/development/update.md](docs/development/update.md)。
-- 没有账号、上传、遥测或第三方分析。完整说明见 [隐私说明](PRIVACY.md)。
+从 [Releases](https://github.com/rumoii/token-lens/releases/latest) 下载对应系统的 zip，解压即用，不需要安装 Node、Python 或其他运行环境。同一个 Release 里的 `SHA256SUMS.txt` 可以用来确认下载完整。
+
+- **Windows**：Windows 10 / 11，x64。解压后双击 `token-lens.exe`；文件夹里的 exe、DLL 和 `data/` 要放在一起。
+- **macOS**：Apple 芯片（M 系列），macOS 12 或更新。解压后把 `Token Lens.app` 拖进「应用程序」再打开。
+
+程序没有签名，第一次打开时 Windows SmartScreen 或 macOS 会拦一下。放行的步骤、怎么校验下载、怎么卸载，见[安装指南](INSTALL.md)。
+
+## 使用
+
+第一次打开时，Token Lens 会列出在这台电脑上找到的工具，点「开始统计」后才读取日志内容，第一遍会读完全部日志。之后每次打开都会同步一次，窗口开着时每 5 分钟同步一次，也可以随时点「同步用量」。关掉窗口程序就退出，不留后台进程，也不开机自启。
+
+重复打开时只会激活已经开着的那个窗口。
+
+### 导出和命令行
+
+「明细」页下方的「导出」把当前筛选和分组存成 CSV 或 JSON，放进“下载”文件夹。项目默认只写名字，勾选「包含完整项目路径」才写路径。
+
+`token-lens-cli` 和程序放在一起：Windows 是解压文件夹里的 `token-lens-cli.exe`，macOS 是 `Token Lens.app/Contents/MacOS/token-lens-cli`。它读同一个账本，每条命令输出一个 JSON 对象。
+
+```sh
+token-lens-cli status                          # 账本和上次同步
+token-lens-cli summary --period week --compare # 本周用量、花费，和上周比
+token-lens-cli breakdown --by model            # 按模型拆开
+token-lens-cli sessions --sort cost --limit 10 # 最贵的 10 个会话
+token-lens-cli sync                            # 同步一次
+```
+
+除了 `sync`，命令都只读账本，不联网，也不会触发同步；结果里的 `freshness` 写明数据是什么时候同步的。完整说明和退出码见 [docs/development/cli.md](docs/development/cli.md)。
 
 ## 工作原理
 
@@ -142,16 +133,16 @@ token-lens-cli sync                            # 同步一次
 </picture>
 
 - 界面是 Flutter，统计、计价和新闻刷新都在随程序分发的 Rust 库里，通过 flutter_rust_bridge 在进程内调用；没有本地网页服务，也不用 WebView。
-- 同一条记录重复读取不会重复计数；日志被客户端清理后，已经记下的用量仍然保留。
+- 同一条记录重复读取不会重复计数；日志被客户端清理后，已经记下的用量仍然保留。账本每一列的含义和不变式见 [docs/development/ledger.md](docs/development/ledger.md)。
 - 金额以整数微美元（USD × 10⁶）存储，计价规则见 [docs/development/pricing.md](docs/development/pricing.md)。
 - 每次请求的计时单独存放，不影响用量和金额，口径见 [docs/development/stats.md](docs/development/stats.md)。
 
 | 目录 | 内容 |
 | --- | --- |
 | `app/` | 桌面应用：Flutter 界面（`app/lib/`）和 Rust 核心（`app/rust/`） |
-| `docs/development/` | 适配器契约、日志字段、统计与计价规格、新闻来源 |
-| `src/core/`、`dashboard/`、`desktop/`、`bin/` | 旧版 Node/React 统计工具，见[旧版](#旧版-nodereact) |
-| `scripts/`、`test/` | 旧版的脚本和测试；`scripts/parity/` 用旧版生成桌面版对拍用的基准数据 |
+| `docs/development/` | 账本、适配器、日志字段、统计、计价、新闻、命令行和发布的规格 |
+| `docs/decisions/`、`docs/releases/` | 设计决策和版本说明 |
+| `scripts/` | 开发运行、检查、演示数据和发布校验脚本 |
 
 ## 从源码构建
 
@@ -163,42 +154,32 @@ flutter pub get --enforce-lockfile
 flutter build windows --release   # 或 flutter build macos --release
 ```
 
-产物在 `app/build/windows/x64/runner/Release/`（macOS 是 `app/build/macos/Build/Products/Release/Token Lens.app`）。开发运行必须同时隔离测试数据目录和日志根目录，检查命令、代码生成和发布流程见 [app/README.md](app/README.md#开发与检查)。
+产物在 `app/build/windows/x64/runner/Release/`（macOS 是 `app/build/macos/Build/Products/Release/Token Lens.app`）。开发运行必须同时隔离测试数据目录和日志根目录，检查命令、代码生成和发布流程见 [app/README.md](app/README.md#开发与检查) 和[贡献指南](CONTRIBUTING.md)。
 
-## 旧版 Node/React
+## 升级与数据
 
-仓库里保留了旧版：Node CLI（`lens collect / summary / serve`）加浏览器看板。它的账本在 `~/.token-lens`，桌面版从不打开这个目录，两者互不影响。想把旧版积累的数据带到桌面版，按 [app/README.md](app/README.md) 的「运行与回退」复制账本文件；想退回旧版，关掉桌面版继续用旧版即可。
+- 升级时关掉 Token Lens，用新版替换程序文件（Windows 是解压出的整个文件夹的内容，macOS 是 `Token Lens.app`）。用量数据不在程序文件夹里，替换不会丢。
+- 新版需要升级账本结构时，第一次打开会自动迁移，迁移前在数据目录里存一份升级前的完整备份 `ledger-v<旧结构版本>-….db`。
+- 新版打开过以后，旧版程序会拒绝打开升级后的账本。确实要退回旧版，按 [app/README.md](app/README.md#运行与回退) 的「运行与回退」用自动备份恢复，不要直接换回旧的程序。
+- 想自己备份：关掉 Token Lens，复制整个数据目录（位置见[数据与隐私](#数据与隐私)）。`ledger.db` 旁边的 `ledger.db-wal`、`ledger.db-shm` 要一起复制。
 
-旧版需要 Node.js ≥ 24.21.0：
+## 文档
 
-```sh
-npm ci
-npm ci --prefix dashboard
-npm run dashboard:build
-npm start          # 启动本地看板，终端会打印地址（默认 http://127.0.0.1:3456，端口被占用时顺延），在浏览器里打开它
-```
+- [安装指南](INSTALL.md)
+- [隐私说明](PRIVACY.md)
+- [贡献指南](CONTRIBUTING.md)、[新增一个工具来源](docs/development/adding-a-source.md)
+- [安全政策](SECURITY.md)
+- 开发规格（简体中文）：[账本契约](docs/development/ledger.md)、[统计与计时](docs/development/stats.md)、[适配器契约](docs/development/adapters.md)、[日志字段事实](docs/development/log-schemas.yaml)、[定价](docs/development/pricing.md)、[新闻来源](docs/development/news.md)、[检查更新](docs/development/update.md)、[命令行与导出](docs/development/cli.md)、[桌面应用的技术决定](docs/development/desktop.md)、[发布流程](docs/development/release.md)
+- [设计决策](docs/decisions/README.md)
+- [版本说明](docs/releases/README.md)
+- [第三方声明](THIRD_PARTY_NOTICES.md)
 
-CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`。指向测试目录以外的地方时，一律显式传 `--data-dir`。功能规格见 [docs/archive/features.md](docs/archive/features.md)，数据目录规则和测试约定见 `CLAUDE.md`。
+## 数据与隐私
 
-## 文档索引
-
-规格文档以简体中文撰写。
-
-| 文档 | 说明 |
-| --- | --- |
-| [docs/development/desktop.md](docs/development/desktop.md) | 桌面应用的技术决定 |
-| [docs/development/stats.md](docs/development/stats.md) | 统计、计时与界面规则 |
-| [docs/development/news.md](docs/development/news.md) | 新闻来源与联网边界 |
-| [docs/development/update.md](docs/development/update.md) | 检查更新的请求与边界 |
-| [docs/development/cli.md](docs/development/cli.md) | 命令行与导出的输出契约 |
-| [docs/development/adapters.md](docs/development/adapters.md) | 适配器契约 |
-| [docs/development/log-schemas.yaml](docs/development/log-schemas.yaml) | 日志字段事实 |
-| [docs/development/pricing.md](docs/development/pricing.md) | 定价契约 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南和开发快速开始 |
-| [docs/development/adding-a-source.md](docs/development/adding-a-source.md) | 新增一个工具来源 |
-| [SECURITY.md](SECURITY.md) | 安全政策 |
-| [PRIVACY.md](PRIVACY.md) | 隐私说明 |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | 第三方声明 |
+- **只读本机日志**：在本机读取并解析各工具的日志，只提取用量元数据（四类 token、模型、时间、会话、项目路径）；日志里的提示词、回复、代码和凭据不会写进账本，也不会发出去。不修改这些工具的任何文件。
+- **数据只在本机**：用量、偏好和新闻缓存都在系统的应用支持目录下的 `data` 文件夹里：Windows 上是 `%APPDATA%\Token Lens\Token Lens\data`，macOS 上是 `~/Library/Application Support/io.github.rumoii.token-lens/data`。不再需要时整个删掉即可。
+- **会联网的只有三件事**：AI 热点开着时按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）。请求不带账号、凭据或用量数据。来源清单和请求方式见 [docs/development/news.md](docs/development/news.md)，检查更新见 [docs/development/update.md](docs/development/update.md)。
+- 没有账号、上传、遥测或第三方分析。完整说明见 [隐私说明](PRIVACY.md)。
 
 ## 贡献
 
@@ -212,6 +193,16 @@ CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>
     <img alt="Star 趋势" src="https://api.star-history.com/svg?repos=rumoii/token-lens&type=Date" width="600">
   </picture>
 </a>
+
+## 致谢
+
+Token Lens 使用了 [Flutter](https://flutter.dev/)、[Rust](https://www.rust-lang.org/)、[flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge)、[SQLite](https://sqlite.org/)（经由 [rusqlite](https://github.com/rusqlite/rusqlite)）、[Tokio](https://tokio.rs/)、[reqwest](https://github.com/seanmonstar/reqwest) 和 [ruzstd](https://github.com/KillingSpark/zstd-rs)。第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+各 AI 编程工具的名称和图标归各自的所有者，只用来在界面里标出对应的工具。
+
+## 名字
+
+AI 工具各自写下日志，用量散落各处，难见全貌。Token Lens 像一片镜片，把零碎的记录收拢到一处，调准焦距——token 都去了哪里，一眼就能看清。
 
 ## 许可
 

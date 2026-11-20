@@ -19,18 +19,10 @@
 
 ## 验证 / Testing
 
-<!-- 写明实际运行了哪些命令、手动测了什么；只勾和改动范围对应的那一组 -->
+<!-- 写明实际运行了哪些命令、手动测了什么 -->
 
-桌面应用（`app/`）：
-
-- [ ] cargo fmt --check、cargo clippy、cargo test
-- [ ] dart format、flutter analyze、flutter test
-- [ ] 改了界面时：在隔离的测试数据目录下运行过，并附了截图
-
-旧版（`src/core/`、`dashboard/`、`desktop/`、`bin/`）：
-
-- [ ] npm run ci:local
-- [ ] 改了 dashboard/ 时：在看板里手动验证过对应页面
+- [ ] `python scripts/desktop-dev.py check` 通过（只跑了 `--only rust` 或 `--only flutter` 时请写明）
+- [ ] 改了界面时：用 `python scripts/desktop-dev.py demo` 的演示数据运行过，并附了截图
 
 ## AI 使用说明 / AI disclosure
 

@@ -4,7 +4,7 @@ This is a shorter English version of [CONTRIBUTING.md](CONTRIBUTING.md). Most sp
 
 ## Getting started
 
-The desktop app lives in `app/`: a Flutter interface and a Rust core, connected through flutter_rust_bridge. The older Node/React tool (`src/`, `dashboard/`, `desktop/`, `bin/`) is frozen: new features and new tools go into the desktop app only.
+The desktop app lives in `app/`: a Flutter interface and a Rust core, connected through flutter_rust_bridge.
 
 1. **Install** Flutter stable 3.47.9 (Dart 3.13.7), Rust 1.98.0 and Python 3.
    - Windows also needs Visual Studio's "Desktop development with C++" and permission to create symbolic links (turn on Developer Mode).
@@ -39,7 +39,6 @@ More detail: [app/README.md](app/README.md). To support a new AI coding tool, re
 - Open an issue first for large changes. One pull request does one thing.
 - Fill in [the pull request template](.github/pull_request_template.md).
 - Desktop changes: `python scripts/desktop-dev.py check` must pass. For interface changes, attach before and after screenshots taken with the demo data, not your own.
-- The frozen Node/React tool accepts only fixes that affect its use as a rollback; run `npm run ci:local` (Node >= 24.21.0) for those.
 - Dependency upgrades go in their own pull request with the updated lockfiles and regenerated third-party notices.
 
 ## Using AI

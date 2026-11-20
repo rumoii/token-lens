@@ -104,6 +104,8 @@ API 的 `cost_by_kind` 固定六位小数，直接由已核对的整数 micro-US
 
 ## 八、R3 验收证据
 
+本节是旧版阶段的验收记录，引用的 `test/core/` 测试已随旧版删除；桌面版的计价测试在 `app/rust/src/stats/pricing.rs`。
+
 范围：复用阶段 R3 的已批准规格，不改 schema、价表及价格版本，不重算历史数据。金额分项错误可能误导费用归属，因此按金额计算的高保障流程验证。
 
 | 行为与失败模式 | 检查 |
@@ -156,7 +158,7 @@ API 的 `cost_by_kind` 固定六位小数，直接由已核对的整数 micro-US
 
 - 账本 schema v5 只给 `usage_records` 加 `provider TEXT`，不改已有行；值取日志写明的提供方，NULL 表示未知。适配器不按模型名、路径或客户端推测。
 - 内容指纹只在 provider 非 NULL 时，将其原值追加到 v4 指纹输入；NULL 不增加字符或分隔符，与 v4 逐字相同。补到 provider 的行重读后 `revision + 1` 一次，再读不变。迁移本身不改用量、金额、指纹或 revision；后续采集与重算会按当前目录更新估值，本地行金额可因此变为 0。
-- `src/core/pricing/catalog.js` 的 `LOCAL_PROVIDERS` 为 `ollama`、`lmstudio`，依据是 OpenCode 官方提供方配置示例中的 ID（见 [log-schemas.yaml](log-schemas.yaml) 的 `local_provider_ids`）；这些是提供方 ID，不能覆盖任意自定义别名，也不检查端点实际运行在哪里。比较时大小写不敏感，账本保留日志原值。命中名单优先于模型查价：金额为 0，四个分项都为 0，`price_source` 为 `local:<小写 ID>`，不计入未定价；其他提供方仍按模型照常计价。
+- `app/rust/src/stats/pricing-catalog.json` 的 `localProviders` 为 `ollama`、`lmstudio`，依据是 OpenCode 官方提供方配置示例中的 ID（见 [log-schemas.yaml](log-schemas.yaml) 的 `local_provider_ids`）；这些是提供方 ID，不能覆盖任意自定义别名，也不检查端点实际运行在哪里。比较时大小写不敏感，账本保留日志原值。命中名单优先于模型查价：金额为 0，四个分项都为 0，`price_source` 为 `local:<小写 ID>`，不计入未定价；其他提供方仍按模型照常计价。
 - `/pricing` 对全部记录均为本地提供方的模型返回 `state: local`、`billing: local`、五项零单价；同名模型混用本地和远端时保留目录状态与远端单价，通过 `local_records`、`local_providers` 分别说明本地条数与提供方。界面显示「本地」或混合用量的本地条数。
 - 原始日志已经删掉的历史行没有 provider，不按模型名猜；模型没有目录价时保持未定价。本阶段不提供补 provider 脚本，真实账本验收需另行确认。
 

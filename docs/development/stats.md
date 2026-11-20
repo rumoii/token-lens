@@ -4,7 +4,7 @@
 
 D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 Flutter 界面。旧版是 D3 的行为基线：仓库 `1ce3446` 的 `src/core`，运行时 Node v24.22.1，账本 schema v5。
 
-- 账本：D3 沿用 schema v5，E4a 桌面版在保留用量表的基础上升到 v6（见下文）（`CLAUDE.md`「Ledger contract」）。`record_key`、`content_hash`、价表版本与旧版逐字节一致，新版能直接打开旧版账本的副本。
+- 账本：D3 沿用 schema v5，E4a 桌面版在保留用量表的基础上升到 v6（见下文）（[ledger.md](ledger.md)）。`record_key`、`content_hash`、价表版本与旧版逐字节一致，新版能直接打开旧版账本的副本。
 - 适配器：27 个全部迁移，分三批（见「子阶段」）。
 - 界面：照现有看板的结构搬（总览、明细、会话、来源、设置与价格），只有和现有界面不同或拿不准的地方先做原型。
 - 数据：D3 的账本放在预览目录，D3 期间从不打开、读取或写入 `~/.token-lens`，也不读 `TOKEN_LENS_DATA_DIR`、`DB_PATH`。真实账本的副本迁移和切换属于 D4，每一步单独确认。
@@ -246,12 +246,14 @@ SQLite 来源（hermes、cursor 数据库、opencode、kilo、goose、zed、copi
 
 ## 对拍
 
+旧版删除后（标签 `legacy-node`），生成器 `scripts/parity/` 随之删除，`app/rust/tests/golden/` 和 `app/rust/tests/fixtures/` 冻结，不再重新生成。下面记录生成时的做法。
+
 - 生成器 `scripts/parity/` 调用旧版的生产入口（`adapters[source]`、`payloadHash`、`fileTag`、`Ledger`、`read`、各个 service），固定 `now`、时区和路径字符串，输出 UTF-8 JSONL。每行的 `type` 是 `adapter_record`、`identity`、`batch`、`ledger_row`、`price`、`query`、`run` 之一，字段顺序固定，NULL 显式写出。
 - 夹具：现有的真实裁剪样本（codex、qwen、pi），加上把各测试里内联构造的合成输入整理成的静态文件，放在 `app/rust/tests/fixtures/`。
 - 旧版输出提交到 `app/rust/tests/golden/`。Rust 测试读同一批夹具，输出同样的 JSONL 并逐行比较；身份和金额按字节比较，没有确定顺序的查询先按身份排序再比较结构。
 - 时钟：旧版直接读 `Date` 和 SQLite `unixepoch()`，没有注入点。生成器用 Node 内置 `node:test` 的 `mock.timers` 只冻结 `Date`（固定 `2026-01-15T12:00:00.000Z`；主时区 `Asia/Shanghai`，另有 UTC，Date 兼容表还含 `America/New_York`），这是生成器里唯一允许的替换，不改 `src/core`。Rust 凡是读当前时间的地方都经可注入的时钟。
 - 只有四个字段写成 `"<volatile>"` 不比较：`usage_records.ingested_at`、`legacy_records.imported_at`、`pricing_snapshot.created_at`（SQLite 默认值）和 `runIngestion` 的 `durationMs`。`snapshot.generated_at`、`ingest_runs.started_at` / `finished_at`、滚动 7/30 日、`pricing_snapshot.verified_at` 由冻结的时刻决定，严格比较。
-- 旧版改了行为就重新生成 golden，提交里要说明原因。
+- Rust 的行为需要与旧版不同时，不改 golden 文件：在测试里显式处理这处差异，并写进上文「允许的差异」。
 
 ### D3.5 真实日志对拍与资源占用（已完成）
 

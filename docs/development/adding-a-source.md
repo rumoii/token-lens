@@ -1,6 +1,6 @@
 # 新增一个工具来源
 
-本文写给要让 Token Lens 认识一款新 AI 编程工具的贡献者。新来源只写进桌面版的 Rust 核心（`app/rust/`）；旧版 Node 工具已经冻结，不再接收新来源。
+本文写给要让 Token Lens 认识一款新 AI 编程工具的贡献者。新来源写进桌面版的 Rust 核心（`app/rust/`）。
 
 ## 开始之前
 
@@ -8,7 +8,7 @@
 - 先读这三份，本文不重复它们的内容：
   - [`docs/development/adapters.md`](adapters.md) 的「通用契约」「稳定身份」和「验收口径」末尾的 7 个用例；
   - [`docs/development/log-schemas.yaml`](log-schemas.yaml)：每个来源的日志位置和字段位置。新来源也要在这里登记；
-  - `CLAUDE.md` 的「Ledger contract」：账本列的含义（包括 `provider`），以及「未知不是零」这类不变式。
+  - [ledger.md](ledger.md)：账本列的含义（包括 `provider`），以及「未知不是零」这类不变式。
 
 ## 先回答这几个问题
 
@@ -39,10 +39,10 @@
 - **来源总数**散在好几个文件里，全部要加一。先用当前总数搜一遍，再逐处判断：
 
   ```sh
-  rg -n "28" README.md README.en.md CLAUDE.md AGENTS.md app/README.md docs/development/adapters.md docs/development/stats.md
+  rg -n "28" README.md README.en.md app/README.md docs/development/adapters.md docs/development/stats.md
   ```
 
-  - 要改：两个 README、`CLAUDE.md`、`AGENTS.md`、`app/README.md` 里的支持来源数；`docs/development/adapters.md` 的标题、字段表里「source N 组之一」、契约表小节标题，以及「其余 N 组本机无样本」这类算出来的数；`docs/development/stats.md`「工具」页那一条。
+  - 要改：两个 README 和 `app/README.md` 里的支持来源数；`docs/development/adapters.md` 的标题、字段表里「source N 组之一」、契约表小节标题，以及「其余 N 组本机无样本」这类算出来的数；`docs/development/stats.md`「工具」页那一条。
   - **不要改**：`docs/development/stats.md` 里「27 个全部迁移」「27 个来源的扫描根和模式」这类句子，27 指从旧版 Node 迁过来的那一批，不随新来源变化。
 
 ### 2. 发现日志：`app/rust/src/stats/discovery.rs`

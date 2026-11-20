@@ -6,18 +6,28 @@
 
 Local-only token usage and cost tracking for AI coding tools
 
+[![Release](https://img.shields.io/github/v/release/rumoii/token-lens?color=2a8f7b)](https://github.com/rumoii/token-lens/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/rumoii/token-lens/total?color=2a8f7b)](https://github.com/rumoii/token-lens/releases)
 [![Stars](https://img.shields.io/github/stars/rumoii/token-lens?color=2a8f7b)](https://github.com/rumoii/token-lens/stargazers)
 [![License](https://img.shields.io/github/license/rumoii/token-lens)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS-4b6b8a)
 [![Privacy](https://img.shields.io/badge/privacy-local%20only%20%C2%B7%20zero%20telemetry-4b6b8a)](PRIVACY.md)
 
-**[Download](#download-and-install)** · [Features](#features) · [Data and privacy](#data-and-privacy) · [Build from source](#build-from-source) · [Privacy policy](PRIVACY.md) · [简体中文](README.md)
+**[Download](https://github.com/rumoii/token-lens/releases/latest)** · [Installation guide](INSTALL.en.md) · [Usage](#usage) · [Privacy policy](PRIVACY.md) · [简体中文](README.md)
 
 </div>
 
 Token Lens is a desktop app. It reads the logs that 28 AI coding tools, including Claude Code, Codex, Kimi and Qwen Code, write on your machine, and shows how many tokens each tool, model, project and session used, what that would cost at each model's list price, and how long each request waited before the reply started and how fast it streamed. No sign-in, no uploads, no telemetry.
 
-The app and the specifications are written in Simplified Chinese.
+The interface is in English and Simplified Chinese; the development specifications are in Simplified Chinese.
+
+## Highlights
+
+- **Everything in one place**: usage from 28 tools lands in one local ledger that you can split by tool, model, project, session or time, and compare with the previous period.
+- **Nothing leaves your computer**: only the usage fields are read from the logs; prompts, replies and code never enter the ledger or leave the machine, and the tools' own files are never modified.
+- **Numbers you can trust**: reading the same record again never counts it twice, usage already recorded stays after a client prunes its logs, and every grouping adds up to the total.
+- **See how fast it was**: how long each request waited before the reply started and how many tokens per second it streamed, per session and per request.
+- **Ready for scripts and AI agents**: the bundled read-only JSON CLI `token-lens-cli`, plus CSV and JSON export of the breakdown.
 
 ## Features
 
@@ -50,49 +60,6 @@ The app and the specifications are written in Simplified Chinese.
 </table>
 
 The usage in the screenshots is synthetic demo data; project paths are fictional.
-
-## Download and install
-
-Download the zip for your system from [Releases](https://github.com/rumoii/token-lens/releases). Each file has a matching `.sha256` checksum file next to it. No Node, Python or other runtime is needed.
-
-To check a download: on Windows run `Get-FileHash .\token-lens-<version>-windows-x64.zip` in PowerShell and compare the hash with the one in the `.sha256` file (case does not matter); on macOS put both files in one folder and run `shasum -a 256 -c token-lens-<version>-macos.zip.sha256` in Terminal, which prints `OK` when they match.
-
-### Windows
-
-- Requires Windows 10 or 11, x64.
-- Extract `token-lens-<version>-windows-x64.zip` anywhere and run `token-lens.exe`. Keep the exe, the DLLs and the `data/` folder together; copying the exe alone does not work.
-- The program is not signed, so Windows SmartScreen may block the first run. Click "More info → Run anyway".
-- To upgrade, close Token Lens and replace the folder's contents with the new version. Your usage data lives elsewhere and is not affected.
-- To uninstall, delete the program folder, and the data folder if you no longer need it (see [Data and privacy](#data-and-privacy)).
-
-### macOS
-
-- Requires a Mac with Apple silicon (M series), macOS 12 or later.
-- Extract `token-lens-<version>-macos.zip`, drag `Token Lens.app` into Applications, then open it.
-- To upgrade, close Token Lens and replace `Token Lens.app` in Applications with the new one. To uninstall, delete `Token Lens.app`, and the data folder if you no longer need it (see [Data and privacy](#data-and-privacy)).
-- The app is not signed or notarized, so macOS reports that it cannot verify the developer on first launch. Click "Done" (not "Move to Trash"), open "System Settings → Privacy & Security" ("System Preferences → Security & Privacy → General" on macOS 12) and click "Open Anyway" near the bottom. The approval applies to that copy only, so move the app into Applications before opening it, and approve it again after each upgrade.
-
-## Usage
-
-On first launch Token Lens lists the tools it found on this computer; it reads log contents only after you click "开始统计" (Start), and the first pass reads all of them. After that it syncs every time it opens and every 5 minutes while the window is open; "同步用量" (Sync) in the sidebar syncs on demand. Closing the window quits the app: there is no tray icon, background process or launch at login.
-
-Opening it again brings the existing window to the front.
-
-### Export and CLI
-
-Export, below the Breakdown page, saves the current filters and grouping as CSV or JSON in your Downloads folder. Projects appear by name only unless you check Include full project paths.
-
-`token-lens-cli` ships with the app: `token-lens-cli.exe` in the unzipped folder on Windows, `Token Lens.app/Contents/MacOS/token-lens-cli` on macOS. It reads the same ledger and prints one JSON object per command.
-
-```sh
-token-lens-cli status                          # ledger and last sync
-token-lens-cli summary --period week --compare # this week's usage and cost vs. last week
-token-lens-cli breakdown --by model            # split by model
-token-lens-cli sessions --sort cost --limit 10 # the 10 most expensive sessions
-token-lens-cli sync                            # sync once
-```
-
-Every command except `sync` only reads the ledger: it never goes online or triggers a sync, and `freshness` in the output says when the data was last synced. See [docs/development/cli.md](docs/development/cli.md) (in Chinese) for every option and exit code.
 
 ## Supported tools
 
@@ -127,14 +94,38 @@ Every command except `sync` only reads the ledger: it never goes online or trigg
 | Trae / Trae CN | trae | Experimental, synthetic-only | JSONL id semantics unconfirmed |
 | Zed | zed | Experimental, synthetic-only | payload may be a zstd BLOB |
 
-Verified = checked against real logs (field by field by hand, against the client's own reported totals, or by reconciling with the ledger); these checks were first run on the legacy tool, and the desktop app then matched the legacy tool field for field on the same real logs. Real samples, pending verification = real logs exist but have too little usage or nothing to compare against. Experimental = verified against synthetic samples, still waiting for real-log acceptance; real samples are welcome. Field meanings and known limitations are in the [adapter contract](docs/development/adapters.md) and [log field facts](docs/development/log-schemas.yaml).
+Verified = checked against real logs (field by field by hand, against the client's own reported totals, or by reconciling with the ledger). Real samples, pending verification = real logs exist but have too little usage or nothing to compare against. Experimental = verified against synthetic samples, still waiting for real-log acceptance; real samples are welcome. Field meanings and known limitations are in the [adapter contract](docs/development/adapters.md) and [log field facts](docs/development/log-schemas.yaml).
 
-## Data and privacy
+## Install
 
-- **Reads local logs only**: Token Lens reads and parses the tools' logs on this computer and extracts only usage metadata (the four token kinds, model, time, session, project path). Prompts, replies, code and credentials in those logs are never written to the ledger or sent anywhere, and the tools' files are never modified.
-- **Data stays on this computer**: usage, preferences and the news cache live in a `data` folder under the system's application support directory: `%APPDATA%\Token Lens\Token Lens\data` on Windows, `~/Library/Application Support/io.github.rumoii.token-lens/data` on macOS. Delete that folder to remove everything.
-- **Only three things use the network**: AI news, while it is on, refreshes its sources on the schedule above; clicking "更新汇率" (Update rate) in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [docs/development/news.md](docs/development/news.md); the update check is described in [docs/development/update.md](docs/development/update.md).
-- No accounts, uploads, telemetry or third-party analytics. See the [privacy policy](PRIVACY.md) for details.
+Download the zip for your system from [Releases](https://github.com/rumoii/token-lens/releases/latest) and extract it; no Node, Python or other runtime is needed. `SHA256SUMS.txt` in the same release lets you check the download.
+
+- **Windows**: Windows 10 or 11, x64. Run `token-lens.exe` from the extracted folder; keep the exe, the DLLs and the `data/` folder together.
+- **macOS**: Apple silicon (M series), macOS 12 or later. Drag `Token Lens.app` into Applications, then open it.
+
+The app is not signed, so Windows SmartScreen or macOS stops it the first time. The [installation guide](INSTALL.en.md) explains how to allow it, check the download and uninstall.
+
+## Usage
+
+On first launch Token Lens lists the tools it found on this computer; it reads log contents only after you click "Start counting", and the first pass reads all of them. After that it syncs every time it opens and every 5 minutes while the window is open; "Sync usage" in the sidebar syncs on demand. Closing the window quits the app: there is no tray icon, background process or launch at login.
+
+Opening it again brings the existing window to the front.
+
+### Export and CLI
+
+Export, below the Breakdown page, saves the current filters and grouping as CSV or JSON in your Downloads folder. Projects appear by name only unless you check Include full project paths.
+
+`token-lens-cli` ships with the app: `token-lens-cli.exe` in the unzipped folder on Windows, `Token Lens.app/Contents/MacOS/token-lens-cli` on macOS. It reads the same ledger and prints one JSON object per command.
+
+```sh
+token-lens-cli status                          # ledger and last sync
+token-lens-cli summary --period week --compare # this week's usage and cost vs. last week
+token-lens-cli breakdown --by model            # split by model
+token-lens-cli sessions --sort cost --limit 10 # the 10 most expensive sessions
+token-lens-cli sync                            # sync once
+```
+
+Every command except `sync` only reads the ledger: it never goes online or triggers a sync, and `freshness` in the output says when the data was last synced. See [docs/development/cli.md](docs/development/cli.md) (in Chinese) for every option and exit code.
 
 ## How it works
 
@@ -144,16 +135,16 @@ Verified = checked against real logs (field by field by hand, against the client
 </picture>
 
 - The UI is Flutter. Collection, pricing and news refresh run in a Rust library shipped with the app and called in-process through flutter_rust_bridge; there is no local web server and no WebView.
-- Reading the same record again never counts it twice, and usage already recorded stays even after a client prunes its logs.
+- Reading the same record again never counts it twice, and usage already recorded stays even after a client prunes its logs. Every ledger column and invariant is described in [docs/development/ledger.md](docs/development/ledger.md) (in Chinese).
 - Amounts are stored as integer micro-dollars (USD × 10⁶); pricing rules are in [docs/development/pricing.md](docs/development/pricing.md).
 - Per-request timings are stored separately and never change usage or cost; definitions are in [docs/development/stats.md](docs/development/stats.md).
 
 | Directory | Contents |
 | --- | --- |
 | `app/` | The desktop app: Flutter UI (`app/lib/`) and Rust core (`app/rust/`) |
-| `docs/development/` | Adapter contracts, log fields, statistics and pricing specs, news sources |
-| `src/core/`, `dashboard/`, `desktop/`, `bin/` | The legacy Node/React tool, see [Legacy](#legacy-nodereact-tool) |
-| `scripts/`, `test/` | Legacy scripts and tests; `scripts/parity/` uses the legacy code to generate the desktop app's parity baselines |
+| `docs/development/` | Specs for the ledger, adapters, log fields, statistics, pricing, news, CLI and releases |
+| `docs/decisions/`, `docs/releases/` | Design decisions and release notes |
+| `scripts/` | Scripts for development runs, checks, demo data and release verification |
 
 ## Build from source
 
@@ -165,42 +156,32 @@ flutter pub get --enforce-lockfile
 flutter build windows --release   # or: flutter build macos --release
 ```
 
-The build ends up in `app/build/windows/x64/runner/Release/` (on macOS, `app/build/macos/Build/Products/Release/Token Lens.app`). Development runs must isolate both the test data directory and the log root. Checks, code generation and the release process are described in [app/README.md](app/README.md#开发与检查) (Chinese).
+The build ends up in `app/build/windows/x64/runner/Release/` (on macOS, `app/build/macos/Build/Products/Release/Token Lens.app`). Development runs must isolate both the test data directory and the log root; see the [contributing guide](CONTRIBUTING.en.md), and [app/README.md](app/README.md#开发与检查) (Chinese) for checks, code generation and releases.
 
-## Legacy Node/React tool
+## Upgrades and data
 
-The repository keeps the earlier tool: a Node CLI (`lens collect / summary / serve`) with a browser dashboard. Its ledger lives in `~/.token-lens`; the desktop app never opens that folder, so the two never interfere. To carry legacy data over to the desktop app, copy the ledger files as described under "运行与回退" (Running and rollback) in [app/README.md](app/README.md); to go back, close the desktop app and keep using the legacy tool.
-
-The legacy tool requires Node.js ≥ 24.21.0:
-
-```sh
-npm ci
-npm ci --prefix dashboard
-npm run dashboard:build
-npm start          # starts the local dashboard and prints its address (http://127.0.0.1:3456 unless that port is taken); open it in a browser
-```
-
-CLI usage: `node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>] [--port <port>]`. Always pass `--data-dir` when pointing anywhere other than a test directory. See [docs/archive/features.md](docs/archive/features.md) for the feature spec and `CLAUDE.md` for data-directory rules and test conventions.
+- To upgrade, close Token Lens and replace the program files with the new version (the contents of the extracted folder on Windows, `Token Lens.app` on macOS). Your usage data lives elsewhere and is not affected.
+- When a new version changes the ledger format, the first launch migrates it automatically and first saves a complete copy of the old ledger as `ledger-v<old format>-….db` in the data folder.
+- Once a newer version has opened the ledger, older versions refuse to open it. If you really need to go back, restore from that automatic copy as described under "运行与回退" (Running and rollback) in [app/README.md](app/README.md#运行与回退); do not just swap the old program back in.
+- To make your own backup, close Token Lens and copy the whole data folder (see [Data and privacy](#data-and-privacy)), including `ledger.db-wal` and `ledger.db-shm` next to `ledger.db`.
 
 ## Documentation
 
-The specifications are written in Simplified Chinese.
+- [Installation guide](INSTALL.en.md)
+- [Privacy policy](PRIVACY.md)
+- [Contributing guide](CONTRIBUTING.en.md), [adding a tool](docs/development/adding-a-source.md) (in Chinese)
+- [Security policy](SECURITY.md)
+- Development specs (in Chinese): [ledger contract](docs/development/ledger.md), [statistics and timing](docs/development/stats.md), [adapter contract](docs/development/adapters.md), [log field facts](docs/development/log-schemas.yaml), [pricing](docs/development/pricing.md), [news sources](docs/development/news.md), [update check](docs/development/update.md), [CLI and export](docs/development/cli.md), [desktop technical decisions](docs/development/desktop.md), [release process](docs/development/release.md)
+- [Design decisions](docs/decisions/README.md)
+- [Release notes](docs/releases/README.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-| Document | Description |
-| --- | --- |
-| [docs/development/desktop.md](docs/development/desktop.md) | Desktop app technical decisions |
-| [docs/development/stats.md](docs/development/stats.md) | Statistics, timing and UI rules |
-| [docs/development/news.md](docs/development/news.md) | News sources and network boundary |
-| [docs/development/update.md](docs/development/update.md) | Update check requests and boundary |
-| [docs/development/cli.md](docs/development/cli.md) | CLI and export output contract |
-| [docs/development/adapters.md](docs/development/adapters.md) | Adapter contract |
-| [docs/development/log-schemas.yaml](docs/development/log-schemas.yaml) | Log field facts |
-| [docs/development/pricing.md](docs/development/pricing.md) | Pricing contract |
-| [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | Contributing guide and getting started |
-| [docs/development/adding-a-source.md](docs/development/adding-a-source.md) | Adding a tool (in Chinese) |
-| [SECURITY.md](SECURITY.md) | Security policy |
-| [PRIVACY.md](PRIVACY.md) | Privacy policy |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party notices |
+## Data and privacy
+
+- **Reads local logs only**: Token Lens reads and parses the tools' logs on this computer and extracts only usage metadata (the four token kinds, model, time, session, project path). Prompts, replies, code and credentials in those logs are never written to the ledger or sent anywhere, and the tools' files are never modified.
+- **Data stays on this computer**: usage, preferences and the news cache live in a `data` folder under the system's application support directory: `%APPDATA%\Token Lens\Token Lens\data` on Windows, `~/Library/Application Support/io.github.rumoii.token-lens/data` on macOS. Delete that folder to remove everything.
+- **Only three things use the network**: AI news, while it is on, refreshes its sources on the schedule above; clicking "Update rate" in Settings fetches one USD/CNY exchange rate; and at most once a day the app asks GitHub whether a newer release exists (you can turn this off in Settings; a new version is only announced, never downloaded automatically). None of these requests carries an account, credentials or usage data. The source list and request rules are in [docs/development/news.md](docs/development/news.md); the update check is described in [docs/development/update.md](docs/development/update.md).
+- No accounts, uploads, telemetry or third-party analytics. See the [privacy policy](PRIVACY.md) for details.
 
 ## Contributing
 
@@ -214,6 +195,16 @@ Issues and pull requests are welcome; please read the [contributing guide](CONTR
     <img alt="Star history" src="https://api.star-history.com/svg?repos=rumoii/token-lens&type=Date" width="600">
   </picture>
 </a>
+
+## Acknowledgements
+
+Token Lens is built with [Flutter](https://flutter.dev/), [Rust](https://www.rust-lang.org/), [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge), [SQLite](https://sqlite.org/) (through [rusqlite](https://github.com/rusqlite/rusqlite)), [Tokio](https://tokio.rs/), [reqwest](https://github.com/seanmonstar/reqwest) and [ruzstd](https://github.com/KillingSpark/zstd-rs). Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The names and icons of the AI coding tools belong to their respective owners and are used only to identify each tool in the interface.
+
+## The name
+
+Every AI tool writes its own logs, leaving your usage scattered and hard to see as a whole. Token Lens pulls those fragments together, bringing them into focus like a lens—so you can see at a glance where your tokens went.
 
 ## License
 

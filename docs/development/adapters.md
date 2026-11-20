@@ -8,7 +8,7 @@
 
 ## 一、通用契约
 
-桌面版的适配器在 `app/rust/src/stats/adapters/`，每个来源一个文件，由 `mod.rs` 按来源分派。旧版 `src/core/adapters/` 的 `parse<X>(filePath) → AsyncIterable<Record>` 产出同样的字段；旧版已冻结，新来源只写进桌面版。每条记录的字段固定：
+桌面版的适配器在 `app/rust/src/stats/adapters/`，每个来源一个文件，由 `mod.rs` 按来源分派。旧版（已删除，标签 `legacy-node`）的 `src/core/adapters/` 产出同样的字段。每条记录的字段固定：
 
 ```
 record_key           稳定身份，不含任何 token 数
@@ -98,9 +98,9 @@ Qwen 的 `thoughtsTokens` 不能一律再加到输出。核验上游 `QwenLM/qwe
 - 认证映射依据同一上游 `utils/auth-type.ts:8-15`、`core/contentGenerator.ts:553-604`；`qwen/qwenContentGenerator.ts:25-43` 的 `QwenContentGenerator` 继承 OpenAI generator，`core/anthropicContentGenerator/usage.ts:44-64` 的 `buildAnthropicUsageMetadata` 保留完整 output 为 candidates，不另记 thoughts。
 - `tokenUsageService.ts:219-228` 的 `calculateTotalTokens` 在 API total 缺失或为 0 时回填 `input + output + thoughts`，所以已知认证不依赖 total 判断包含关系。未知/缺失认证保留兼容规则：仅在 rawInput、rawOutput 都已知、total 为正安全整数且 `total = rawInput + rawOutput` 时保留 rawOutput，否则相加。这里 rawInput 是扣缓存前的输入；不能把该默认分列回退称作已证实的上游语义。
 
-DSH 的「会话名前缀」是文件 stem 与生产会话 ID 的差异。`src/core/adapters/dsh.js:33-54` 取 `basename(file, '.json').replace(/^session-/, '')`，即 `session-<id>.json` 产生 `session_id=<id>`、`record_key=dsh|<id>`；无前缀时保留 stem，只剥开头一个前缀。身份不含 token、模型或时间。`record.identity` 对象只用于创建时刻与项目目录，不提供生产会话 ID。前缀来自文件名这一事实不等于已核验客户端原始 ID 的组成，上游文件名生成函数仍未确认。
+DSH 的「会话名前缀」是文件 stem 与生产会话 ID 的差异。旧版 `src/core/adapters/dsh.js:33-54` 取 `basename(file, '.json').replace(/^session-/, '')`，即 `session-<id>.json` 产生 `session_id=<id>`、`record_key=dsh|<id>`；无前缀时保留 stem，只剥开头一个前缀。身份不含 token、模型或时间。`record.identity` 对象只用于创建时刻与项目目录，不提供生产会话 ID。前缀来自文件名这一事实不等于已核验客户端原始 ID 的组成，上游文件名生成函数仍未确认。
 
-`scripts/audit/oracle/dsh.mjs` 的身份规则已对齐生产适配器：同用上述 basename 与一次剥前缀规则，也不采用字符串 identity，不再产生 `session_filename_prefix`。同会话多份累计快照仍按结束时间与文件路径取最新一份。L3 历史归档中的 `session_identity_difference` 不代表当前 oracle 行为；全零快照保留与生产过滤的差异独立于身份规则，不改变 token 合计。生产适配器及历史身份未改。
+旧版审计脚本 `scripts/audit/oracle/dsh.mjs`（已随旧版删除）的身份规则已对齐生产适配器：同用上述 basename 与一次剥前缀规则，也不采用字符串 identity，不再产生 `session_filename_prefix`。同会话多份累计快照仍按结束时间与文件路径取最新一份。L3 历史归档中的 `session_identity_difference` 不代表当前 oracle 行为；全零快照保留与生产过滤的差异独立于身份规则，不改变 token 合计。生产适配器及历史身份未改。
 
 `kind` 的判定：表/文件记录的是「整场结束后的汇总」→ `cumulative`；一条对应一次请求 → `event`。
 
@@ -195,7 +195,7 @@ MiMo Code 的第 4 条不适用：message 表的 assistant 消息都是事件（
 
 ## 六、对账状态（2026-10-18）
 
-工具：`node scripts/audit/reconcile.mjs --out <path>`。只读账本与日志，报告写到工作区外。
+工具：旧版的 `node scripts/audit/reconcile.mjs --out <path>`（已随旧版删除，见标签 `legacy-node`）。只读账本与日志，报告写到工作区外。
 
 它验的是**入库无损**：同一解析器把原始日志重放一遍，与账本逐条比 token / model / 项目归属。验不了**字段语义**——解析器与账本出自同一份代码，口径错了两边一起错。语义靠第五节式的逐字段手核。
 
