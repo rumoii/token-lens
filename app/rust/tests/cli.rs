@@ -49,6 +49,57 @@ fn error(out: Output, status: i32, code: &str) {
 }
 
 #[test]
+fn normal_cli_exit_flushes_runtime_logs() {
+    use fs2::FileExt;
+    use std::{
+        io::{BufRead, BufReader},
+        process::Stdio,
+    };
+
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let data = temp.path().join("data");
+    let logs = data.join("logs");
+    fs::create_dir(&home).unwrap();
+    fs::create_dir_all(&logs).unwrap();
+    let lock = fs::File::create(logs.join(".writer.lock")).unwrap();
+    FileExt::lock_exclusive(&lock).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_token-lens-cli"))
+        .arg("--data-dir")
+        .arg(&data)
+        .arg("sync")
+        .env("TOKEN_LENS_PREVIEW_HOME", &home)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut receipt = String::new();
+    BufReader::new(child.stdout.take().unwrap())
+        .read_line(&mut receipt)
+        .unwrap();
+    FileExt::unlock(&lock).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&receipt).unwrap()["command"],
+        "sync"
+    );
+    let logs = fs::read_dir(logs)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "log"))
+        .map(|path| fs::read_to_string(path).unwrap())
+        .collect::<Vec<_>>()
+        .join("");
+    assert!(logs.contains("end durationMs="), "{logs}");
+    assert!(logs.contains("phases "), "{logs}");
+}
+
+#[test]
 fn shortcut_summary_compares_full_calendar_months() {
     let temp = tempfile::tempdir().unwrap();
     let home = temp.path().join("home");

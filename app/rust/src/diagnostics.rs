@@ -4,20 +4,24 @@ use crate::stats::{
     ledger::{self, Ledger},
 };
 use chrono::{DateTime, Duration, Local, NaiveDate};
-use fs2::FileExt;
 use serde_json::Value;
 use std::{
     fs::{self, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
-    sync::Mutex,
-    time::{Duration as StdDuration, Instant},
+    time::Duration as StdDuration,
 };
 
 const LOG_LIMIT: u64 = 5 * 1024 * 1024;
 const EXPORT_LIMIT: usize = 8 * 1024 * 1024;
 const LIMIT_MARK: &str = "已达上限";
-static WRITER: Mutex<()> = Mutex::new(());
+pub(crate) const LOG_FLUSH_TIMEOUT: StdDuration = StdDuration::from_millis(200);
+
+mod writer;
+
+pub(crate) fn flush_runtime_log(timeout: StdDuration) -> bool {
+    writer::flush(timeout)
+}
 
 fn short_message(text: &str, limit: usize) -> String {
     text.split(['\r', '\n'])
@@ -438,84 +442,7 @@ impl RuntimeLog {
         module: &str,
         message: &str,
     ) -> std::io::Result<()> {
-        let deadline = Instant::now() + StdDuration::from_millis(200);
         if !self.data.is_absolute() {
-            return Ok(());
-        }
-        let _guard = loop {
-            if Instant::now() >= deadline {
-                return Ok(());
-            }
-            match WRITER.try_lock() {
-                Ok(guard) => break guard,
-                Err(std::sync::TryLockError::Poisoned(error)) => break error.into_inner(),
-                // A fixed sleep lets one writer repeatedly reacquire this short-lived
-                // mutex while its peers miss every handoff and exhaust their budgets.
-                Err(std::sync::TryLockError::WouldBlock) => std::thread::yield_now(),
-            }
-        };
-        let directory = self.data.join("logs");
-        checked_directory(&directory)?;
-        let lock_path = directory.join(".writer.lock");
-        if fs::symlink_metadata(&lock_path).is_ok() && !ordinary(&lock_path) {
-            return Ok(());
-        }
-        let lock = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(lock_path)?;
-        loop {
-            if Instant::now() >= deadline {
-                return Ok(());
-            }
-            match FileExt::try_lock_exclusive(&lock) {
-                Ok(()) => break,
-                Err(error)
-                    if error.kind() == std::io::ErrorKind::WouldBlock
-                        || error.raw_os_error() == fs2::lock_contended_error().raw_os_error() =>
-                {
-                    std::thread::sleep(
-                        StdDuration::from_millis(5)
-                            .min(deadline.saturating_duration_since(Instant::now())),
-                    );
-                }
-                Err(error) => return Err(error),
-            }
-        }
-        // Only ordinary, exactly named daily log files are eligible; no recursive deletion.
-        for entry in fs::read_dir(&directory)?.flatten() {
-            if ordinary(&entry.path())
-                && log_date(&entry.path())
-                    .is_some_and(|day| day < date.date_naive() - Duration::days(6))
-            {
-                let _ = fs::remove_file(entry.path());
-            }
-        }
-        let path = directory.join(format!("token-lens-{}.log", date.format("%Y-%m-%d")));
-        if fs::symlink_metadata(&path).is_ok() && !ordinary(&path) {
-            return Ok(());
-        }
-        let mut file = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(path)?;
-        let length = file.metadata()?.len();
-        file.seek(SeekFrom::End(-(length.min(256) as i64)))?;
-        let mut tail = Vec::new();
-        file.read_to_end(&mut tail)?;
-        if length <= LOG_LIMIT
-            && String::from_utf8_lossy(&tail)
-                .lines()
-                .last()
-                .is_some_and(|line| {
-                    line.split_whitespace()
-                        .skip(3)
-                        .eq(["WARN", "runtime", LIMIT_MARK])
-                })
-        {
             return Ok(());
         }
         let level = match level {
@@ -534,42 +461,11 @@ impl RuntimeLog {
             clean(module),
             clean(message)
         );
-        let marker = format!(
-            "{} WARN runtime {LIMIT_MARK}\n",
-            date.format("%Y-%m-%d %H:%M:%S%.3f %:z")
-        );
-        // Reserve the complete marker plus an optional preceding newline on every write.
-        if length + line.len() as u64 + marker.len() as u64 + 1 > LOG_LIMIT {
-            let capacity = LOG_LIMIT - marker.len() as u64 - 1;
-            if length > capacity {
-                let mut cutoff = capacity;
-                let mut byte = [0];
-                while cutoff > 0 {
-                    file.seek(SeekFrom::Start(cutoff))?;
-                    file.read_exact(&mut byte)?;
-                    if byte[0] & 0xc0 != 0x80 {
-                        break;
-                    }
-                    cutoff -= 1;
-                }
-                file.set_len(cutoff)?;
-            }
-            let mut last = *b"\n";
-            if file.metadata()?.len() > 0 {
-                file.seek(SeekFrom::End(-1))?;
-                file.read_exact(&mut last)?;
-            }
-            if last[0] != b'\n' {
-                file.seek(SeekFrom::End(0))?;
-                file.write_all(b"\n")?;
-            }
-            file.seek(SeekFrom::End(0))?;
-            file.write_all(marker.as_bytes())?;
-        } else {
-            file.seek(SeekFrom::End(0))?;
-            file.write_all(line.as_bytes())?;
-        }
-        Ok(())
+        writer::submit(writer::LogLine {
+            directory: self.data.join("logs"),
+            date,
+            text: (line.len() as u64 <= LOG_LIMIT).then(|| line.into_boxed_str()),
+        })
     }
     fn sanitize(&self, text: &str) -> String {
         // Preserve the complete home until it is replaced; secret filtering can cut paths.
@@ -813,6 +709,7 @@ impl RuntimeLog {
         let mut text = sanitize(&text);
         let mut budget = EXPORT_LIMIT.saturating_sub(text.len().saturating_add(256));
         let mut skipped = 0_u64;
+        let _ = flush_runtime_log(LOG_FLUSH_TIMEOUT);
         let log_dir = self.data.join("logs");
         if (startup.is_none() || self.data.is_absolute()) && checked_existing_directory(&log_dir) {
             let entries = match fs::read_dir(&log_dir) {

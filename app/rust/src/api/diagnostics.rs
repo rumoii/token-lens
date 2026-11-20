@@ -68,6 +68,7 @@ pub fn runtime_exit(data_dir: String, logs_home: Option<String>) {
     }
     RuntimeLog::new(Path::new(&data_dir), logs_home.as_deref().map(Path::new))
         .write("INFO", "app", "exit");
+    let _ = diagnostics::flush_runtime_log(diagnostics::LOG_FLUSH_TIMEOUT);
 }
 
 pub fn write_runtime_error(

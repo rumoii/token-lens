@@ -1,5 +1,12 @@
 use super::*;
 use crate::stats::{clock::Clock, ingest::Environment, ledger::Ledger};
+use fs2::FileExt;
+use std::time::Instant;
+use writer::WRITER;
+
+fn wait_for_logs() {
+    assert!(flush_runtime_log(StdDuration::from_secs(5)));
+}
 
 #[test]
 fn s6a_second_news_client_reports_already_running() {
@@ -317,6 +324,7 @@ fn integration_fix2_v5_open_is_quiet_and_migration_is_logged() {
     for _ in 0..2 {
         drop(Ledger::open(&path, Clock::System).unwrap());
     }
+    wait_for_logs();
     let text = fs::read_to_string(temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -368,6 +376,7 @@ fn integration_fix1_sensitive_home_is_private_in_logs_and_export() {
         Local::now().format("%Y-%m-%d")
     ));
     // Also cover exporting a log written before this sanitization order was fixed.
+    wait_for_logs();
     writeln!(
         OpenOptions::new().append(true).open(&daily).unwrap(),
         "legacy {native}/old.dart:12:3 sk-PRIVATE_OLD"
@@ -451,6 +460,7 @@ fn e2_fix2_home_is_redacted_before_error_fields_are_shortened() {
             log.flutter_error("StateError", &value, "");
         }
     }
+    wait_for_logs();
     let text = fs::read_to_string(temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -468,9 +478,10 @@ fn e2_fix2_home_is_redacted_before_error_fields_are_shortened() {
 }
 
 #[test]
-fn e2_fix2_in_process_lock_has_a_deadline() {
+fn diag_log_in_process_lock_does_not_delay_or_drop() {
     use std::sync::mpsc;
-    if run_lock_test_in_child("diagnostics::tests::e2_fix2_in_process_lock_has_a_deadline") {
+    if run_lock_test_in_child("diagnostics::tests::diag_log_in_process_lock_does_not_delay_or_drop")
+    {
         return;
     }
     let temp = tempfile::tempdir().unwrap();
@@ -480,10 +491,11 @@ fn e2_fix2_in_process_lock_has_a_deadline() {
     let worker_log = log.clone();
     let worker = std::thread::spawn(move || {
         let started = Instant::now();
-        worker_log.write("INFO", "test", "must be dropped");
+        worker_log.write("INFO", "test", "retained under contention");
         send.send(started.elapsed()).unwrap();
     });
     let returned = receive.recv_timeout(StdDuration::from_millis(450));
+    let directory_exists_while_locked = temp.path().join("logs").exists();
     drop(guard);
     worker.join().unwrap();
     assert!(
@@ -491,15 +503,251 @@ fn e2_fix2_in_process_lock_has_a_deadline() {
         "logging waited indefinitely for the process mutex"
     );
     assert!(returned.unwrap() < StdDuration::from_millis(400));
-    assert!(!temp.path().join("logs").exists());
+    assert!(!directory_exists_while_locked);
     log.write("INFO", "test", "recovered");
+    wait_for_logs();
     let text = fs::read_to_string(temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
     )))
     .unwrap();
     assert!(text.contains("recovered"));
-    assert!(!text.contains("must be dropped"));
+    assert_eq!(text.matches("retained under contention").count(), 1);
+}
+
+#[test]
+fn diag_log_concurrent_writes_survive_a_stalled_writer() {
+    if run_lock_test_in_child(
+        "diagnostics::tests::diag_log_concurrent_writes_survive_a_stalled_writer",
+    ) {
+        return;
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let log = RuntimeLog::new(temp.path(), None);
+    let now = Local::now();
+    let guard = WRITER.lock().unwrap_or_else(|error| error.into_inner());
+    let (finished, completions) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        for worker in 0..8 {
+            let log = &log;
+            let finished = finished.clone();
+            scope.spawn(move || {
+                for line in 0..4 {
+                    log.write_at(now, "INFO", "parallel", &format!("{worker}/{line}"));
+                }
+                finished.send(()).unwrap();
+            });
+        }
+        let started = Instant::now();
+        let deadline = started + StdDuration::from_secs(3);
+        let finished_while_locked = (0..8).all(|_| {
+            completions
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .is_ok()
+        });
+        std::thread::sleep(StdDuration::from_millis(250).saturating_sub(started.elapsed()));
+        drop(guard);
+        assert!(finished_while_locked);
+    });
+    wait_for_logs();
+    let text = fs::read_to_string(
+        temp.path()
+            .join(format!("logs/token-lens-{}.log", now.format("%Y-%m-%d"))),
+    )
+    .unwrap();
+    let lines: Vec<_> = text
+        .lines()
+        .filter_map(|line| line.split_once(" INFO parallel ").map(|(_, entry)| entry))
+        .collect();
+    assert_eq!(lines.len(), 32, "{text}");
+    for worker in 0..8 {
+        let prefix = format!("{worker}/");
+        assert_eq!(
+            lines
+                .iter()
+                .filter_map(|line| line.strip_prefix(&prefix))
+                .collect::<Vec<_>>(),
+            ["0", "1", "2", "3"]
+        );
+    }
+}
+
+#[test]
+fn diag_log_runtime_exit_flushes_before_returning() {
+    let temp = tempfile::tempdir().unwrap();
+    let log = RuntimeLog::new(temp.path(), None);
+    for n in 0..32 {
+        log.write("INFO", "test", &format!("before exit #{n}"));
+    }
+    crate::api::diagnostics::runtime_exit(temp.path().to_str().unwrap().into(), None);
+    let mut paths: Vec<_> = fs::read_dir(temp.path().join("logs"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| log_date(path).is_some())
+        .collect();
+    paths.sort();
+    let text = paths
+        .iter()
+        .map(|path| fs::read_to_string(path).unwrap())
+        .collect::<String>();
+    assert_eq!(text.matches(" INFO test before exit #").count(), 32);
+    assert!(text.ends_with(" INFO app exit\n"));
+}
+
+#[test]
+fn diag_log_queue_byte_budget_includes_pending_batches() {
+    if run_lock_test_in_child(
+        "diagnostics::tests::diag_log_queue_byte_budget_includes_pending_batches",
+    ) {
+        return;
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let directory = temp.path().join("logs");
+    let now = Local::now();
+    let text = format!("{}\n", "x".repeat(4 * 1024 * 1024 - 1)).into_boxed_str();
+    let guard = WRITER.lock().unwrap_or_else(|error| error.into_inner());
+    for days in (0..4).rev() {
+        writer::submit(writer::LogLine {
+            directory: directory.clone(),
+            date: now - Duration::days(days),
+            text: Some(text.clone()),
+        })
+        .unwrap();
+    }
+    drop(guard);
+    wait_for_logs();
+    let first = directory.join(format!(
+        "token-lens-{}.log",
+        (now - Duration::days(3)).format("%Y-%m-%d")
+    ));
+    let todays = directory.join(format!("token-lens-{}.log", now.format("%Y-%m-%d")));
+    assert!(!todays.exists());
+    assert_eq!(
+        fs::read_dir(&directory)
+            .unwrap()
+            .flatten()
+            .filter(|entry| log_date(&entry.path()).is_some())
+            .count(),
+        3
+    );
+    assert!(fs::read_to_string(first)
+        .unwrap()
+        .contains(" WARN runtime dropped 1 runtime log lines (queue full)"));
+}
+
+#[cfg(any(windows, unix))]
+#[test]
+fn diag_log_skips_linked_directories_lock_files_and_daily_logs() {
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink as link_path;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink as link_dir;
+    #[cfg(windows)]
+    use std::os::windows::fs::symlink_dir as link_dir;
+    #[cfg(windows)]
+    use std::os::windows::fs::symlink_file as link_path;
+
+    let temp = tempfile::tempdir().unwrap();
+    let destination = temp.path().join("destination");
+    fs::create_dir(&destination).unwrap();
+    let data = temp.path().join("data");
+    link_dir(&destination, &data).unwrap();
+    let log = RuntimeLog::new(&data, None);
+    log.write("INFO", "test", "blocked at a linked ancestor");
+    wait_for_logs();
+    assert_eq!(fs::read_dir(&destination).unwrap().count(), 0);
+
+    let log = RuntimeLog::new(temp.path(), None);
+    let directory = temp.path().join("logs");
+    fs::create_dir(&directory).unwrap();
+    let sentinel = destination.join("sentinel");
+    fs::write(&sentinel, "untouched\n").unwrap();
+    let lock = directory.join(".writer.lock");
+    link_path(&sentinel, &lock).unwrap();
+    log.write("INFO", "test", "blocked at a linked lock file");
+    wait_for_logs();
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+    fs::remove_file(lock).unwrap();
+
+    let now = Local::now();
+    let daily = directory.join(format!("token-lens-{}.log", now.format("%Y-%m-%d")));
+    let expired = directory.join(format!(
+        "token-lens-{}.log",
+        (now - Duration::days(8)).format("%Y-%m-%d")
+    ));
+    link_path(&sentinel, &daily).unwrap();
+    link_path(&sentinel, &expired).unwrap();
+    log.write_at(now, "INFO", "test", "blocked at a linked daily file");
+    wait_for_logs();
+    assert!(fs::symlink_metadata(expired).unwrap().is_symlink());
+    assert_eq!(fs::read_to_string(sentinel).unwrap(), "untouched\n");
+}
+
+#[test]
+fn diag_log_full_queue_warns_after_another_process_unlocks() {
+    use std::io::{BufRead, BufReader};
+    use std::process::{Command, Stdio};
+
+    const NAME: &str =
+        "diagnostics::tests::diag_log_full_queue_warns_after_another_process_unlocks";
+    const HOLDER: &str = "TOKEN_LENS_DIAG_LOG_LOCK_HOLDER";
+    if let Some(path) = std::env::var_os(HOLDER) {
+        let lock = OpenOptions::new().write(true).open(path).unwrap();
+        FileExt::try_lock_exclusive(&lock).unwrap();
+        println!("diagnostic lock acquired");
+        std::io::stdin().read_to_end(&mut Vec::new()).unwrap();
+        return;
+    }
+    if run_lock_test_in_child(NAME) {
+        return;
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let log = RuntimeLog::new(temp.path(), None);
+    let directory = temp.path().join("logs");
+    fs::create_dir(&directory).unwrap();
+    let lock = directory.join(".writer.lock");
+    fs::File::create(&lock).unwrap();
+    let mut holder = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", NAME, "--nocapture", "--quiet"])
+        .env(HOLDER, &lock)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdout = BufReader::new(holder.stdout.take().unwrap());
+    assert!(stdout
+        .by_ref()
+        .lines()
+        .any(|line| { line.unwrap().trim() == "diagnostic lock acquired" }));
+
+    let now = Local::now();
+    for n in 0..writer::QUEUE_LINES + 3 {
+        log.write_at(now, "INFO", "test", &format!("queued #{n}"));
+    }
+    assert!(!flush_runtime_log(StdDuration::from_millis(250)));
+    let daily = directory.join(format!("token-lens-{}.log", now.format("%Y-%m-%d")));
+    assert!(!daily.exists());
+    drop(holder.stdin.take());
+    assert!(holder.wait().unwrap().success());
+    wait_for_logs();
+
+    let text = fs::read_to_string(&daily).unwrap();
+    let lines: Vec<_> = text
+        .lines()
+        .filter_map(|line| line.split_once(" INFO test queued #").map(|(_, n)| n))
+        .map(|n| n.parse::<usize>().unwrap())
+        .collect();
+    assert_eq!(lines, (0..writer::QUEUE_LINES).collect::<Vec<_>>());
+    assert_eq!(
+        text.matches(" WARN runtime dropped 3 runtime log lines (queue full)")
+            .count(),
+        1
+    );
+    log.write_at(now, "INFO", "test", "still accepting");
+    wait_for_logs();
+    let text = fs::read_to_string(daily).unwrap();
+    assert!(text.ends_with(" INFO test still accepting\n"));
+    assert_eq!(text.matches(" WARN runtime dropped ").count(), 1);
 }
 
 #[test]
@@ -513,6 +761,7 @@ fn e2_fix2_short_file_lock_contention_retries_until_written() {
     let temp = tempfile::tempdir().unwrap();
     let log = RuntimeLog::new(temp.path(), None);
     log.write("INFO", "test", "initialize");
+    wait_for_logs();
     let lock = OpenOptions::new()
         .write(true)
         .open(temp.path().join("logs/.writer.lock"))
@@ -532,6 +781,7 @@ fn e2_fix2_short_file_lock_contention_retries_until_written() {
         result.is_ok(),
         "short contention was not retried: {result:?}"
     );
+    wait_for_logs();
     let text = fs::read_to_string(temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -557,6 +807,7 @@ fn e2_fix1_multiline_errors_and_non_frame_stack_are_omitted() {
         &format!("{}PRIVATE_LONG", "字".repeat(200)),
         "",
     );
+    wait_for_logs();
     let text = fs::read_to_string(temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -580,6 +831,7 @@ fn e2_fix1_contended_file_lock_has_a_deadline() {
     let temp = tempfile::tempdir().unwrap();
     let log = RuntimeLog::new(temp.path(), None);
     log.write("INFO", "test", "initialize");
+    wait_for_logs();
     let lock = OpenOptions::new()
         .write(true)
         .open(temp.path().join("logs/.writer.lock"))
@@ -668,6 +920,7 @@ fn e2_fix1_home_uri_encoded_and_mixed_paths_are_private_in_export() {
             "{redacted}"
         );
     }
+    wait_for_logs();
     fs::write(
         data.join(format!(
             "logs/token-lens-{}.log",
@@ -730,6 +983,7 @@ fn e2_fix1_export_only_reads_budgeted_newest_utf8_tail() {
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
     ));
+    wait_for_logs();
     let mut file = fs::File::create(path).unwrap();
     file.write_all(&[0xff]).unwrap(); // An obsolete, unreadable prefix must never enter the buffer.
     let block = "字".repeat(4096);
@@ -765,6 +1019,7 @@ fn e2_fix1_cap_includes_marker_bytes_and_keeps_utf8_valid() {
     let result = log.try_write(Local::now(), "INFO", "test", "over cap");
     assert!(result.is_ok(), "{result:?}");
     log.write("INFO", "test", "after cap");
+    wait_for_logs();
     assert!(fs::metadata(&path).unwrap().len() <= LOG_LIMIT);
     let text = fs::read_to_string(path).unwrap();
     assert_eq!(text.matches(LIMIT_MARK).count(), 1);
@@ -789,6 +1044,7 @@ fn e2_cap_text_in_a_business_message_does_not_stop_logging() {
     let log = RuntimeLog::new(temp.path(), None);
     log.write("ERROR", "flutter", "已达上限");
     log.write("INFO", "test", "still-writing");
+    wait_for_logs();
     let file = temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -812,6 +1068,7 @@ fn e2_sync_cancellation_records_terminal_event() {
         &std::sync::atomic::AtomicBool::new(true),
     );
     assert_eq!(result.unwrap_err().0, "cancelled");
+    wait_for_logs();
     let file = temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -826,6 +1083,7 @@ fn e2_flutter_error_excludes_sensitive_fields_and_redacts_path_forms() {
     let log = RuntimeLog::new(temp.path(), Some(&home));
     let marker = "E2_SECRET_ERROR_CONTENT";
     log.flutter_error("FormatException", &format!("parse failed prompt={marker}\nAuthorization: Bearer {marker}\napi_key={marker}\ntool arguments={marker}"), &format!("#0 {}", home.join("app.dart").display()));
+    wait_for_logs();
     let file = temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -857,6 +1115,7 @@ fn e2_daily_retention_cap_and_concurrency() {
         temp.path()
             .join(format!("logs/token-lens-{}.log", date.format("%Y-%m-%d")))
     };
+    wait_for_logs();
     assert!(!name(now - Duration::days(8)).exists());
     assert!(name(now - Duration::days(6)).exists());
     let workers: Vec<_> = (0..8)
@@ -872,6 +1131,7 @@ fn e2_daily_retention_cap_and_concurrency() {
     for worker in workers {
         worker.join().unwrap();
     }
+    wait_for_logs();
     let text = fs::read_to_string(name(now)).unwrap();
     assert_eq!(
         text.lines()
@@ -883,12 +1143,14 @@ fn e2_daily_retention_cap_and_concurrency() {
     fs::write(name(now), "a".repeat(5 * 1024 * 1024)).unwrap();
     log.write("WARN", "test", "must-not-append");
     log.write("ERROR", "test", "must-not-append-either");
+    wait_for_logs();
     let text = fs::read_to_string(name(now)).unwrap();
     assert_eq!(text.matches("已达上限").count(), 1);
     assert!(!text.contains("must-not-append"));
     fs::write(name(now), "a".repeat(5 * 1024 * 1024 - 512)).unwrap();
     log.write("INFO", "test", &"x".repeat(1024));
     log.write("INFO", "test", "small-after-cap");
+    wait_for_logs();
     let text = fs::read_to_string(name(now)).unwrap();
     assert_eq!(text.matches("已达上限").count(), 1);
     assert!(!text.contains("small-after-cap"));
@@ -996,6 +1258,7 @@ fn e2_export_truncates_latest_logs_and_marks_exact_bytes() {
     let ledger = Ledger::open(&temp.path().join("ledger.db"), Clock::System).unwrap();
     let log = RuntimeLog::new(temp.path(), Some(&home));
     let today = Local::now();
+    wait_for_logs();
     fs::create_dir_all(temp.path().join("logs")).unwrap();
     for offset in [1, 0] {
         fs::write(
@@ -1044,6 +1307,7 @@ fn f1_cancelled_sync_is_one_info_and_other_errors_stay_errors() {
     let log = RuntimeLog::new(temp.path(), Some(&home));
     let result: Result<(), String> = result.map(|_| ()).map_err(|error| error.to_string());
     assert_eq!(log.ffi("sync", result).unwrap_err(), "cancelled");
+    wait_for_logs();
     let file = temp.path().join(format!(
         "logs/token-lens-{}.log",
         Local::now().format("%Y-%m-%d")
@@ -1056,6 +1320,7 @@ fn f1_cancelled_sync_is_one_info_and_other_errors_stay_errors() {
     assert_eq!(cancelled.len(), 1, "{text}");
     assert!(cancelled[0].contains("INFO"), "{text}");
     log.ffi::<()>("sync", Err("closed".into())).unwrap_err();
+    wait_for_logs();
     let text = fs::read_to_string(file).unwrap();
     assert!(
         text.lines().any(|line| line.contains("ERROR")

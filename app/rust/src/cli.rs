@@ -440,7 +440,7 @@ pub fn run(args: impl Iterator<Item = OsString>) -> u8 {
     let result = Args::parse(args)
         .and_then(execute)
         .and_then(|(doc, pretty)| Ok(output::encode(&doc, pretty)?));
-    match result {
+    let exit = match result {
         Ok(bytes) => {
             if io::stdout().lock().write_all(&bytes).is_ok() {
                 0
@@ -453,7 +453,9 @@ pub fn run(args: impl Iterator<Item = OsString>) -> u8 {
             let _ = writeln!(io::stderr().lock(), "{doc}");
             exit
         }
-    }
+    };
+    let _ = crate::diagnostics::flush_runtime_log(std::time::Duration::from_secs(2));
+    exit
 }
 
 #[cfg(test)]

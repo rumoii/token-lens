@@ -930,6 +930,9 @@ mod tests {
             &AtomicBool::new(false),
         )
         .unwrap();
+        assert!(crate::diagnostics::flush_runtime_log(
+            std::time::Duration::from_secs(5)
+        ));
         let log = std::fs::read_dir(data.join("logs"))
             .unwrap()
             .map(|entry| entry.unwrap().path())
