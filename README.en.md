@@ -196,14 +196,15 @@ The specifications are written in Simplified Chinese.
 | [specs/adapters.md](specs/adapters.md) | Adapter contract |
 | [specs/log-schemas.yaml](specs/log-schemas.yaml) | Log field facts |
 | [specs/pricing.md](specs/pricing.md) | Pricing contract |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributing guide |
+| [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | Contributing guide and getting started |
+| [docs/adding-a-source.md](docs/adding-a-source.md) | Adding a tool (in Chinese) |
 | [SECURITY.md](SECURITY.md) | Security policy |
 | [PRIVACY.md](PRIVACY.md) | Privacy policy |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party notices |
 
 ## Contributing
 
-Issues and pull requests are welcome; please read the [contributing guide](CONTRIBUTING.md) first. Reports of log formats that don't match, and real log samples for the experimental tools, are especially helpful; a sample only needs the usage-related fields, so remove prompts, replies, paths and account details before sharing it.
+Issues and pull requests are welcome; please read the [contributing guide](CONTRIBUTING.en.md) first. Reports of log formats that don't match, and real log samples for the experimental tools, are especially helpful; a sample only needs the usage-related fields, so remove prompts, replies, paths and account details before sharing it.
 
 ## Star history
 

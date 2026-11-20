@@ -194,7 +194,8 @@ CLI 用法：`node bin/lens.js [collect|summary|reprice|serve] [--data-dir <dir>
 | [specs/adapters.md](specs/adapters.md) | 适配器契约 |
 | [specs/log-schemas.yaml](specs/log-schemas.yaml) | 日志字段事实 |
 | [specs/pricing.md](specs/pricing.md) | 定价契约 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南和开发快速开始 |
+| [docs/adding-a-source.md](docs/adding-a-source.md) | 新增一个工具来源 |
 | [SECURITY.md](SECURITY.md) | 安全政策 |
 | [PRIVACY.md](PRIVACY.md) | 隐私说明 |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | 第三方声明 |
