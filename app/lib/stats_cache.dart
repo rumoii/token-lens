@@ -57,6 +57,8 @@ final class CachedStatsGateway
 
   StatsProgressGateway? get progressGateway =>
       _inner is StatsProgressGateway ? _inner as StatsProgressGateway : null;
+  StatsMiniGateway? get miniGateway =>
+      _inner is StatsMiniGateway ? _inner as StatsMiniGateway : null;
   StatsUsageExporter? get usageExporter =>
       _inner is StatsUsageExporter ? _inner as StatsUsageExporter : null;
   StatsSessionQueryGateway? get sessionQueryGateway =>

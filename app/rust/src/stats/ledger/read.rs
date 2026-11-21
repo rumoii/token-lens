@@ -77,6 +77,11 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
             }
         }
     }
+    for (name, comparison) in [("observedMin", ">="), ("observedMax", "<=")] {
+        if let Some(instant) = filter[name].as_str() {
+            boundaries.push((comparison, instant.to_owned()));
+        }
+    }
     if !boundaries.is_empty() {
         let from = boundaries
             .iter()
@@ -84,7 +89,7 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
             .map(|(_, value)| value.clone());
         let to = boundaries
             .iter()
-            .find(|(op, _)| *op == "<")
+            .find(|(op, _)| *op == "<" || *op == "<=")
             .map(|(_, value)| value.clone());
         let indexed = ledger.use_observed_index(from, to)?;
         for (comparison, boundary) in boundaries {
@@ -319,7 +324,11 @@ impl Ledger {
             return Err(Error("INVALID_PARAM: pagination".into()));
         }
         // Count, thresholds and page must observe the same committed ledger.
-        let _snapshot = self.db.unchecked_transaction()?;
+        let _snapshot = self
+            .db
+            .is_autocommit()
+            .then(|| self.db.unchecked_transaction())
+            .transpose()?;
         let (mut clause, mut args) = scope(self, filter)?;
         if let Some(bucket) = filter["bucket"].as_str().filter(|s| !s.is_empty()) {
             let granularity = match bucket.len() {
@@ -533,6 +542,30 @@ const SESSION_START: &str = "(SELECT min(sort.observed_at) FROM usage_records so
 const SESSION_RECENT: &str = "(SELECT max(coalesce(sort.ended_at,sort.observed_at)) FROM usage_records sort INDEXED BY idx_usage_session WHERE sort.source=scoped.source AND sort.session_id=scoped.session_id AND +sort.active=1)";
 
 impl Ledger {
+    pub(in crate::stats) fn mini_hours(
+        &self,
+        filter: &Value,
+        midnight_ms: i64,
+    ) -> Result<Vec<Value>> {
+        let (clause, args) = scope(self, filter)?;
+        let midnight = midnight_ms.div_euclid(1000);
+        let hour = |column| format!("((unixepoch({column}) - {midnight}) / 3600)");
+        let observed = hour("observed_at");
+        let ended = hour("ended_at");
+        Ok(rows(
+            &self.db,
+            &format!(
+                "SELECT {observed} AS hour,{SUMS} FROM usage_records
+                WHERE {clause} AND (kind='event' OR (kind='cumulative' AND {observed}={ended}))
+                GROUP BY hour"
+            ),
+            &args,
+        )?
+        .into_iter()
+        .map(shape)
+        .collect())
+    }
+
     pub fn timeseries(&self, granularity: &str, filter: &Value) -> Result<Value> {
         self.time_buckets(granularity, None, filter)
     }

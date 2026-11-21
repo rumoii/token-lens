@@ -41,6 +41,36 @@ extension AppStringsContext on BuildContext {
 typedef StartupFailureCopy = ({String title, String body, List<String> steps});
 
 abstract class AppStrings {
+  String get miniWindow;
+  String get miniPin;
+  String get miniUnpin;
+  String get miniSettings;
+  String get miniExpand;
+  String miniEstimate(String amount);
+  String miniInterval(int seconds);
+  String miniUpdated(int age, int interval);
+  String get miniSyncFailed;
+  String get miniProjects;
+  String miniTopProjects(int count);
+  String get miniAllProjects;
+  String miniLatest(int count);
+  String miniMoreProjects(int count);
+  String get miniActiveModels;
+  String miniMoreModels(int count);
+  String miniApproxSpeed(String value);
+  String miniUntimedModel(String tool);
+  String miniOutput(String value);
+  String miniFirstToken(String seconds);
+  String miniHour(int hour);
+  String get miniNoUsage;
+  String get miniNoRequests;
+  String get miniNoModels;
+  String get miniHourlyUsage;
+  String get miniRefreshEvery;
+  String get miniProjectsShown;
+  String miniProjectsChoice(int count);
+  String get miniSwitchFailed;
+
   StartupFailureCopy startupFailureCopy(StartupFailure failure);
   String get startupOpenLogFolder;
   String get startupOpenAppFolder;

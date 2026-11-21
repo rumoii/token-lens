@@ -4,6 +4,7 @@ import 'l10n/app_strings.dart';
 import 'smooth_wheel.dart';
 import 'startup_failure_page.dart';
 import 'stats/stats_page.dart';
+import 'stats/mini/mini_window.dart';
 import 'stats/theme/palette.dart';
 import 'stats/widgets/primitives.dart';
 import 'stats/widgets/sidebar.dart';
@@ -13,6 +14,7 @@ class AppShell extends StatelessWidget {
   const AppShell({
     super.key,
     this.statsController,
+    this.miniWindow,
     this.failureCard,
     required this.news,
     this.openLink,
@@ -23,6 +25,7 @@ class AppShell extends StatelessWidget {
   });
 
   final StatsController? statsController;
+  final MiniWindow? miniWindow;
   final StartupFailureCard? failureCard;
   final Widget news;
   final Future<bool> Function(Uri)? openLink;
@@ -35,6 +38,7 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) => statsController != null
       ? StatsPage(
           controller: statsController!,
+          miniWindow: miniWindow,
           news: news,
           openLink: openLink,
           newsListenable: newsListenable,

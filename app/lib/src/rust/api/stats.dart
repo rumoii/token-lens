@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `for_cli`, `initialize`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -51,6 +51,12 @@ abstract class StatsClient implements RustOpaqueInterface {
     required String by,
     required StatsFilter filter,
     required int offsetMinutes,
+  });
+
+  Future<StatsMiniUsage> miniUsage({
+    required int localMidnightMs,
+    required int nowMs,
+    required List<String> excludeSources,
   });
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
@@ -800,6 +806,90 @@ class StatsMatrix {
           rows == other.rows &&
           unallocated == other.unallocated &&
           snapshot == other.snapshot;
+}
+
+class StatsMiniProject {
+  final String? key;
+  final int grossTokens;
+  final int? costMicros;
+  final List<StatsMiniTool> tools;
+
+  const StatsMiniProject({
+    this.key,
+    required this.grossTokens,
+    this.costMicros,
+    required this.tools,
+  });
+
+  @override
+  int get hashCode =>
+      key.hashCode ^
+      grossTokens.hashCode ^
+      costMicros.hashCode ^
+      tools.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsMiniProject &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          grossTokens == other.grossTokens &&
+          costMicros == other.costMicros &&
+          tools == other.tools;
+}
+
+class StatsMiniTool {
+  final String source;
+  final int grossTokens;
+
+  const StatsMiniTool({required this.source, required this.grossTokens});
+
+  @override
+  int get hashCode => source.hashCode ^ grossTokens.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsMiniTool &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          grossTokens == other.grossTokens;
+}
+
+class StatsMiniUsage {
+  final StatsTotals totals;
+  final List<StatsMiniProject> projects;
+  final List<int> hours;
+  final List<StatsGroup> activeModels;
+  final StatsRequests requests;
+
+  const StatsMiniUsage({
+    required this.totals,
+    required this.projects,
+    required this.hours,
+    required this.activeModels,
+    required this.requests,
+  });
+
+  @override
+  int get hashCode =>
+      totals.hashCode ^
+      projects.hashCode ^
+      hours.hashCode ^
+      activeModels.hashCode ^
+      requests.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsMiniUsage &&
+          runtimeType == other.runtimeType &&
+          totals == other.totals &&
+          projects == other.projects &&
+          hours == other.hours &&
+          activeModels == other.activeModels &&
+          requests == other.requests;
 }
 
 class StatsModelPrice {

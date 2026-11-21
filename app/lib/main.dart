@@ -22,6 +22,7 @@ import 'src/rust/api/stats.dart' as stats;
 import 'stats_controller.dart';
 import 'stats_gateway.dart';
 import 'stats/preferences.dart';
+import 'stats/mini/mini_window.dart';
 import 'stats/theme/palette.dart';
 import 'stats/widgets/primitives.dart';
 import 'stats/widgets/interface_scale.dart';
@@ -52,14 +53,22 @@ void main(List<String> args) {
     final version = args.isNotEmpty && args.last.startsWith(versionArg)
         ? args.last.substring(versionArg.length)
         : null;
-    runApp(TokenLensApp(executableVersion: version));
+    runApp(
+      TokenLensApp(
+        executableVersion: version,
+        miniPlatform: Platform.isWindows || Platform.isMacOS
+            ? DesktopMiniWindowPlatform()
+            : null,
+      ),
+    );
   }, _runtimeErrors.report);
 }
 
 class TokenLensApp extends StatefulWidget {
-  const TokenLensApp({super.key, this.executableVersion});
+  const TokenLensApp({super.key, this.executableVersion, this.miniPlatform});
 
   final String? executableVersion;
+  final MiniWindowPlatform? miniPlatform;
 
   @override
   State<TokenLensApp> createState() => _TokenLensAppState();
@@ -70,6 +79,7 @@ class _TokenLensAppState extends State<TokenLensApp>
   late final AppLifecycleListener _lifecycle;
   NewsController? _controller;
   StatsController? _statsController;
+  MiniWindow? _miniWindow;
   StartupFailure? _statsFailure;
   StartupFailure? _startupFailure;
   bool _previewDirectoriesMissing = false;
@@ -172,6 +182,13 @@ class _TokenLensAppState extends State<TokenLensApp>
       setState(() {
         _controller = controller;
         _statsController = statsController;
+        final platform = widget.miniPlatform;
+        if (statsController != null && platform != null) {
+          _miniWindow = MiniWindow(
+            controller: statsController,
+            platform: platform,
+          );
+        }
       });
       if (statsController == null) unawaited(controller.start());
       statsController?.addListener(_statsChanged);
@@ -277,6 +294,13 @@ class _TokenLensAppState extends State<TokenLensApp>
   Future<AppExitResponse> _exit() async {
     _closing = true;
     try {
+      await _miniWindow?.saveBeforeClose().timeout(
+        const Duration(milliseconds: 500),
+      );
+    } catch (_) {
+      // Window placement is optional at shutdown.
+    }
+    try {
       // The OS closes this process even if a disk operation cannot finish.
       await Future.wait([
         if (_controller != null) _controller!.shutdown(),
@@ -308,6 +332,7 @@ class _TokenLensAppState extends State<TokenLensApp>
     WidgetsBinding.instance.removeObserver(this);
     _closing = true;
     _lifecycle.dispose();
+    _miniWindow?.dispose();
     _controller?.dispose();
     _statsController?.removeListener(_statsChanged);
     _statsController?.dispose();
@@ -330,9 +355,24 @@ class _TokenLensAppState extends State<TokenLensApp>
       themeMode: themeMode,
       child: MaterialApp(
         title: 'Token Lens',
-        builder: (_, child) => LensInterfaceScale(
-          scale: prefs.uiScale,
-          child: AppLanguageScope(strings: strings, child: child!),
+        builder: (_, child) => CallbackShortcuts(
+          bindings: {
+            if (widget.miniPlatform != null)
+              SingleActivator(
+                LogicalKeyboardKey.keyW,
+                control: Platform.isWindows,
+                meta: Platform.isMacOS,
+                includeRepeats: false,
+              ): () => unawaited(
+                ServicesBinding.instance.exitApplication(
+                  AppExitType.cancelable,
+                ),
+              ),
+          },
+          child: LensInterfaceScale(
+            scale: _statsController?.miniMode == true ? 1 : prefs.uiScale,
+            child: AppLanguageScope(strings: strings, child: child!),
+          ),
         ),
         debugShowCheckedModeBanner: false,
         themeAnimationDuration:
@@ -353,6 +393,7 @@ class _TokenLensAppState extends State<TokenLensApp>
             : _controller != null
             ? AppShell(
                 statsController: _statsController,
+                miniWindow: _miniWindow,
                 openLink: _openLink,
                 failureCard: _statsFailure == null
                     ? null

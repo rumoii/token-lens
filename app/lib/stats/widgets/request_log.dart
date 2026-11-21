@@ -9,6 +9,7 @@ import '../../stats_gateway.dart';
 import '../logic/display.dart';
 import '../logic/format.dart';
 import '../logic/home_data.dart' show microsUsd;
+import '../logic/period.dart';
 import '../logic/tools.dart';
 import '../theme/palette.dart';
 import 'primitives.dart';
@@ -21,6 +22,87 @@ Map<String, String> requestSortNames(AppStrings strings) => {
   'ttft': strings.firstToken,
   'speed': strings.speed,
 };
+
+Map<String, String>? requestSessionQuery(
+  StatsRequest request,
+  StatsPeriod period,
+) => request.sessionId == null
+    ? null
+    : {
+        ...Uri.splitQueryString(period.query),
+        'source': request.source,
+        'session': request.sessionId!,
+      };
+
+Widget requestMetric(
+  BuildContext context,
+  StatsRequest r,
+  StatsRequestSlow? slow, {
+  required bool ttft,
+  bool mini = false,
+}) {
+  final p = LensPalette.of(context);
+  final n = ttft ? r.ttftMs?.toDouble() : r.speedTps ?? r.throughputTps;
+  final approx = !ttft && r.speedTps == null && r.throughputTps != null;
+  final isSlow =
+      r.scope == 'request' &&
+      n != null &&
+      (ttft
+          ? slow?.ttftMs != null && n >= slow!.ttftMs!
+          : r.speedTps != null &&
+                slow?.speedTps != null &&
+                n <= slow!.speedTps!);
+  final tool = toolOf(r.source).name;
+  final String? hint;
+  if (n == null) {
+    hint = ttft
+        ? r.source == 'codex' && r.status != null
+              ? context.strings.thisCodexRequestBeganWithATool
+              : context.strings.toolDidNotLogFirstTokenTime(tool)
+        : r.status != null && r.status != 'completed'
+        ? context.strings.thisRequestDidNotFinishNormallySo
+        : context.strings.toolDidNotLogGenerationTime(tool);
+  } else if (r.scope == 'turn') {
+    hint = context.strings.thisToolLogsTimingForAWhole;
+  } else if (approx) {
+    hint = context.strings.averageSpeedIncludesWait(tool);
+  } else {
+    hint = isSlow ? context.strings.slowerThan90OfRequestsHere : null;
+  }
+  final text = Text.rich(
+    TextSpan(
+      children: [
+        TextSpan(
+          text: n == null
+              ? '—'
+              : ttft
+              ? (mini
+                    ? context.strings.miniFirstToken(
+                        (n / 1000).toStringAsFixed(1),
+                      )
+                    : context.strings.secondsDuration(
+                        (n / 1000).toStringAsFixed(1),
+                      ))
+              : mini
+              ? (approx
+                    ? context.strings.miniApproxSpeed(n.toStringAsFixed(1))
+                    : context.strings.about0TokenS(n.toStringAsFixed(1)))
+              : n.toStringAsFixed(1),
+          style: p.text(
+            mini ? 11 : 12,
+            n == null
+                ? p.muted
+                : isSlow
+                ? p['warn']
+                : p.ink,
+          ),
+        ),
+        if (approx && !mini) TextSpan(text: '≈', style: p.text(10, p.muted)),
+      ],
+    ),
+  );
+  return hint == null ? text : Tooltip(message: hint, child: text);
+}
 
 class RequestLog extends StatefulWidget {
   const RequestLog({
@@ -172,58 +254,8 @@ class _RequestLogState extends State<RequestLog> {
     ),
   );
 
-  Widget metric(StatsRequest r, StatsRequestSlow? slow, {required bool ttft}) {
-    final n = ttft ? r.ttftMs?.toDouble() : r.speedTps ?? r.throughputTps;
-    final approx = !ttft && r.speedTps == null && r.throughputTps != null;
-    final isSlow =
-        r.scope == 'request' &&
-        n != null &&
-        (ttft
-            ? slow?.ttftMs != null && n >= slow!.ttftMs!
-            : r.speedTps != null &&
-                  slow?.speedTps != null &&
-                  n <= slow!.speedTps!);
-    final tool = toolOf(r.source).name;
-    final String? hint;
-    if (n == null) {
-      hint = ttft
-          ? r.source == 'codex' && r.status != null
-                ? context.strings.thisCodexRequestBeganWithATool
-                : context.strings.toolDidNotLogFirstTokenTime(tool)
-          : r.status != null && r.status != 'completed'
-          ? context.strings.thisRequestDidNotFinishNormallySo
-          : context.strings.toolDidNotLogGenerationTime(tool);
-    } else if (r.scope == 'turn') {
-      hint = context.strings.thisToolLogsTimingForAWhole;
-    } else if (approx) {
-      hint = context.strings.averageSpeedIncludesWait(tool);
-    } else {
-      hint = isSlow ? context.strings.slowerThan90OfRequestsHere : null;
-    }
-    final text = Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: n == null
-                ? '—'
-                : ttft
-                ? context.strings.secondsDuration((n / 1000).toStringAsFixed(1))
-                : n.toStringAsFixed(1),
-            style: p.text(
-              12,
-              n == null
-                  ? p.muted
-                  : isSlow
-                  ? p['warn']
-                  : p.ink,
-            ),
-          ),
-          if (approx) TextSpan(text: '≈', style: p.text(10, p.muted)),
-        ],
-      ),
-    );
-    return hint == null ? text : Tooltip(message: hint, child: text);
-  }
+  Widget metric(StatsRequest r, StatsRequestSlow? slow, {required bool ttft}) =>
+      requestMetric(context, r, slow, ttft: ttft);
 
   Widget tool(StatsRequest r) => Row(
     mainAxisSize: MainAxisSize.min,

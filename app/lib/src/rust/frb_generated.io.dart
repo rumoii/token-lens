@@ -152,6 +152,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  List<int> dco_decode_list_CastedPrimitive_i_64(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
@@ -190,6 +193,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<StatsLogDirectory> dco_decode_list_stats_log_directory(dynamic raw);
+
+  @protected
+  List<StatsMiniProject> dco_decode_list_stats_mini_project(dynamic raw);
+
+  @protected
+  List<StatsMiniTool> dco_decode_list_stats_mini_tool(dynamic raw);
 
   @protected
   List<StatsModelPrice> dco_decode_list_stats_model_price(dynamic raw);
@@ -375,6 +384,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsMatrix dco_decode_stats_matrix(dynamic raw);
+
+  @protected
+  StatsMiniProject dco_decode_stats_mini_project(dynamic raw);
+
+  @protected
+  StatsMiniTool dco_decode_stats_mini_tool(dynamic raw);
+
+  @protected
+  StatsMiniUsage dco_decode_stats_mini_usage(dynamic raw);
 
   @protected
   StatsModelPrice dco_decode_stats_model_price(dynamic raw);
@@ -650,6 +668,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
+  List<int> sse_decode_list_CastedPrimitive_i_64(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
@@ -692,6 +713,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<StatsLogDirectory> sse_decode_list_stats_log_directory(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsMiniProject> sse_decode_list_stats_mini_project(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StatsMiniTool> sse_decode_list_stats_mini_tool(
     SseDeserializer deserializer,
   );
 
@@ -939,6 +970,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsMatrix sse_decode_stats_matrix(SseDeserializer deserializer);
+
+  @protected
+  StatsMiniProject sse_decode_stats_mini_project(SseDeserializer deserializer);
+
+  @protected
+  StatsMiniTool sse_decode_stats_mini_tool(SseDeserializer deserializer);
+
+  @protected
+  StatsMiniUsage sse_decode_stats_mini_usage(SseDeserializer deserializer);
 
   @protected
   StatsModelPrice sse_decode_stats_model_price(SseDeserializer deserializer);
@@ -1272,6 +1312,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_CastedPrimitive_i_64(
+    List<int> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
@@ -1334,6 +1380,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_stats_log_directory(
     List<StatsLogDirectory> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_mini_project(
+    List<StatsMiniProject> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_mini_tool(
+    List<StatsMiniTool> self,
     SseSerializer serializer,
   );
 
@@ -1642,6 +1700,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_stats_matrix(StatsMatrix self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_mini_project(
+    StatsMiniProject self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_mini_tool(StatsMiniTool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_stats_mini_usage(
+    StatsMiniUsage self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stats_model_price(

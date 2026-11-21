@@ -112,6 +112,11 @@ class StatsController extends ChangeNotifier {
   }
 
   StatsHomeData? overview;
+  StatsMiniUsage? miniUsage;
+  DateTime? miniUpdatedAt;
+  bool miniMode = false, miniReadFailed = false;
+  int miniRevision = 0;
+  Future<void>? _miniRead;
   StatsSync? lastSync;
   String Function(AppStrings)? _error, _syncError;
   List<String> _warnings = const [];
@@ -366,10 +371,70 @@ class StatsController extends ChangeNotifier {
   void _startSyncTimer() {
     if (!_started || _closed) return;
     _timer ??= Timer.periodic(
-      const Duration(minutes: 5),
-      (_) => unawaited(sync(trigger: 'timer')),
+      Duration(seconds: miniMode ? preferences.mini.seconds : 300),
+      (_) {
+        if (_sync != null || _statusRead != null || _miniRead != null || busy) {
+          return;
+        }
+        unawaited(sync(trigger: 'timer'));
+      },
     );
   }
+
+  void _restartSyncTimer() {
+    if (_timer == null) return;
+    _timer!.cancel();
+    _timer = null;
+    _startSyncTimer();
+  }
+
+  Future<void> setMiniMode(bool value) async {
+    if (_closed || miniMode == value) return;
+    miniMode = value;
+    _restartSyncTimer();
+    _notify();
+    if (value) {
+      _stopPrefetch();
+      // A sync in flight will publish its own fresh snapshot.
+      if (_sync == null && _statusRead == null) await _refreshMini();
+    } else {
+      await _load();
+    }
+  }
+
+  bool get miniSyncFailed => phase == StatsSyncPhase.error || miniReadFailed;
+
+  Future<void> _refreshMini({bool synced = false}) =>
+      _miniRead ??= _readMini(synced: synced)
+          .whenComplete(() => _miniRead = null);
+
+  Future<void> _readMini({required bool synced}) async {
+    final reader = gateway.miniGateway;
+    if (reader == null || _closed) return;
+    final now = clock();
+    try {
+      final usage = await reader.miniUsage(now, hiddenTools.toList());
+      if (_closed) return;
+      miniUsage = usage;
+      miniReadFailed = false;
+      if (synced) {
+        miniUpdatedAt = now;
+        miniRevision++;
+      } else {
+        final finished = overview?.sources.lastRun?.finishedAt;
+        miniUpdatedAt ??= DateTime.tryParse(finished ?? '') ?? now;
+      }
+    } catch (_) {
+      if (!_closed) miniReadFailed = true;
+    }
+    _notify();
+  }
+
+  Future<void> _afterSync({required bool succeeded}) => miniMode
+      ? succeeded
+            ? _refreshMini(synced: true)
+            : Future.value()
+      : _load();
 
   Future<void> setPreferences(UiPreferences value) => _savePreferences(value);
 
@@ -384,8 +449,10 @@ class StatsController extends ChangeNotifier {
       _period = selected ?? value.period;
     }
     final newsChanged = value.newsEnabled != preferences.newsEnabled;
+    final cadenceChanged = value.mini.seconds != preferences.mini.seconds;
     final enteredApp = value.onboarded && !preferences.onboarded;
     preferences = value;
+    if (miniMode && cadenceChanged) _restartSyncTimer();
     if (newsChanged) _applyNewsPreference();
     final periodChanged =
         period.query != oldPeriod.query ||
@@ -671,6 +738,9 @@ class StatsController extends ChangeNotifier {
     warning = null;
     _notify();
     try {
+      // A first panel read may have started just before the user clicked retry.
+      if (_miniRead case final read?) await read;
+      if (_closed) return;
       final result = await gateway.sync(trigger: trigger);
       if (_closed) return;
       final wasFullSync = fullSyncRunning;
@@ -686,7 +756,7 @@ class StatsController extends ChangeNotifier {
           gateway.progressGateway != null) {
         _showSynced();
       }
-      await _load();
+      await _afterSync(succeeded: true);
     } catch (failure) {
       if (_closed) return;
       _stopProgress();
@@ -700,7 +770,7 @@ class StatsController extends ChangeNotifier {
         // A failed ingestion can still have committed earlier files.
         syncDiscoveryRevision++;
         ledgerVersion++;
-        await _load();
+        await _afterSync(succeeded: false);
       }
     } finally {
       _notify();
@@ -744,14 +814,14 @@ class StatsController extends ChangeNotifier {
         syncError = null;
         syncErrorKind = null;
         _warnings = run!.anomalies;
-        await _load();
+        await _afterSync(succeeded: true);
       } else if (run?.status == 'failed' || run?.status == 'abandoned') {
         // An external run may have committed files before failing.
         ledgerVersion++;
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
         _syncError = (strings) => strings.recentSyncIncomplete;
-        await _load();
+        await _afterSync(succeeded: false);
       } else if (clock().difference(started) >= const Duration(minutes: 2)) {
         phase = StatsSyncPhase.error;
         syncErrorKind = StatsSyncErrorKind.sync;
@@ -815,6 +885,7 @@ class StatsController extends ChangeNotifier {
     await gateway.shutdown();
     await _sync;
     await _statusRead;
+    await _miniRead;
     await _prefetchWork;
     await Future.wait(_reads.toList());
     await _onboardingRequired;

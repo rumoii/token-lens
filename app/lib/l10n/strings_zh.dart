@@ -2,6 +2,100 @@ part of 'app_strings.dart';
 
 final class ChineseStrings extends AppStrings {
   @override
+  String get miniWindow => '迷你窗口';
+
+  @override
+  String get miniPin => '置顶';
+
+  @override
+  String get miniUnpin => '取消置顶';
+
+  @override
+  String get miniSettings => '迷你窗口设置';
+
+  @override
+  String get miniExpand => '展开完整窗口';
+
+  @override
+  String miniEstimate(String amount) => '约 $amount';
+
+  @override
+  String miniInterval(int seconds) =>
+      seconds < 60 ? '$seconds 秒' : '${seconds ~/ 60} 分钟';
+
+  @override
+  String miniUpdated(int age, int interval) => age < 2
+      ? '刚刚更新 · 每 ${miniInterval(interval)}刷新'
+      : '${miniInterval(age)}前更新 · 每 ${miniInterval(interval)}刷新';
+
+  @override
+  String get miniSyncFailed => '同步失败，已保留先前的数据';
+
+  @override
+  String get miniProjects => '项目';
+
+  @override
+  String miniTopProjects(int count) => '前 $count 个项目';
+
+  @override
+  String get miniAllProjects => '全部项目';
+
+  @override
+  String miniLatest(int count) => '最近 $count 条';
+
+  @override
+  String miniMoreProjects(int count) => '其他 $count 个项目';
+
+  @override
+  String get miniActiveModels => '在用的模型 · 最近 5 分钟';
+
+  @override
+  String miniMoreModels(int count) => '另有 $count 个模型';
+
+  @override
+  String miniApproxSpeed(String value) => '≈ $value token/s';
+
+  @override
+  String miniUntimedModel(String tool) => '$tool 没在日志里记生成时间，这里显示最近 5 分钟的用量。';
+
+  @override
+  String miniOutput(String value) => '输出 $value';
+
+  @override
+  String miniFirstToken(String seconds) => '首字 $seconds 秒';
+
+  @override
+  String miniHour(int hour) => '$hour 点';
+
+  @override
+  String get miniNoUsage => '今天还没有用量';
+
+  @override
+  String get miniNoRequests => '今天还没有请求';
+
+  @override
+  String get miniNoModels => '最近 5 分钟没有在用的模型';
+
+  @override
+  String get miniHourlyUsage => '今天每小时用量';
+
+  @override
+  String get miniRefreshEvery => '刷新间隔';
+
+  @override
+  String get miniProjectsShown => '项目显示';
+
+  @override
+  String miniProjectsChoice(int count) => switch (count) {
+    -1 => '自动铺满',
+    0 => '全部',
+    _ => '前 $count 个',
+  };
+
+  @override
+  String get miniSwitchFailed => '切换窗口模式失败。';
+
+  @override
   StartupFailureCopy startupFailureCopy(
     StartupFailure failure,
   ) => switch (failure.code) {

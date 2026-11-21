@@ -36,6 +36,7 @@ class LensMenu extends StatefulWidget {
     double width = 220,
     double maxHeight = 300,
     bool alignRight = false,
+    bool scaleFromAnchor = false,
   }) {
     final overlay = Navigator.of(context, rootNavigator: true).overlay!;
     final bounds = overlay.context.findRenderObject()!;
@@ -47,13 +48,28 @@ class LensMenu extends StatefulWidget {
       barrierColor: LensPalette.transparent,
       animationStyle: MediaQuery.disableAnimationsOf(context)
           ? AnimationStyle.noAnimation
-          : const AnimationStyle(
-              duration: LensTokens.fast,
+          : AnimationStyle(
+              duration: scaleFromAnchor ? LensTokens.tip : LensTokens.fast,
               curve: LensTokens.ease,
             ),
       builder: (context) => CustomSingleChildLayout(
         delegate: _LensPopoverPosition(position, width, maxHeight, alignRight),
-        child: LensPopover(child: Builder(builder: builder)),
+        child: Builder(
+          builder: (context) {
+            final popover = LensPopover(child: Builder(builder: builder));
+            if (!scaleFromAnchor || MediaQuery.disableAnimationsOf(context)) {
+              return popover;
+            }
+            return ScaleTransition(
+              scale: Tween<double>(
+                begin: .95,
+                end: 1,
+              ).animate(ModalRoute.of(context)!.animation!),
+              alignment: alignRight ? Alignment.topRight : Alignment.topLeft,
+              child: popover,
+            );
+          },
+        ),
       ),
     );
   }

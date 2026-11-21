@@ -11,8 +11,11 @@ import 'logic/period.dart';
 import 'logic/format.dart';
 import 'logic/tool_order.dart';
 import 'logic/tools.dart';
+import 'mini/mini_panel.dart';
+import 'mini/mini_window.dart';
 import 'theme/palette.dart';
 import 'widgets/primitives.dart';
+import 'widgets/request_log.dart' show requestSessionQuery;
 import 'widgets/sidebar.dart';
 import 'home_page.dart';
 import 'detail_page.dart';
@@ -27,12 +30,14 @@ class StatsPage extends StatefulWidget {
   const StatsPage({
     super.key,
     required this.controller,
+    this.miniWindow,
     this.news,
     this.openLink,
     this.newsListenable,
     this.newsUnread,
   });
   final StatsController controller;
+  final MiniWindow? miniWindow;
   final Widget? news;
   final Future<bool> Function(Uri)? openLink;
   final Listenable? newsListenable;
@@ -51,6 +56,7 @@ class _StatsPageState extends State<StatsPage> {
   final _updateCard = GlobalKey();
   String page = 'home', query = '';
   Map<String, String> _sessionQuery = {};
+  int _restored = 0;
   bool get newsVisible =>
       widget.news != null && widget.controller.preferences.newsEnabled;
   @override
@@ -86,6 +92,30 @@ class _StatsPageState extends State<StatsPage> {
   }
 
   void manageHidden() => navigate('sources', {'filter': 'hidden'});
+
+  Future<void> _switchMini({bool enter = false, VoidCallback? restored}) async {
+    final window = widget.miniWindow;
+    if (window == null || window.switching) return;
+    try {
+      if (enter) {
+        await window.enter();
+      } else {
+        await window.exit();
+        if (!mounted) return;
+        setState(() => _restored++);
+        restored?.call();
+      }
+    } catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(exception: error, stack: stack),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.strings.miniSwitchFailed)),
+        );
+      }
+    }
+  }
 
   void openUpdate() {
     navigate('settings');
@@ -220,6 +250,13 @@ class _StatsPageState extends State<StatsPage> {
                   onPressed: c.busy ? null : () => unawaited(c.sync()),
                 ),
                 const Spacer(),
+                if (widget.miniWindow != null)
+                  LensIconButton(
+                    tooltip: context.strings.miniWindow,
+                    icon: Icons.picture_in_picture_alt_outlined,
+                    size: 'xs',
+                    onPressed: () => unawaited(_switchMini(enter: true)),
+                  ),
                 LensThemeToggle(
                   value: c.preferences.appearance,
                   onChanged: (value) => unawaited(
@@ -238,6 +275,39 @@ class _StatsPageState extends State<StatsPage> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.controller,
     builder: (context, _) {
+      final c = widget.controller;
+      if (widget.miniWindow case final window? when c.miniMode) {
+        final panel = MiniPanel(
+          controller: c,
+          window: window,
+          onExpand: () => unawaited(_switchMini()),
+          onProject: (project) => unawaited(
+            _switchMini(
+              restored: () {
+                navigate('detail', {
+                  'period': 'today',
+                  if (project == null)
+                    'missing': 'project'
+                  else
+                    'project': project,
+                });
+              },
+            ),
+          ),
+          onRequest: (request) {
+            final params = requestSessionQuery(
+              request,
+              const StatsPeriod('today'),
+            );
+            if (params != null) {
+              unawaited(
+                _switchMini(restored: () => navigate('sessions', params)),
+              );
+            }
+          },
+        );
+        return Scaffold(body: panel);
+      }
       if (page == 'news' && !newsVisible) {
         page = 'home';
         query = '';
@@ -250,7 +320,7 @@ class _StatsPageState extends State<StatsPage> {
       }
       final p = LensPalette.of(context);
       final narrow = MediaQuery.sizeOf(context).width < 768;
-      return FocusTraversalGroup(
+      final fullWindow = FocusTraversalGroup(
         policy: OrderedTraversalPolicy(),
         child: StatsOnboardingGate(
           controller: widget.controller,
@@ -421,6 +491,11 @@ class _StatsPageState extends State<StatsPage> {
             ),
           ),
         ),
+      );
+      if (_restored == 0) return fullWindow;
+      return ColoredBox(
+        color: p['surface-1'],
+        child: MiniReveal(key: ValueKey(_restored), child: fullWindow),
       );
     },
   );

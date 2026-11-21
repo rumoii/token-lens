@@ -491,11 +491,13 @@ class LensSegmented extends StatefulWidget {
     this.menu,
     this.anchors = const {},
     this.focusNodes = const {},
+    this.slideOnHover = false,
   });
   final Map<String, String> options;
   final String value, label;
   final ValueChanged<String> onChanged;
   final bool small;
+  final bool slideOnHover;
   final ({String option, Key anchor})? menu;
   final Map<String, Key> anchors;
   final Map<String, FocusNode> focusNodes;
@@ -529,6 +531,12 @@ class _LensSegmentedState extends State<LensSegmented>
       if (MediaQuery.disableAnimationsOf(context)) {
         step.stop();
         step.value = index.toDouble();
+      } else if (widget.slideOnHover) {
+        step.animateTo(
+          index.toDouble(),
+          duration: LensTokens.hover,
+          curve: LensTokens.ease,
+        );
       } else {
         step.animateWith(
           SpringSimulation(

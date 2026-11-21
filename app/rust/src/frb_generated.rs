@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 607196295;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1784058559;
 
 // Section: executor
 
@@ -979,6 +979,63 @@ fn wire__crate__api__stats__StatsClient_matrix_impl(
                         api_by,
                         api_filter,
                         api_offset_minutes,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__stats__StatsClient_mini_usage_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_mini_usage",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_local_midnight_ms = <i64>::sse_decode(&mut deserializer);
+            let api_now_ms = <i64>::sse_decode(&mut deserializer);
+            let api_exclude_sources = <Vec<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::mini_usage(
+                        &*api_that_guard,
+                        api_local_midnight_ms,
+                        api_now_ms,
+                        api_exclude_sources,
                     )?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -2118,6 +2175,18 @@ impl SseDecode for i64 {
     }
 }
 
+impl SseDecode for Vec<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<i64>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2265,6 +2334,32 @@ impl SseDecode for Vec<crate::api::stats::StatsLogDirectory> {
             ans_.push(<crate::api::stats::StatsLogDirectory>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::stats::StatsMiniProject> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsMiniProject>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::stats::StatsMiniTool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsMiniTool>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -3191,6 +3286,52 @@ impl SseDecode for crate::api::stats::StatsMatrix {
             rows: var_rows,
             unallocated: var_unallocated,
             snapshot: var_snapshot,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsMiniProject {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_key = <Option<String>>::sse_decode(deserializer);
+        let mut var_grossTokens = <i64>::sse_decode(deserializer);
+        let mut var_costMicros = <Option<i64>>::sse_decode(deserializer);
+        let mut var_tools = <Vec<crate::api::stats::StatsMiniTool>>::sse_decode(deserializer);
+        return crate::api::stats::StatsMiniProject {
+            key: var_key,
+            gross_tokens: var_grossTokens,
+            cost_micros: var_costMicros,
+            tools: var_tools,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsMiniTool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_source = <String>::sse_decode(deserializer);
+        let mut var_grossTokens = <i64>::sse_decode(deserializer);
+        return crate::api::stats::StatsMiniTool {
+            source: var_source,
+            gross_tokens: var_grossTokens,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsMiniUsage {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_totals = <crate::api::stats::StatsTotals>::sse_decode(deserializer);
+        let mut var_projects = <Vec<crate::api::stats::StatsMiniProject>>::sse_decode(deserializer);
+        let mut var_hours = <Vec<i64>>::sse_decode(deserializer);
+        let mut var_activeModels = <Vec<crate::api::stats::StatsGroup>>::sse_decode(deserializer);
+        let mut var_requests = <crate::api::stats::StatsRequests>::sse_decode(deserializer);
+        return crate::api::stats::StatsMiniUsage {
+            totals: var_totals,
+            projects: var_projects,
+            hours: var_hours,
+            active_models: var_activeModels,
+            requests: var_requests,
         };
     }
 }
@@ -4146,65 +4287,68 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__stats__StatsClient_log_error_impl(port, ptr, rust_vec_len, data_len)
         }
         18 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__stats__StatsClient_query_sessions_impl(
+        19 => {
+            wire__crate__api__stats__StatsClient_mini_usage_impl(port, ptr, rust_vec_len, data_len)
+        }
+        20 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__stats__StatsClient_query_sessions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__stats__StatsClient_requests_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__stats__StatsClient_session_detail_impl(
+        23 => wire__crate__api__stats__StatsClient_requests_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__stats__StatsClient_session_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
+        25 => wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__stats__StatsClient_sync_progress_impl(
+        26 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__stats__StatsClient_sync_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
+        32 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => {
+        33 => {
             wire__crate__api__stats__StatsClient_timeseries_impl(port, ptr, rust_vec_len, data_len)
         }
-        33 => wire__crate__api__diagnostics__export_startup_diagnostics_impl(
+        34 => wire__crate__api__diagnostics__export_startup_diagnostics_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__diagnostics__startup_build_info_impl(
+        35 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__diagnostics__startup_build_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__diagnostics__write_runtime_error_impl(
+        39 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__diagnostics__write_runtime_error_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4781,6 +4925,74 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsMatrix>
     for crate::api::stats::StatsMatrix
 {
     fn into_into_dart(self) -> crate::api::stats::StatsMatrix {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsMiniProject {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.key.into_into_dart().into_dart(),
+            self.gross_tokens.into_into_dart().into_dart(),
+            self.cost_micros.into_into_dart().into_dart(),
+            self.tools.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsMiniProject
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsMiniProject>
+    for crate::api::stats::StatsMiniProject
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsMiniProject {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsMiniTool {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.source.into_into_dart().into_dart(),
+            self.gross_tokens.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsMiniTool
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsMiniTool>
+    for crate::api::stats::StatsMiniTool
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsMiniTool {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsMiniUsage {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.totals.into_into_dart().into_dart(),
+            self.projects.into_into_dart().into_dart(),
+            self.hours.into_into_dart().into_dart(),
+            self.active_models.into_into_dart().into_dart(),
+            self.requests.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsMiniUsage
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsMiniUsage>
+    for crate::api::stats::StatsMiniUsage
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsMiniUsage {
         self
     }
 }
@@ -5883,6 +6095,16 @@ impl SseEncode for i64 {
     }
 }
 
+impl SseEncode for Vec<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <i64>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5999,6 +6221,26 @@ impl SseEncode for Vec<crate::api::stats::StatsLogDirectory> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::stats::StatsLogDirectory>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::stats::StatsMiniProject> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsMiniProject>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::stats::StatsMiniTool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsMiniTool>::sse_encode(item, serializer);
         }
     }
 }
@@ -6648,6 +6890,35 @@ impl SseEncode for crate::api::stats::StatsMatrix {
         <Vec<crate::api::stats::StatsBucket>>::sse_encode(self.rows, serializer);
         <Option<crate::api::stats::StatsUnallocated>>::sse_encode(self.unallocated, serializer);
         <crate::api::stats::StatsSnapshot>::sse_encode(self.snapshot, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsMiniProject {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.key, serializer);
+        <i64>::sse_encode(self.gross_tokens, serializer);
+        <Option<i64>>::sse_encode(self.cost_micros, serializer);
+        <Vec<crate::api::stats::StatsMiniTool>>::sse_encode(self.tools, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsMiniTool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.source, serializer);
+        <i64>::sse_encode(self.gross_tokens, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsMiniUsage {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::stats::StatsTotals>::sse_encode(self.totals, serializer);
+        <Vec<crate::api::stats::StatsMiniProject>>::sse_encode(self.projects, serializer);
+        <Vec<i64>>::sse_encode(self.hours, serializer);
+        <Vec<crate::api::stats::StatsGroup>>::sse_encode(self.active_models, serializer);
+        <crate::api::stats::StatsRequests>::sse_encode(self.requests, serializer);
     }
 }
 

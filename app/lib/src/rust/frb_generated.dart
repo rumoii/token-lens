@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 607196295;
+  int get rustContentHash => 1784058559;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -171,6 +171,13 @@ abstract class RustLibApi extends BaseApi {
     required String by,
     required StatsFilter filter,
     required int offsetMinutes,
+  });
+
+  Future<StatsMiniUsage> crateApiStatsStatsClientMiniUsage({
+    required StatsClient that,
+    required int localMidnightMs,
+    required int nowMs,
+    required List<String> excludeSources,
   });
 
   Future<StatsClient> crateApiStatsStatsClientNew({
@@ -989,6 +996,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<StatsMiniUsage> crateApiStatsStatsClientMiniUsage({
+    required StatsClient that,
+    required int localMidnightMs,
+    required int nowMs,
+    required List<String> excludeSources,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStatsClient(
+            that,
+            serializer,
+          );
+          sse_encode_CastedPrimitive_i_64(localMidnightMs, serializer);
+          sse_encode_CastedPrimitive_i_64(nowMs, serializer);
+          sse_encode_list_String(excludeSources, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_stats_mini_usage,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiStatsStatsClientMiniUsageConstMeta,
+        argValues: [that, localMidnightMs, nowMs, excludeSources],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStatsStatsClientMiniUsageConstMeta =>
+      const TaskConstMeta(
+        debugName: "StatsClient_mini_usage",
+        argNames: ["that", "localMidnightMs", "nowMs", "excludeSources"],
+      );
+
+  @override
   Future<StatsClient> crateApiStatsStatsClientNew({
     required String dataDir,
     String? logsHome,
@@ -1002,7 +1051,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -1039,7 +1088,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1078,7 +1127,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1120,7 +1169,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1164,7 +1213,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1216,7 +1265,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1274,7 +1323,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1308,7 +1357,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1344,7 +1393,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1381,7 +1430,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1415,7 +1464,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1448,7 +1497,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1486,7 +1535,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1528,7 +1577,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1569,7 +1618,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1599,7 +1648,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1631,7 +1680,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1666,7 +1715,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1696,7 +1745,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1723,7 +1772,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1750,7 +1799,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1788,7 +1837,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 41,
             port: port_,
           );
         },
@@ -2055,6 +2104,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> dco_decode_list_CastedPrimitive_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_CastedPrimitive_i_64).toList();
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
@@ -2136,6 +2191,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<StatsLogDirectory> dco_decode_list_stats_log_directory(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_stats_log_directory).toList();
+  }
+
+  @protected
+  List<StatsMiniProject> dco_decode_list_stats_mini_project(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_stats_mini_project).toList();
+  }
+
+  @protected
+  List<StatsMiniTool> dco_decode_list_stats_mini_tool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_stats_mini_tool).toList();
   }
 
   @protected
@@ -2730,6 +2797,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       rows: dco_decode_list_stats_bucket(arr[2]),
       unallocated: dco_decode_opt_box_autoadd_stats_unallocated(arr[3]),
       snapshot: dco_decode_stats_snapshot(arr[4]),
+    );
+  }
+
+  @protected
+  StatsMiniProject dco_decode_stats_mini_project(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return StatsMiniProject(
+      key: dco_decode_opt_String(arr[0]),
+      grossTokens: dco_decode_CastedPrimitive_i_64(arr[1]),
+      costMicros: dco_decode_opt_CastedPrimitive_i_64(arr[2]),
+      tools: dco_decode_list_stats_mini_tool(arr[3]),
+    );
+  }
+
+  @protected
+  StatsMiniTool dco_decode_stats_mini_tool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return StatsMiniTool(
+      source: dco_decode_String(arr[0]),
+      grossTokens: dco_decode_CastedPrimitive_i_64(arr[1]),
+    );
+  }
+
+  @protected
+  StatsMiniUsage dco_decode_stats_mini_usage(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return StatsMiniUsage(
+      totals: dco_decode_stats_totals(arr[0]),
+      projects: dco_decode_list_stats_mini_project(arr[1]),
+      hours: dco_decode_list_CastedPrimitive_i_64(arr[2]),
+      activeModels: dco_decode_list_stats_group(arr[3]),
+      requests: dco_decode_stats_requests(arr[4]),
     );
   }
 
@@ -3705,6 +3813,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> sse_decode_list_CastedPrimitive_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <int>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_CastedPrimitive_i_64(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3844,6 +3964,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <StatsLogDirectory>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_stats_log_directory(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<StatsMiniProject> sse_decode_list_stats_mini_project(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StatsMiniProject>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_stats_mini_project(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<StatsMiniTool> sse_decode_list_stats_mini_tool(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StatsMiniTool>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_stats_mini_tool(deserializer));
     }
     return ans_;
   }
@@ -4775,6 +4923,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       rows: var_rows,
       unallocated: var_unallocated,
       snapshot: var_snapshot,
+    );
+  }
+
+  @protected
+  StatsMiniProject sse_decode_stats_mini_project(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_key = sse_decode_opt_String(deserializer);
+    var var_grossTokens = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_costMicros = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_tools = sse_decode_list_stats_mini_tool(deserializer);
+    return StatsMiniProject(
+      key: var_key,
+      grossTokens: var_grossTokens,
+      costMicros: var_costMicros,
+      tools: var_tools,
+    );
+  }
+
+  @protected
+  StatsMiniTool sse_decode_stats_mini_tool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_source = sse_decode_String(deserializer);
+    var var_grossTokens = sse_decode_CastedPrimitive_i_64(deserializer);
+    return StatsMiniTool(source: var_source, grossTokens: var_grossTokens);
+  }
+
+  @protected
+  StatsMiniUsage sse_decode_stats_mini_usage(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_totals = sse_decode_stats_totals(deserializer);
+    var var_projects = sse_decode_list_stats_mini_project(deserializer);
+    var var_hours = sse_decode_list_CastedPrimitive_i_64(deserializer);
+    var var_activeModels = sse_decode_list_stats_group(deserializer);
+    var var_requests = sse_decode_stats_requests(deserializer);
+    return StatsMiniUsage(
+      totals: var_totals,
+      projects: var_projects,
+      hours: var_hours,
+      activeModels: var_activeModels,
+      requests: var_requests,
     );
   }
 
@@ -5956,6 +6144,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_CastedPrimitive_i_64(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_CastedPrimitive_i_64(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
@@ -6089,6 +6289,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_stats_log_directory(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_stats_mini_project(
+    List<StatsMiniProject> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_stats_mini_project(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_stats_mini_tool(
+    List<StatsMiniTool> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_stats_mini_tool(item, serializer);
     }
   }
 
@@ -6840,6 +7064,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_stats_mini_project(
+    StatsMiniProject self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.key, serializer);
+    sse_encode_CastedPrimitive_i_64(self.grossTokens, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.costMicros, serializer);
+    sse_encode_list_stats_mini_tool(self.tools, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_mini_tool(
+    StatsMiniTool self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.source, serializer);
+    sse_encode_CastedPrimitive_i_64(self.grossTokens, serializer);
+  }
+
+  @protected
+  void sse_encode_stats_mini_usage(
+    StatsMiniUsage self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_stats_totals(self.totals, serializer);
+    sse_encode_list_stats_mini_project(self.projects, serializer);
+    sse_encode_list_CastedPrimitive_i_64(self.hours, serializer);
+    sse_encode_list_stats_group(self.activeModels, serializer);
+    sse_encode_stats_requests(self.requests, serializer);
+  }
+
+  @protected
   void sse_encode_stats_model_price(
     StatsModelPrice self,
     SseSerializer serializer,
@@ -7559,6 +7818,17 @@ class StatsClientImpl extends RustOpaque implements StatsClient {
     by: by,
     filter: filter,
     offsetMinutes: offsetMinutes,
+  );
+
+  Future<StatsMiniUsage> miniUsage({
+    required int localMidnightMs,
+    required int nowMs,
+    required List<String> excludeSources,
+  }) => RustLib.instance.api.crateApiStatsStatsClientMiniUsage(
+    that: this,
+    localMidnightMs: localMidnightMs,
+    nowMs: nowMs,
+    excludeSources: excludeSources,
   );
 
   Future<StatsPricing> pricing() =>

@@ -335,8 +335,12 @@ pub fn requests(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resul
     };
     add_exclusions(&mut filter, params);
     filter["include_summary"] = params["include_summary"].clone();
+    request_page(ledger, params, &filter, tz)
+}
+
+fn request_page(ledger: &Ledger, params: &Value, filter: &Value, tz: &str) -> Result<Value> {
     let mut result = ledger.requests(
-        &filter,
+        filter,
         params["timed_only"].as_bool().unwrap_or(false),
         params["sort"].as_str().unwrap_or("time"),
         params["descending"].as_bool().unwrap_or(true),
@@ -347,8 +351,136 @@ pub fn requests(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resul
         row["cost_usd"] = money(&row["cost_micros"]);
         row["price_state"] = pricing::classify_price(row["model"].as_str())["state"].clone();
     }
-    result["snapshot"] = snapshot(ledger, &filter, tz);
+    result["snapshot"] = snapshot(ledger, filter, tz);
     Ok(result)
+}
+
+pub fn mini_usage(
+    ledger: &Ledger,
+    midnight: i64,
+    now: i64,
+    exclude_sources: &[String],
+    tz: &str,
+) -> Result<Value> {
+    mini_usage_with(ledger, midnight, now, exclude_sources, tz, || {})
+}
+
+fn mini_usage_with(
+    ledger: &Ledger,
+    midnight: i64,
+    now: i64,
+    exclude_sources: &[String],
+    tz: &str,
+    after_totals: impl FnOnce(),
+) -> Result<Value> {
+    const HOUR: i64 = 3_600_000;
+    let invalid = || super::Error("INVALID_RANGE: invalid mini window day".into());
+    let hours_elapsed = now
+        .checked_sub(midnight)
+        .filter(|span| (0..26 * HOUR).contains(span))
+        .ok_or_else(invalid)?
+        / HOUR;
+    let instant = |ms| {
+        DateTime::from_timestamp_millis(ms)
+            .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+            .ok_or_else(invalid)
+    };
+    let today = json!({
+        "observedMin": instant(midnight)?,
+        "observedMax": instant(now)?,
+        "exclude_sources": exclude_sources
+    });
+    let _snapshot = ledger.db.unchecked_transaction()?;
+    let totals = ledger.totals(&today)?;
+    let mut totals = {
+        let mut shaped = totals_shape(&totals);
+        shaped["cost_micros"] = totals["cost_micros"].clone();
+        shaped
+    };
+    totals["record_count"] = json!(totals["record_count"].as_i64().unwrap_or_default());
+    after_totals();
+
+    let projects = mini_projects(ledger, &today)?;
+    let mut hours = vec![0_i64; hours_elapsed as usize + 1];
+    for row in ledger.mini_hours(&today, midnight)? {
+        if let Some(total) = row["hour"]
+            .as_u64()
+            .and_then(|hour| hours.get_mut(hour as usize))
+        {
+            *total = row["gross_tokens"].as_i64().unwrap();
+        }
+    }
+    let mut recent = today.clone();
+    recent["observedMin"] = json!(instant(now - 300_000)?);
+    let timings = ledger.timing_groups("source_model", &recent)?;
+    let mut active = ledger.grouped("source", "model", &recent)?;
+    active.sort_by(|a, b| {
+        b["gross_tokens"]
+            .as_i64()
+            .cmp(&a["gross_tokens"].as_i64())
+            .then_with(|| a["outer_key"].as_str().cmp(&b["outer_key"].as_str()))
+            .then_with(|| a["inner_key"].as_str().cmp(&b["inner_key"].as_str()))
+    });
+    let models: Vec<Value> = active
+        .into_iter()
+        .filter(|row| row["gross_tokens"].as_i64().unwrap() > 0)
+        .map(|row| {
+            let model = &row["inner_key"];
+            let mut group = totals_shape(&row);
+            group["key"] = model.clone();
+            group["model"] = model.clone();
+            group["source"] = row["outer_key"].clone();
+            group["model_timing"] = timings
+                .models
+                .get(&model.to_string())
+                .cloned()
+                .unwrap_or(Value::Null);
+            group
+        })
+        .collect();
+    let requests = request_page(ledger, &json!({"limit": 50}), &today, tz)?;
+    Ok(
+        json!({"totals":totals,"projects":projects,"hours":hours,"active_models":models,"requests":requests}),
+    )
+}
+
+#[cfg(test)]
+#[path = "service/mini_tests.rs"]
+mod mini_tests;
+
+fn mini_projects(ledger: &Ledger, filter: &Value) -> Result<Vec<Value>> {
+    #[derive(Default)]
+    struct Project {
+        tokens: i64,
+        cost: Option<i64>,
+        tools: HashMap<String, i64>,
+    }
+    let mut projects = HashMap::<Option<String>, Project>::new();
+    for row in ledger.grouped("project", "source", filter)? {
+        let key = row["outer_key"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned);
+        let project = projects.entry(key).or_default();
+        let tokens = row["gross_tokens"].as_i64().unwrap();
+        project.tokens += tokens;
+        if let Some(cost) = row["cost_micros"].as_i64() {
+            project.cost = Some(project.cost.unwrap_or(0) + cost);
+        }
+        *project
+            .tools
+            .entry(row["inner_key"].as_str().unwrap().to_owned())
+            .or_default() += tokens;
+    }
+    let mut ordered: Vec<_> = projects.into_iter().collect();
+    ordered
+        .sort_by(|(key_a, a), (key_b, b)| b.tokens.cmp(&a.tokens).then_with(|| key_a.cmp(key_b)));
+    Ok(ordered.into_iter().map(|(key, project)| {
+        let mut tools: Vec<_> = project.tools.into_iter().collect();
+        tools.sort_by(|(name_a, a), (name_b, b)| b.cmp(a).then_with(|| name_a.cmp(name_b)));
+        let tools: Vec<_> = tools.into_iter().map(|(source, tokens)| json!({"source":source,"gross_tokens":tokens})).collect();
+        json!({"key":key,"gross_tokens":project.tokens,"cost_micros":project.cost,"tools":tools})
+    }).collect())
 }
 
 pub fn comparison(

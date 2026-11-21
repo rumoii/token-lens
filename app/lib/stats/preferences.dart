@@ -1,9 +1,70 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:ui' show Rect;
 
 import 'logic/period.dart';
 import 'logic/format.dart';
 import '../update/update_check.dart';
+
+class MiniPreferences {
+  const MiniPreferences({
+    this.bounds,
+    this.pinned = true,
+    this.seconds = 10,
+    this.projects = -1,
+  });
+
+  static const intervals = [5, 10, 15, 30, 60, 300];
+  static const projectCounts = [-1, 3, 5, 10, 0];
+  final Rect? bounds;
+  final bool pinned;
+  final int seconds, projects;
+
+  MiniPreferences copyWith({
+    Rect? bounds,
+    bool? pinned,
+    int? seconds,
+    int? projects,
+  }) => MiniPreferences(
+    bounds: bounds ?? this.bounds,
+    pinned: pinned ?? this.pinned,
+    seconds: seconds ?? this.seconds,
+    projects: projects ?? this.projects,
+  );
+
+  static MiniPreferences decode(Object? value) {
+    if (value is! Map) return const MiniPreferences();
+    final rect = value['bounds'];
+    return MiniPreferences(
+      bounds:
+          rect is List &&
+              rect.length == 4 &&
+              rect.every((part) => part is num && part.isFinite)
+          ? Rect.fromLTWH(
+              (rect[0] as num).toDouble(),
+              (rect[1] as num).toDouble(),
+              (rect[2] as num).toDouble(),
+              (rect[3] as num).toDouble(),
+            )
+          : null,
+      pinned: value['pinned'] != false,
+      seconds: value['seconds'] is int && intervals.contains(value['seconds'])
+          ? value['seconds'] as int
+          : 10,
+      projects:
+          value['projects'] is int && projectCounts.contains(value['projects'])
+          ? value['projects'] as int
+          : -1,
+    );
+  }
+
+  Map<String, Object> encode() => {
+    if (bounds case final b?) 'bounds': [b.left, b.top, b.width, b.height],
+    'pinned': pinned,
+    'seconds': seconds,
+    'projects': projects,
+  };
+}
 
 class UiPreferences {
   const UiPreferences({
@@ -27,6 +88,7 @@ class UiPreferences {
     this.defaultPeriod = 'last',
     this.weekStart = 'monday',
     this.newsEnabled = true,
+    this.mini = const MiniPreferences(),
   }); // Null keeps the language default implicit.
 
   final String appearance, tokenMode, currency, language;
@@ -54,6 +116,7 @@ class UiPreferences {
   final String density, defaultPeriod, weekStart;
   final double uiScale;
   final bool newsEnabled;
+  final MiniPreferences mini;
   double get spacing => density == 'compact' ? .75 : 1;
   int get weekStartsOn =>
       weekStart == 'sunday' ? DateTime.sunday : DateTime.monday;
@@ -95,6 +158,7 @@ class UiPreferences {
     String? defaultPeriod,
     String? weekStart,
     bool? newsEnabled,
+    MiniPreferences? mini,
   }) => UiPreferences(
     appearance: appearance ?? this.appearance,
     tokenMode: tokenMode ?? this.tokenMode,
@@ -114,6 +178,7 @@ class UiPreferences {
     defaultPeriod: defaultPeriod ?? this.defaultPeriod,
     weekStart: weekStart ?? this.weekStart,
     newsEnabled: newsEnabled ?? this.newsEnabled,
+    mini: mini ?? this.mini,
     updateLastAttemptMs: identical(updateLastAttemptMs, _unchanged)
         ? this.updateLastAttemptMs
         : _fetchedAt(updateLastAttemptMs),
@@ -185,6 +250,7 @@ class UiPreferences {
             : 'last',
         weekStart: value['weekStart'] == 'sunday' ? 'sunday' : 'monday',
         newsEnabled: value['newsEnabled'] is bool ? value['newsEnabled'] : true,
+        mini: MiniPreferences.decode(value['mini']),
         onboarded: value['onboarded'] is bool ? value['onboarded'] : false,
         rates: _rates(value['rates']),
         rateSource: _rateSource(value['rateSource']),
@@ -220,6 +286,7 @@ class UiPreferences {
     'defaultPeriod': defaultPeriod,
     'weekStart': weekStart,
     'newsEnabled': newsEnabled,
+    'mini': mini.encode(),
     'onboarded': onboarded,
     'rates': _rates(rates),
     'rateSource': _rateSource(rateSource),

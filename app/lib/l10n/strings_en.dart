@@ -2,6 +2,103 @@ part of 'app_strings.dart';
 
 final class EnglishStrings extends AppStrings {
   @override
+  String get miniWindow => 'Mini window';
+
+  @override
+  String get miniPin => 'Keep on top';
+
+  @override
+  String get miniUnpin => 'Stop keeping on top';
+
+  @override
+  String get miniSettings => 'Mini window settings';
+
+  @override
+  String get miniExpand => 'Open full window';
+
+  @override
+  String miniEstimate(String amount) => 'Est. $amount';
+
+  @override
+  String miniInterval(int seconds) =>
+      seconds < 60 ? '${seconds}s' : '${seconds ~/ 60} min';
+
+  @override
+  String miniUpdated(int age, int interval) => age < 2
+      ? 'Updated just now · every ${miniInterval(interval)}'
+      : 'Updated ${age < 60 ? '${age}s' : '${age ~/ 60}m'} ago · every ${miniInterval(interval)}';
+
+  @override
+  String get miniSyncFailed => 'Sync failed. Showing earlier data.';
+
+  @override
+  String get miniProjects => 'Projects';
+
+  @override
+  String miniTopProjects(int count) => 'Top $count projects';
+
+  @override
+  String get miniAllProjects => 'All projects';
+
+  @override
+  String miniLatest(int count) => 'Latest $count';
+
+  @override
+  String miniMoreProjects(int count) =>
+      '$count more ${count == 1 ? 'project' : 'projects'}';
+
+  @override
+  String get miniActiveModels => 'Active models · last 5 min';
+
+  @override
+  String miniMoreModels(int count) =>
+      '$count more ${count == 1 ? 'model' : 'models'}';
+
+  @override
+  String miniApproxSpeed(String value) => '≈ $value tokens/s';
+
+  @override
+  String miniUntimedModel(String tool) =>
+      "$tool doesn't log generation time, so this shows usage in the last 5 min.";
+
+  @override
+  String miniOutput(String value) => 'Output $value';
+
+  @override
+  String miniFirstToken(String seconds) => 'First token ${seconds}s';
+
+  @override
+  String miniHour(int hour) => "${hour.toString().padLeft(2, '0')}:00";
+
+  @override
+  String get miniNoUsage => 'No usage yet today';
+
+  @override
+  String get miniNoRequests => 'No requests yet today';
+
+  @override
+  String get miniNoModels => 'No models used in the last 5 min';
+
+  @override
+  String get miniHourlyUsage => 'Usage by hour today';
+
+  @override
+  String get miniRefreshEvery => 'Refresh every';
+
+  @override
+  String get miniProjectsShown => 'Projects shown';
+
+  @override
+  String miniProjectsChoice(int count) => switch (count) {
+    -1 => 'Fit window',
+    0 => 'All',
+    _ => 'Top $count',
+  };
+
+  @override
+  String get miniSwitchFailed => 'Could not switch window mode.';
+
+  @override
   StartupFailureCopy startupFailureCopy(
     StartupFailure failure,
   ) => switch (failure.code) {

@@ -83,6 +83,29 @@ pub struct StatsRequests {
     pub snapshot: StatsSnapshot,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct StatsMiniUsage {
+    pub totals: StatsTotals,
+    pub projects: Vec<StatsMiniProject>,
+    pub hours: Vec<i64>,
+    pub active_models: Vec<StatsGroup>,
+    pub requests: StatsRequests,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct StatsMiniProject {
+    pub key: Option<String>,
+    pub gross_tokens: i64,
+    pub cost_micros: Option<i64>,
+    pub tools: Vec<StatsMiniTool>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct StatsMiniTool {
+    pub source: String,
+    pub gross_tokens: i64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsTotals {
     pub gross_tokens: i64,
@@ -916,6 +939,27 @@ impl StatsClient {
         })();
         self.state.log.ffi("breakdown", result)
     }
+    pub fn mini_usage(
+        &self,
+        local_midnight_ms: i64,
+        now_ms: i64,
+        exclude_sources: Vec<String>,
+    ) -> Result<StatsMiniUsage, String> {
+        let result = (|| {
+            let ledger = self.open()?;
+            let value = service::mini_usage(
+                &ledger,
+                local_midnight_ms,
+                now_ms,
+                &exclude_sources,
+                &self.state.timezone,
+            )
+            .map_err(|e| e.to_string())?;
+            serde_json::from_value(value).map_err(|e| e.to_string())
+        })();
+        self.state.log.ffi("mini_usage", result)
+    }
+
     pub fn requests(
         &self,
         filter: StatsFilter,
@@ -1281,6 +1325,10 @@ impl StatsClient {
 #[cfg(test)]
 #[path = "stats_discovery_tests.rs"]
 mod discovery_tests;
+
+#[cfg(test)]
+#[path = "stats_mini_tests.rs"]
+mod mini_tests;
 
 #[cfg(test)]
 mod tests {

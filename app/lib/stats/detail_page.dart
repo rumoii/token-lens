@@ -1844,14 +1844,8 @@ class _StatsDetailState extends State<StatsDetail> {
                             detailFilter(d, picked ?? period.range(c.clock())),
                           ),
                           onOpen: (r) {
-                            final sessionId = r.sessionId;
-                            if (sessionId != null) {
-                              widget.onSessions?.call({
-                                ...Uri.splitQueryString(period.query),
-                                'source': r.source,
-                                'session': sessionId,
-                              });
-                            }
+                            final params = requestSessionQuery(r, period);
+                            if (params != null) widget.onSessions?.call(params);
                           },
                         ),
                       )
