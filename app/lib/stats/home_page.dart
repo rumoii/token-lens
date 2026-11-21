@@ -642,9 +642,11 @@ class _StatsHomeState extends State<StatsHome> {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Text(
-              context.strings.estimatedCostPrefix,
-              style: p.text(15, p.secondary),
+            Flexible(
+              child: Text(
+                context.strings.estimatedCostPrefix,
+                style: p.text(15, p.secondary),
+              ),
             ),
             money(total.costUsd, style: p.serif(22), animate: true),
           ],

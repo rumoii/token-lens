@@ -1,8 +1,12 @@
 import 'dart:math' as math;
 
 const defaultRates = {'USD': 1.0, 'CNY': 6.7};
-String normalizeCurrency(Object? value) =>
-    value is String && value.trim().toUpperCase() == 'CNY' ? 'CNY' : 'USD';
+String normalizeCurrency(Object? value, {String fallback = 'USD'}) =>
+    switch (value is String ? value.trim().toUpperCase() : null) {
+      'CNY' => 'CNY',
+      'USD' => 'USD',
+      _ => fallback,
+    };
 String currencySymbol(Object? value) =>
     normalizeCurrency(value) == 'CNY' ? '¥' : '\$';
 bool isValidRate(Object? value) => value is num && value.isFinite && value > 0;

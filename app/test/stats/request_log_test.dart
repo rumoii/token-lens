@@ -378,8 +378,8 @@ void main() {
     expect(find.byTooltip('这次请求没有正常结束，不算速度。'), findsOneWidget);
     expect(find.byTooltip('这个工具按一整轮对话记录时间，一轮里可能有多次请求。'), findsNWidgets(2));
     expect(find.textContaining('10.0≈', findRichText: true), findsWidgets);
-    expect(find.text('<\$0.001'), findsOneWidget);
-    expect(find.text('\$0.003'), findsWidgets);
+    expect(find.text('<¥0.001'), findsOneWidget);
+    expect(find.text('¥0.020'), findsWidgets);
     final turnRow = find.byKey(const Key('request-row-r2'));
     for (final text in tester.widgetList<Text>(
       find.descendant(of: turnRow, matching: find.byType(Text)),

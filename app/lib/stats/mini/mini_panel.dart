@@ -284,7 +284,7 @@ class _MiniPanelState extends State<MiniPanel> {
             duration: reduce ? Duration.zero : LensTokens.grow,
             curve: LensTokens.ease,
             builder: (context, n, _) => Text(
-              s.miniEstimate(_miniMoney(n.round())),
+              s.miniEstimate(_miniMoney(c.preferences, n.round())),
               style: p.text(12, p.secondary),
             ),
           )
@@ -604,5 +604,10 @@ class _MiniStatusState extends State<_MiniStatus> {
 String _miniTokens(StatsController c, int value) =>
     tokenCount(value, unitSystem: c.unitSystem);
 
-String _miniMoney(int? micros) =>
-    micros == null ? '—' : usdCurrency(micros / 1000000);
+String _miniMoney(UiPreferences preferences, int? micros) => micros == null
+    ? '—'
+    : usdCurrency(
+        micros / 1000000,
+        currency: preferences.currency,
+        rate: rateFor(preferences.rates, preferences.currency),
+      );

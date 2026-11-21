@@ -55,7 +55,7 @@ void main() {
       }
       for (final column in [
         [token, '9', '3', '2'],
-        [r'$0.06', r'$12.34', '—', r'$0.22'],
+        ['¥0.40', '¥82.67', '—', '¥1.47'],
       ]) {
         final right = tester
             .getTopRight(
@@ -78,6 +78,11 @@ void main() {
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
+      await controller.setPreferences(
+        controller.preferences.copyWith(currency: 'USD'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(r'$12.34'), findsOneWidget);
       await controller.shutdown();
     });
   }

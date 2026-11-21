@@ -91,6 +91,10 @@ class _MiniOverview extends StatelessWidget {
                     colors: colors,
                     maximum: top,
                     tokens: (value) => _miniTokens(controller, value),
+                    amount: _miniMoney(
+                      controller.preferences,
+                      project.costMicros,
+                    ),
                     onOpen: () => onOpen(project.key),
                     flash: flashes[project.key],
                   ),
@@ -188,6 +192,7 @@ class MiniProjectRow extends StatelessWidget {
     required this.colors,
     required this.maximum,
     required this.tokens,
+    required this.amount,
     required this.onOpen,
     this.flash,
   });
@@ -196,6 +201,7 @@ class MiniProjectRow extends StatelessWidget {
   final Map<String, Color> colors;
   final int maximum;
   final String Function(int) tokens;
+  final String amount;
   final VoidCallback onOpen;
   final int? flash;
 
@@ -234,7 +240,7 @@ class MiniProjectRow extends StatelessWidget {
           const SizedBox(width: 6),
           _ProjectBar(tools: project.tools, colors: colors, maximum: maximum),
           const SizedBox(width: 7),
-          _MiniProjectTotals(tokens(project.grossTokens), project.costMicros),
+          _MiniProjectTotals(tokens(project.grossTokens), amount),
         ],
       ),
     );
@@ -314,7 +320,7 @@ class _MoreProjects extends StatelessWidget {
             ),
             _MiniProjectTotals(
               _miniTokens(controller, total),
-              cost,
+              _miniMoney(controller.preferences, cost),
               isSummary: true,
             ),
           ],
@@ -325,14 +331,10 @@ class _MoreProjects extends StatelessWidget {
 }
 
 class _MiniProjectTotals extends StatelessWidget {
-  const _MiniProjectTotals(
-    this.tokens,
-    this.costMicros, {
-    this.isSummary = false,
-  });
+  const _MiniProjectTotals(this.tokens, this.amount, {this.isSummary = false});
 
   final String tokens;
-  final int? costMicros;
+  final String amount;
   final bool isSummary;
 
   @override
@@ -352,7 +354,7 @@ class _MiniProjectTotals extends StatelessWidget {
       children: [
         cell(46, tokens, isSummary ? p.text(12, p.secondary) : p.text(12.5)),
         const SizedBox(width: 8),
-        cell(38, _miniMoney(costMicros), p.text(11.5, p.faint)),
+        cell(38, amount, p.text(11.5, p.faint)),
       ],
     );
   }

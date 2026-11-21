@@ -78,11 +78,11 @@ class MiniPreferences {
 
 class UiPreferences {
   const UiPreferences({
-    this.appearance = 'system',
+    this.appearance = 'light',
     this.tokenMode = 'compact',
     this._unitSystem,
     this.language = 'system',
-    this.currency = 'USD',
+    this.currency = 'CNY',
     this.period = const StatsPeriod(),
     this.onboarded = false,
     this.rates = defaultRates,
@@ -242,13 +242,13 @@ class UiPreferences {
       return UiPreferences(
         appearance: ['system', 'light', 'dark'].contains(value['appearance'])
             ? value['appearance']
-            : 'system',
+            : 'light',
         tokenMode: normalizeTokenMode(value['tokenMode']),
         unitSystem: value['unitSystem'] == null
             ? null
             : normalizeTokenUnit(value['unitSystem']),
         language: _language(value['language']),
-        currency: normalizeCurrency(value['currency']),
+        currency: normalizeCurrency(value['currency'], fallback: 'CNY'),
         period: period,
         density: value['density'] == 'compact' ? 'compact' : 'comfortable',
         uiScale: interfaceScales.contains(value['uiScale'])
@@ -289,7 +289,7 @@ class UiPreferences {
     'tokenMode': tokenMode,
     if (_unitSystem != null) 'unitSystem': _unitSystem,
     'language': _language(language),
-    'currency': normalizeCurrency(currency),
+    'currency': normalizeCurrency(currency, fallback: 'CNY'),
     'period': {'period': period.period, 'from': period.from, 'to': period.to},
     'density': density,
     'uiScale': uiScale,

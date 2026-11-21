@@ -135,7 +135,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text(r'$2.35 → $7.07'), findsOneWidget);
+        expect(find.text('¥15.74 → ¥47.36'), findsOneWidget);
       },
     );
 

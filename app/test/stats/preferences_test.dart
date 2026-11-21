@@ -20,7 +20,7 @@ void main() {
   });
   test('损坏、不合法内容和缺失回到默认', () async {
     final store = PreferencesStore(directory);
-    expect((await store.read()).appearance, 'system');
+    expect((await store.read()).appearance, 'light');
     for (final value in [
       '{',
       'null',
@@ -32,10 +32,25 @@ void main() {
     ]) {
       await File('${directory.path}/ui-preferences.json').writeAsString(value);
       final preferences = await store.read();
-      expect(preferences.appearance, 'system');
-      expect(preferences.currency, 'USD');
+      expect(preferences.appearance, 'light');
+      expect(preferences.currency, 'CNY');
       expect(preferences.period.period, 'week');
     }
+  });
+  test('新用户默认浅色和人民币，保留旧文件显式设置', () async {
+    final store = PreferencesStore(directory);
+    final fresh = await store.read();
+    expect(fresh.appearance, 'light');
+    expect(fresh.currency, 'CNY');
+    final file = File('${directory.path}/ui-preferences.json');
+    await file.writeAsString('{"language":"en","appearance":"unknown"}');
+    final english = await store.read();
+    expect(english.appearance, 'light');
+    expect(english.currency, 'CNY');
+    await file.writeAsString('{"appearance":"system","currency":"USD"}');
+    final saved = await store.read();
+    expect(saved.appearance, 'system');
+    expect(saved.currency, 'USD');
   });
   test('并发写串行、落盘为完整 JSON、最后写入获胜', () async {
     final store = PreferencesStore(directory);
@@ -70,7 +85,7 @@ void main() {
     await blocker.writeAsString('fixture');
     final store = PreferencesStore(Directory(blocker.path));
     expect(await store.write(const UiPreferences(appearance: 'dark')), isFalse);
-    expect((await store.read()).appearance, 'system');
+    expect((await store.read()).appearance, 'light');
   });
   test('period.test.js 记住的自定义周期可重载', () async {
     final store = PreferencesStore(directory);
@@ -104,7 +119,7 @@ void main() {
     expect((await store.read()).currency, 'CNY');
     await File('${directory.path}/ui-preferences.json')
         .writeAsString('{"currency":"EUR"}');
-    expect((await store.read()).currency, 'USD');
+    expect((await store.read()).currency, 'CNY');
     await store.write(const UiPreferences(currency: 'CNY'));
     expect((await store.read()).currency, 'CNY');
   });

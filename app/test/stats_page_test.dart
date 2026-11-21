@@ -57,7 +57,7 @@ void main() {
     await show(tester, FakeStatsGateway()..unknown = true);
     expect(find.text('未定价'), findsWidgets);
     expect(find.text('—'), findsWidgets);
-    expect(find.text('\$0.00'), findsNothing);
+    expect(find.text('¥0.00'), findsNothing);
     await tester.pumpWidget(
       MaterialApp(home: Scaffold(body: const TokenText(null))),
     );

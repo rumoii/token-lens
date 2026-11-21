@@ -408,7 +408,7 @@ void main() {
                 .first,
           )
           .opacity;
-      expect(opacity(), 0);
+      expect(opacity(), 1);
       await tester.tap(sun);
       await tester.pumpAndSettle();
       expect(stats.preferences.appearance, 'light');
