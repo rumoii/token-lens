@@ -5,6 +5,18 @@ final class ChineseStrings extends AppStrings {
   String get miniWindow => '迷你窗口';
 
   @override
+  String get miniHintTitle => '想边用 AI 边看 token 用量？';
+
+  @override
+  String get miniHintDescription => '迷你窗口可以置顶在屏幕一角，随时看今天的用量和正在用的模型。';
+
+  @override
+  String get miniHintOpen => '打开迷你窗口';
+
+  @override
+  String get miniHintDismiss => '不再提示';
+
+  @override
   String get miniPin => '置顶';
 
   @override

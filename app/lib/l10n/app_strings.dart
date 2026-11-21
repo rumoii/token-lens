@@ -42,6 +42,10 @@ typedef StartupFailureCopy = ({String title, String body, List<String> steps});
 
 abstract class AppStrings {
   String get miniWindow;
+  String get miniHintTitle;
+  String get miniHintDescription;
+  String get miniHintOpen;
+  String get miniHintDismiss;
   String get miniPin;
   String get miniUnpin;
   String get miniSettings;

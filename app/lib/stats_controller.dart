@@ -395,6 +395,7 @@ class StatsController extends ChangeNotifier {
     if (_closed || miniMode == value) return;
     miniMode = value;
     _restartSyncTimer();
+    if (value) unawaited(dismissMiniHint());
     _notify();
     if (value) {
       _stopPrefetch();
@@ -406,6 +407,10 @@ class StatsController extends ChangeNotifier {
       await _load();
     }
   }
+
+  Future<void> dismissMiniHint() => preferences.miniHintDismissed
+      ? Future.value()
+      : setPreferences(preferences.copyWith(miniHintDismissed: true));
 
   bool get miniSyncFailed => phase == StatsSyncPhase.error || miniReadFailed;
 

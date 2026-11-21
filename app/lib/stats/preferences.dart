@@ -99,6 +99,7 @@ class UiPreferences {
     this.weekStart = 'monday',
     this.newsEnabled = true,
     this.mini = const MiniPreferences(),
+    this.miniHintDismissed = false,
   }); // Null keeps the language default implicit.
 
   final String appearance, tokenMode, currency, language;
@@ -127,6 +128,7 @@ class UiPreferences {
   final double uiScale;
   final bool newsEnabled;
   final MiniPreferences mini;
+  final bool miniHintDismissed;
   double get spacing => density == 'compact' ? .75 : 1;
   int get weekStartsOn =>
       weekStart == 'sunday' ? DateTime.sunday : DateTime.monday;
@@ -169,6 +171,7 @@ class UiPreferences {
     String? weekStart,
     bool? newsEnabled,
     MiniPreferences? mini,
+    bool? miniHintDismissed,
   }) => UiPreferences(
     appearance: appearance ?? this.appearance,
     tokenMode: tokenMode ?? this.tokenMode,
@@ -189,6 +192,7 @@ class UiPreferences {
     weekStart: weekStart ?? this.weekStart,
     newsEnabled: newsEnabled ?? this.newsEnabled,
     mini: mini ?? this.mini,
+    miniHintDismissed: miniHintDismissed ?? this.miniHintDismissed,
     updateLastAttemptMs: identical(updateLastAttemptMs, _unchanged)
         ? this.updateLastAttemptMs
         : _fetchedAt(updateLastAttemptMs),
@@ -261,6 +265,7 @@ class UiPreferences {
         weekStart: value['weekStart'] == 'sunday' ? 'sunday' : 'monday',
         newsEnabled: value['newsEnabled'] is bool ? value['newsEnabled'] : true,
         mini: MiniPreferences.decode(value['mini']),
+        miniHintDismissed: value['miniHintDismissed'] == true,
         onboarded: value['onboarded'] is bool ? value['onboarded'] : false,
         rates: _rates(value['rates']),
         rateSource: _rateSource(value['rateSource']),
@@ -297,6 +302,7 @@ class UiPreferences {
     'weekStart': weekStart,
     'newsEnabled': newsEnabled,
     'mini': mini.encode(),
+    'miniHintDismissed': miniHintDismissed,
     'onboarded': onboarded,
     'rates': _rates(rates),
     'rateSource': _rateSource(rateSource),

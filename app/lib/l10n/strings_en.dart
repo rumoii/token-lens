@@ -5,6 +5,20 @@ final class EnglishStrings extends AppStrings {
   String get miniWindow => 'Mini window';
 
   @override
+  String get miniHintTitle =>
+      'Want to watch token usage while you work with AI?';
+
+  @override
+  String get miniHintDescription =>
+      'The mini window stays on top in a corner, showing today\'s usage and the models in use.';
+
+  @override
+  String get miniHintOpen => 'Open mini window';
+
+  @override
+  String get miniHintDismiss => 'Don\'t show again';
+
+  @override
   String get miniPin => 'Keep on top';
 
   @override

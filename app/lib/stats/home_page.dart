@@ -35,15 +35,86 @@ class StatsHome extends StatefulWidget {
     required this.onSources,
     required this.onSettings,
     this.onManageHidden,
+    this.onMini,
     this.sidebarWidth = 0,
   });
   final StatsController controller;
   final ValueChanged<Map<String, String>> onDetail, onSessions;
   final VoidCallback onSources, onSettings;
   final VoidCallback? onManageHidden;
+  final VoidCallback? onMini;
   final double sidebarWidth;
   @override
   State<StatsHome> createState() => _StatsHomeState();
+}
+
+class _MiniWindowHint extends StatelessWidget {
+  const _MiniWindowHint({required this.open, required this.dismiss});
+  final VoidCallback open, dismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context), s = context.strings;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: p['clay-wash'],
+        borderRadius: BorderRadius.circular(LensTokens.radii['xl']!),
+        border: Border.all(
+          color: p['clay-35'],
+          width: LensPalette.hairline(context),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final compact = bounds.maxWidth < 650;
+          final action = LensButton(
+            label: s.miniHintOpen,
+            variant: 'ghost',
+            size: 'sm',
+            onPressed: open,
+          );
+          return Row(
+            spacing: 10,
+            crossAxisAlignment: compact
+                ? CrossAxisAlignment.start
+                : CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.picture_in_picture_alt_outlined,
+                color: p['clay-ink'],
+                size: 22,
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 4,
+                  children: [
+                    Text(
+                      s.miniHintTitle,
+                      style: p.text(14, null, FontWeight.w600),
+                    ),
+                    Text(
+                      s.miniHintDescription,
+                      style: p.text(12.5, p.secondary),
+                    ),
+                    if (compact) action,
+                  ],
+                ),
+              ),
+              if (!compact) action,
+              LensIconButton(
+                tooltip: s.miniHintDismiss,
+                icon: Icons.close,
+                size: 'xs',
+                onPressed: dismiss,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _StatsHomeState extends State<StatsHome> {
@@ -165,6 +236,14 @@ class _StatsHomeState extends State<StatsHome> {
       );
   Widget controls() => LensHeaderControls(
     children: [
+      if (widget.onMini case final onMini?)
+        LensButton(
+          label: context.strings.miniWindow,
+          icon: Icons.picture_in_picture_alt_outlined,
+          variant: 'ghost',
+          size: 'sm',
+          onPressed: onMini,
+        ),
       LensSegmented(
         options: {
           'overview': context.strings.overview,
@@ -482,6 +561,15 @@ class _StatsHomeState extends State<StatsHome> {
           ),
         ...banner,
         header(Text.rich(TextSpan(children: summary))),
+        if (widget.onMini case final open?
+            when c.preferences.onboarded &&
+                !c.preferences.miniHintDismissed &&
+                c.sourcesReadSucceeded &&
+                !emptyLedger)
+          _MiniWindowHint(
+            open: open,
+            dismiss: () => unawaited(c.dismissMiniHint()),
+          ),
         if (emptyLedger)
           EmptyLedgerCard(controller: c, onTools: widget.onSources)
         else if (totals.recordCount == 0)

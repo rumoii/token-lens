@@ -13,3 +13,5 @@
 新版 Windows 程序名为 `token-lens.exe`，产品名和窗口标题为 `Token Lens`；单实例互斥量为 `Local\TokenLens.Desktop`，激活时同时匹配 Flutter runner 类名 `FLUTTER_RUNNER_WIN32_WINDOW` 与标题，避免激活旧版窗口。macOS 应用名为 `Token Lens.app`，bundle id 为 `io.github.rumoii.token-lens`。默认数据目录为系统应用支持目录下的 `data`（Windows 为 `%APPDATA%\Token Lens\Token Lens\data`）；不自动读取或迁移旧新闻目录及 `~/.token-lens`。调试运行仍须显式设置 `TOKEN_LENS_PREVIEW_DATA_DIR`；该变量与日志根覆盖变量 `TOKEN_LENS_PREVIEW_HOME` 保持原名。
 
 旧版桌面壳（W/M 路线，Node/React/wry）的构建与运行契约移到了 [../archive/legacy-desktop.md](../archive/legacy-desktop.md)。
+
+总览和明细页头提供迷你窗口入口。已完成首次引导且有账本记录的桌面用户会在总览看见引导横幅。关闭横幅或成功进入迷你窗口后，将 `miniHintDismissed: true` 保存到 `ui-preferences.json`。缺少该字段的旧偏好仍可显示横幅。

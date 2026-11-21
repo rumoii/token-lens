@@ -209,6 +209,7 @@ class StatsDetail extends StatefulWidget {
     this.onSessions,
     this.onSources,
     this.onManageHidden,
+    this.onMini,
     this.openLink,
     this.downloadsDirectory,
   });
@@ -217,6 +218,7 @@ class StatsDetail extends StatefulWidget {
   final ValueChanged<String> onQuery;
   final VoidCallback onHome, onSettings;
   final VoidCallback? onSources, onManageHidden;
+  final VoidCallback? onMini;
   final ValueChanged<Map<String, String>>? onSessions;
   final Future<bool> Function(Uri)? openLink;
   final Future<Directory?> Function()? downloadsDirectory;
@@ -1567,6 +1569,14 @@ class _StatsDetailState extends State<StatsDetail> {
   Widget build(BuildContext context) {
     final controls = LensHeaderControls(
       children: [
+        if (widget.onMini case final onMini?)
+          LensButton(
+            label: context.strings.miniWindow,
+            icon: Icons.picture_in_picture_alt_outlined,
+            variant: 'ghost',
+            size: 'sm',
+            onPressed: onMini,
+          ),
         LensSegmented(
           options: {
             'overview': context.strings.overview,

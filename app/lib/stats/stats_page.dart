@@ -59,6 +59,9 @@ class _StatsPageState extends State<StatsPage> {
   int _restored = 0;
   bool get newsVisible =>
       widget.news != null && widget.controller.preferences.newsEnabled;
+  VoidCallback? get onMini => widget.miniWindow == null
+      ? null
+      : () => unawaited(_switchMini(enter: true));
   @override
   void dispose() {
     _drawerFocus.dispose();
@@ -250,13 +253,6 @@ class _StatsPageState extends State<StatsPage> {
                   onPressed: c.busy ? null : () => unawaited(c.sync()),
                 ),
                 const Spacer(),
-                if (widget.miniWindow != null)
-                  LensIconButton(
-                    tooltip: context.strings.miniWindow,
-                    icon: Icons.picture_in_picture_alt_outlined,
-                    size: 'xs',
-                    onPressed: () => unawaited(_switchMini(enter: true)),
-                  ),
                 LensThemeToggle(
                   value: c.preferences.appearance,
                   onChanged: (value) => unawaited(
@@ -414,6 +410,7 @@ class _StatsPageState extends State<StatsPage> {
                                                   onSources: () =>
                                                       navigate('sources'),
                                                   onManageHidden: manageHidden,
+                                                  onMini: onMini,
                                                   onSettings: () =>
                                                       navigate('settings'),
                                                 )
@@ -424,6 +421,7 @@ class _StatsPageState extends State<StatsPage> {
                                                   onSources: () =>
                                                       navigate('sources'),
                                                   onManageHidden: manageHidden,
+                                                  onMini: onMini,
                                                   onSessions: (p) =>
                                                       navigate('sessions', p),
                                                   query: query,

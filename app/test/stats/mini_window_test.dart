@@ -9,8 +9,10 @@ import 'package:token_lens_app/l10n/app_strings.dart';
 import 'package:token_lens_app/stats/mini/mini_panel.dart';
 import 'package:token_lens_app/stats/mini/mini_window.dart';
 import 'package:token_lens_app/stats/preferences.dart';
+import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats/widgets/motion.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
@@ -169,6 +171,99 @@ List<double> _paintedMiniTicks(WidgetTester tester, Finder chart) {
 }
 
 void main() {
+  testWidgets('mini window entry is in both page headers', (tester) async {
+    final c = StatsController(
+      MiniGateway(),
+      preferences: const UiPreferences(onboarded: true),
+      clock: () => demoNow,
+    );
+    final window = MiniWindow(controller: c, platform: MiniPlatform());
+    addTearDown(c.dispose);
+    addTearDown(window.dispose);
+    await c.load();
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(720, 950);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: const LensPalette(false).theme,
+        home: StatsPage(controller: c, miniWindow: window),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final entry = find.widgetWithText(LensButton, '迷你窗口');
+    final navigation = find.widgetWithText(LensSegmented, '明细');
+    void expectEntry() {
+      expect(entry, findsOneWidget);
+      expect(find.byTooltip('迷你窗口'), findsNothing);
+      expect(
+        tester.getTopLeft(entry).dy,
+        lessThanOrEqualTo(tester.getTopLeft(navigation).dy),
+      );
+    }
+
+    expectEntry();
+    await tester.tap(
+      find.descendant(of: navigation, matching: find.text('明细')),
+    );
+    await tester.pumpAndSettle();
+    expectEntry();
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(c.miniMode, isTrue);
+    await c.shutdown();
+  });
+
+  for (final scenario in [
+    'dismiss',
+    'open',
+    'no window',
+    'empty',
+    'not onboarded',
+  ]) {
+    testWidgets('overview mini window hint $scenario', (tester) async {
+      final g = MiniGateway()..empty = scenario == 'empty';
+      final c = StatsController(
+        g,
+        preferences: UiPreferences(onboarded: scenario != 'not onboarded'),
+        clock: () => demoNow,
+      );
+      final window = MiniWindow(controller: c, platform: MiniPlatform());
+      addTearDown(c.dispose);
+      addTearDown(window.dispose);
+      await c.load();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: const LensPalette(false).theme,
+          home: StatsPage(
+            controller: c,
+            miniWindow: scenario == 'no window' ? null : window,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final hint = find.text('想边用 AI 边看 token 用量？');
+      final show = scenario == 'dismiss' || scenario == 'open';
+      expect(hint, show ? findsOneWidget : findsNothing);
+      if (!show) return;
+      if (scenario == 'dismiss') {
+        await tester.tap(find.byTooltip('不再提示'));
+      } else {
+        await tester.tap(find.text('打开迷你窗口'));
+        await tester.pumpAndSettle();
+        expect(c.miniMode, isTrue);
+        await window.exit();
+      }
+      await tester.pumpAndSettle();
+      expect(hint, findsNothing);
+      expect(
+        UiPreferences.decode(c.preferences.encode()).encode(),
+        contains('"miniHintDismissed":true'),
+      );
+    });
+  }
+
   test('mini chart range decodes, validates and persists', () async {
     final dir = await Directory.systemTemp.createTemp('mini-chart-prefs-');
     addTearDown(() => dir.delete(recursive: true));
