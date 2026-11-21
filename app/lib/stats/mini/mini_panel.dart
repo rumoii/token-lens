@@ -47,6 +47,7 @@ class MiniPanel extends StatefulWidget {
 
 class _MiniPanelState extends State<MiniPanel> {
   bool _requests = false, _hovered = false;
+  int? _chartSelection;
   final _settings = GlobalKey();
 
   StatsController get c => widget.controller;
@@ -67,6 +68,7 @@ class _MiniPanelState extends State<MiniPanel> {
     if (old.controller == c) return;
     old.controller.removeListener(_dataChanged);
     _usage = c.miniUsage;
+    _chartSelection = null;
     _flashExpiry?.cancel();
     _projectFlashes.clear();
     _requestFlashes.clear();
@@ -82,6 +84,7 @@ class _MiniPanelState extends State<MiniPanel> {
 
   void _dataChanged() {
     final before = _usage, next = c.miniUsage;
+    if (before?.minutes.length != next?.minutes.length) _chartSelection = null;
     if (c.miniRevision > 0 &&
         !identical(before, next) &&
         before != null &&
@@ -297,7 +300,16 @@ class _MiniPanelState extends State<MiniPanel> {
   Widget _hero(LensPalette p, StatsMiniUsage? usage) {
     final values = usage?.minutes ?? const <int>[];
     final observedAt = c.miniObservedAt;
+    final lastMinute = observedAt == null ? null : _chartMinuteOf(observedAt);
+    final s = context.strings;
+    String tip(int index) => s.miniChartTip(
+      _chartTime(_chartTimeAt(lastMinute!, values.length, index)),
+      _miniTokens(c, values[index]),
+      index == values.length - 1,
+    );
+
     final total = _heroTotal(p, usage?.totals);
+    final selected = _chartSelection;
     return SizedBox(
       height: 96,
       child: Padding(
@@ -306,7 +318,7 @@ class _MiniPanelState extends State<MiniPanel> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: observedAt == null || values.isEmpty
+              child: lastMinute == null || values.isEmpty
                   ? total
                   : LayoutBuilder(
                       builder: (context, constraints) => Row(
@@ -327,10 +339,13 @@ class _MiniPanelState extends State<MiniPanel> {
                             child: Align(
                               alignment: Alignment.centerRight,
                               child: _MiniUsageChart(
-                                key: ValueKey(values.length),
+                                key: ValueKey((c, values.length)),
                                 values: values,
-                                observedAt: observedAt,
+                                lastMinute: lastMinute,
                                 unitSystem: c.unitSystem,
+                                tip: tip,
+                                onSelectionChanged: (index) =>
+                                    setState(() => _chartSelection = index),
                               ),
                             ),
                           ),
@@ -338,7 +353,12 @@ class _MiniPanelState extends State<MiniPanel> {
                       ),
                     ),
             ),
-            _MiniStatus(controller: c),
+            _MiniStatus(
+              controller: c,
+              selectedTip: lastMinute == null || selected == null
+                  ? null
+                  : tip(selected),
+            ),
           ],
         ),
       ),
@@ -477,8 +497,9 @@ class _MiniPanelState extends State<MiniPanel> {
 }
 
 class _MiniStatus extends StatefulWidget {
-  const _MiniStatus({required this.controller});
+  const _MiniStatus({required this.controller, required this.selectedTip});
   final StatsController controller;
+  final String? selectedTip;
 
   @override
   State<_MiniStatus> createState() => _MiniStatusState();
@@ -508,22 +529,25 @@ class _MiniStatusState extends State<_MiniStatus> {
     final c = widget.controller,
         s = context.strings,
         p = LensPalette.of(context);
-    final running = c.busy;
-    final failed = c.miniSyncFailed && !running;
-    final color = running
+    final selectedTip = widget.selectedTip;
+    final running = selectedTip == null && c.busy;
+    final failed = selectedTip == null && !running && c.miniSyncFailed;
+    final color = selectedTip != null || running
         ? p['clay']
         : failed
         ? p['danger']
         : p['ok'];
     final updated = c.miniUpdatedAt;
-    final label = running || (updated == null && !failed)
-        ? s.syncing
-        : failed
-        ? s.miniSyncFailed
-        : s.miniUpdated(
-            math.max(0, c.clock().difference(updated!).inSeconds),
-            c.preferences.mini.seconds,
-          );
+    final label =
+        selectedTip ??
+        (running || (updated == null && !failed)
+            ? s.syncing
+            : failed
+            ? s.miniSyncFailed
+            : s.miniUpdated(
+                math.max(0, c.clock().difference(updated!).inSeconds),
+                c.preferences.mini.seconds,
+              ));
     return SizedBox(
       height: 24,
       child: Row(
@@ -541,14 +565,25 @@ class _MiniStatusState extends State<_MiniStatus> {
               },
             )
           else
-            SyncDot(color: color, revision: failed ? 0 : c.miniRevision),
+            SyncDot(
+              color: color,
+              revision: selectedTip != null || failed ? 0 : c.miniRevision,
+            ),
           const SizedBox(width: 7),
           Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: p.text(11, failed ? color : p.muted),
+            child: ExcludeSemantics(
+              excluding: selectedTip != null,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: p.text(
+                  11,
+                  selectedTip != null
+                      ? p.secondary
+                      : (failed ? color : p.muted),
+                ),
+              ),
             ),
           ),
           if (failed)

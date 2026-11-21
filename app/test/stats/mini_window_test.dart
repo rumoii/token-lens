@@ -10,6 +10,7 @@ import 'package:token_lens_app/stats/mini/mini_panel.dart';
 import 'package:token_lens_app/stats/mini/mini_window.dart';
 import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
+import 'package:token_lens_app/stats/widgets/motion.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
@@ -210,7 +211,7 @@ void main() {
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: bounds.topRight + const Offset(-2, 16));
     await tester.pumpAndSettle();
-    expect(find.text('14:26 so far · 780 tokens'), findsOneWidget);
+    expect(miniStatusText('14:26 so far · 780 tokens'), findsOneWidget);
     await mouse.removePointer();
     await tester.pumpWidget(const SizedBox());
     await c.shutdown();
@@ -288,9 +289,11 @@ void main() {
     await tester.tap(find.text('1 hour'));
     await tester.pumpAndSettle();
     expect(gateway.windows, [15, 30, 60]);
-    expect(axis('13:40'), findsOneWidget);
+    expect(axis('13:45'), findsOneWidget);
     expect(axis('14:00'), findsOneWidget);
     expect(axis('14:20'), findsNothing);
+    expect(axis('13:30'), findsNothing); // 8.5 px from the left of the plot.
+    expect(axis('14:15'), findsNothing); // 28 px from the right of the plot.
     expect(c.lastSync, isNull);
     expect(tester.takeException(), isNull);
     final focus = find.descendant(of: chart, matching: find.byType(Focus));
@@ -304,10 +307,167 @@ void main() {
     await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pumpAndSettle();
-    expect(find.text('14:25 · 0 tokens'), findsOneWidget);
+    expect(miniStatusText('14:25 · 0 tokens'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await c.shutdown();
   });
+
+  testWidgets('hover replaces the status through a clock tick until exit', (
+    tester,
+  ) async {
+    final start = DateTime(2026, 11, 21, 14, 26);
+    var now = start;
+    final c = StatsController(MiniGateway(), clock: () => now);
+    final window = MiniWindow(controller: c, platform: MiniPlatform());
+    addTearDown(() {
+      window.dispose();
+      c.dispose();
+    });
+    await c.setMiniMode(true);
+    await tester.pumpWidget(panel(c, window, reduced: true));
+    now = start.add(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 3));
+    expect(miniStatusText(englishStrings.miniUpdated(3, 10)), findsOneWidget);
+
+    final chart = find.byKey(const Key('mini-usage-chart'));
+    final bounds = tester.getRect(chart);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: bounds.topLeft + const Offset(29, 16));
+    await tester.pump();
+    expect(miniStatusText('14:12 · 0 tokens'), findsOneWidget);
+    await mouse.moveTo(bounds.topRight + const Offset(-2, 16));
+    await tester.pump();
+    const current = '14:26 so far · 780 tokens';
+    expect(miniStatusText(current), findsOneWidget);
+    expect(find.text(current), findsOneWidget);
+    expect(
+      find.descendant(of: chart, matching: find.byType(OverlayPortal)),
+      findsNothing,
+    );
+    const palette = LensPalette(false);
+    expect(tester.widget<SyncDot>(find.byType(SyncDot)).color, palette['clay']);
+    expect(
+      tester.widget<Text>(miniStatusText(current)).style!.color,
+      palette.secondary,
+    );
+
+    now = now.add(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(miniStatusText(current), findsOneWidget);
+    expect(find.textContaining('Updated '), findsNothing);
+
+    await mouse.moveTo(bounds.bottomRight + const Offset(0, 10));
+    await tester.pump();
+    expect(find.text(current), findsNothing);
+    expect(miniStatusText(englishStrings.miniUpdated(4, 10)), findsOneWidget);
+    await mouse.removePointer();
+    await tester.pumpWidget(const SizedBox());
+    await c.shutdown();
+  });
+
+  testWidgets(
+    'keyboard selection updates status and chart semantics until blur',
+    (tester) async {
+      final c = StatsController(
+        MiniGateway(),
+        clock: () => DateTime(2026, 11, 21, 14, 26),
+      );
+      final window = MiniWindow(controller: c, platform: MiniPlatform());
+      addTearDown(() {
+        window.dispose();
+        c.dispose();
+      });
+      await c.setMiniMode(true);
+      await tester.pumpWidget(panel(c, window, reduced: true));
+      await tester.pumpAndSettle();
+      final chart = find.byKey(const Key('mini-usage-chart'));
+      final focus = Focus.of(
+        tester.element(
+          find.descendant(of: chart, matching: find.byType(MouseRegion)),
+        ),
+      );
+      focus.requestFocus();
+      await tester.pumpAndSettle();
+      expect(miniStatusText('14:26 so far · 780 tokens'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      const earlier = '14:25 · 0 tokens';
+      expect(miniStatusText(earlier), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(
+              find.bySemanticsLabel(englishStrings.miniChartLabel(15)),
+            )
+            .value,
+        earlier,
+      );
+      expect(find.bySemanticsLabel(earlier), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(miniStatusText('14:26 so far · 780 tokens'), findsOneWidget);
+      focus.unfocus();
+      await tester.pumpAndSettle();
+      expect(miniStatusText(englishStrings.miniUpdated(0, 10)), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await c.shutdown();
+    },
+  );
+
+  for (final syncing in [false, true]) {
+    testWidgets(
+      'hover takes precedence while sync is ${syncing ? 'running' : 'failed'}',
+      (tester) async {
+        final gateway = MiniGateway();
+        final c = StatsController(
+          gateway,
+          clock: () => DateTime(2026, 11, 21, 14, 26),
+        );
+        final window = MiniWindow(controller: c, platform: MiniPlatform());
+        addTearDown(() {
+          window.dispose();
+          c.dispose();
+        });
+        await c.setMiniMode(true);
+        await tester.pumpWidget(panel(c, window, reduced: true));
+        if (syncing) {
+          gateway.syncBarrier = Completer<void>();
+        } else {
+          gateway.syncFailure = 'fixture failure';
+        }
+        final sync = c.sync();
+        if (!syncing) await sync;
+        await tester.pump();
+        final label = syncing
+            ? englishStrings.syncing
+            : englishStrings.miniSyncFailed;
+        final retry = find.text(englishStrings.retry);
+        final retryWhenIdle = syncing ? findsNothing : findsOneWidget;
+        expect(miniStatusText(label), findsOneWidget);
+        expect(retry, retryWhenIdle);
+
+        final chart = find.byKey(const Key('mini-usage-chart'));
+        final bounds = tester.getRect(chart);
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(
+          location: bounds.topRight + const Offset(-2, 16),
+        );
+        await tester.pump();
+        expect(miniStatusText('14:26 so far · 780 tokens'), findsOneWidget);
+        expect(find.text(label), findsNothing);
+        expect(retry, findsNothing);
+        await mouse.moveTo(bounds.bottomRight + const Offset(0, 10));
+        await tester.pump();
+        expect(miniStatusText(label), findsOneWidget);
+        expect(retry, retryWhenIdle);
+
+        gateway.syncBarrier?.complete();
+        await sync;
+        await mouse.removePointer();
+        await tester.pumpWidget(const SizedBox());
+        await c.shutdown();
+      },
+    );
+  }
 
   testWidgets('empty chart has zero axis only and no line or point', (
     tester,
@@ -586,6 +746,11 @@ void main() {
     },
   );
 }
+
+Finder miniStatusText(String text) => find.descendant(
+  of: find.ancestor(of: find.byType(SyncDot), matching: find.byType(Row)).first,
+  matching: find.text(text),
+);
 
 Widget panel(StatsController c, MiniWindow window, {bool reduced = false}) =>
     MaterialApp(

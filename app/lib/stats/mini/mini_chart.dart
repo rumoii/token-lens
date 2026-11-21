@@ -4,21 +4,24 @@ class _MiniUsageChart extends StatefulWidget {
   const _MiniUsageChart({
     super.key,
     required this.values,
-    required this.observedAt,
+    required this.lastMinute,
     required this.unitSystem,
+    required this.tip,
+    required this.onSelectionChanged,
   });
 
   static const minWidth = 96.0, maxWidth = 176.0, height = 66.0;
   final List<int> values;
-  final DateTime observedAt;
+  final int lastMinute;
   final String unitSystem;
+  final String Function(int) tip;
+  final ValueChanged<int?> onSelectionChanged;
 
   @override
   State<_MiniUsageChart> createState() => _MiniUsageChartState();
 }
 
 class _MiniUsageChartState extends State<_MiniUsageChart> {
-  final _tooltip = OverlayPortalController();
   int? _hovered, _focused;
   int _revision = 0;
 
@@ -33,15 +36,12 @@ class _MiniUsageChartState extends State<_MiniUsageChart> {
 
   void _select({int? hovered, int? focused}) {
     if (_hovered == hovered && _focused == focused) return;
+    final previous = _selected;
     setState(() {
       _hovered = hovered;
       _focused = focused;
     });
-    if (_selected == null) {
-      _tooltip.hide();
-    } else if (!_tooltip.isShowing) {
-      _tooltip.show();
-    }
+    if (previous != _selected) widget.onSelectionChanged(_selected);
   }
 
   String _tokens(num n) => tokenCount(n, unitSystem: widget.unitSystem);
@@ -62,16 +62,12 @@ class _MiniUsageChartState extends State<_MiniUsageChart> {
     final geometry = _MiniChartGeometry(
       width: bounds.maxWidth,
       values: widget.values,
-      observedAt: widget.observedAt,
+      lastMinute: widget.lastMinute,
     );
     final plot = geometry.plot;
     final selected = _selected;
     final current = selected ?? _last;
-    String tip(int index) => s.miniChartTip(
-      _chartTime(geometry.timeAt(index)),
-      _tokens(widget.values[index]),
-      index == _last,
-    );
+    final tip = widget.tip;
 
     void step(int delta) => _select(focused: (current + delta).clamp(0, _last));
 
@@ -129,93 +125,59 @@ class _MiniUsageChartState extends State<_MiniUsageChart> {
           }
           return KeyEventResult.ignored;
         },
-        child: OverlayPortal.overlayChildLayoutBuilder(
-          controller: _tooltip,
-          overlayChildBuilder: (context, layout) {
-            if (selected == null) return const SizedBox.shrink();
-            final transform = layout.childPaintTransform;
-            final below = MatrixUtils.transformPoint(
-              transform,
-              Offset(geometry.xAt(selected), _MiniUsageChart.height + 4),
-            );
-            final right = MatrixUtils.transformPoint(
-              transform,
-              Offset(bounds.maxWidth, 0),
-            ).dx;
-            final theme = TooltipTheme.of(context);
-            return IgnorePointer(
-              child: ExcludeSemantics(
-                child: CustomSingleChildLayout(
-                  delegate: _MiniChartTipPosition(below, right),
-                  child: Container(
-                    padding:
-                        theme.padding ??
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: theme.decoration,
-                    child: Text(tip(selected), style: theme.textStyle),
-                  ),
-                ),
-              ),
-            );
-          },
-          child: MouseRegion(
-            onEnter: hover,
-            onHover: hover,
-            onExit: (_) => _select(focused: _focused),
-            child: ExcludeSemantics(
-              child: Stack(
-                fit: StackFit.expand,
-                clipBehavior: Clip.none,
-                children: [
-                  axes,
-                  if (geometry.maximum > 0)
-                    if (animate)
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0, end: 1),
-                        duration: LensTokens.enter,
+        child: MouseRegion(
+          onEnter: hover,
+          onHover: hover,
+          onExit: (_) => _select(focused: _focused),
+          child: ExcludeSemantics(
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.none,
+              children: [
+                axes,
+                if (geometry.maximum > 0)
+                  if (animate)
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: LensTokens.enter,
+                      curve: LensTokens.ease,
+                      builder: (_, reveal, _) => TweenAnimationBuilder<double>(
+                        key: ValueKey(_revision),
+                        tween: Tween(begin: _revision == 0 ? 1 : 0, end: 1),
+                        duration: LensTokens.pulse,
                         curve: LensTokens.ease,
-                        builder: (_, reveal, _) =>
-                            TweenAnimationBuilder<double>(
-                              key: ValueKey(_revision),
-                              tween: Tween(
-                                begin: _revision == 0 ? 1 : 0,
-                                end: 1,
-                              ),
-                              duration: LensTokens.pulse,
-                              curve: LensTokens.ease,
-                              builder: (_, halo, _) => curve(reveal, halo),
-                            ),
-                      )
-                    else
-                      curve(1, 1),
-                  for (final n in numberLabels)
-                    Positioned(
-                      left: 0,
-                      top: geometry.yAt(n) - 6,
-                      width: plot.left - 5,
-                      height: 12,
-                      child: label(
-                        n == .5 ? '0.5' : _tokens(n),
-                        Alignment.centerRight,
+                        builder: (_, halo, _) => curve(reveal, halo),
                       ),
-                    ),
-                  for (final (x, time) in geometry.ticks)
-                    Positioned(
-                      left: x - xLabelWidth / 2,
-                      bottom: 0,
-                      width: xLabelWidth,
-                      height: 12,
-                      child: label(_chartTime(time), Alignment.center),
-                    ),
+                    )
+                  else
+                    curve(1, 1),
+                for (final n in numberLabels)
                   Positioned(
-                    right: bounds.maxWidth - plot.right,
-                    bottom: 0,
-                    width: 29,
+                    left: 0,
+                    top: geometry.yAt(n) - 6,
+                    width: plot.left - 5,
                     height: 12,
-                    child: label(s.miniChartNow, Alignment.centerRight),
+                    child: label(
+                      n == .5 ? '0.5' : _tokens(n),
+                      Alignment.centerRight,
+                    ),
                   ),
-                ],
-              ),
+                for (final (x, time) in geometry.ticks)
+                  Positioned(
+                    left: x - xLabelWidth / 2,
+                    bottom: 0,
+                    width: xLabelWidth,
+                    height: 12,
+                    child: label(_chartTime(time), Alignment.center),
+                  ),
+                Positioned(
+                  right: bounds.maxWidth - plot.right,
+                  bottom: 0,
+                  width: 29,
+                  height: 12,
+                  child: label(s.miniChartNow, Alignment.centerRight),
+                ),
+              ],
             ),
           ),
         ),
@@ -227,26 +189,30 @@ class _MiniUsageChartState extends State<_MiniUsageChart> {
 String _chartTime(DateTime time) =>
     "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
 
+const _chartMinute = Duration.millisecondsPerMinute;
+
+int _chartMinuteOf(DateTime time) {
+  final ms = time.millisecondsSinceEpoch;
+  return (ms - ms % _chartMinute) ~/ _chartMinute;
+}
+
+DateTime _chartTimeAt(int lastMinute, int length, int index) =>
+    DateTime.fromMillisecondsSinceEpoch(
+      (lastMinute - length + 1 + index) * _chartMinute,
+    );
+
 class _MiniChartGeometry {
   _MiniChartGeometry({
     required double width,
     required this.values,
-    required DateTime observedAt,
+    required this.lastMinute,
   }) : plot = Rect.fromLTRB(28, 5, width - 2, 50),
-       maximum = _roundedMaximum(values.fold(0, math.max)),
-       lastMinute = _minuteOf(observedAt);
+       maximum = _roundedMaximum(values.fold(0, math.max));
 
   final Rect plot;
   final List<int> values;
   final double maximum;
   final int lastMinute;
-
-  static const _minute = Duration.millisecondsPerMinute;
-
-  static int _minuteOf(DateTime time) {
-    final ms = time.millisecondsSinceEpoch;
-    return (ms - ms % _minute) ~/ _minute;
-  }
 
   static double _roundedMaximum(int peak) {
     if (peak <= 0) return 0;
@@ -263,7 +229,7 @@ class _MiniChartGeometry {
   }
 
   double get step => plot.width / values.length;
-  int get tickEvery => values.length ~/ 3;
+  int get tickEvery => values.length == 60 ? 15 : values.length ~/ 3;
   double xAt(int i) => plot.left + (i + .5) * step;
   double yAt(num n) => maximum == 0
       ? plot.bottom
@@ -271,15 +237,11 @@ class _MiniChartGeometry {
   Offset point(int i) => Offset(xAt(i), yAt(values[i]));
   int indexAt(double x) =>
       ((x - plot.left) / step).floor().clamp(0, values.length - 1);
-  DateTime timeAt(int i) => DateTime.fromMillisecondsSinceEpoch(
-    (lastMinute - values.length + 1 + i) * _minute,
-  );
-
   Iterable<(double, DateTime)> get ticks sync* {
     for (var i = 0; i < values.length; i++) {
       final x = xAt(i);
       if (x - plot.left < 10 || plot.right - x < 34) continue;
-      final time = timeAt(i);
+      final time = _chartTimeAt(lastMinute, values.length, i);
       if ((time.hour * 60 + time.minute) % tickEvery == 0) yield (x, time);
     }
   }
@@ -419,27 +381,4 @@ class _MiniChartCurve extends CustomPainter {
       old.reveal != reveal ||
       old.halo != halo ||
       old.selected != selected;
-}
-
-class _MiniChartTipPosition extends SingleChildLayoutDelegate {
-  const _MiniChartTipPosition(this.below, this.right);
-  final Offset below;
-  final double right;
-
-  @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      BoxConstraints(maxWidth: math.max(0, right - 16));
-
-  @override
-  Offset getPositionForChild(Size size, Size childSize) => Offset(
-    (below.dx - childSize.width / 2).clamp(
-      16.0,
-      math.max(16.0, right - childSize.width),
-    ),
-    below.dy,
-  );
-
-  @override
-  bool shouldRelayout(_MiniChartTipPosition old) =>
-      old.below != below || old.right != right;
 }
