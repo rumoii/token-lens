@@ -37,6 +37,9 @@ class SettingsDisplay extends StatefulWidget {
 class _SettingsDisplayState extends State<SettingsDisplay> {
   ExchangeRateOperation? _operation;
   Object? _error;
+  Future<bool>? _shortcutExists;
+  bool _creatingShortcut = false;
+  bool? _shortcutCreated;
   void _cancel() {
     final old = _operation;
     _operation = null;
@@ -49,6 +52,9 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
     if (widget.controller != oldWidget.controller) {
       _cancel();
       _error = null;
+      _shortcutExists = null;
+      _creatingShortcut = false;
+      _shortcutCreated = null;
     }
   }
 
@@ -86,6 +92,22 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
     } finally {
       if (mounted && _operation == operation) setState(() => _operation = null);
     }
+  }
+
+  Future<void> _createShortcut() async {
+    if (_creatingShortcut) return;
+    final controller = widget.controller;
+    setState(() {
+      _creatingShortcut = true;
+      _shortcutCreated = null;
+    });
+    final created = await controller.gateway.createDesktopShortcut();
+    if (!mounted || widget.controller != controller) return;
+    setState(() {
+      _creatingShortcut = false;
+      _shortcutCreated = created;
+      if (created) _shortcutExists = Future.value(true);
+    });
   }
 
   @override
@@ -276,6 +298,46 @@ class _SettingsDisplayState extends State<SettingsDisplay> {
                   ),
                 ),
             ]),
+            if (c.gateway.shortcutGateway case final shortcut?
+                when Theme.of(context).platform == TargetPlatform.windows)
+              FutureBuilder<bool>(
+                future: _shortcutExists ??= shortcut.desktopShortcutExists(),
+                builder: (context, snapshot) =>
+                    row(s.desktopShortcut, s.desktopShortcutHint, [
+                      LensButton(
+                        label: snapshot.data == true
+                            ? s.desktopShortcutRecreate
+                            : s.desktopShortcutCreate,
+                        icon: Icons.desktop_windows_outlined,
+                        variant: 'ghost',
+                        size: 'xs',
+                        spinning: _creatingShortcut,
+                        onPressed:
+                            _creatingShortcut ||
+                                snapshot.connectionState != ConnectionState.done
+                            ? null
+                            : () => unawaited(_createShortcut()),
+                      ),
+                      if (_shortcutCreated case final created?)
+                        Semantics(
+                          liveRegion: true,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 4,
+                            children: [
+                              if (created)
+                                Icon(Icons.check, size: 14, color: p['ok']),
+                              Text(
+                                created
+                                    ? s.desktopShortcutCreated
+                                    : s.desktopShortcutFailed,
+                                style: p.text(12.5, p[created ? 'ok' : 'warn']),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ]),
+              ),
           ]),
           SizedBox(height: MediaQuery.sizeOf(context).width < 768 ? 12 : 16),
           card(s.numbersAndTime, [

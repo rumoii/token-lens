@@ -553,6 +553,11 @@ pub struct StatsSyncProgress {
     pub files_read: i64,
     pub trigger: String,
     pub first_sync: Option<bool>,
+    pub files_total: Option<i64>,
+    pub files_processed: i64,
+    pub source_files_processed: i64,
+    pub source_files_total: i64,
+    pub completed_sources: Vec<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsDiscoveryIssue {
@@ -866,6 +871,11 @@ impl StatsClient {
             files_read: 0,
             trigger: trigger.into(),
             first_sync: None,
+            files_total: None,
+            files_processed: 0,
+            source_files_processed: 0,
+            source_files_total: 0,
+            completed_sources: vec![],
         };
         let publish = |progress: &StatsSyncProgress| {
             *self
@@ -887,17 +897,33 @@ impl StatsClient {
                     ingest::Progress::Discovering { first_sync } => {
                         progress.first_sync = Some(first_sync);
                     }
+                    ingest::Progress::Discovered { files } => {
+                        progress.files_total = Some(files as i64);
+                    }
                     ingest::Progress::Reading {
                         source,
                         index,
                         total,
+                        source_files,
                     } => {
                         progress.stage = "reading".into();
                         progress.source = Some(source.into());
                         progress.index = index as i64;
                         progress.total = total as i64;
+                        progress.source_files_processed = 0;
+                        progress.source_files_total = source_files as i64;
                     }
-                    ingest::Progress::FileRead => progress.files_read += 1,
+                    ingest::Progress::FilesProcessed { count, parsed } => {
+                        let count = count as i64;
+                        progress.files_processed += count;
+                        progress.source_files_processed += count;
+                        if parsed {
+                            progress.files_read += count;
+                        }
+                    }
+                    ingest::Progress::SourceFinished(source) => {
+                        progress.completed_sources.push(source.into());
+                    }
                 }
                 publish(&progress);
             },

@@ -57,6 +57,27 @@ final class CachedStatsGateway
 
   StatsProgressGateway? get progressGateway =>
       _inner is StatsProgressGateway ? _inner as StatsProgressGateway : null;
+  DesktopShortcutGateway? get shortcutGateway =>
+      _inner is DesktopShortcutGateway
+      ? _inner as DesktopShortcutGateway
+      : null;
+
+  Future<bool> createDesktopShortcut() async {
+    final provider = shortcutGateway;
+    if (provider == null) return false;
+    try {
+      await provider.createDesktopShortcut();
+      return true;
+    } catch (error, stack) {
+      try {
+        await logError('desktop-shortcut', error.toString(), stack.toString());
+      } catch (_) {
+        // A failure to write diagnostics does not hide the shortcut result.
+      }
+      return false;
+    }
+  }
+
   StatsMiniGateway? get miniGateway =>
       _inner is StatsMiniGateway ? _inner as StatsMiniGateway : null;
   StatsUsageExporter? get usageExporter =>

@@ -379,12 +379,20 @@ pub(crate) enum Progress<'a> {
     Discovering {
         first_sync: bool,
     },
+    Discovered {
+        files: usize,
+    },
     Reading {
         source: &'a str,
         index: usize,
         total: usize,
+        source_files: usize,
     },
-    FileRead,
+    FilesProcessed {
+        count: usize,
+        parsed: bool,
+    },
+    SourceFinished(&'a str),
 }
 
 pub(crate) fn sync_triggered(
@@ -449,6 +457,8 @@ struct SyncOptions<'a> {
     revisions: Option<Revisions>,
     #[cfg(test)]
     after_parse: Option<fn(&Path)>,
+    #[cfg(test)]
+    after_commit: Option<&'a dyn Fn()>,
 }
 
 impl SyncOptions<'_> {
@@ -461,6 +471,8 @@ impl SyncOptions<'_> {
             revisions: None,
             #[cfg(test)]
             after_parse: None,
+            #[cfg(test)]
+            after_commit: None,
         }
     }
 }
@@ -540,19 +552,25 @@ fn sync_profiled(
             }
         }
         let total = discovered.files.len();
+        if let Some(progress) = options.progress.as_deref_mut() {
+            progress(Progress::Discovered {
+                files: discovered.files.iter().map(|(_, files)| files.len()).sum(),
+            });
+        }
         for (index, (source, files)) in discovered.files.into_iter().enumerate() {
             if cancel.load(Ordering::Acquire) {
                 return Err(Error("cancelled".into()));
             }
+            let source_files = files.len();
             if let Some(progress) = options.progress.as_deref_mut() {
                 progress(Progress::Reading {
                     source: &source,
                     index: index + 1,
                     total,
+                    source_files,
                 });
             }
             let source_started = Instant::now();
-            let source_files = files.len();
             let anomaly_count = totals["anomalies"].as_array().unwrap().len();
             phases.files += source_files;
             let mut process = || -> Result<()> {
@@ -608,6 +626,14 @@ fn sync_profiled(
                 phases.cache_read_ns += start.elapsed().as_nanos() as u64;
                 if skip {
                     phases.skipped_files += source_files;
+                    if source_files > 0 {
+                        if let Some(progress) = options.progress.as_deref_mut() {
+                            progress(Progress::FilesProcessed {
+                                count: source_files,
+                                parsed: false,
+                            });
+                        }
+                    }
                     return Ok(());
                 }
 
@@ -637,6 +663,12 @@ fn sync_profiled(
                                 records: output.records,
                             });
                             updates.push(CacheUpdate::Keep);
+                            if let Some(progress) = options.progress.as_deref_mut() {
+                                progress(Progress::FilesProcessed {
+                                    count: 1,
+                                    parsed: false,
+                                });
+                            }
                             continue;
                         }
                     }
@@ -650,7 +682,10 @@ fn sync_profiled(
                         &mut phases.adapter,
                     );
                     if let Some(progress) = options.progress.as_deref_mut() {
-                        progress(Progress::FileRead);
+                        progress(Progress::FilesProcessed {
+                            count: 1,
+                            parsed: true,
+                        });
                     }
                     match parsed_file {
                         Ok((mut records, mut notes)) => {
@@ -785,6 +820,10 @@ fn sync_profiled(
                             Ok(())
                         },
                     )?;
+                    #[cfg(test)]
+                    if let Some(after_commit) = options.after_commit {
+                        after_commit();
+                    }
                     phases.write_ns += (start.elapsed().as_nanos() as u64)
                         .saturating_sub(phases.cache_write_ns - cache_before);
                     phases.write_transactions += 1;
@@ -834,6 +873,11 @@ fn sync_profiled(
                 });
             }
             processed?;
+            if source_files > 0 {
+                if let Some(progress) = options.progress.as_deref_mut() {
+                    progress(Progress::SourceFinished(&source));
+                }
+            }
             let discovery_ns = source_discovery.remove(&source).unwrap_or_default();
             phases.sources.insert(
                 source,
@@ -1031,6 +1075,7 @@ mod tests {
             .map(|r| r["expected"].clone())
             .collect();
         for row in &mut expected {
+            super::super::update_golden_price_version(row);
             let source_file = native_golden_path(row["source_file"].as_str().unwrap());
             if row["source"] == "codex" {
                 // Explicit Rust-only short-ID divergence; Node golden and all other fields stay pinned.
@@ -1075,7 +1120,6 @@ mod tests {
         assert_eq!(result["attempted"], 0);
         cancel.store(true, Ordering::Release);
         assert_eq!(
-            super::super::update_golden_price_version(row);
             sync(
                 &data,
                 &home,

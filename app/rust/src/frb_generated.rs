@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1784058559;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1736499367;
 
 // Section: executor
 
@@ -1787,6 +1787,70 @@ fn wire__crate__api__stats__StatsClient_timeseries_impl(
                         api_filter,
                         api_offset_minutes,
                     )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__shortcut__create_desktop_shortcut_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_desktop_shortcut",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::shortcut::create_desktop_shortcut()?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__shortcut__desktop_shortcut_exists_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "desktop_shortcut_exists",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>(crate::api::shortcut::desktop_shortcut_exists())?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -4011,6 +4075,11 @@ impl SseDecode for crate::api::stats::StatsSyncProgress {
         let mut var_filesRead = <i64>::sse_decode(deserializer);
         let mut var_trigger = <String>::sse_decode(deserializer);
         let mut var_firstSync = <Option<bool>>::sse_decode(deserializer);
+        let mut var_filesTotal = <Option<i64>>::sse_decode(deserializer);
+        let mut var_filesProcessed = <i64>::sse_decode(deserializer);
+        let mut var_sourceFilesProcessed = <i64>::sse_decode(deserializer);
+        let mut var_sourceFilesTotal = <i64>::sse_decode(deserializer);
+        let mut var_completedSources = <Vec<String>>::sse_decode(deserializer);
         return crate::api::stats::StatsSyncProgress {
             stage: var_stage,
             source: var_source,
@@ -4019,6 +4088,11 @@ impl SseDecode for crate::api::stats::StatsSyncProgress {
             files_read: var_filesRead,
             trigger: var_trigger,
             first_sync: var_firstSync,
+            files_total: var_filesTotal,
+            files_processed: var_filesProcessed,
+            source_files_processed: var_sourceFilesProcessed,
+            source_files_total: var_sourceFilesTotal,
+            completed_sources: var_completedSources,
         };
     }
 }
@@ -4333,24 +4407,36 @@ fn pde_ffi_dispatcher_primary_impl(
         33 => {
             wire__crate__api__stats__StatsClient_timeseries_impl(port, ptr, rust_vec_len, data_len)
         }
-        34 => wire__crate__api__diagnostics__export_startup_diagnostics_impl(
+        34 => wire__crate__api__shortcut__create_desktop_shortcut_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__diagnostics__startup_build_info_impl(
+        35 => wire__crate__api__shortcut__desktop_shortcut_exists_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__diagnostics__write_runtime_error_impl(
+        36 => wire__crate__api__diagnostics__export_startup_diagnostics_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        37 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__diagnostics__startup_build_info_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        41 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__diagnostics__write_runtime_error_impl(
             port,
             ptr,
             rust_vec_len,
@@ -5764,6 +5850,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsSyncProgress {
             self.files_read.into_into_dart().into_dart(),
             self.trigger.into_into_dart().into_dart(),
             self.first_sync.into_into_dart().into_dart(),
+            self.files_total.into_into_dart().into_dart(),
+            self.files_processed.into_into_dart().into_dart(),
+            self.source_files_processed.into_into_dart().into_dart(),
+            self.source_files_total.into_into_dart().into_dart(),
+            self.completed_sources.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -7324,6 +7415,11 @@ impl SseEncode for crate::api::stats::StatsSyncProgress {
         <i64>::sse_encode(self.files_read, serializer);
         <String>::sse_encode(self.trigger, serializer);
         <Option<bool>>::sse_encode(self.first_sync, serializer);
+        <Option<i64>>::sse_encode(self.files_total, serializer);
+        <i64>::sse_encode(self.files_processed, serializer);
+        <i64>::sse_encode(self.source_files_processed, serializer);
+        <i64>::sse_encode(self.source_files_total, serializer);
+        <Vec<String>>::sse_encode(self.completed_sources, serializer);
     }
 }
 

@@ -42,6 +42,90 @@ impl Fixture {
 const QWEN: &str = r#"{"sessionId":"synthetic","id":"request","timestamp":"2026-01-15T12:00:00","model":"qwen3-coder","inputTokens":100,"outputTokens":20,"apiDurationMs":800}"#;
 const QWEN_PATH: &str = ".qwen/usage/token-usage-synthetic.jsonl";
 
+#[test]
+fn trial_progress_counts_unchanged_skipped_files() {
+    let fixture = Fixture::new();
+    fixture.file(QWEN_PATH, QWEN);
+    fixture.run(0);
+    let mut files = 0;
+    let mut completed = false;
+    let mut progress = |event: Progress<'_>| match event {
+        Progress::Discovered { files } => assert_eq!(files, 1),
+        Progress::Reading {
+            source: "qwen",
+            source_files,
+            ..
+        } => assert_eq!(source_files, 1),
+        Progress::FilesProcessed { count, parsed } => {
+            assert!(!parsed);
+            files += count;
+        }
+        Progress::SourceFinished(source) => {
+            assert_eq!(source, "qwen");
+            assert_eq!(files, 1);
+            completed = true;
+        }
+        _ => {}
+    };
+    let result = sync_profiled(
+        &fixture.data,
+        &fixture.home,
+        &Environment::default(),
+        Clock::Fixed(1768478400000),
+        &LocalZone::Fixed(0),
+        &AtomicBool::new(false),
+        SyncOptions {
+            progress: Some(&mut progress),
+            ..SyncOptions::default()
+        },
+    )
+    .unwrap()
+    .0;
+    assert_eq!(result["parsedFiles"], 0);
+    assert_eq!(files, 1);
+    assert!(completed);
+}
+
+#[test]
+fn trial_cancel_after_a_committed_file_resumes_without_reparsing() {
+    let fixture = Fixture::new();
+    for index in 0..3 {
+        fixture.file(
+            &format!(".qwen/usage/token-usage-{index}.jsonl"),
+            QWEN.replace("\"request\"", &format!("\"request-{index}\"")),
+        );
+    }
+    let cancel = AtomicBool::new(false);
+    let result = sync_profiled(
+        &fixture.data,
+        &fixture.home,
+        &Environment::default(),
+        Clock::Fixed(1768478400000),
+        &LocalZone::Fixed(0),
+        &cancel,
+        SyncOptions {
+            after_commit: Some(&|| cancel.store(true, Ordering::Release)),
+            ..SyncOptions::default()
+        },
+    );
+    assert_eq!(result.unwrap_err().0, "cancelled");
+    let select = "SELECT record_key, input_tokens, output_tokens, cost_micros FROM usage_records WHERE active=1 ORDER BY record_key";
+    assert_eq!(fixture.rows(select).len(), 1);
+    let resumed = fixture.run(0);
+    assert_eq!(resumed["fileCount"], 3);
+    assert_eq!(resumed["parsedFiles"], 2);
+    assert_eq!(resumed["cachedFiles"], 1);
+    let uninterrupted = Fixture::new();
+    for index in 0..3 {
+        uninterrupted.file(
+            &format!(".qwen/usage/token-usage-{index}.jsonl"),
+            QWEN.replace("\"request\"", &format!("\"request-{index}\"")),
+        );
+    }
+    assert_eq!(uninterrupted.run(0)["parsedFiles"], 3);
+    assert_eq!(fixture.rows(select), uninterrupted.rows(select));
+}
+
 #[cfg(windows)]
 #[test]
 fn system_timezone_allows_first_source_to_reuse_cache() {

@@ -56,6 +56,10 @@ class _OnboardingPageState extends State<_OnboardingPage> {
   OnboardingStep step = OnboardingStep.discover;
   bool fresh = false;
   late bool localOnly = !c.preferences.newsEnabled;
+  bool createShortcut = true;
+  bool? shortcutCreated;
+  Future<void>? shortcutOperation;
+  final elapsed = Stopwatch();
   StatsController get c => widget.controller;
 
   void changed() {
@@ -73,8 +77,10 @@ class _OnboardingPageState extends State<_OnboardingPage> {
     if (!mounted) return;
     if (step == OnboardingStep.counting) {
       if (c.phase == StatsSyncPhase.error) {
+        elapsed.stop();
         step = OnboardingStep.discover;
       } else if (c.phase == StatsSyncPhase.success && !c.loading) {
+        elapsed.stop();
         step = OnboardingStep.done;
         completed.read(
           'completed',
@@ -90,14 +96,29 @@ class _OnboardingPageState extends State<_OnboardingPage> {
   }
 
   void start() {
+    elapsed
+      ..reset()
+      ..start();
     setState(() => step = OnboardingStep.counting);
+    if (showShortcut && createShortcut && shortcutOperation == null) {
+      shortcutCreated = null;
+      shortcutOperation = c.gateway.createDesktopShortcut().then((result) {
+        shortcutOperation = null;
+        if (mounted) setState(() => shortcutCreated = result);
+      });
+    }
     unawaited(
       c.startOnboardingSync(localOnly: localOnly).then((_) => observe()),
     );
   }
 
+  bool get showShortcut =>
+      Theme.of(context).platform == TargetPlatform.windows &&
+      c.gateway.shortcutGateway != null;
+
   @override
   void dispose() {
+    elapsed.stop();
     c.removeListener(observe);
     discovery.dispose();
     completed.dispose();
@@ -109,12 +130,18 @@ class _OnboardingPageState extends State<_OnboardingPage> {
   Widget build(BuildContext context) => OnboardingContent(
     controller: c,
     step: step,
+    elapsed: elapsed.elapsed,
     discovery: discovery,
     completed: completed,
     completedTools: completedTools,
     onStart: start,
     localOnly: localOnly,
     onLocalOnlyChanged: (value) => setState(() => localOnly = value),
+    createShortcut: createShortcut,
+    shortcutCreated: showShortcut && createShortcut ? shortcutCreated : null,
+    onShortcutChanged: showShortcut
+        ? (value) => setState(() => createShortcut = value)
+        : null,
     onRescan: () {
       fresh = true;
       unawaited(discovery.reload());

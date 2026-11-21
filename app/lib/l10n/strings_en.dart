@@ -19,6 +19,39 @@ final class EnglishStrings extends AppStrings {
   String get miniHintDismiss => 'Don\'t show again';
 
   @override
+  String get onboardingShortcut => 'Create a desktop shortcut';
+
+  @override
+  String get onboardingShortcutHint =>
+      'Puts a Token Lens icon on your desktop so you can open it with a double-click.';
+
+  @override
+  String get onboardingShortcutCreated => 'Desktop shortcut created';
+
+  @override
+  String get onboardingShortcutFailed =>
+      'Couldn\'t create the desktop shortcut. You can try again later in Pricing & settings.';
+
+  @override
+  String get desktopShortcut => 'Desktop shortcut';
+
+  @override
+  String get desktopShortcutHint =>
+      'Puts a Token Lens icon on your desktop. If you moved the app folder, create it again here.';
+
+  @override
+  String get desktopShortcutCreate => 'Create shortcut';
+
+  @override
+  String get desktopShortcutRecreate => 'Create again';
+
+  @override
+  String get desktopShortcutCreated => 'Created';
+
+  @override
+  String get desktopShortcutFailed => 'Couldn\'t create the desktop shortcut.';
+
+  @override
   String get miniPin => 'Keep on top';
 
   @override
@@ -1881,6 +1914,36 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String get readingLogs => 'Reading logs…';
+
+  @override
+  String onboardingReading(int read, int total) =>
+      'Reading logs… $read of $total files';
+
+  @override
+  String get onboardingOrganizing =>
+      'All logs read. Putting the numbers together…';
+
+  @override
+  String onboardingElapsed(int minutes, int seconds) =>
+      '$minutes min $seconds s elapsed';
+
+  @override
+  String get onboardingTimeHint =>
+      'With lots of logs, the first count takes 1–5 minutes. After that, only new entries are read, so it\'s much faster.';
+
+  @override
+  String get onboardingToolDone => 'Done';
+
+  @override
+  String onboardingToolReading(int read, int total) =>
+      'Reading $read of $total';
+
+  @override
+  String get onboardingToolWaiting => 'Waiting';
+
+  @override
+  String get onboardingContinueHint =>
+      'No need to wait: look around while counting continues in the background. If you close the window, it picks up where it left off next time.';
 
   @override
   String get readsLogsOnThisComputerAndLeaves =>

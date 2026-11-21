@@ -265,8 +265,16 @@
 | web_atoms | 0.1.3 | MIT OR Apache-2.0 | 运行时；Windows x64、macOS arm64 | https://crates.io/crates/web_atoms/0.1.3 |
 | webpki-roots | 1.0.11 | CDLA-Permissive-2.0 | 运行时；Windows x64、macOS arm64 | https://crates.io/crates/webpki-roots/1.0.11 |
 | winapi | 0.3.9 | MIT/Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/winapi/0.3.9 |
+| windows | 0.62.2 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows/0.62.2 |
+| windows-collections | 0.3.2 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-collections/0.3.2 |
+| windows-core | 0.62.2 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-core/0.62.2 |
+| windows-future | 0.3.2 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-future/0.3.2 |
 | windows-link | 0.2.1 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-link/0.2.1 |
+| windows-numerics | 0.3.1 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-numerics/0.3.1 |
+| windows-result | 0.4.1 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-result/0.4.1 |
+| windows-strings | 0.5.1 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-strings/0.5.1 |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-sys/0.61.2 |
+| windows-threading | 0.2.1 | MIT OR Apache-2.0 | 运行时；Windows x64 | https://crates.io/crates/windows-threading/0.2.1 |
 | writeable | 0.6.4 | Unicode-3.0 | 运行时；Windows x64、macOS arm64 | https://crates.io/crates/writeable/0.6.4 |
 | yoke | 0.8.4 | Unicode-3.0 | 运行时；Windows x64、macOS arm64 | https://crates.io/crates/yoke/0.8.4 |
 | zerofrom | 0.1.8 | Unicode-3.0 | 运行时；Windows x64、macOS arm64 | https://crates.io/crates/zerofrom/0.1.8 |
@@ -315,6 +323,8 @@
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 | 仅构建 / proc-macro；Windows x64、macOS arm64 | https://crates.io/crates/unicode-ident/1.0.27 |
 | vcpkg | 0.2.15 | MIT/Apache-2.0 | 仅构建 / proc-macro；Windows x64、macOS arm64 | https://crates.io/crates/vcpkg/0.2.15 |
 | version_check | 0.9.5 | MIT/Apache-2.0 | 仅构建 / proc-macro；Windows x64、macOS arm64 | https://crates.io/crates/version_check/0.9.5 |
+| windows-implement | 0.60.2 | MIT OR Apache-2.0 | 仅构建 / proc-macro；Windows x64 | https://crates.io/crates/windows-implement/0.60.2 |
+| windows-interface | 0.59.3 | MIT OR Apache-2.0 | 仅构建 / proc-macro；Windows x64 | https://crates.io/crates/windows-interface/0.59.3 |
 | yoke-derive | 0.8.4 | Unicode-3.0 | 仅构建 / proc-macro；Windows x64、macOS arm64 | https://crates.io/crates/yoke-derive/0.8.4 |
 | zerofrom-derive | 0.1.8 | Unicode-3.0 | 仅构建 / proc-macro；Windows x64、macOS arm64 | https://crates.io/crates/zerofrom-derive/0.1.8 |
 | zerovec-derive | 0.11.7 | Unicode-3.0 | 仅构建 / proc-macro；Windows x64、macOS arm64 | https://crates.io/crates/zerovec-derive/0.11.7 |

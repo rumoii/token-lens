@@ -17,6 +17,36 @@ final class ChineseStrings extends AppStrings {
   String get miniHintDismiss => '不再提示';
 
   @override
+  String get onboardingShortcut => '在桌面创建快捷方式';
+
+  @override
+  String get onboardingShortcutHint => '在桌面放一个 Token Lens 图标，以后双击就能打开。';
+
+  @override
+  String get onboardingShortcutCreated => '已在桌面创建快捷方式';
+
+  @override
+  String get onboardingShortcutFailed => '没能创建桌面快捷方式，可以稍后在「价格与设置」里再试。';
+
+  @override
+  String get desktopShortcut => '桌面快捷方式';
+
+  @override
+  String get desktopShortcutHint => '在桌面放一个 Token Lens 图标。挪动过程序文件夹，就点这里重新创建。';
+
+  @override
+  String get desktopShortcutCreate => '创建快捷方式';
+
+  @override
+  String get desktopShortcutRecreate => '重新创建';
+
+  @override
+  String get desktopShortcutCreated => '已创建';
+
+  @override
+  String get desktopShortcutFailed => '没能创建桌面快捷方式。';
+
+  @override
   String get miniPin => '置顶';
 
   @override
@@ -1782,6 +1812,32 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String get readingLogs => '正在读取日志…';
+
+  @override
+  String onboardingReading(int read, int total) =>
+      '正在读取日志… 已读 $read / $total 个文件';
+
+  @override
+  String get onboardingOrganizing => '日志读完了，正在整理统计…';
+
+  @override
+  String onboardingElapsed(int minutes, int seconds) =>
+      '已用 $minutes 分 $seconds 秒';
+
+  @override
+  String get onboardingTimeHint => '日志多的话，第一次统计要 1～5 分钟。以后打开只读新增的部分，会快很多。';
+
+  @override
+  String get onboardingToolDone => '已读完';
+
+  @override
+  String onboardingToolReading(int read, int total) => '读取中 $read / $total';
+
+  @override
+  String get onboardingToolWaiting => '等待中';
+
+  @override
+  String get onboardingContinueHint => '不用等，可以先去看看，统计会在后台继续；关掉窗口也没关系，下次打开会接着读。';
 
   @override
   String get readsLogsOnThisComputerAndLeaves => '只读取本机日志，不上传任何内容，也不改动这些工具。';

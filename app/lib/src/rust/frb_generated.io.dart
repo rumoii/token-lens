@@ -5,6 +5,7 @@
 
 import 'api/diagnostics.dart';
 import 'api/news.dart';
+import 'api/shortcut.dart';
 import 'api/stats.dart';
 
 import 'dart:async';

@@ -1,4 +1,5 @@
 import 'src/rust/api/stats.dart';
+import 'src/rust/api/shortcut.dart' as shortcut;
 
 export 'src/rust/api/stats.dart';
 
@@ -34,6 +35,11 @@ abstract interface class StatsGateway {
 
 abstract interface class StatsProgressGateway {
   Future<StatsSyncProgress?> syncProgress();
+}
+
+abstract interface class DesktopShortcutGateway {
+  Future<bool> desktopShortcutExists();
+  Future<void> createDesktopShortcut();
 }
 
 abstract interface class StatsMiniGateway {
@@ -74,12 +80,19 @@ class RustStatsGateway
     implements
         StatsGateway,
         StatsProgressGateway,
+        DesktopShortcutGateway,
         StatsMiniGateway,
         StatsUsageExporter,
         StatsSessionQueryGateway,
         StatsComparisonGateway {
   RustStatsGateway(this.client);
   final StatsClient client;
+  @override
+  Future<bool> desktopShortcutExists() => shortcut.desktopShortcutExists();
+
+  @override
+  Future<void> createDesktopShortcut() => shortcut.createDesktopShortcut();
+
   int get offsetMinutes => DateTime.now().timeZoneOffset.inMinutes;
   @override
   Future<StatsMiniUsage> miniUsage(

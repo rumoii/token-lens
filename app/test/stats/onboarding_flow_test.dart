@@ -7,12 +7,14 @@ import 'package:token_lens_app/stats/onboarding_page.dart';
 import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats/widgets/primitives.dart';
+import 'package:token_lens_app/stats/widgets/settings_display.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
 import 'fake_gateway.dart';
 
-class OnboardingGateway extends FakeStatsGateway {
+class OnboardingGateway extends FakeStatsGateway
+    implements DesktopShortcutGateway {
   OnboardingGateway() {
     empty = true;
   }
@@ -27,6 +29,27 @@ class OnboardingGateway extends FakeStatsGateway {
   String status = 'ok';
   List<String> anomalies = [];
   Completer<StatsDiscovery>? discoveryBarrier;
+  Completer<void>? shortcutBarrier;
+  bool shortcutExists = false, shortcutFails = false;
+  int shortcutCreates = 0;
+  final shortcutErrors = <String>[];
+
+  @override
+  Future<bool> desktopShortcutExists() async => shortcutExists;
+
+  @override
+  Future<void> createDesktopShortcut() async {
+    shortcutCreates++;
+    await shortcutBarrier?.future;
+    if (shortcutFails) throw StateError('shortcut fixture failure');
+    shortcutExists = true;
+  }
+
+  @override
+  Future<void> logError(String type, String message, String stack) async {
+    shortcutErrors.add(message);
+  }
+
   @override
   Future<StatsSummary> summary(StatsFilter filter) {
     summaries.add(filter);
@@ -74,12 +97,25 @@ class OnboardingGateway extends FakeStatsGateway {
   }
 }
 
+class OnboardingProgressGateway extends OnboardingGateway
+    implements StatsProgressGateway {
+  StatsSyncProgress? progress;
+  int polls = 0;
+
+  @override
+  Future<StatsSyncProgress?> syncProgress() async {
+    polls++;
+    return progress;
+  }
+}
+
 Future<void> mount(
   WidgetTester tester,
   StatsController controller, {
   bool dark = false,
   bool reduced = true,
   double width = 720,
+  TargetPlatform platform = TargetPlatform.android,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 1000);
@@ -87,7 +123,7 @@ Future<void> mount(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
-      theme: LensPalette(dark).theme,
+      theme: LensPalette(dark).theme.copyWith(platform: platform),
       home: MediaQuery(
         data: MediaQueryData(
           size: Size(width, 1000),
@@ -124,6 +160,154 @@ Future<void> click(WidgetTester tester, String text) async {
 }
 
 void main() {
+  const shortcut = '在桌面创建快捷方式';
+  const created = '已在桌面创建快捷方式';
+  const failed = '没能创建桌面快捷方式，可以稍后在「价格与设置」里再试。';
+
+  testWidgets('onboarding counts files and waits for sync to finish', (
+    tester,
+  ) async {
+    final g = OnboardingProgressGateway()
+      ..syncBarrier = Completer<void>()
+      ..found = const [
+        StatsDiscoveredSource(source: 'codex', files: 2),
+        StatsDiscoveredSource(source: 'claude', files: 2),
+        StatsDiscoveredSource(source: 'qwen', files: 1),
+      ];
+    final c = own(g);
+    await mount(tester, c);
+    await click(tester, '开始统计');
+    expect(find.text('正在读取日志…'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(
+      find.byKey(const Key('onboarding-indeterminate-progress')),
+      findsOneWidget,
+    );
+    g.progress = const StatsSyncProgress(
+      stage: 'reading',
+      source: 'codex',
+      index: 2,
+      total: 27,
+      filesRead: 2,
+      trigger: 'manual',
+      firstSync: true,
+      filesTotal: 5,
+      filesProcessed: 2,
+      sourceFilesProcessed: 1,
+      sourceFilesTotal: 2,
+      completedSources: ['qwen'],
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.text('正在读取日志… 已读 2 / 5 个文件'), findsOneWidget);
+    expect(find.text('读取中 1 / 2'), findsOneWidget);
+    expect(find.text('等待中'), findsOneWidget);
+    expect(find.text('已读完'), findsOneWidget);
+    expect(find.textContaining('· 40%'), findsOneWidget);
+    expect(find.textContaining('1～5 分钟'), findsOneWidget);
+    expect(find.textContaining('下次打开会接着读'), findsOneWidget);
+    g.progress = const StatsSyncProgress(
+      stage: 'reading',
+      source: 'claude',
+      index: 3,
+      total: 27,
+      filesRead: 4,
+      trigger: 'manual',
+      firstSync: true,
+      filesTotal: 5,
+      filesProcessed: 5,
+      sourceFilesProcessed: 2,
+      sourceFilesTotal: 2,
+      completedSources: ['qwen', 'codex'],
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.text('日志读完了，正在整理统计…'), findsOneWidget);
+    expect(find.textContaining('· 99%'), findsOneWidget);
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
+          .value,
+      .99,
+    );
+    expect(find.text('已读完'), findsNWidgets(3));
+    expect(find.text('统计好了'), findsNothing);
+    g.syncBarrier!.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('统计好了'), findsOneWidget);
+    final polls = g.polls;
+    await tester.pump(const Duration(seconds: 2));
+    expect(g.polls, polls);
+  });
+
+  for (final scenario in ['success', 'failure', 'unchecked', 'macOS']) {
+    testWidgets('onboarding desktop shortcut $scenario', (tester) async {
+      final windows = scenario != 'macOS';
+      final enabled = windows && scenario != 'unchecked';
+      final g = OnboardingGateway()
+        ..shortcutBarrier = Completer<void>()
+        ..shortcutFails = scenario == 'failure';
+      await mount(
+        tester,
+        own(g),
+        platform: windows ? TargetPlatform.windows : TargetPlatform.macOS,
+      );
+      expect(find.text(shortcut), windows ? findsOneWidget : findsNothing);
+      if (windows) {
+        final check = find.ancestor(
+          of: find.text(shortcut),
+          matching: find.byType(LensCheckbox),
+        );
+        expect(tester.widget<LensCheckbox>(check).value, isTrue);
+        if (!enabled) await tester.tap(find.text(shortcut));
+      }
+      await click(tester, '开始统计');
+      expect(g.shortcutCreates, enabled ? 1 : 0);
+      expect(find.text('统计好了'), findsOneWidget);
+      expect(find.text(created), findsNothing);
+      g.shortcutBarrier!.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.text(created),
+        scenario == 'success' ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.text(failed),
+        scenario == 'failure' ? findsOneWidget : findsNothing,
+      );
+      if (scenario == 'failure') {
+        expect(g.shortcutErrors.single, contains('shortcut fixture failure'));
+        expect(find.textContaining('shortcut fixture failure'), findsNothing);
+      }
+    });
+  }
+
+  testWidgets('settings creates and recreates a desktop shortcut', (
+    tester,
+  ) async {
+    final g = OnboardingGateway();
+    final c = own(g);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: LensPalette(false).theme
+            .copyWith(platform: TargetPlatform.windows),
+        home: Scaffold(
+          body: SingleChildScrollView(child: SettingsDisplay(controller: c)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('桌面快捷方式'), findsOneWidget);
+    await click(tester, '创建快捷方式');
+    expect(find.text('已创建'), findsOneWidget);
+    expect(find.text('重新创建'), findsOneWidget);
+    g.shortcutFails = true;
+    await click(tester, '重新创建');
+    expect(find.text('已创建'), findsNothing);
+    expect(find.text('没能创建桌面快捷方式。'), findsOneWidget);
+    expect(g.shortcutErrors.single, contains('shortcut fixture failure'));
+  });
+
   testWidgets('S0a 无日志可读时显示拒绝访问，并在重新检测后清除', (tester) async {
     final g = OnboardingGateway()
       ..found = []

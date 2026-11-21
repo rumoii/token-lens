@@ -247,6 +247,15 @@ async fn progress_is_monotonic_and_clears_on_success_failure_and_cancellation() 
                     saw_reading = true;
                     assert!(progress.source.is_some());
                     assert_eq!(progress.first_sync, Some(!cancel));
+                    assert_eq!(progress.files_total, Some(240));
+                    assert_eq!(progress.files_processed, progress.files_read);
+                    if progress.source.as_deref() == Some("claude") {
+                        assert_eq!(progress.source_files_total, 240);
+                        assert_eq!(progress.source_files_processed, progress.files_processed);
+                    }
+                    if progress.completed_sources.iter().any(|s| s == "claude") {
+                        assert_eq!(progress.files_processed, 240);
+                    }
                     if cancel {
                         client.shutdown().await;
                         break;

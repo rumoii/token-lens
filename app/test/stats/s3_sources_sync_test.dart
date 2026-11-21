@@ -159,6 +159,10 @@ void main() {
       filesRead: 2,
       trigger: 'startup',
       firstSync: true,
+      filesProcessed: 2,
+      sourceFilesProcessed: 2,
+      sourceFilesTotal: 2,
+      completedSources: [],
     );
     final sync = c.sync(trigger: 'startup');
     await tester.pump(const Duration(milliseconds: 301));
@@ -314,6 +318,10 @@ void main() {
           filesRead: 2,
           trigger: 'manual',
           firstSync: false,
+          filesProcessed: 2,
+          sourceFilesProcessed: 2,
+          sourceFilesTotal: 2,
+          completedSources: [],
         );
         final sync = c.sync();
         await tester.pump(const Duration(milliseconds: 301));

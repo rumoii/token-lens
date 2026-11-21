@@ -5,6 +5,7 @@
 
 import 'api/diagnostics.dart';
 import 'api/news.dart';
+import 'api/shortcut.dart';
 import 'api/stats.dart';
 
 import 'dart:async';
@@ -69,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1784058559;
+  int get rustContentHash => -1736499367;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -258,6 +259,10 @@ abstract class RustLibApi extends BaseApi {
     required StatsFilter filter,
     required int offsetMinutes,
   });
+
+  Future<void> crateApiShortcutCreateDesktopShortcut();
+
+  Future<bool> crateApiShortcutDesktopShortcutExists();
 
   Future<String> crateApiDiagnosticsExportStartupDiagnostics({
     String? dataDir,
@@ -1614,6 +1619,60 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiShortcutCreateDesktopShortcut() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 34,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiShortcutCreateDesktopShortcutConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiShortcutCreateDesktopShortcutConstMeta =>
+      const TaskConstMeta(debugName: "create_desktop_shortcut", argNames: []);
+
+  @override
+  Future<bool> crateApiShortcutDesktopShortcutExists() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiShortcutDesktopShortcutExistsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiShortcutDesktopShortcutExistsConstMeta =>
+      const TaskConstMeta(debugName: "desktop_shortcut_exists", argNames: []);
+
+  @override
   Future<String> crateApiDiagnosticsExportStartupDiagnostics({
     String? dataDir,
     String? logsHome,
@@ -1633,7 +1692,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1663,7 +1722,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1695,7 +1754,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1730,7 +1789,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1760,7 +1819,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1787,7 +1846,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1814,7 +1873,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1852,7 +1911,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 43,
             port: port_,
           );
         },
@@ -3363,8 +3422,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSyncProgress dco_decode_stats_sync_progress(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return StatsSyncProgress(
       stage: dco_decode_String(arr[0]),
       source: dco_decode_opt_String(arr[1]),
@@ -3373,6 +3432,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       filesRead: dco_decode_CastedPrimitive_i_64(arr[4]),
       trigger: dco_decode_String(arr[5]),
       firstSync: dco_decode_opt_box_autoadd_bool(arr[6]),
+      filesTotal: dco_decode_opt_CastedPrimitive_i_64(arr[7]),
+      filesProcessed: dco_decode_CastedPrimitive_i_64(arr[8]),
+      sourceFilesProcessed: dco_decode_CastedPrimitive_i_64(arr[9]),
+      sourceFilesTotal: dco_decode_CastedPrimitive_i_64(arr[10]),
+      completedSources: dco_decode_list_String(arr[11]),
     );
   }
 
@@ -5641,6 +5705,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_filesRead = sse_decode_CastedPrimitive_i_64(deserializer);
     var var_trigger = sse_decode_String(deserializer);
     var var_firstSync = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_filesTotal = sse_decode_opt_CastedPrimitive_i_64(deserializer);
+    var var_filesProcessed = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_sourceFilesProcessed = sse_decode_CastedPrimitive_i_64(
+      deserializer,
+    );
+    var var_sourceFilesTotal = sse_decode_CastedPrimitive_i_64(deserializer);
+    var var_completedSources = sse_decode_list_String(deserializer);
     return StatsSyncProgress(
       stage: var_stage,
       source: var_source,
@@ -5649,6 +5720,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       filesRead: var_filesRead,
       trigger: var_trigger,
       firstSync: var_firstSync,
+      filesTotal: var_filesTotal,
+      filesProcessed: var_filesProcessed,
+      sourceFilesProcessed: var_sourceFilesProcessed,
+      sourceFilesTotal: var_sourceFilesTotal,
+      completedSources: var_completedSources,
     );
   }
 
@@ -7541,6 +7617,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_CastedPrimitive_i_64(self.filesRead, serializer);
     sse_encode_String(self.trigger, serializer);
     sse_encode_opt_box_autoadd_bool(self.firstSync, serializer);
+    sse_encode_opt_CastedPrimitive_i_64(self.filesTotal, serializer);
+    sse_encode_CastedPrimitive_i_64(self.filesProcessed, serializer);
+    sse_encode_CastedPrimitive_i_64(self.sourceFilesProcessed, serializer);
+    sse_encode_CastedPrimitive_i_64(self.sourceFilesTotal, serializer);
+    sse_encode_list_String(self.completedSources, serializer);
   }
 
   @protected

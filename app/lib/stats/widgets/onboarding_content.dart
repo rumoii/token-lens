@@ -23,25 +23,202 @@ class OnboardingContent extends StatefulWidget {
     super.key,
     required this.controller,
     required this.step,
+    this.elapsed = Duration.zero,
     required this.discovery,
     required this.completed,
     required this.completedTools,
     required this.onStart,
     required this.localOnly,
     required this.onLocalOnlyChanged,
+    this.createShortcut = true,
+    this.shortcutCreated,
+    this.onShortcutChanged,
     required this.onRescan,
     required this.onEnter,
   });
   final StatsController controller;
   final OnboardingStep step;
+  final Duration elapsed;
   final LensResource<StatsDiscovery> discovery;
   final LensResource<StatsSummary> completed;
   final LensResource<StatsBreakdown> completedTools;
   final VoidCallback onStart, onRescan, onEnter;
   final bool localOnly;
   final ValueChanged<bool> onLocalOnlyChanged;
+  final bool createShortcut;
+  final bool? shortcutCreated;
+  final ValueChanged<bool>? onShortcutChanged;
   @override
   State<OnboardingContent> createState() => _OnboardingContentState();
+}
+
+class _CountingProgress extends StatefulWidget {
+  const _CountingProgress({required this.progress, required this.elapsed});
+  final StatsSyncProgress? progress;
+  final Duration elapsed;
+
+  @override
+  State<_CountingProgress> createState() => _CountingProgressState();
+}
+
+class _CountingProgressState extends State<_CountingProgress> {
+  (AppStrings, int?, bool, int?)? _announcementKey;
+  String? _announcement;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context), s = context.strings;
+    final progress = widget.progress;
+    final total = progress?.filesTotal;
+    final read = progress?.filesProcessed ?? 0;
+    final organizing = total != null && read >= total;
+    final percent = total == null
+        ? null
+        : organizing
+        ? 99
+        : math.min(99, read * 100 ~/ total);
+    final title = organizing
+        ? s.onboardingOrganizing
+        : total == null
+        ? s.readingLogs
+        : s.onboardingReading(read, total);
+    final announcementKey = (
+      s,
+      total,
+      organizing,
+      percent == null ? null : percent ~/ 10,
+    );
+    if (_announcementKey != announcementKey) {
+      _announcementKey = announcementKey;
+      _announcement = title;
+    }
+    final radius = BorderRadius.circular(LensTokens.radii['pill']!);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: [
+          Row(
+            spacing: 12,
+            children: [
+              Expanded(
+                child: Semantics(
+                  liveRegion: true,
+                  excludeSemantics: true,
+                  label: _announcement,
+                  child: Text(title, style: p.text(14, null, FontWeight.w700)),
+                ),
+              ),
+              if (percent != null)
+                Text(
+                  '${s.onboardingElapsed(widget.elapsed.inMinutes, widget.elapsed.inSeconds.remainder(60))} · $percent%',
+                  style: p.text(12.5, p.muted),
+                ),
+            ],
+          ),
+          if (percent != null)
+            LinearProgressIndicator(
+              value: percent / 100,
+              minHeight: 6,
+              borderRadius: radius,
+              color: p['clay'],
+              backgroundColor: p['fill-hover'],
+            )
+          else
+            ClipRRect(
+              key: const Key('onboarding-indeterminate-progress'),
+              borderRadius: radius,
+              child: SizedBox(
+                height: 6,
+                child: ColoredBox(
+                  color: p['fill-hover'],
+                  child: LayoutBuilder(
+                    builder: (context, size) => LensLoop(
+                      duration: LensTokens.pulse * 2,
+                      builder: (context, value) => Align(
+                        alignment: Alignment(
+                          -1 +
+                              2 *
+                                  LensTokens.ease.transform(
+                                    1 - (value * 2 - 1).abs(),
+                                  ),
+                          0,
+                        ),
+                        child: Container(
+                          width: size.maxWidth * .4,
+                          decoration: BoxDecoration(
+                            color: p['clay'],
+                            borderRadius: radius,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Text(
+            s.onboardingTimeHint,
+            style: p.text(12.5, p.secondary).copyWith(height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CountingToolStatus extends StatelessWidget {
+  const _CountingToolStatus({required this.progress, required this.source});
+  final StatsSyncProgress? progress;
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context), s = context.strings;
+    final sample = progress;
+    if (sample == null || sample.filesTotal == null) {
+      return Text(s.reading, style: p.text(12.5, p.muted));
+    }
+    final current = sample.source == source && sample.sourceFilesTotal > 0;
+    final done =
+        sample.completedSources.contains(source) ||
+        (current && sample.sourceFilesProcessed >= sample.sourceFilesTotal);
+    final color =
+        p[done
+            ? 'ok'
+            : current
+            ? 'clay-ink'
+            : 'text-faint'];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 4,
+      children: [
+        if (done)
+          Icon(Icons.check, size: 14, color: color)
+        else if (current)
+          SizedBox.square(
+            dimension: 12,
+            child: CircularProgressIndicator(
+              value: MediaQuery.disableAnimationsOf(context) ? .6 : null,
+              strokeWidth: 1.5,
+              color: color,
+            ),
+          ),
+        Text(
+          done
+              ? s.onboardingToolDone
+              : current
+              ? s.onboardingToolReading(
+                  sample.sourceFilesProcessed,
+                  sample.sourceFilesTotal,
+                )
+              : s.onboardingToolWaiting,
+          style: p.text(12.5, color),
+        ),
+      ],
+    );
+  }
 }
 
 class _OnboardingContentState extends State<OnboardingContent> {
@@ -84,6 +261,31 @@ class _OnboardingContentState extends State<OnboardingContent> {
     Widget statusText(String value) => Semantics(
       liveRegion: true,
       child: text(value, 12.5, color: p.secondary, align: TextAlign.center),
+    );
+    Widget option(
+      String title,
+      String hint,
+      bool value,
+      ValueChanged<bool> changed,
+    ) => LensCard(
+      child: LensCheckbox(
+        value: value,
+        onChanged: changed,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 72),
+          alignment: AlignmentDirectional.centerStart,
+          padding: const EdgeInsetsDirectional.only(start: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              text(title, 14, weight: FontWeight.w500),
+              text(hint, 12.5, color: p.muted),
+            ],
+          ),
+        ),
+      ),
     );
     Widget action(
       String label,
@@ -307,6 +509,34 @@ class _OnboardingContentState extends State<OnboardingContent> {
                         ),
                         const SizedBox(height: 12),
                       ],
+                      if (widget.shortcutCreated case final created?) ...[
+                        Semantics(
+                          liveRegion: true,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            spacing: 6,
+                            children: [
+                              if (created)
+                                Icon(Icons.check, size: 14, color: p['ok']),
+                              Flexible(
+                                child: text(
+                                  created
+                                      ? context
+                                            .strings
+                                            .onboardingShortcutCreated
+                                      : context
+                                            .strings
+                                            .onboardingShortcutFailed,
+                                  12.5,
+                                  color: p[created ? 'ok' : 'warn'],
+                                  align: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       Center(
                         child: action(
                           context.strings.viewUsage,
@@ -322,70 +552,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               if (counting)
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    18,
-                                    14,
-                                    18,
-                                    6,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Semantics(
-                                        liveRegion: true,
-                                        child: text(
-                                          context.strings.readingLogs,
-                                          14,
-                                          weight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                        child: SizedBox(
-                                          height: 6,
-                                          child: ColoredBox(
-                                            color: p['fill-hover'],
-                                            child: LayoutBuilder(
-                                              builder: (context, size) => LensLoop(
-                                                duration: const Duration(
-                                                  milliseconds: 2200,
-                                                ),
-                                                builder: (context, value) => Align(
-                                                  alignment: Alignment(
-                                                    -1 +
-                                                        2 *
-                                                            Curves.easeInOut
-                                                                .transform(
-                                                                  1 -
-                                                                      (value * 2 -
-                                                                              1)
-                                                                          .abs(),
-                                                                ),
-                                                    0,
-                                                  ),
-                                                  child: Container(
-                                                    width: size.maxWidth * .4,
-                                                    decoration: BoxDecoration(
-                                                      color: p['clay'],
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            999,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                _CountingProgress(
+                                  progress: c.progress,
+                                  elapsed: widget.elapsed,
                                 ),
                               if (!counting)
                                 Padding(
@@ -515,10 +684,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
                                                   filesByTool.containsKey(
                                                     item.$2,
                                                   ))
-                                                text(
-                                                  context.strings.reading,
-                                                  12.5,
-                                                  color: p.muted,
+                                                _CountingToolStatus(
+                                                  progress: c.progress,
+                                                  source: item.$2,
                                                 )
                                               else if (filesByTool.containsKey(
                                                 item.$2,
@@ -641,39 +809,21 @@ class _OnboardingContentState extends State<OnboardingContent> {
                         ),
                       ),
                       if (!counting) ...[
-                        const SizedBox(height: 12),
-                        LensCard(
-                          child: LensCheckbox(
-                            value: widget.localOnly,
-                            onChanged: widget.onLocalOnlyChanged,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 4,
-                            ),
-                            child: Container(
-                              constraints: const BoxConstraints(minHeight: 72),
-                              alignment: AlignmentDirectional.centerStart,
-                              padding: const EdgeInsetsDirectional.only(
-                                start: 20,
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  text(
-                                    context.strings.localStatisticsOnly,
-                                    14,
-                                    weight: FontWeight.w500,
-                                  ),
-                                  text(
-                                    context.strings.localStatisticsOnlyHint,
-                                    12.5,
-                                    color: p.muted,
-                                  ),
-                                ],
-                              ),
-                            ),
+                        if (widget.onShortcutChanged case final changed?) ...[
+                          const SizedBox(height: 12),
+                          option(
+                            context.strings.onboardingShortcut,
+                            context.strings.onboardingShortcutHint,
+                            widget.createShortcut,
+                            changed,
                           ),
+                        ],
+                        const SizedBox(height: 12),
+                        option(
+                          context.strings.localStatisticsOnly,
+                          context.strings.localStatisticsOnlyHint,
+                          widget.localOnly,
+                          widget.onLocalOnlyChanged,
                         ),
                       ],
                       const SizedBox(height: 24),
@@ -706,6 +856,18 @@ class _OnboardingContentState extends State<OnboardingContent> {
                           child: LensTextLink(
                             label: context.strings.viewUsage,
                             onTap: widget.onEnter,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: text(
+                              context.strings.onboardingContinueHint,
+                              12.5,
+                              color: p.muted,
+                              align: TextAlign.center,
+                            ),
                           ),
                         ),
                       ],

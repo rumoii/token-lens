@@ -14,4 +14,6 @@
 
 旧版桌面壳（W/M 路线，Node/React/wry）的构建与运行契约移到了 [../archive/legacy-desktop.md](../archive/legacy-desktop.md)。
 
+Windows 的首次引导默认选中「在桌面创建快捷方式」，也可从「价格与设置 → 外观与界面」创建或重建。`Token Lens.lnk` 指向当前运行的 `token-lens.exe`，工作目录和图标随 exe 的位置确定。同名快捷方式会被替换。桌面由 `SHGetKnownFolderPath(FOLDERID_Desktop)` 解析，支持系统重定向。预览运行时只在 `<TOKEN_LENS_PREVIEW_HOME>/Desktop` 创建快捷方式。快捷方式与首次同步并行，创建失败的详细信息记录在运行日志中。
+
 总览和明细页头提供迷你窗口入口。已完成首次引导且有账本记录的桌面用户会在总览看见引导横幅。关闭横幅或成功进入迷你窗口后，将 `miniHintDismissed: true` 保存到 `ui-preferences.json`。缺少该字段的旧偏好仍可显示横幅。

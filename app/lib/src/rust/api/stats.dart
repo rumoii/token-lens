@@ -2151,6 +2151,11 @@ class StatsSyncProgress {
   final int filesRead;
   final String trigger;
   final bool? firstSync;
+  final int? filesTotal;
+  final int filesProcessed;
+  final int sourceFilesProcessed;
+  final int sourceFilesTotal;
+  final List<String> completedSources;
 
   const StatsSyncProgress({
     required this.stage,
@@ -2160,6 +2165,11 @@ class StatsSyncProgress {
     required this.filesRead,
     required this.trigger,
     this.firstSync,
+    this.filesTotal,
+    required this.filesProcessed,
+    required this.sourceFilesProcessed,
+    required this.sourceFilesTotal,
+    required this.completedSources,
   });
 
   @override
@@ -2170,7 +2180,12 @@ class StatsSyncProgress {
       total.hashCode ^
       filesRead.hashCode ^
       trigger.hashCode ^
-      firstSync.hashCode;
+      firstSync.hashCode ^
+      filesTotal.hashCode ^
+      filesProcessed.hashCode ^
+      sourceFilesProcessed.hashCode ^
+      sourceFilesTotal.hashCode ^
+      completedSources.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -2183,7 +2198,12 @@ class StatsSyncProgress {
           total == other.total &&
           filesRead == other.filesRead &&
           trigger == other.trigger &&
-          firstSync == other.firstSync;
+          firstSync == other.firstSync &&
+          filesTotal == other.filesTotal &&
+          filesProcessed == other.filesProcessed &&
+          sourceFilesProcessed == other.sourceFilesProcessed &&
+          sourceFilesTotal == other.sourceFilesTotal &&
+          completedSources == other.completedSources;
 }
 
 class StatsThroughput {
