@@ -143,6 +143,31 @@ class MiniPlatform implements MiniWindowPlatform {
   }
 }
 
+class _MiniTickCanvas extends TestRecordingCanvas {
+  final ticks = <double>[];
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) {
+    if (p1.dy == 50.5 && p2.dy == 53.5 && p1.dx == p2.dx) {
+      ticks.add(p1.dx);
+    }
+  }
+}
+
+List<double> _paintedMiniTicks(WidgetTester tester, Finder chart) {
+  final axes = find
+      .descendant(
+        of: chart,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is CustomPaint && widget.painter != null,
+        ),
+      )
+      .first;
+  final canvas = _MiniTickCanvas();
+  tester.widget<CustomPaint>(axes).painter!.paint(canvas, tester.getSize(axes));
+  return canvas.ticks;
+}
+
 void main() {
   test('mini chart range decodes, validates and persists', () async {
     final dir = await Directory.systemTemp.createTemp('mini-chart-prefs-');
@@ -289,7 +314,11 @@ void main() {
     await tester.tap(find.text('1 hour'));
     await tester.pumpAndSettle();
     expect(gateway.windows, [15, 30, 60]);
-    expect(axis('13:45'), findsOneWidget);
+    final step = (tester.getSize(chart).width - 30) / 60;
+    expect(_paintedMiniTicks(tester, chart), [
+      closeTo(28 + 18.5 * step, .01), // 13:45
+      closeTo(28 + 33.5 * step, .01), // 14:00
+    ]);
     expect(axis('14:00'), findsOneWidget);
     expect(axis('14:20'), findsNothing);
     expect(axis('13:30'), findsNothing); // 8.5 px from the left of the plot.
@@ -308,6 +337,53 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pumpAndSettle();
     expect(miniStatusText('14:25 · 0 tokens'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await c.shutdown();
+  });
+
+  testWidgets('narrow hour chart keeps full-size labels and favors the hour', (
+    tester,
+  ) async {
+    final c = StatsController(
+      MiniGateway(),
+      preferences: const UiPreferences(mini: MiniPreferences(chartMinutes: 60)),
+      clock: () => DateTime(2026, 11, 21, 14, 38),
+    );
+    final window = MiniWindow(controller: c, platform: MiniPlatform());
+    addTearDown(() async {
+      window.dispose();
+      c.dispose();
+      await tester.binding.setSurfaceSize(null);
+    });
+    await tester.binding.setSurfaceSize(const Size(356, 620));
+    await c.setMiniMode(true);
+    await tester.pumpWidget(panel(c, window, reduced: true));
+    await tester.pumpAndSettle();
+    final chart = find.byKey(const Key('mini-usage-chart'));
+    final width = tester.getSize(chart).width;
+    expect(width, lessThan(176));
+    final step = (width - 30) / 60;
+    expect(_paintedMiniTicks(tester, chart), [
+      closeTo(28 + 6.5 * step, .01), // 13:45
+      closeTo(28 + 21.5 * step, .01), // 14:00
+      closeTo(28 + 36.5 * step, .01), // 14:15
+    ]);
+
+    Finder axis(String text) =>
+        find.descendant(of: chart, matching: find.text(text));
+    final hour = axis('14:00');
+    final now = axis('Now');
+    final hourRect = tester.getRect(hour);
+    final nowRect = tester.getRect(now);
+    expect(
+      tester.widget<Text>(hour).style!.fontSize,
+      tester.widget<Text>(now).style!.fontSize,
+    );
+    expect(hourRect.width, closeTo(tester.getSize(hour).width, .01));
+    expect(nowRect.width, closeTo(tester.getSize(now).width, .01));
+    expect(nowRect.left - hourRect.right, greaterThanOrEqualTo(4));
+    expect(axis('13:45'), findsNothing);
+    expect(axis('14:15'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await c.shutdown();
   });

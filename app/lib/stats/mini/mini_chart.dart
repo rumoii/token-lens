@@ -162,21 +162,25 @@ class _MiniUsageChartState extends State<_MiniUsageChart> {
                       Alignment.centerRight,
                     ),
                   ),
-                for (final (x, time) in geometry.ticks)
+                if (widget.values.length == 60)
+                  ..._hourAxisLabels(context, geometry, s.miniChartNow, style)
+                else ...[
+                  for (final (x, time) in geometry.ticks)
+                    Positioned(
+                      left: x - xLabelWidth / 2,
+                      bottom: 0,
+                      width: xLabelWidth,
+                      height: 12,
+                      child: label(_chartTime(time), Alignment.center),
+                    ),
                   Positioned(
-                    left: x - xLabelWidth / 2,
+                    right: bounds.maxWidth - plot.right,
                     bottom: 0,
-                    width: xLabelWidth,
+                    width: 29,
                     height: 12,
-                    child: label(_chartTime(time), Alignment.center),
+                    child: label(s.miniChartNow, Alignment.centerRight),
                   ),
-                Positioned(
-                  right: bounds.maxWidth - plot.right,
-                  bottom: 0,
-                  width: 29,
-                  height: 12,
-                  child: label(s.miniChartNow, Alignment.centerRight),
-                ),
+                ],
               ],
             ),
           ),
@@ -184,6 +188,74 @@ class _MiniUsageChartState extends State<_MiniUsageChart> {
       ),
     );
   }
+}
+
+List<Widget> _hourAxisLabels(
+  BuildContext context,
+  _MiniChartGeometry geometry,
+  String now,
+  TextStyle style,
+) {
+  final defaults = DefaultTextStyle.of(context);
+  final measuredStyle = defaults.style
+      .merge(style)
+      .copyWith(
+        fontWeight: MediaQuery.boldTextOf(context) ? FontWeight.bold : null,
+        height: MediaQuery.maybeLineHeightScaleFactorOverrideOf(context),
+        letterSpacing: MediaQuery.maybeLetterSpacingOverrideOf(context),
+        wordSpacing: MediaQuery.maybeWordSpacingOverrideOf(context),
+      );
+  final painter = TextPainter(
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    locale: Localizations.maybeLocaleOf(context),
+    textWidthBasis: defaults.textWidthBasis,
+    textHeightBehavior:
+        defaults.textHeightBehavior ??
+        DefaultTextHeightBehavior.maybeOf(context),
+    maxLines: 1,
+  );
+
+  Rect measure(String text, double anchor, {bool alignRight = false}) {
+    painter
+      ..text = TextSpan(text: text, style: measuredStyle)
+      ..layout();
+    final width = painter.width;
+    return Rect.fromLTWH(
+      anchor - (alignRight ? width : width / 2),
+      0,
+      width,
+      painter.height,
+    );
+  }
+
+  const gap = 4.0;
+  final labels = [(now, measure(now, geometry.plot.right, alignRight: true))];
+  final ticks = geometry.ticks.toList();
+  for (final (x, time) in [
+    ...ticks.where((tick) => tick.$2.minute == 0),
+    ...ticks.where((tick) => tick.$2.minute != 0),
+  ]) {
+    final text = _chartTime(time);
+    final rect = measure(text, x);
+    if (labels.every(
+      (label) =>
+          rect.right + gap <= label.$2.left ||
+          label.$2.right + gap <= rect.left,
+    )) {
+      labels.add((text, rect));
+    }
+  }
+  painter.dispose();
+
+  return [
+    for (final (text, rect) in labels)
+      Positioned(
+        left: rect.left,
+        bottom: math.max(0, (12 - rect.height) / 2),
+        child: Text(text, style: style, maxLines: 1),
+      ),
+  ];
 }
 
 String _chartTime(DateTime time) =>
