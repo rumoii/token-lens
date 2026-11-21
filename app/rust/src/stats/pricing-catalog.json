@@ -329,13 +329,42 @@
           "2026-10-04",
           "2026-10-05",
           "2026-10-06",
-          "2026-10-07"
+          "2026-10-07",
+          "2027-01-01",
+          "2027-01-02",
+          "2027-01-03",
+          "2027-02-05",
+          "2027-02-06",
+          "2027-02-07",
+          "2027-02-08",
+          "2027-02-09",
+          "2027-02-10",
+          "2027-02-11",
+          "2027-02-12",
+          "2027-02-13",
+          "2027-04-03",
+          "2027-04-04",
+          "2027-04-05",
+          "2027-05-01",
+          "2027-05-02",
+          "2027-05-03",
+          "2027-05-04",
+          "2027-05-05",
+          "2027-06-09",
+          "2027-09-15",
+          "2027-10-01",
+          "2027-10-02",
+          "2027-10-03",
+          "2027-10-04",
+          "2027-10-05",
+          "2027-10-06",
+          "2027-10-07"
         ]
       },
       "sourceUrl": "https://api-docs.deepseek.com/quick_start/pricing",
       "verifiedAt": "2026-10-26",
-      "conditions": "峰谷分时：北京时间周一至周五 9:00-12:00、14:00-18:00 为高峰（基础价），其余时段、周末与中国法定节假日全天为低谷（半价）。节假日按国务院办公厅放假安排的放假日计（目前登记 2026 年，未登记年份的节假日按工作日处理）；周末补班日按周末计",
-      "conditionsEn": "Peak hours are 9:00–12:00 and 14:00–18:00 China Standard Time, Monday to Friday, at the base rate. Other hours, weekends and listed Chinese public holidays use the half-price off-peak rate. The holiday list covers 2026 per the State Council schedule. Holidays in other years use normal day-of-week rules. Weekend make-up workdays use weekend pricing.",
+      "conditions": "峰谷分时：北京时间周一至周五 9:00-12:00、14:00-18:00 为高峰（基础价），其余时段、周末与中国法定节假日全天为低谷（半价）。节假日按国务院办公厅放假安排的放假日计（目前登记 2026 和 2027 年，未登记年份的节假日按工作日处理）；周末补班日按周末计",
+      "conditionsEn": "Peak hours are 9:00–12:00 and 14:00–18:00 China Standard Time, Monday to Friday, at the base rate. Other hours, weekends and listed Chinese public holidays use the half-price off-peak rate. The holiday list covers 2026 and 2027 per the State Council schedule. Holidays in other years use normal day-of-week rules. Weekend make-up workdays use weekend pricing.",
       "currency": "USD",
       "tier": "verified",
       "billing": "metered",
@@ -776,6 +805,116 @@
       "conditionsEn": "Official international Real-time API UltraSpeed standard pricing in USD. Cache writes are free for a limited time, with no separate per-token rate. Subscription usage is estimated at public API rates; API balance and subscription quotas are separate. Batch is not supported.",
       "currency": "USD",
       "tier": "verified",
+      "provisional": false
+    },
+    {
+      "id": "gpt-6.2-sol",
+      "aliases": [],
+      "perMTok": { "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5 },
+      "tiers": [
+        {
+          "above": 272000,
+          "perMTok": { "input": 4, "output": 15, "cacheRead": 0.2, "cacheWrite": 5 }
+        }
+      ],
+      "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+      "conditions": "Standard 文本价。单次请求输入含缓存读写超过 272,000 token 时，整条请求按长上下文档计价。缓存写采用 30 分钟档。官方另列 12 小时写入，短档 $5、长档 $10，现有目录字段未登记该时长。排除 Batch、Fast、Ultrafast、后台处理优惠、区域加价及工具费。",
+      "conditionsEn": "Standard text pricing. The long-context tier applies to the entire request above 272,000 input tokens, including cache reads and writes. Cache writes use the 30-minute rate. Official 12-hour writes cost $5 for short context and $10 for long context per million tokens and are outside the current catalog fields. Excludes Batch, Fast, Ultrafast, background discounts, regional surcharges, and tool fees.",
+      "currency": "USD",
+      "verifiedAt": "2026-11-21",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gpt-6.2-astra",
+      "aliases": [],
+      "perMTok": { "input": 8, "output": 40, "cacheRead": 0.4, "cacheWrite": 10 },
+      "tiers": [
+        {
+          "above": 272000,
+          "perMTok": { "input": 16, "output": 60, "cacheRead": 0.8, "cacheWrite": 20 }
+        }
+      ],
+      "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+      "conditions": "Standard 文本价。单次请求输入含缓存读写超过 272,000 token 时，整条请求按长上下文档计价。缓存写采用 30 分钟档。官方另列 12 小时写入，短档 $20、长档 $40，现有目录字段未登记该时长。排除 Batch、Fast、Ultrafast、后台处理优惠、区域加价及工具费。",
+      "conditionsEn": "Standard text pricing. The long-context tier applies to the entire request above 272,000 input tokens, including cache reads and writes. Cache writes use the 30-minute rate. Official 12-hour writes cost $20 for short context and $40 for long context per million tokens and are outside the current catalog fields. Excludes Batch, Fast, Ultrafast, background discounts, regional surcharges, and tool fees.",
+      "currency": "USD",
+      "verifiedAt": "2026-11-21",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "gemini-4-neon",
+      "aliases": [],
+      "perMTok": { "input": 3, "output": 15, "cacheRead": 0.15, "cacheWrite": null },
+      "sourceUrl": "https://aistudio.google.com/docs/pricing#gemini-4-neon",
+      "conditions": "Gemini API Standard 付费档。输出含思考 token。仅支持隐式缓存，官网未单列缓存写入费率或长上下文分档。排除 Batch、Flex、Priority 及工具费。",
+      "conditionsEn": "Gemini API Standard paid tier. Output includes thinking tokens. Uses implicit caching only. The Standard price table lists no separate cache write rate or long-context tier. Excludes Batch, Flex, Priority, and tool fees.",
+      "currency": "USD",
+      "verifiedAt": "2026-11-21",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "grok-4.6",
+      "aliases": [],
+      "perMTok": { "input": 2, "output": 6, "cacheRead": 0.5, "cacheWrite": null },
+      "tiers": [
+        {
+          "above": 199999,
+          "perMTok": { "input": 4, "output": 12, "cacheRead": 1, "cacheWrite": null }
+        }
+      ],
+      "sourceUrl": "https://docs.x.ai/developers/pricing",
+      "conditions": "全球端点标准价。提示达到 200,000 token 时整条请求按长档计价，目录按含缓存读写的提示长度判断。官网未单列缓存写入费率。排除 Batch 折扣、Priority、美国区域端点 10% 加价及工具费。",
+      "conditionsEn": "Standard global endpoint pricing. The long-context rate applies to the entire request at 200,000 prompt tokens. The catalog counts cache reads and writes in prompt length. No separate cache write rate is listed. Excludes Batch discounts, Priority, the 10% US regional endpoint surcharge, and tool fees.",
+      "currency": "USD",
+      "verifiedAt": "2026-11-21",
+      "tier": "verified",
+      "billing": "metered",
+      "provisional": false
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "aliases": [],
+      "perMTok": { "input": 1.32, "output": 3.96, "cacheRead": 0.044, "cacheWrite": null },
+      "timeOfDay": {
+        "utcOffsetMinutes": 480,
+        "peak": [
+          { "days": [1, 2, 3, 4, 5], "from": 540, "to": 720 },
+          { "days": [1, 2, 3, 4, 5], "from": 840, "to": 1080 }
+        ],
+        "offPeak": { "input": 0.66, "output": 1.98, "cacheRead": 0.022, "cacheWrite": null },
+        "holidays": [
+          "2026-01-01", "2026-01-02", "2026-01-03",
+          "2026-02-15", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19",
+          "2026-02-20", "2026-02-21", "2026-02-22", "2026-02-23",
+          "2026-04-04", "2026-04-05", "2026-04-06",
+          "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05",
+          "2026-06-19", "2026-06-20", "2026-06-21",
+          "2026-09-25", "2026-09-26", "2026-09-27",
+          "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05",
+          "2026-10-06", "2026-10-07",
+          "2027-01-01", "2027-01-02", "2027-01-03",
+          "2027-02-05", "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09",
+          "2027-02-10", "2027-02-11", "2027-02-12", "2027-02-13",
+          "2027-04-03", "2027-04-04", "2027-04-05",
+          "2027-05-01", "2027-05-02", "2027-05-03", "2027-05-04", "2027-05-05",
+          "2027-06-09", "2027-09-15",
+          "2027-10-01", "2027-10-02", "2027-10-03", "2027-10-04", "2027-10-05",
+          "2027-10-06", "2027-10-07"
+        ]
+      },
+      "sourceUrl": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "conditions": "DeepSeek 官方 USD 直连价，API 当前版本 DeepSeek-V4-Pro-0813。北京时间周一至周五 09:00–12:00、14:00–18:00 为高峰。其余时段、周末及中国法定节假日全天低谷半价。按国务院办公厅安排登记 2026 和 2027 年放假日，周末补班日按周末计，其他年份按星期规则计。输入按缓存未命中价，官网未单列缓存写入费率。峰谷价自 2026-08-16 16:00 UTC 起生效，目录以当日核验的费率估算。",
+      "conditionsEn": "Official DeepSeek direct API pricing in USD for the current DeepSeek-V4-Pro-0813 version. Peak hours are 09:00–12:00 and 14:00–18:00 China Standard Time on weekdays. Other hours, weekends, and Chinese public holidays are half-price off-peak. The list uses the 2026 and 2027 State Council holidays. Weekend make-up workdays use weekend pricing and other years follow day-of-week rules. Input uses the cache-miss rate. No separate cache write rate is listed. Peak and off-peak pricing took effect on August 16, 2026 at 16:00 UTC. Catalog estimates use the rates verified on the date shown.",
+      "currency": "USD",
+      "verifiedAt": "2026-11-21",
+      "tier": "verified",
+      "billing": "metered",
       "provisional": false
     }
   ],

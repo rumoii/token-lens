@@ -706,6 +706,7 @@ mod ledger_b3_tests {
             .filter(|r| r["type"] == "ledger_row")
             .map(|r| {
                 let mut row = r["expected"].clone();
+                crate::stats::update_golden_price_version(&mut row);
                 row["source_file"] =
                     json!(native_golden_path(row["source_file"].as_str().unwrap()));
                 row
@@ -713,8 +714,9 @@ mod ledger_b3_tests {
             .collect::<Vec<_>>();
         assert_eq!(actual, expected);
         for line in include_str!("../../../tests/golden/ingest-b3.jsonl").lines() {
-            let row: Value = serde_json::from_str(line).unwrap();
+            let mut row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "query" {
+                crate::stats::update_golden_price_version(&mut row["expected"]);
                 let mut actual = if row["fn"] == "summary" {
                     service::summary(&ledger, &json!({}), 480, "Asia/Shanghai")
                 } else {
@@ -898,6 +900,7 @@ mod ledger_b2_tests {
             .filter(|r| r["type"] == "ledger_row")
             .map(|r| {
                 let mut row = r["expected"].clone();
+                crate::stats::update_golden_price_version(&mut row);
                 row["source_file"] =
                     json!(native_golden_path(row["source_file"].as_str().unwrap()));
                 row
@@ -905,8 +908,9 @@ mod ledger_b2_tests {
             .collect::<Vec<_>>();
         assert_eq!(actual, expected);
         for line in include_str!("../../../tests/golden/ingest-b2.jsonl").lines() {
-            let row: Value = serde_json::from_str(line).unwrap();
+            let mut row: Value = serde_json::from_str(line).unwrap();
             if row["type"] == "query" {
+                crate::stats::update_golden_price_version(&mut row["expected"]);
                 let mut actual = if row["fn"] == "summary" {
                     service::summary(&ledger, &json!({}), 480, "Asia/Shanghai")
                 } else {

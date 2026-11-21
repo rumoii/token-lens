@@ -963,10 +963,11 @@ mod tests {
     #[test]
     fn cache_ratio_rounding_matches_node() {
         for line in include_str!("../../tests/golden/query-boundaries.jsonl").lines() {
-            let row: Value = serde_json::from_str(line).unwrap();
+            let mut row: Value = serde_json::from_str(line).unwrap();
             if row["type"] != "query" {
                 continue;
             }
+            super::super::update_golden_price_version(&mut row["expected"]);
             let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
             ledger
                 .batch(&[row["record"].clone()], None, None, &[], pricing::cost_of)
@@ -1030,7 +1031,8 @@ mod tests {
                         .execute_batch(row["sql"].as_str().unwrap())
                         .unwrap();
                     let result = breakdown(&ledger, &row["params"], 480, "Asia/Shanghai").unwrap();
-                    ledger.db.execute_batch("UPDATE usage_records SET cost_micros=cost_micros-1 WHERE record_key='claude|owner'; UPDATE usage_records SET price_version='7a41a11013b21c6b' WHERE record_key='claude|older';").unwrap();
+                    ledger.db.execute_batch("UPDATE usage_records SET cost_micros=cost_micros-1 WHERE record_key='claude|owner';").unwrap();
+                    ledger.db.execute("UPDATE usage_records SET price_version=? WHERE record_key='claude|older'", [pricing::PRICE_VERSION]).unwrap();
                     result
                 }
                 "read.totals" => ledger.totals(&args[0]).unwrap(),
@@ -1050,6 +1052,7 @@ mod tests {
             };
             let mut actual = actual;
             let mut expected = row["expected"].clone();
+            super::super::update_golden_price_version(&mut expected);
             if let Some(groups) = actual.get_mut("groups") {
                 // Desktop-only timing fields are checked separately; retain Node's usage contract.
                 for group in groups.as_array_mut().unwrap() {

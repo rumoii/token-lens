@@ -30,6 +30,23 @@ fn golden_fixture(path: &str) -> std::path::PathBuf {
         .join(path.strip_prefix("test/fixtures/").unwrap())
 }
 
+#[cfg(test)]
+fn update_golden_price_version(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Array(items) => items.iter_mut().for_each(update_golden_price_version),
+        serde_json::Value::Object(fields) => {
+            for (name, value) in fields {
+                if name == "price_version" && *value == "7a41a11013b21c6b" {
+                    *value = pricing::PRICE_VERSION.into();
+                } else {
+                    update_golden_price_version(value);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 #[derive(Debug)]
 pub struct Error(pub String);
 impl Error {

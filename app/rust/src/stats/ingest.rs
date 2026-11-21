@@ -1075,6 +1075,7 @@ mod tests {
         assert_eq!(result["attempted"], 0);
         cancel.store(true, Ordering::Release);
         assert_eq!(
+            super::super::update_golden_price_version(row);
             sync(
                 &data,
                 &home,

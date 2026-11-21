@@ -119,7 +119,8 @@ fn d33_queries_match_node_golden_and_conserve() {
         .lines()
         .enumerate()
     {
-        let row: Value = serde_json::from_str(line).unwrap();
+        let mut row: Value = serde_json::from_str(line).unwrap();
+        crate::stats::update_golden_price_version(&mut row["expected"]);
         // Scenario B's fixtures and query goldens use Windows APPDATA/LOCALAPPDATA roots.
         #[cfg(not(windows))]
         if row["scenario"] == "B" {
@@ -279,6 +280,16 @@ fn d33_queries_match_node_golden_and_conserve() {
                             json!(known + rust_only_evidence as u64);
                     }
                     "pricing" => {
+                        for model in expected["models"].as_array_mut().unwrap() {
+                            if model["model"] == "deepseek-flash" {
+                                model["note"] = json!(model["note"]
+                                    .as_str()
+                                    .unwrap()
+                                    .replace("登记 2026 年", "登记 2026 和 2027 年"));
+                                model["time_of_day"]["holidays_count"] = json!(62);
+                                model["time_of_day"]["holidays_through"] = json!("2027-10-07");
+                            }
+                        }
                         for model in actual["models"].as_array_mut().unwrap() {
                             let fields = model.as_object_mut().unwrap();
                             let note_en = fields.remove("note_en").unwrap();

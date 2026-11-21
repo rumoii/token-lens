@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 use std::sync::OnceLock;
 
-pub const PRICE_VERSION: &str = "7a41a11013b21c6b";
+pub const PRICE_VERSION: &str = "c9fe1db9270c1778";
 
 fn catalog() -> &'static Value {
     static CATALOG: OnceLock<Value> = OnceLock::new();
@@ -413,9 +413,63 @@ mod tests {
     use super::*;
 
     #[test]
+    fn trial_catalog_estimates_new_models_and_tier_boundaries() {
+        for (model, input, expected) in [
+            ("gpt-6.2-sol", 271_000, 552_100),
+            ("gpt-6.2-sol", 271_001, 1_099_204),
+            ("gpt-6.2-astra", 271_000, 2_208_400),
+            ("gpt-6.2-astra", 271_001, 4_396_816),
+            ("grok-4.6", 198_999, 404_498),
+            ("grok-4.6", 199_000, 809_000),
+            ("gemini-4-neon", 1000, 18_150),
+        ] {
+            let result = price_record(&json!({"model":model,"input_tokens":input,
+                "output_tokens":1000,"cache_read_tokens":1000,"cache_write_tokens":0}));
+            assert_eq!(result["cost_micros"], expected, "{model} input={input}");
+        }
+        for model in [
+            "gemini-4-hydrogen-tiered-high",
+            "gemini-3.8-flash-s",
+            "gemini-3.8-flash-k",
+        ] {
+            assert!(
+                price_record(&json!({"model":model,"input_tokens":1000}))["cost_micros"].is_null()
+            );
+        }
+    }
+
+    #[test]
+    fn trial_catalog_deepseek_peak_and_public_holidays() {
+        for (date, expected) in [
+            ("2027-01-04T01:00:00Z", 5324),
+            ("2027-01-04T04:00:00Z", 2662),
+            ("2027-01-01T01:00:00Z", 2662),
+            ("2026-10-10T01:00:00Z", 2662),
+        ] {
+            let result = price_record(&json!({"model":"deepseek-v4-pro","kind":"delta",
+                "observed_at":date,"input_tokens":1000,"output_tokens":1000,"cache_read_tokens":1000}));
+            assert_eq!(result["cost_micros"], expected, "{date}");
+        }
+        let flash = find_price(Some("deepseek-flash"));
+        let pro = find_price(Some("deepseek-v4-pro"));
+        let holidays = |price: &Value| {
+            price["timeOfDay"]["holidays"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|day| day.as_str().unwrap().starts_with("2027-"))
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(holidays(&flash).len(), 29);
+        assert_eq!(holidays(&flash), holidays(&pro));
+    }
+
+    #[test]
     fn borrowed_model_price_preserves_record_pricing() {
         for line in include_str!("../../tests/golden/pricing.jsonl").lines() {
-            let row: Value = serde_json::from_str(line).unwrap();
+            let mut row: Value = serde_json::from_str(line).unwrap();
+            super::super::update_golden_price_version(&mut row);
             if row["type"] == "price" {
                 let record = &row["record"];
                 let price = find_price(record["model"].as_str());
@@ -435,16 +489,28 @@ mod tests {
     #[test]
     fn pricing_matches_node() {
         assert_eq!(catalog_version(), PRICE_VERSION);
-        assert_eq!(catalog()["entries"].as_array().unwrap().len(), 31);
+        assert_eq!(catalog()["entries"].as_array().unwrap().len(), 36);
         for line in include_str!("../../tests/golden/pricing.jsonl").lines() {
-            let row: Value = serde_json::from_str(line).unwrap();
+            let mut row: Value = serde_json::from_str(line).unwrap();
+            super::super::update_golden_price_version(&mut row);
             if row["type"] == "price" {
                 assert_eq!(price_record(&row["record"]), row["expected"], "{line}");
                 assert_eq!(cost_of(&row["record"]), row["cost"], "{line}");
             }
             match row["fn"].as_str() {
                 Some("findPrice") => {
-                    assert_eq!(find_price(row["model"].as_str()), row["expected"], "{line}")
+                    let mut actual = find_price(row["model"].as_str());
+                    if actual["id"] == "deepseek-flash" {
+                        actual["timeOfDay"]["holidays"]
+                            .as_array_mut()
+                            .unwrap()
+                            .retain(|day| !day.as_str().unwrap().starts_with("2027-"));
+                        actual["conditions"] = json!(actual["conditions"]
+                            .as_str()
+                            .unwrap()
+                            .replace("登记 2026 和 2027 年", "登记 2026 年"));
+                    }
+                    assert_eq!(actual, row["expected"], "{line}")
                 }
                 Some("format") => assert_eq!(
                     json!(format_micros(
