@@ -1,5 +1,5 @@
 use super::super::jscompat::{self, LocalZone};
-use super::{lines::*, num::*, project::*};
+use super::{lines::*, num::*, project::*, timing};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 struct ClaudeEntry {
@@ -28,6 +28,7 @@ pub(super) fn parse(
     let mut indexes = HashMap::new();
     let mut cwd = None;
     let mut requests: HashMap<String, Vec<Option<i64>>> = HashMap::new();
+    let mut first_outputs = HashMap::new();
     for (object, line) in lines(bytes, notes) {
         if !object.is_object() && !object.is_array() {
             continue;
@@ -40,7 +41,29 @@ pub(super) fn parse(
                 requests
                     .entry(id.into())
                     .or_default()
-                    .push(super::timing::timestamp(&object["timestamp"], zone));
+                    .push(timing::timestamp(&object["timestamp"], zone));
+            }
+        }
+        let message_id = object["message"]["id"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .or_else(|| object["id"].as_str().filter(|s| s.starts_with("msg_")));
+        let request_ref = object["requestRef"].as_str().filter(|s| !s.is_empty());
+        // The first block can precede the first line with billable usage.
+        if object["type"] == "assistant" && object["apiBlockIndex"].as_f64() == Some(0.0) {
+            if let Some(id) = message_id {
+                first_outputs
+                    .entry(id.to_owned())
+                    .and_modify(|first| *first = None)
+                    .or_insert_with(|| {
+                        if object["message"]["content"][0]["type"] != "thinking" {
+                            return None;
+                        }
+                        let request_ref = request_ref?;
+                        let end = timing::timestamp(&object["timestamp"], zone)?;
+                        let thinking = timing::positive_ms(&object["thinkingDurationMs"])?;
+                        Some((request_ref.to_owned(), end.checked_sub(thinking)?))
+                    });
             }
         }
         let usage = if jscompat::truthy(&object["message"]["usage"]) {
@@ -73,11 +96,7 @@ pub(super) fn parse(
             note(notes, "zero_usage");
             continue;
         }
-        let id = object["message"]["id"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .or_else(|| object["id"].as_str().filter(|s| s.starts_with("msg_")))
-            .map(str::to_owned);
+        let id = message_id.map(str::to_owned);
         let session = if jscompat::truthy(&object["sessionId"]) {
             jscompat::string(&object["sessionId"])
         } else {
@@ -90,11 +109,8 @@ pub(super) fn parse(
         };
         let model = jscompat::truthy(raw_model).then(|| jscompat::string(raw_model));
         let time = jscompat::normalize_timestamp(&object["timestamp"], zone);
-        let timing_ref = object["requestRef"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(str::to_owned);
-        let timing_end = super::timing::timestamp(&object["timestamp"], zone);
+        let timing_ref = request_ref.map(str::to_owned);
+        let timing_end = timing::timestamp(&object["timestamp"], zone);
         let timing_completed = object["message"]["stop_reason"]
             .as_str()
             .is_some_and(|reason| !trim(reason).is_empty());
@@ -150,7 +166,7 @@ pub(super) fn parse(
         }
     }
     for entry in entries.into_iter().chain(orphans) {
-        let duration = if entry.timing_ambiguous
+        let request_start = if entry.timing_ambiguous
             || entry.id.is_none()
             || entry
                 .timing_ref
@@ -164,8 +180,20 @@ pub(super) fn parse(
                 .as_ref()
                 .and_then(|id| requests.get(id))
                 .filter(|starts| starts.len() == 1)
-                .and_then(|starts| super::timing::difference(entry.timing_end, starts[0]))
+                .and_then(|starts| starts[0])
         };
+        let duration = timing::difference(entry.timing_end, request_start);
+        let first_output = entry
+            .id
+            .as_ref()
+            .and_then(|id| first_outputs.remove(id))
+            .flatten()
+            .filter(|(reference, _)| Some(reference) == entry.timing_ref.as_ref())
+            .map(|(_, timestamp)| timestamp);
+        let ttft = timing::difference(first_output, request_start)
+            .zip(duration)
+            .filter(|(ttft, duration)| ttft <= duration)
+            .map(|(ttft, _)| ttft);
         let (key, old) = if let Some(id) = entry.id {
             (
                 format!("claude|{id}"),
@@ -190,7 +218,7 @@ pub(super) fn parse(
                 record["cache_write_1h_tokens"] = json!(b);
             }
         }
-        record["timing"] = super::timing::duration(
+        let mut request = timing::duration(
             duration,
             "log_timestamps",
             if entry.timing_completed {
@@ -200,6 +228,9 @@ pub(super) fn parse(
             },
             &record["output_tokens"],
         );
+        request["ttft_ms"] = json!(ttft);
+        request["ttft_method"] = json!(ttft.map(|_| "log_timestamps"));
+        record["timing"] = request;
         output.push(record);
     }
     output

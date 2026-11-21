@@ -32,6 +32,79 @@ fn fix1_claude_block(second: u8, stop: Value) -> Value {
 }
 
 #[test]
+fn timing2_claude_thinking_ttft_uses_duration_start() {
+    for (index, kind, thinking, ttft) in [
+        (json!(0), "thinking", json!(600), json!(400)),
+        (json!(0), "thinking", Value::Null, Value::Null),
+        (json!(0), "thinking", json!(1000), Value::Null),
+        (json!(0), "thinking", json!(1001), Value::Null),
+        (json!(0), "thinking", json!(0), Value::Null),
+        (json!(0), "thinking", json!(-10), Value::Null),
+        (json!(0), "thinking", json!("600"), Value::Null),
+        (json!(2), "thinking", json!(600), Value::Null),
+        (Value::Null, "thinking", json!(600), Value::Null),
+        (json!(0), "text", json!(600), Value::Null),
+    ] {
+        let mut first = fix1_claude_block(1, Value::Null);
+        first["apiBlockIndex"] = index;
+        first["message"]["content"] = json!([{"type":kind}]);
+        first["thinkingDurationMs"] = thinking;
+        let mut last = fix1_claude_block(3, json!("end_turn"));
+        last["apiBlockIndex"] = json!(3);
+        last["message"]["content"] = json!([{"type":"thinking"}]);
+        last["thinkingDurationMs"] = json!(500);
+        let record = &parse("claude", &[fix1_claude_request(), first, last])[0];
+        let timing = &record["timing"];
+        assert_eq!(timing["duration_ms"], 3000);
+        assert_eq!(timing["ttft_ms"], ttft);
+        assert_eq!(
+            timing["ttft_method"],
+            json!((!ttft.is_null()).then_some("log_timestamps"))
+        );
+        assert!(timing["generation_ms"].is_null());
+    }
+}
+
+#[test]
+fn timing2_claude_thinking_requires_an_unambiguous_window() {
+    let mut first = fix1_claude_block(3, Value::Null);
+    first["apiBlockIndex"] = json!(0);
+    first["message"]["content"] = json!([{"type":"thinking"}]);
+    first["thinkingDurationMs"] = json!(1000);
+    first["message"]["usage"] = Value::Null;
+    let last = fix1_claude_block(2, json!("end_turn"));
+    let request = fix1_claude_request();
+    let records = parse("claude", &[request.clone(), first.clone(), last.clone()]);
+    assert_eq!(records[0]["timing"]["ttft_ms"], 2000);
+    assert_eq!(records[0]["timing"]["duration_ms"], 2000);
+
+    for (input, duration) in [
+        (vec![first.clone(), last.clone()], Value::Null),
+        (
+            vec![
+                request.clone(),
+                request.clone(),
+                first.clone(),
+                last.clone(),
+            ],
+            Value::Null,
+        ),
+        (
+            vec![request.clone(), first.clone(), first.clone(), last],
+            json!(2000),
+        ),
+        (
+            vec![request, first, fix1_claude_block(1, json!("end_turn"))],
+            json!(1000),
+        ),
+    ] {
+        let records = parse("claude", &input);
+        assert_eq!(records[0]["timing"]["duration_ms"], duration);
+        assert!(records[0]["timing"]["ttft_ms"].is_null());
+    }
+}
+
+#[test]
 fn e4b_fix1_claude_incremental_same_usage_grows_until_completed() {
     let db = Ledger::open(
         std::path::Path::new(":memory:"),
@@ -182,7 +255,7 @@ fn e4b_fix1_claude_completion_uses_last_valid_usage_block_only() {
 
 #[test]
 fn e4b_fix1_claude_timing_revision_replaces_old_completed_without_changing_usage() {
-    assert_eq!(adapters::timing_rev("claude"), Some(2));
+    assert_eq!(adapters::timing_rev("claude"), Some(3));
     assert_eq!(adapters::parser_rev("claude"), 3);
     let db = Ledger::open(
         std::path::Path::new(":memory:"),
@@ -203,7 +276,7 @@ fn e4b_fix1_claude_timing_revision_replaces_old_completed_without_changing_usage
         before
     );
     let timing = rows(&db.db, "SELECT * FROM usage_timings", &[]).unwrap();
-    assert_eq!(timing[0]["parser_rev"], 2);
+    assert_eq!(timing[0]["parser_rev"], 3);
     assert_eq!(timing[0]["status"], "partial");
     assert!(db.timing_summary(&json!({})).unwrap()["throughput"].is_null());
 }

@@ -471,8 +471,9 @@ pub const TIMING_REV: &[(&str, i64)] = &[
     ("opencode", 1),
     ("mimo", 1),
     ("kilo", 1),
-    ("claude", 2),
+    ("claude", 3),
     ("grok", 1),
+    ("antigravity", 1),
 ];
 
 pub fn timing_rev(source: &str) -> Option<i64> {

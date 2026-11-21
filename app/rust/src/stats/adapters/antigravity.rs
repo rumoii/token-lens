@@ -1,9 +1,9 @@
-use super::{lines::note, project, sqlite};
+use super::{lines::note, project, sqlite, timing};
 use crate::stats::{discovery, Error, Result};
 use chrono::{DateTime, SecondsFormat};
 use rusqlite::{types::ValueRef, Connection, OptionalExtension, Params, Statement};
 use serde_json::{json, Value};
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 struct BadProto;
 type WireResult<T> = std::result::Result<T, BadProto>;
@@ -136,6 +136,8 @@ struct Generation<'a> {
     model: Option<&'a str>,
     request_id: Option<&'a str>,
     last_step: Option<i64>,
+    first_token: Option<Duration>,
+    streaming: Option<Duration>,
 }
 
 impl<'a> Generation<'a> {
@@ -152,6 +154,8 @@ impl<'a> Generation<'a> {
                         .usage
                         .get_or_insert_with(Usage::default)
                         .read(Fields(value.bytes()?))?,
+                    11 => generation.first_token = read_duration(value).ok(),
+                    12 => generation.streaming = read_duration(value).ok(),
                     19 => generation.model = Some(value.text()?).filter(|s| !s.is_empty()),
                     20 => generation.attribute(Fields(value.bytes()?))?,
                     _ => {}
@@ -186,6 +190,23 @@ impl<'a> Generation<'a> {
         }
         Ok(())
     }
+}
+
+fn read_duration(value: WireValue<'_>) -> WireResult<Duration> {
+    let mut fields = Fields(value.bytes()?);
+    let (mut seconds, mut nanos) = (0, 0);
+    while let Some((field, value)) = fields.next()? {
+        match field {
+            1 => seconds = value.number()?,
+            2 => nanos = value.number()?,
+            _ => {}
+        }
+    }
+    // Outside this range the value is negative or is not a valid protobuf Duration.
+    if seconds > 315_576_000_000 || nanos >= 1_000_000_000 {
+        return Err(BadProto);
+    }
+    Ok(Duration::new(seconds, nanos as u32))
 }
 
 fn seconds(blob: &[u8], timestamp_field: u32) -> WireResult<Option<i64>> {
@@ -380,12 +401,35 @@ pub(super) fn parse(
             Some(id) => format!("antigravity:{id}"),
             None => format!("antigravity:{session_id}:{idx}"),
         };
-        records.push(json!({
+        let mut record = json!({
             "record_key": key, "source": "antigravity", "kind": "event",
             "session_id": session_id, "project_key": project, "model": generation.model,
             "provider": null, "observed_at": time, "input_tokens": usage.input,
             "output_tokens": usage.output, "cache_read_tokens": usage.cache_read, "cache_write_tokens": null
-        }));
+        });
+        // The validated protobuf range fits in i64 milliseconds, even after summing.
+        let positive_millis = |value: Duration| {
+            let ms = value.as_millis() as i64;
+            (ms > 0).then_some(ms)
+        };
+        let ttft = generation.first_token.and_then(positive_millis);
+        let streaming = generation
+            .streaming
+            .filter(|value| *value >= Duration::from_millis(50))
+            .and_then(positive_millis);
+        let duration = generation
+            .first_token
+            .zip(generation.streaming)
+            .and_then(|(first, rest)| positive_millis(first + rest));
+        if ttft.is_some() || streaming.is_some() || duration.is_some() {
+            let method = "client_reported";
+            let mut request =
+                timing::request(ttft, streaming, method, "unknown", &record["output_tokens"]);
+            request["duration_ms"] = json!(duration);
+            request["duration_method"] = json!(duration.map(|_| method));
+            record["timing"] = request;
+        }
+        records.push(record);
     }
     Ok(records)
 }

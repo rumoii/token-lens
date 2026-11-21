@@ -376,9 +376,10 @@ fn fix3_timing_upgrade_preserves_pruned_usage_and_money() {
 
 #[test]
 fn fix3_usage_parser_revisions_stay_at_baseline() {
-    assert_eq!(adapters::TIMING_REV.len(), 12);
-    assert_eq!(adapters::timing_rev("claude"), Some(2));
-    for (source, revision) in [("codex", 5), ("kimi", 5), ("zcode", 1)] {
+    assert_eq!(adapters::TIMING_REV.len(), 13);
+    assert_eq!(adapters::timing_rev("claude"), Some(3));
+    assert_eq!(adapters::timing_rev("copilot"), None);
+    for (source, revision) in [("codex", 5), ("kimi", 5), ("zcode", 1), ("antigravity", 1)] {
         assert_eq!(adapters::parser_rev(source), revision, "{source}");
         assert_eq!(adapters::timing_rev(source), Some(1), "{source}");
     }

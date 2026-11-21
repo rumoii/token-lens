@@ -21,12 +21,13 @@ claude_code:
       cache_read_tokens: "$.message.usage.cache_read_input_tokens"
       cache_write_tokens: "$.message.usage.cache_creation_input_tokens"
   request_timing:
-    timing_rev: 2
+    timing_rev: 3
     fields: "type=api-request 的唯一 id/timestamp，经 requestRef 关联至消息最后有效 usage 块 timestamp（ISO 毫秒）"
+    first_output: "同一消息和 requestRef 下唯一的 assistant apiBlockIndex=0，message.content[0].type=thinking 且 thinkingDurationMs 为正数时，用该行 timestamp 减去思考时长（毫秒）；该行可无 usage"
     method: "log_timestamps"
     scope: "request"
     completion: "最后有效 usage 块 message.stop_reason 为非空字符串时 completed，否则 partial；只取该块标志，不继承早先块，不从后续消息推断结束"
-    limits: "仅整次耗时；缺关联、缺消息 id、同请求多消息、重复请求 id 或消息引用冲突 NULL；不改 observed_at；非正差值、单位不明或配对歧义 NULL"
+    limits: "首字与整次使用同一 api-request 起点；首字须大于零且不超过整次耗时，生成时长为 NULL。缺关联、缺消息 id、同请求多消息、重复请求 id、引用冲突、非正差值或配对歧义所影响的指标为 NULL"
 
 codex_cli:
   description: "OpenAI Codex CLI 工具的本地会话记录与 Rollout"
@@ -538,6 +539,9 @@ github_copilot:
         input_tokens: "total_input_tokens"
         output_tokens: "total_output_tokens + (total_reasoning_tokens || 0)"
         cache_read_tokens: "total_cached_tokens"
+  request_timing:
+    external_format: "CLI 的 JSONL session.usage_record 事件在 data.usage.timeToFirstTokenMs 和 data.usage.duration 记录单次请求的首字和整次耗时（毫秒）"
+    limits: "当前适配器只读上述 SQLite 格式，未发现两字段的映射，未接入该事件"
 
 openclaw:
   description: "OpenClaw 本地 Agent 会话与转录日志"
@@ -775,6 +779,13 @@ antigravity:
       output_tokens: "1.4.3，已含思考；缺失为零"
       cache_read_tokens: "1.4.5；缺失为零"
       cache_write_tokens: "NULL，客户端未报告"
+  request_timing:
+    timing_rev: 1
+    fields: "gen_metadata.data 的 1.11 为首字等待；1.12 为首字之后的输出时长。两者均为 google.protobuf.Duration（字段 1 秒、字段 2 纳秒）"
+    method: "client_reported"
+    scope: "request"
+    completion: "unknown；已识别的响应元数据和步骤时间戳不足以确认请求结束状态"
+    limits: "输出时长不足 50 ms 时生成时长为 NULL；两个有效 Duration 相加后截断至整毫秒得到整次耗时。缺失或无效字段不影响用量和另一字段；各展示指标仅保留正毫秒值"
 
 codebuddy_and_workbuddy:
   description: "CodeBuddy / WorkBuddy CLI 与桌面请求索引；第三方逆向依据，证据 B（合成）"

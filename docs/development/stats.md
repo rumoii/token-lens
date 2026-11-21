@@ -103,7 +103,7 @@ D3 把统计内核和看板从 Node/React 移到桌面预览的 Rust 核心和 F
 
 分组、时间桶和会话另带 `event_gross_tokens`：只加 event 的四类 token，各列先 coalesce 再相加。“平均每次”使用此值除以 `request_count`，合并模型/工具时同时合并这两个字段，快照不进入分子。会话详情的 `period` 沿用列表的时段、工具和项目筛选，`session` 的累计不受筛选影响。累计查询先分页会话身份，再用 `idx_usage_session(source, session_id)` 取对应 active 记录；无时段而带项目/模型筛选时，排序仍以整个会话的最后活动为准。开始日期 chip 使用查询快照的固定偏移，非今年的日期包含年份；首页累计与时段 gross 不同时显示累计行。
 
-9. **E4a 桌面请求计时**。桌面 schema v6 比 Node v5 仅多 usage_timings；迁移对拍继续严格比较全部 v5 表与列，另外测试 v6 表、备份与 WAL 行数。Node goldens 不重写，适配器对拍移除已断言无首字/生成证据的附加 timing 字段（既有 Pi 夹具的整次耗时另由 E4b 测试验证）；查询对拍仅移除已断言 NULL 指标和分母正确的 timing/model_timing，其他字段仍比较。计时独立使用按 source 区分的 TIMING_REV，claude 为 2，codex、kimi、zcode、qwen、pi、openhands、anythingllm、opencode、mimo、kilo、grok 为 1；用量 PARSER_REV 保持基线 codex=5、kimi=5、zcode=1；Node codex 仍为 4，身份差异继续遵循本节第 7 条。原有分组之和、用量和金额对拍测试保留。
+9. **E4a 桌面请求计时**。桌面 schema v6 比 Node v5 仅多 usage_timings；迁移对拍继续严格比较全部 v5 表与列，另外测试 v6 表、备份与 WAL 行数。Node goldens 不重写，适配器对拍移除已断言无首字/生成证据的附加 timing 字段（既有 Pi 夹具的整次耗时另由 E4b 测试验证）；查询对拍仅移除已断言 NULL 指标和分母正确的 timing/model_timing，其他字段仍比较。计时独立使用按 source 区分的 TIMING_REV，claude 为 3，codex、kimi、zcode、qwen、pi、openhands、anythingllm、opencode、mimo、kilo、grok、antigravity 为 1；用量 PARSER_REV 保持基线 codex=5、kimi=5、zcode=1；Node codex 仍为 4，身份差异继续遵循本节第 7 条。原有分组之和、用量和金额对拍测试保留。
 
 D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分别处理 DST；`pricing_snapshot` 只存 `{version}`、不能按旧版本重新估值（`write.js:481–485`）；会话详情默认粒度三处不一致（`read.js:587`、`api/v1/sessions.js:47`、`api/router.js:33`）；`ended_at` 不是 NULL 又解析不了时，这条 `cumulative` 记录既不进时间桶也不进 `unallocated`（`read.js:46–49`）。最后这一条 Rust 原样复现，并由独立的 golden 场景固定；适配器写入的 `ended_at` 只会是 ISO 时间或 NULL，现有数据碰不到。
 
@@ -111,16 +111,18 @@ D4 切换以后才考虑的修复（D3 不做）：时间桶按历史日期分�
 
 ### E4：请求与回合计时（桌面 schema v6）
 
-D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，不改 `usage_records` 的列、身份、`content_hash` 或计价。它以 `record_key` 为主键和外键，与 event 一对一；保存 source、首字、生成时长与整次调用耗时 duration_ms（整数毫秒）、各自的 method（含 duration_method）、`timing_output_tokens`、scope、status、source_file、计时版本和独立的 timing_hash；v6 的 usage_timings.parser_rev 列保留原名，但只存 TIMING_REV，与 usage_records.parser_rev 无关。计时有自己的按 source 区分的 revision：claude 为 2，codex、kimi、zcode、qwen、pi、openhands、anythingllm、opencode、mimo、kilo、grok 为 1；值、身份或时间改变要升 PARSER_REV 的契约仅适用于用量记录，计时修正规则只升 TIMING_REV，不改用量版本、内容或价格。
+D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，不改 `usage_records` 的列、身份、`content_hash` 或计价。它以 `record_key` 为主键和外键，与 event 一对一；保存 source、首字、生成时长与整次调用耗时 duration_ms（整数毫秒）、各自的 method（含 duration_method）、`timing_output_tokens`、scope、status、source_file、计时版本和独立的 timing_hash；v6 的 usage_timings.parser_rev 列保留原名，但只存 TIMING_REV，与 usage_records.parser_rev 无关。计时有自己的按 source 区分的 revision：claude 为 3，codex、kimi、zcode、qwen、pi、openhands、anythingllm、opencode、mimo、kilo、grok、antigravity 为 1；值、身份或时间改变要升 PARSER_REV 的契约仅适用于用量记录，计时修正规则只升 TIMING_REV，不改用量版本、内容或价格。
 
-- **≈首字时间**（界面名“首字（开始回复前要等）”）：发出请求至首次实际输出的等待，思考、工具参数、正文都算；元数据和 role-only 分块不算。Kimi Code、ZCode、Codex 使用 `request`；OpenCode、MiMo、Kilo 另支持推理开始事件代理，Grok 使用独立的 `turn`。Codex 仅能观察思考与回复项，工具专用输出没有首字样本。
+- **≈首字时间**（界面名“首字（开始回复前要等）”）：发出请求至首次实际输出的等待，思考、工具参数、正文都算；元数据和 role-only 分块不算。Kimi Code、ZCode、Codex、Claude Code、Antigravity 使用 `request`；OpenCode、MiMo、Kilo 另支持推理开始事件代理，Grok 使用独立的 `turn`。Codex 仅能观察思考与回复项，工具专用输出没有首字样本。
 - **≈速度**（界面名“速度（回复时每秒出多少）”）：该请求的输出 token（adapter 现有口径，含推理）除以首次输出至流结束的秒数。分子独立存成 `timing_output_tokens`；只有 `status=completed`、输出已知且生成时长大于 0 的请求进入速度统计。不设 token 门槛。
 - **≈请求平均吞吐**（界面名“平均速度（算上等待）”）：1000 × Σtiming_output_tokens ÷ Σduration_ms，包含首字前的等待，与“≈速度”分开。只计 status=completed、输出已知、duration_ms>0 的样本，按 duration_method 分组，不平均逐条吞吐。duration_ms 与其他时长一起存储、hash、保留或整组替换；新接入来源差值≤0、字段无效或无法唯一配对时为 NULL。scope 只允许 request/turn，method 增加 content_event_proxy；v6 未发布，直接扩展 timings.sql，不新增 schema 版本。
 - 首字按 method 分组，使用 nearest-rank：升序排列 n 个样本，分位数 p 取第 `ceil(p*n)` 个（从 1 起）；中位数 p=0.5，p90 p=0.9，偶数样本取两个中间值里较小的一个。
 - 速度按 generation_method 分组，取 `1000 * Σtiming_output_tokens / Σgeneration_ms`，不平均逐条速度。不同 method 不混合。
 - 三项各自返回有效样本数 n；请求级 N 是同一筛选范围内 active event 的去重请求数，包括没有计时、失败和未知状态的请求，不包括 cumulative 或 Grok 回合。Grok 的 active event 一条代表一回合，单独返回 turn.turn_count，包括无计时回合；turn 计时不进入请求的分位数、速度、吞吐或覆盖率。通用用量查询的 request_count 沿用原口径，仅计时汇总分母按 scope 拆分。每个 method 的覆盖率都是自己的 n/N。没有样本时对应 ttft、speed 或 throughput 返回 NULL，界面省略该指标并列出缺失项；N=0 不计算百分比。
-- `client_reported` 表示客户端记录的计时（Kimi、ZCode），`log_timestamps` 表示按日志时间戳估算（Codex）。content_event_proxy 表示“按推理开始事件估算”。首字、生成时长、整次调用耗时分别带 method；缺值的 method 也为 NULL。客户端计时仍受网络、代理、分块与缓冲影响。
+- `client_reported` 表示客户端记录的计时（如 Kimi、ZCode、Antigravity），`log_timestamps` 表示以日志时间戳为基准的估算（如 Codex、Claude Code）。`content_event_proxy` 表示“按推理开始事件估算”。首字、生成时长、整次调用耗时分别带 method；缺值的 method 也为 NULL。客户端计时仍受网络、代理、分块与缓冲影响。
 - status：`completed` 为请求窗口正常结束（含工具调用结束、达到输出上限）；`partial` 为有用量但仍在运行；`failed` 为已记录失败；`cancelled` 为已记录取消；`unknown` 为无法确定结束状态。后三类与 partial 不进入速度统计；已有合法首字仍可计入首字分布。Kimi 读取 finishReason，ZCode 读取 model_usage.status（error 映射 failed、running 映射 partial）；Codex 的 token_usage_record 是每次响应终结的用量记录，记 completed，中止边界清空尚未配对的计时。
+- **Claude Code**。整次耗时以唯一匹配的 `api-request` 时间戳为起点。首块明确为 thinking（`apiBlockIndex=0`）并有正的 `thinkingDurationMs` 时，从首块时间戳减去该时长，再减同一个请求起点，得到首字估算。只保留大于 0 且不超过整次耗时的首字。以日志记录作为起点可能包含客户端的请求准备时间。
+- **Antigravity**。客户端分别记录首字等待和后续输出时长，相加后取整毫秒作为整次耗时。后续输出不足 50 ms 时生成时长存 NULL。极短的工具调用可能使少量输出 token 得出异常高的速率。首字和整次耗时仍按各自有效值记录。已识别字段无法确认结束状态，记 `unknown`，可纳入首字分布。
 
 查询通过 usage_records join 计时，继承 active、时段、工具、项目、模型与会话筛选。会话详情的 timing 使用 period 筛选；明细 source/model/source_model 分组保持同一过滤口径。breakdown 和 session_detail 各在一个读取事务里计算用量与计时。`source_model` 另外返回每个模型在当前筛选下的 `model_timing`，供界面合并工具分组时使用，不能由各工具的中位数推导模型中位数。首页不展示计时。
 

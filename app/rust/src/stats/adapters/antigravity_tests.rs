@@ -129,6 +129,118 @@ fn parsed(home: &Path) -> (Vec<Value>, Value) {
     parse("antigravity", SESSION_PATH, &home.join(SESSION_PATH), &ZONE).unwrap()
 }
 
+#[test]
+fn timing2_antigravity_reported_durations() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = session(temp.path());
+    step(&db, 1, 15, timestamp(1, START + 1));
+    let duration =
+        |seconds: i64, nanos: i64| [number(1, seconds as u64), number(2, nanos as u64)].concat();
+    let cases = [
+        (
+            Some(duration(2, 125_000_000)),
+            Some(duration(0, 65_000_000)),
+            [Some(2125), Some(65), Some(2190)],
+        ),
+        (
+            Some(duration(0, 900_000_500)),
+            Some(duration(0, 49_999_500)),
+            [Some(900), None, Some(950)],
+        ),
+        (
+            Some(duration(0, 900_000_000)),
+            Some(number(2, 50_000_000)),
+            [Some(900), Some(50), Some(950)],
+        ),
+        (Some(duration(1, 0)), None, [Some(1000), None, None]),
+        (None, Some(duration(1, 0)), [None, Some(1000), None]),
+        (None, None, [None, None, None]),
+        (
+            Some(duration(-1, 0)),
+            Some(duration(0, 65_000_000)),
+            [None, Some(65), None],
+        ),
+        (
+            Some(duration(1, 0)),
+            Some(duration(0, -1)),
+            [Some(1000), None, None],
+        ),
+        (
+            Some(duration(1, 0)),
+            Some(duration(0, 1_000_000_000)),
+            [Some(1000), None, None],
+        ),
+        (
+            Some(duration(i64::MAX, 0)),
+            Some(duration(1, 0)),
+            [None, Some(1000), None],
+        ),
+        (
+            Some(duration(1, 0)),
+            Some(vec![0x08]),
+            [Some(1000), None, None],
+        ),
+        (
+            Some(duration(0, 0)),
+            Some(duration(1, 0)),
+            [None, Some(1000), Some(1000)],
+        ),
+        (
+            Some(duration(1, 0)),
+            Some(vec![]),
+            [Some(1000), None, Some(1000)],
+        ),
+        (
+            Some(duration(0, 0)),
+            Some(duration(0, 0)),
+            [None, None, None],
+        ),
+    ];
+    for (index, (ttft, generation_ms, _)) in cases.iter().enumerate() {
+        let mut data = generation("", Some(0), Some(usage(300, 27)));
+        let mut timing = Vec::new();
+        for (tag, value) in [(11, ttft), (12, generation_ms)] {
+            if let Some(value) = value {
+                timing.extend(bytes(tag, value));
+            }
+        }
+        data.extend(bytes(1, timing));
+        insert(&db, index as i64, data);
+    }
+    let (records, _) = parsed(temp.path());
+    assert_eq!(records.len(), cases.len());
+    for (index, (record, (_, _, expected))) in records.iter().zip(cases).enumerate() {
+        assert_eq!(record["output_tokens"], 27);
+        let timing = &record["timing"];
+        for ((field, method), ms) in [
+            ("ttft_ms", "ttft_method"),
+            ("generation_ms", "generation_method"),
+            ("duration_ms", "duration_method"),
+        ]
+        .into_iter()
+        .zip(expected)
+        {
+            assert_eq!(timing[field], json!(ms), "#{index} {field}");
+            assert_eq!(
+                timing[method],
+                json!(ms.map(|_| "client_reported")),
+                "#{index} {method}"
+            );
+        }
+        if expected.iter().any(Option::is_some) {
+            assert_eq!(timing["status"], "unknown");
+            assert_eq!(timing["scope"], "request");
+            assert_eq!(timing["timing_output_tokens"], 27);
+        }
+    }
+    sync(temp.path(), &temp.path().join("data"));
+    let ledger = Ledger::open(&temp.path().join("data/ledger.db"), CLOCK).unwrap();
+    let summary = ledger.timing_summary(&json!({})).unwrap();
+    assert!(summary["speed"].is_null());
+    assert!(summary["throughput"].is_null());
+    assert_eq!(summary["ttft"][0]["sample_count"], 8);
+}
+
 fn sync(home: &Path, data: &Path) -> Value {
     ingest::sync(
         data,
