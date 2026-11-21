@@ -1013,6 +1013,7 @@ fn wire__crate__api__stats__StatsClient_mini_usage_impl(
             >>::sse_decode(&mut deserializer);
             let api_local_midnight_ms = <i64>::sse_decode(&mut deserializer);
             let api_now_ms = <i64>::sse_decode(&mut deserializer);
+            let api_window_minutes = <i32>::sse_decode(&mut deserializer);
             let api_exclude_sources = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -1035,6 +1036,7 @@ fn wire__crate__api__stats__StatsClient_mini_usage_impl(
                         &*api_that_guard,
                         api_local_midnight_ms,
                         api_now_ms,
+                        api_window_minutes,
                         api_exclude_sources,
                     )?;
                     std::result::Result::Ok(output_ok)
@@ -3323,13 +3325,13 @@ impl SseDecode for crate::api::stats::StatsMiniUsage {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_totals = <crate::api::stats::StatsTotals>::sse_decode(deserializer);
         let mut var_projects = <Vec<crate::api::stats::StatsMiniProject>>::sse_decode(deserializer);
-        let mut var_hours = <Vec<i64>>::sse_decode(deserializer);
+        let mut var_minutes = <Vec<i64>>::sse_decode(deserializer);
         let mut var_activeModels = <Vec<crate::api::stats::StatsGroup>>::sse_decode(deserializer);
         let mut var_requests = <crate::api::stats::StatsRequests>::sse_decode(deserializer);
         return crate::api::stats::StatsMiniUsage {
             totals: var_totals,
             projects: var_projects,
-            hours: var_hours,
+            minutes: var_minutes,
             active_models: var_activeModels,
             requests: var_requests,
         };
@@ -4978,7 +4980,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsMiniUsage {
         [
             self.totals.into_into_dart().into_dart(),
             self.projects.into_into_dart().into_dart(),
-            self.hours.into_into_dart().into_dart(),
+            self.minutes.into_into_dart().into_dart(),
             self.active_models.into_into_dart().into_dart(),
             self.requests.into_into_dart().into_dart(),
         ]
@@ -6916,7 +6918,7 @@ impl SseEncode for crate::api::stats::StatsMiniUsage {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::stats::StatsTotals>::sse_encode(self.totals, serializer);
         <Vec<crate::api::stats::StatsMiniProject>>::sse_encode(self.projects, serializer);
-        <Vec<i64>>::sse_encode(self.hours, serializer);
+        <Vec<i64>>::sse_encode(self.minutes, serializer);
         <Vec<crate::api::stats::StatsGroup>>::sse_encode(self.active_models, serializer);
         <crate::api::stats::StatsRequests>::sse_encode(self.requests, serializer);
     }

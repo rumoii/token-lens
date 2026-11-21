@@ -113,10 +113,13 @@ class StatsController extends ChangeNotifier {
 
   StatsHomeData? overview;
   StatsMiniUsage? miniUsage;
+  DateTime? miniObservedAt;
   DateTime? miniUpdatedAt;
   bool miniMode = false, miniReadFailed = false;
   int miniRevision = 0;
   Future<void>? _miniRead;
+  Timer? _miniMinuteTimer;
+  bool _miniReadPending = false, _miniSyncPending = false;
   StatsSync? lastSync;
   String Function(AppStrings)? _error, _syncError;
   List<String> _warnings = const [];
@@ -395,27 +398,69 @@ class StatsController extends ChangeNotifier {
     _notify();
     if (value) {
       _stopPrefetch();
+      _scheduleMiniMinute();
       // A sync in flight will publish its own fresh snapshot.
       if (_sync == null && _statusRead == null) await _refreshMini();
     } else {
+      _miniMinuteTimer?.cancel();
       await _load();
     }
   }
 
   bool get miniSyncFailed => phase == StatsSyncPhase.error || miniReadFailed;
 
-  Future<void> _refreshMini({bool synced = false}) =>
-      _miniRead ??= _readMini(synced: synced)
-          .whenComplete(() => _miniRead = null);
+  void _scheduleMiniMinute() {
+    if (!miniMode || _closed) return;
+    final now = clock();
+    const minute = Duration.microsecondsPerMinute;
+    _miniMinuteTimer = Timer(
+      Duration(microseconds: minute - now.microsecondsSinceEpoch % minute),
+      () {
+        _scheduleMiniMinute();
+        unawaited(_refreshMini());
+      },
+    );
+  }
+
+  Future<void> _refreshMini({bool synced = false}) {
+    if (!miniMode || _closed) return Future.value();
+    _miniReadPending = true;
+    _miniSyncPending |= synced;
+    return _miniRead ??= Future<void>.microtask(_drainMiniReads);
+  }
+
+  Future<void> _drainMiniReads() async {
+    try {
+      while (_miniReadPending && miniMode && !_closed) {
+        final synced = _miniSyncPending;
+        _miniReadPending = _miniSyncPending = false;
+        await _readMini(synced: synced);
+      }
+    } finally {
+      _miniRead = null;
+      _miniReadPending = _miniSyncPending = false;
+    }
+  }
 
   Future<void> _readMini({required bool synced}) async {
     final reader = gateway.miniGateway;
-    if (reader == null || _closed) return;
+    if (reader == null) return;
     final now = clock();
+    final window = preferences.mini.chartMinutes;
+    final scope = hiddenScope;
+    bool current() =>
+        !_closed &&
+        miniMode &&
+        window == preferences.mini.chartMinutes &&
+        scope == hiddenScope;
     try {
-      final usage = await reader.miniUsage(now, hiddenTools.toList());
-      if (_closed) return;
+      final usage = await reader.miniUsage(now, window, hiddenTools.toList());
+      if (!current()) {
+        if (_miniReadPending) _miniSyncPending |= synced;
+        return;
+      }
       miniUsage = usage;
+      miniObservedAt = now;
       miniReadFailed = false;
       if (synced) {
         miniUpdatedAt = now;
@@ -425,7 +470,8 @@ class StatsController extends ChangeNotifier {
         miniUpdatedAt ??= DateTime.tryParse(finished ?? '') ?? now;
       }
     } catch (_) {
-      if (!_closed) miniReadFailed = true;
+      if (!current()) return;
+      miniReadFailed = true;
     }
     _notify();
   }
@@ -450,6 +496,8 @@ class StatsController extends ChangeNotifier {
     }
     final newsChanged = value.newsEnabled != preferences.newsEnabled;
     final cadenceChanged = value.mini.seconds != preferences.mini.seconds;
+    final chartChanged =
+        value.mini.chartMinutes != preferences.mini.chartMinutes;
     final enteredApp = value.onboarded && !preferences.onboarded;
     preferences = value;
     if (miniMode && cadenceChanged) _restartSyncTimer();
@@ -461,7 +509,11 @@ class StatsController extends ChangeNotifier {
     if (visibilityChanged) overview = null;
     _notify();
     final save = store?.write(value);
+    final miniRead = miniMode && (chartChanged || visibilityChanged)
+        ? _refreshMini()
+        : null;
     if (periodChanged || visibilityChanged || enteredApp) await _load();
+    await miniRead;
     await save;
   }
 
@@ -879,6 +931,7 @@ class StatsController extends ChangeNotifier {
     _generation++;
     _statusGeneration++;
     _timer?.cancel();
+    _miniMinuteTimer?.cancel();
     _conflictTimer?.cancel();
     _stopProgress();
     _syncedTimer?.cancel();

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/l10n/app_strings.dart';
 import 'package:token_lens_app/stats/mini/mini_panel.dart';
@@ -15,6 +16,9 @@ import 'package:token_lens_app/stats_gateway.dart';
 import 'fake_gateway.dart';
 
 class MiniGateway extends FakeStatsGateway implements StatsMiniGateway {
+  final miniReads = <DateTime>[];
+  final windows = <int>[];
+
   StatsMiniUsage data = StatsMiniUsage(
     totals: const StatsTotals(
       grossTokens: 780,
@@ -29,7 +33,7 @@ class MiniGateway extends FakeStatsGateway implements StatsMiniGateway {
           tools: [StatsMiniTool(source: 'claude', grossTokens: n * 10)],
         ),
     ],
-    hours: [780],
+    minutes: [780],
     activeModels: const [
       StatsGroup(
         key: 'model-without-timing',
@@ -82,8 +86,25 @@ class MiniGateway extends FakeStatsGateway implements StatsMiniGateway {
   );
 
   @override
-  Future<StatsMiniUsage> miniUsage(DateTime now, List<String> excluded) async =>
-      data;
+  Future<StatsMiniUsage> miniUsage(
+    DateTime now,
+    int windowMinutes,
+    List<String> excluded,
+  ) async {
+    miniReads.add(now);
+    windows.add(windowMinutes);
+    final values = data.minutes.reversed.take(windowMinutes).toList();
+    return StatsMiniUsage(
+      totals: data.totals,
+      projects: data.projects,
+      minutes: [
+        ...List.filled(windowMinutes - values.length, 0),
+        ...values.reversed,
+      ],
+      activeModels: data.activeModels,
+      requests: data.requests,
+    );
+  }
 }
 
 class MiniPlatform implements MiniWindowPlatform {
@@ -122,6 +143,209 @@ class MiniPlatform implements MiniWindowPlatform {
 }
 
 void main() {
+  test('mini chart range decodes, validates and persists', () async {
+    final dir = await Directory.systemTemp.createTemp('mini-chart-prefs-');
+    addTearDown(() => dir.delete(recursive: true));
+    final store = PreferencesStore(dir);
+    for (final (input, expected) in [(15, 15), (30, 30), (60, 60), (17, 15)]) {
+      await store.write(
+        UiPreferences.decode('{"mini":{"chartMinutes":$input}}'),
+      );
+      expect((await store.read()).mini.encode()['chartMinutes'], expected);
+    }
+    expect(UiPreferences.decode('{}').mini.encode()['chartMinutes'], 15);
+  });
+
+  testWidgets('an exact minute boundary reads the ledger without syncing', (
+    tester,
+  ) async {
+    final gateway = MiniGateway();
+    final start = DateTime(2026, 11, 21, 14, 26, 59, 900);
+    var now = start;
+    final c = StatsController(gateway, clock: () => now);
+    addTearDown(c.dispose);
+    await c.setMiniMode(true);
+    expect(gateway.miniReads, [start]);
+    now = start.add(const Duration(milliseconds: 99));
+    await tester.pump(const Duration(milliseconds: 99));
+    expect(gateway.miniReads, [start]);
+    now = now.add(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(gateway.miniReads, [start, now]);
+    expect(c.lastSync, isNull);
+    expect(c.miniUpdatedAt, start);
+    await c.setMiniMode(false);
+    await tester.pump(const Duration(minutes: 1));
+    expect(gateway.miniReads.length, 2);
+    await c.shutdown();
+  });
+
+  testWidgets('mini chart shows axes and reachable hover at default size', (
+    tester,
+  ) async {
+    final gateway = MiniGateway();
+    final c = StatsController(
+      gateway,
+      clock: () => DateTime(2026, 11, 21, 14, 26),
+    );
+    final window = MiniWindow(controller: c, platform: MiniPlatform());
+    addTearDown(() async {
+      window.dispose();
+      c.dispose();
+      await tester.binding.setSurfaceSize(null);
+    });
+    await tester.binding.setSurfaceSize(const Size(304, 620));
+    await c.setMiniMode(true);
+    await tester.pumpWidget(panel(c, window));
+    await tester.pumpAndSettle();
+    expect(find.text('Now'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Usage in the last 15 min, one point per minute'),
+      findsOneWidget,
+    );
+    final chart = find.byKey(const Key('mini-usage-chart'));
+    final bounds = tester.getRect(chart);
+    expect(bounds.width, inInclusiveRange(96, 176));
+    expect(bounds.right, lessThan(304));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: bounds.topRight + const Offset(-2, 16));
+    await tester.pumpAndSettle();
+    expect(find.text('14:26 so far · 780 tokens'), findsOneWidget);
+    await mouse.removePointer();
+    await tester.pumpWidget(const SizedBox());
+    await c.shutdown();
+  });
+
+  testWidgets('chart ticks, compact labels, and range settings', (
+    tester,
+  ) async {
+    final gateway = MiniGateway();
+    gateway.data = StatsMiniUsage(
+      totals: const StatsTotals(
+        grossTokens: 1560000,
+        unpricedRecords: 0,
+        recordCount: 12,
+      ),
+      projects: gateway.data.projects,
+      minutes: [16000],
+      activeModels: gateway.data.activeModels,
+      requests: gateway.data.requests,
+    );
+    final c = StatsController(
+      gateway,
+      preferences: const UiPreferences(language: 'en'),
+      clock: () => DateTime(2026, 11, 21, 14, 26),
+    );
+    final window = MiniWindow(controller: c, platform: MiniPlatform());
+    addTearDown(() async {
+      window.dispose();
+      c.dispose();
+      await tester.binding.setSurfaceSize(null);
+    });
+    await c.setMiniMode(true);
+    await tester.binding.setSurfaceSize(const Size(304, 620));
+    await tester.pumpWidget(panel(c, window, reduced: true));
+    await tester.pumpAndSettle();
+    final chart = find.byKey(const Key('mini-usage-chart'));
+    final bounds = tester.getRect(chart);
+    expect(tester.getTopRight(find.text('tokens')).dx, lessThan(bounds.left));
+    expect(bounds.width, inInclusiveRange(96, 176));
+    expect(bounds.right, lessThanOrEqualTo(304 - 16));
+    expect(find.byType(MiniProjectRow), findsNWidgets(5));
+    const curveKey = Key('mini-usage-curve');
+    expect(find.byKey(curveKey), findsOneWidget);
+    expect(
+      find.descendant(
+        of: chart,
+        matching: find.byWidgetPredicate((w) => w is TweenAnimationBuilder),
+      ),
+      findsNothing,
+    );
+    await tester.binding.setSurfaceSize(const Size(480, 620));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(chart).width, 176);
+    Finder axis(String text) =>
+        find.descendant(of: chart, matching: find.text(text));
+    for (final value in ['0', '10K', '20K', 'Now', '14:15', '14:20']) {
+      expect(axis(value), findsOneWidget);
+    }
+    expect(axis('14:25'), findsNothing);
+    await tester.tap(find.byTooltip('Mini window settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Chart range'), findsOneWidget);
+    for (final label in ['15 min', '30 min', '1 hour']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    await tester.tap(find.text('30 min'));
+    await tester.pumpAndSettle();
+    for (final value in ['14:00', '14:10']) {
+      expect(axis(value), findsOneWidget);
+    }
+    expect(axis('14:15'), findsNothing);
+    expect(axis('14:20'), findsNothing);
+    await tester.tap(find.byTooltip('Mini window settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 hour'));
+    await tester.pumpAndSettle();
+    expect(gateway.windows, [15, 30, 60]);
+    expect(axis('13:40'), findsOneWidget);
+    expect(axis('14:00'), findsOneWidget);
+    expect(axis('14:20'), findsNothing);
+    expect(c.lastSync, isNull);
+    expect(tester.takeException(), isNull);
+    final focus = find.descendant(of: chart, matching: find.byType(Focus));
+    Focus.of(
+      tester.element(
+        find
+            .descendant(of: focus.first, matching: find.byType(MouseRegion))
+            .first,
+      ),
+    ).requestFocus();
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(find.text('14:25 · 0 tokens'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await c.shutdown();
+  });
+
+  testWidgets('empty chart has zero axis only and no line or point', (
+    tester,
+  ) async {
+    final gateway = MiniGateway();
+    gateway.data = const StatsMiniUsage(
+      totals: StatsTotals(grossTokens: 0, unpricedRecords: 0, recordCount: 0),
+      projects: [],
+      minutes: [0],
+      activeModels: [],
+      requests: StatsRequests(items: [], snapshot: demoSnapshot),
+    );
+    final c = StatsController(
+      gateway,
+      clock: () => DateTime(2026, 11, 21, 14, 26),
+    );
+    final window = MiniWindow(controller: c, platform: MiniPlatform());
+    addTearDown(() {
+      window.dispose();
+      c.dispose();
+    });
+    await c.setMiniMode(true);
+    await tester.pumpWidget(panel(c, window));
+    await tester.pumpAndSettle();
+    final chart = find.byKey(const Key('mini-usage-chart'));
+    expect(
+      find.descendant(of: chart, matching: find.text('0')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: chart, matching: find.text('Now')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('mini-usage-curve')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await c.shutdown();
+  });
+
   testWidgets('resize grip follows hover and live size follows the window', (
     tester,
   ) async {
@@ -344,7 +568,7 @@ void main() {
       gateway.data = const StatsMiniUsage(
         totals: StatsTotals(grossTokens: 0, unpricedRecords: 0, recordCount: 0),
         projects: [],
-        hours: [0],
+        minutes: [0],
         activeModels: [],
         requests: StatsRequests(items: [], snapshot: demoSnapshot),
       );
@@ -363,16 +587,21 @@ void main() {
   );
 }
 
-Widget panel(StatsController c, MiniWindow window) => MaterialApp(
-  theme: const LensPalette(false).theme,
-  home: AppLanguageScope(
-    strings: englishStrings,
-    child: MiniPanel(
-      controller: c,
-      window: window,
-      onExpand: () {},
-      onProject: (_) {},
-      onRequest: (_) {},
-    ),
-  ),
-);
+Widget panel(StatsController c, MiniWindow window, {bool reduced = false}) =>
+    MaterialApp(
+      theme: const LensPalette(false).theme,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+        child: child!,
+      ),
+      home: AppLanguageScope(
+        strings: englishStrings,
+        child: MiniPanel(
+          controller: c,
+          window: window,
+          onExpand: () {},
+          onProject: (_) {},
+          onRequest: (_) {},
+        ),
+      ),
+    );

@@ -65,7 +65,11 @@ abstract class AppStrings {
   String get miniNoUsage;
   String get miniNoRequests;
   String get miniNoModels;
-  String get miniHourlyUsage;
+  String get miniChartRange;
+  String miniChartChoice(int minutes);
+  String get miniChartNow;
+  String miniChartTip(String time, String usage, bool current);
+  String miniChartLabel(int minutes);
   String get miniRefreshEvery;
   String get miniProjectsShown;
   String miniProjectsChoice(int count);

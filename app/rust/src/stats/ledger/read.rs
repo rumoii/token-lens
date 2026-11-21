@@ -24,6 +24,7 @@ pub(crate) struct BreakdownTimings {
 const SUMS:&str="count(*) AS record_count,sum(input_tokens) AS input_tokens,sum(output_tokens) AS output_tokens,sum(cache_read_tokens) AS cache_read_tokens,sum(cache_write_tokens) AS cache_write_tokens,sum(cost_micros IS NULL) AS unpriced_records,sum(cost_micros) AS cost_micros";
 
 const REQUESTS: &str = "nullif(sum(kind='event'),0) AS request_count";
+const EXCLUDE_SOURCES: &str = "source NOT IN (SELECT value FROM json_each(?) WHERE type='text')";
 const SESSION_COUNT: &str =
     "count(DISTINCT CASE WHEN session_id IS NOT NULL THEN json_array(source,session_id) END) AS session_count";
 
@@ -117,7 +118,7 @@ fn scope(ledger: &Ledger, filter: &Value) -> Result<(String, Vec<Value>)> {
         .as_array()
         .filter(|ids| !ids.is_empty())
     {
-        clauses.push("source NOT IN (SELECT value FROM json_each(?) WHERE type='text')".into());
+        clauses.push(EXCLUDE_SOURCES.into());
         args.push(json!(json!(ids).to_string()));
     }
     if filter["projectPaths"].is_array() {
@@ -542,28 +543,30 @@ const SESSION_START: &str = "(SELECT min(sort.observed_at) FROM usage_records so
 const SESSION_RECENT: &str = "(SELECT max(coalesce(sort.ended_at,sort.observed_at)) FROM usage_records sort INDEXED BY idx_usage_session WHERE sort.source=scoped.source AND sort.session_id=scoped.session_id AND +sort.active=1)";
 
 impl Ledger {
-    pub(in crate::stats) fn mini_hours(
+    pub(in crate::stats) fn mini_minutes(
         &self,
-        filter: &Value,
-        midnight_ms: i64,
-    ) -> Result<Vec<Value>> {
-        let (clause, args) = scope(self, filter)?;
-        let midnight = midnight_ms.div_euclid(1000);
-        let hour = |column| format!("((unixepoch({column}) - {midnight}) / 3600)");
-        let observed = hour("observed_at");
-        let ended = hour("ended_at");
-        Ok(rows(
-            &self.db,
-            &format!(
-                "SELECT {observed} AS hour,{SUMS} FROM usage_records
-                WHERE {clause} AND (kind='event' OR (kind='cumulative' AND {observed}={ended}))
-                GROUP BY hour"
-            ),
-            &args,
-        )?
-        .into_iter()
-        .map(shape)
-        .collect())
+        start: &str,
+        end: &str,
+        excluded: &[String],
+    ) -> Result<Vec<(i64, i64)>> {
+        let minute = |column| format!("(unixepoch(strftime('%Y-%m-%dT%H:%M:00Z',{column}))/60)");
+        let observed = minute("observed_at");
+        let ended = minute("ended_at");
+        // Avoid the general scope's selectivity estimate for this always-bounded projection.
+        let mut statement = self.db.prepare_cached(&format!(
+            "SELECT {observed} AS minute,
+                coalesce(sum(input_tokens),0) + coalesce(sum(output_tokens),0)
+                + coalesce(sum(cache_read_tokens),0) + coalesce(sum(cache_write_tokens),0)
+            FROM usage_records INDEXED BY idx_usage_observed
+            WHERE active=1 AND observed_at>=? AND observed_at<=? AND {EXCLUDE_SOURCES}
+                AND (kind='event' OR (kind='cumulative' AND {observed}={ended}))
+            GROUP BY minute HAVING minute IS NOT NULL"
+        ))?;
+        let records = statement.query_map(
+            rusqlite::params![start, end, json!(excluded).to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        Ok(records.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn timeseries(&self, granularity: &str, filter: &Value) -> Result<Value> {

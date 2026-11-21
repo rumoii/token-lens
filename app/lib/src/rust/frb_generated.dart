@@ -177,6 +177,7 @@ abstract class RustLibApi extends BaseApi {
     required StatsClient that,
     required int localMidnightMs,
     required int nowMs,
+    required int windowMinutes,
     required List<String> excludeSources,
   });
 
@@ -1000,6 +1001,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required StatsClient that,
     required int localMidnightMs,
     required int nowMs,
+    required int windowMinutes,
     required List<String> excludeSources,
   }) {
     return handler.executeNormal(
@@ -1012,6 +1014,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_CastedPrimitive_i_64(localMidnightMs, serializer);
           sse_encode_CastedPrimitive_i_64(nowMs, serializer);
+          sse_encode_i_32(windowMinutes, serializer);
           sse_encode_list_String(excludeSources, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -1025,7 +1028,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiStatsStatsClientMiniUsageConstMeta,
-        argValues: [that, localMidnightMs, nowMs, excludeSources],
+        argValues: [
+          that,
+          localMidnightMs,
+          nowMs,
+          windowMinutes,
+          excludeSources,
+        ],
         apiImpl: this,
       ),
     );
@@ -1034,7 +1043,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiStatsStatsClientMiniUsageConstMeta =>
       const TaskConstMeta(
         debugName: "StatsClient_mini_usage",
-        argNames: ["that", "localMidnightMs", "nowMs", "excludeSources"],
+        argNames: [
+          "that",
+          "localMidnightMs",
+          "nowMs",
+          "windowMinutes",
+          "excludeSources",
+        ],
       );
 
   @override
@@ -2835,7 +2850,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return StatsMiniUsage(
       totals: dco_decode_stats_totals(arr[0]),
       projects: dco_decode_list_stats_mini_project(arr[1]),
-      hours: dco_decode_list_CastedPrimitive_i_64(arr[2]),
+      minutes: dco_decode_list_CastedPrimitive_i_64(arr[2]),
       activeModels: dco_decode_list_stats_group(arr[3]),
       requests: dco_decode_stats_requests(arr[4]),
     );
@@ -4954,13 +4969,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_totals = sse_decode_stats_totals(deserializer);
     var var_projects = sse_decode_list_stats_mini_project(deserializer);
-    var var_hours = sse_decode_list_CastedPrimitive_i_64(deserializer);
+    var var_minutes = sse_decode_list_CastedPrimitive_i_64(deserializer);
     var var_activeModels = sse_decode_list_stats_group(deserializer);
     var var_requests = sse_decode_stats_requests(deserializer);
     return StatsMiniUsage(
       totals: var_totals,
       projects: var_projects,
-      hours: var_hours,
+      minutes: var_minutes,
       activeModels: var_activeModels,
       requests: var_requests,
     );
@@ -7093,7 +7108,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_stats_totals(self.totals, serializer);
     sse_encode_list_stats_mini_project(self.projects, serializer);
-    sse_encode_list_CastedPrimitive_i_64(self.hours, serializer);
+    sse_encode_list_CastedPrimitive_i_64(self.minutes, serializer);
     sse_encode_list_stats_group(self.activeModels, serializer);
     sse_encode_stats_requests(self.requests, serializer);
   }
@@ -7823,11 +7838,13 @@ class StatsClientImpl extends RustOpaque implements StatsClient {
   Future<StatsMiniUsage> miniUsage({
     required int localMidnightMs,
     required int nowMs,
+    required int windowMinutes,
     required List<String> excludeSources,
   }) => RustLib.instance.api.crateApiStatsStatsClientMiniUsage(
     that: this,
     localMidnightMs: localMidnightMs,
     nowMs: nowMs,
+    windowMinutes: windowMinutes,
     excludeSources: excludeSources,
   );
 

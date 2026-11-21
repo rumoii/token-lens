@@ -23,14 +23,16 @@ fn mini_snapshot_excludes_commit_made_between_projections() {
             .unwrap();
     };
     insert("before", 10);
-    let snapshot =
-        mini_usage_with(&reader, midnight, now, &[], "UTC", || insert("after", 20)).unwrap();
+    let snapshot = mini_usage_with(&reader, midnight, now, 15, &[], "UTC", || {
+        insert("after", 20)
+    })
+    .unwrap();
     assert_eq!(snapshot["totals"]["gross_tokens"], 10);
     assert_eq!(snapshot["projects"][0]["gross_tokens"], 10);
-    assert_eq!(snapshot["hours"][12], 10);
+    assert_eq!(snapshot["minutes"][14], 10);
     assert_eq!(snapshot["active_models"][0]["gross_tokens"], 10);
     assert_eq!(snapshot["requests"]["total"], 1);
-    let latest = mini_usage(&reader, midnight, now, &[], "UTC").unwrap();
+    let latest = mini_usage(&reader, midnight, now, 15, &[], "UTC").unwrap();
     assert_eq!(latest["totals"]["gross_tokens"], 30);
     assert_eq!(latest["requests"]["total"], 2);
 }

@@ -44,7 +44,7 @@ fn mini_snapshot_respects_local_day_and_exact_recent_range() {
         )
         .unwrap();
     let data = client
-        .mini_usage(midnight, now, vec!["gemini".into()])
+        .mini_usage(midnight, now, 15, vec!["gemini".into()])
         .unwrap();
     assert_eq!(data.totals.gross_tokens, 100);
     assert_eq!(data.totals.cost_micros, Some(17));
@@ -59,7 +59,10 @@ fn mini_snapshot_respects_local_day_and_exact_recent_range() {
     let project = data.projects.iter().find(|p| p.key.is_some()).unwrap();
     assert_eq!((project.gross_tokens, project.cost_micros), (50, Some(17)));
     assert_eq!(project.tools.len(), 2);
-    assert_eq!(data.hours, vec![10, 0, 90]);
+    assert_eq!(
+        data.minutes,
+        vec![0, 0, 0, 0, 0, 0, 0, 0, 20, 30, 0, 0, 0, 0, 40]
+    );
     assert_eq!(data.active_models.len(), 2);
     assert_eq!(
         data.active_models
@@ -70,4 +73,106 @@ fn mini_snapshot_respects_local_day_and_exact_recent_range() {
     );
     assert_eq!(data.requests.total, Some(4));
     assert_eq!(data.requests.items[0].id, "now");
+}
+
+#[test]
+fn mini_minutes_respect_window_edges_and_token_rules() {
+    let midnight = 1_768_435_200_000; // 2026-01-15T00:00:00Z
+    let now = midnight + 80_125;
+    let temp = tempfile::tempdir().unwrap();
+    let client = StatsClient::new_with_fixed_clock(
+        temp.path().join("data").to_string_lossy().into(),
+        Some(temp.path().join("home").to_string_lossy().into()),
+        now,
+    )
+    .unwrap();
+    let ledger = client.open().unwrap();
+    let records: Vec<_> = [
+        ("too-old", "14T23:46:59.999", None, "event", "codex", 100),
+        (
+            "window-start",
+            "14T23:47:00.000",
+            None,
+            "event",
+            "codex",
+            10,
+        ),
+        (
+            "window-start-end",
+            "14T23:47:59.999",
+            None,
+            "event",
+            "codex",
+            20,
+        ),
+        ("previous", "15T00:00:00.000", None, "event", "codex", 3),
+        ("current", "15T00:01:00.000", None, "event", "codex", 4),
+        ("now", "15T00:01:20.125", None, "event", "codex", 5),
+        ("future", "15T00:01:20.126", None, "event", "codex", 200),
+        ("hidden", "15T00:01:00.000", None, "event", "gemini", 300),
+        (
+            "same",
+            "15T00:00:02.000",
+            Some("15T00:00:59.999"),
+            "cumulative",
+            "codex",
+            6,
+        ),
+        (
+            "cross",
+            "15T00:00:59.999",
+            Some("15T00:01:00.000"),
+            "cumulative",
+            "codex",
+            400,
+        ),
+        (
+            "no-end",
+            "15T00:00:03.000",
+            None,
+            "cumulative",
+            "codex",
+            500,
+        ),
+    ]
+    .into_iter()
+    .map(|(key, observed, ended, kind, source, input)| {
+        json!({
+            "record_key":key,"source":source,"session_id":key,"kind":kind,
+            "observed_at":format!("2026-01-{observed}Z"),
+            "ended_at":ended.map(|t| format!("2026-01-{t}Z")),
+            "input_tokens":input
+        })
+    })
+    .collect();
+    ledger
+        .batch(&records, None, None, &[], pricing::cost_of)
+        .unwrap();
+    ledger
+        .db
+        .execute(
+            "UPDATE usage_records SET input_tokens=NULL, output_tokens=7,
+         cache_read_tokens=8, cache_write_tokens=9 WHERE record_key='current'",
+            [],
+        )
+        .unwrap();
+    for window in [15, 30, 60] {
+        let usage = client
+            .mini_usage(midnight, now, window, vec!["gemini".into()])
+            .unwrap();
+        let mut expected = vec![0; window as usize];
+        expected[window as usize - 15] = 30;
+        if window > 15 {
+            expected[window as usize - 16] = 100;
+        }
+        expected[window as usize - 2] = 9;
+        expected[window as usize - 1] = 29;
+        assert_eq!(usage.minutes, expected);
+    }
+    for window in [0, 14, 16, 59, 61] {
+        let error = client
+            .mini_usage(midnight, now, window, vec![])
+            .unwrap_err();
+        assert!(error.contains("INVALID_RANGE"), "{error}");
+    }
 }

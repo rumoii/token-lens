@@ -359,27 +359,36 @@ pub fn mini_usage(
     ledger: &Ledger,
     midnight: i64,
     now: i64,
+    window_minutes: i32,
     exclude_sources: &[String],
     tz: &str,
 ) -> Result<Value> {
-    mini_usage_with(ledger, midnight, now, exclude_sources, tz, || {})
+    mini_usage_with(
+        ledger,
+        midnight,
+        now,
+        window_minutes,
+        exclude_sources,
+        tz,
+        || {},
+    )
 }
 
 fn mini_usage_with(
     ledger: &Ledger,
     midnight: i64,
     now: i64,
+    window_minutes: i32,
     exclude_sources: &[String],
     tz: &str,
     after_totals: impl FnOnce(),
 ) -> Result<Value> {
     const HOUR: i64 = 3_600_000;
+    const MINUTE: i64 = 60_000;
     let invalid = || super::Error("INVALID_RANGE: invalid mini window day".into());
-    let hours_elapsed = now
-        .checked_sub(midnight)
+    now.checked_sub(midnight)
         .filter(|span| (0..26 * HOUR).contains(span))
-        .ok_or_else(invalid)?
-        / HOUR;
+        .ok_or_else(invalid)?;
     let instant = |ms| {
         DateTime::from_timestamp_millis(ms)
             .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
@@ -401,13 +410,15 @@ fn mini_usage_with(
     after_totals();
 
     let projects = mini_projects(ledger, &today)?;
-    let mut hours = vec![0_i64; hours_elapsed as usize + 1];
-    for row in ledger.mini_hours(&today, midnight)? {
-        if let Some(total) = row["hour"]
-            .as_u64()
-            .and_then(|hour| hours.get_mut(hour as usize))
-        {
-            *total = row["gross_tokens"].as_i64().unwrap();
+    let first_minute = now.div_euclid(MINUTE) - i64::from(window_minutes) + 1;
+    let mut minutes = vec![0_i64; window_minutes as usize];
+    for (minute, gross) in ledger.mini_minutes(
+        &instant(first_minute * MINUTE)?,
+        today["observedMax"].as_str().unwrap(),
+        exclude_sources,
+    )? {
+        if let Some(bucket) = minutes.get_mut((minute - first_minute) as usize) {
+            *bucket = gross;
         }
     }
     let mut recent = today.clone();
@@ -440,7 +451,7 @@ fn mini_usage_with(
         .collect();
     let requests = request_page(ledger, &json!({"limit": 50}), &today, tz)?;
     Ok(
-        json!({"totals":totals,"projects":projects,"hours":hours,"active_models":models,"requests":requests}),
+        json!({"totals":totals,"projects":projects,"minutes":minutes,"active_models":models,"requests":requests}),
     )
 }
 

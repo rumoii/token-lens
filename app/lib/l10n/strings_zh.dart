@@ -77,7 +77,20 @@ final class ChineseStrings extends AppStrings {
   String get miniNoModels => '最近 5 分钟没有在用的模型';
 
   @override
-  String get miniHourlyUsage => '今天每小时用量';
+  String get miniChartRange => '用量图范围';
+
+  @override
+  String miniChartChoice(int minutes) => minutes == 60 ? '1 小时' : '$minutes 分钟';
+
+  @override
+  String get miniChartNow => '现在';
+
+  @override
+  String miniChartTip(String time, String usage, bool current) =>
+      "$time${current ? ' 至今' : ''} · $usage token";
+
+  @override
+  String miniChartLabel(int minutes) => '最近 $minutes 分钟用量，每分钟一个点';
 
   @override
   String get miniRefreshEvery => '刷新间隔';

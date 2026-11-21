@@ -87,7 +87,7 @@ pub struct StatsRequests {
 pub struct StatsMiniUsage {
     pub totals: StatsTotals,
     pub projects: Vec<StatsMiniProject>,
-    pub hours: Vec<i64>,
+    pub minutes: Vec<i64>,
     pub active_models: Vec<StatsGroup>,
     pub requests: StatsRequests,
 }
@@ -943,14 +943,19 @@ impl StatsClient {
         &self,
         local_midnight_ms: i64,
         now_ms: i64,
+        window_minutes: i32,
         exclude_sources: Vec<String>,
     ) -> Result<StatsMiniUsage, String> {
         let result = (|| {
+            if !matches!(window_minutes, 15 | 30 | 60) {
+                return Err("INVALID_RANGE: mini chart window must be 15, 30 or 60 minutes".into());
+            }
             let ledger = self.open()?;
             let value = service::mini_usage(
                 &ledger,
                 local_midnight_ms,
                 now_ms,
+                window_minutes,
                 &exclude_sources,
                 &self.state.timezone,
             )

@@ -80,7 +80,22 @@ final class EnglishStrings extends AppStrings {
   String get miniNoModels => 'No models used in the last 5 min';
 
   @override
-  String get miniHourlyUsage => 'Usage by hour today';
+  String get miniChartRange => 'Chart range';
+
+  @override
+  String miniChartChoice(int minutes) =>
+      minutes == 60 ? '1 hour' : '$minutes min';
+
+  @override
+  String get miniChartNow => 'Now';
+
+  @override
+  String miniChartTip(String time, String usage, bool current) =>
+      "$time${current ? ' so far' : ''} · $usage tokens";
+
+  @override
+  String miniChartLabel(int minutes) =>
+      'Usage in the last $minutes min, one point per minute';
 
   @override
   String get miniRefreshEvery => 'Refresh every';

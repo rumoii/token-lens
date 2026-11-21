@@ -56,6 +56,7 @@ abstract class StatsClient implements RustOpaqueInterface {
   Future<StatsMiniUsage> miniUsage({
     required int localMidnightMs,
     required int nowMs,
+    required int windowMinutes,
     required List<String> excludeSources,
   });
 
@@ -860,14 +861,14 @@ class StatsMiniTool {
 class StatsMiniUsage {
   final StatsTotals totals;
   final List<StatsMiniProject> projects;
-  final List<int> hours;
+  final List<int> minutes;
   final List<StatsGroup> activeModels;
   final StatsRequests requests;
 
   const StatsMiniUsage({
     required this.totals,
     required this.projects,
-    required this.hours,
+    required this.minutes,
     required this.activeModels,
     required this.requests,
   });
@@ -876,7 +877,7 @@ class StatsMiniUsage {
   int get hashCode =>
       totals.hashCode ^
       projects.hashCode ^
-      hours.hashCode ^
+      minutes.hashCode ^
       activeModels.hashCode ^
       requests.hashCode;
 
@@ -887,7 +888,7 @@ class StatsMiniUsage {
           runtimeType == other.runtimeType &&
           totals == other.totals &&
           projects == other.projects &&
-          hours == other.hours &&
+          minutes == other.minutes &&
           activeModels == other.activeModels &&
           requests == other.requests;
 }

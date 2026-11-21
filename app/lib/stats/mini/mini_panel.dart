@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals, ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../l10n/app_strings.dart';
 import '../../stats_controller.dart';
@@ -20,6 +21,9 @@ import 'mini_window.dart';
 
 part 'mini_rows.dart';
 part 'mini_motion.dart';
+part 'mini_chart.dart';
+
+enum _MiniSetting { refresh, chart, projects }
 
 class MiniPanel extends StatefulWidget {
   const MiniPanel({
@@ -50,7 +54,6 @@ class _MiniPanelState extends State<MiniPanel> {
   final _projectFlashes = <String?, int>{};
   final _requestFlashes = <String, int>{};
   Timer? _flashExpiry;
-  int _sparkRevision = 0;
 
   @override
   void initState() {
@@ -65,7 +68,6 @@ class _MiniPanelState extends State<MiniPanel> {
     old.controller.removeListener(_dataChanged);
     _usage = c.miniUsage;
     _flashExpiry?.cancel();
-    _sparkRevision = 0;
     _projectFlashes.clear();
     _requestFlashes.clear();
     c.addListener(_dataChanged);
@@ -86,7 +88,6 @@ class _MiniPanelState extends State<MiniPanel> {
         next != null) {
       final tokens = {for (final p in before.projects) p.key: p.grossTokens};
       final ids = before.requests.items.map((r) => r.id).toSet();
-      if (!listEquals(before.hours, next.hours)) _sparkRevision++;
       _projectFlashes.removeWhere(
         (key, _) => !next.projects.any((p) => p.key == key),
       );
@@ -117,23 +118,27 @@ class _MiniPanelState extends State<MiniPanel> {
     final s = context.strings;
     final p = LensPalette.of(context);
     final mini = c.preferences.mini;
-    final selection = await LensMenu.show<(bool, int)>(
+    final selection = await LensMenu.show<(_MiniSetting, int)>(
       context,
       anchor: _settings.currentContext!,
       width: 210,
-      maxHeight: 380,
+      maxHeight: 492,
       alignRight: true,
       scaleFromAnchor: true,
       builder: (popup) {
         LensMenuEntry heading(String text) => LensMenuEntry(
           Text(text, style: p.text(11, p.muted, FontWeight.w600)),
         );
-        LensMenuEntry option(String text, bool interval, int n, bool checked) =>
-            LensMenuEntry(
-              Text(text),
-              checked: checked,
-              onPressed: () => Navigator.of(popup).pop((interval, n)),
-            );
+        LensMenuEntry option(
+          String text,
+          _MiniSetting setting,
+          int n,
+          bool checked,
+        ) => LensMenuEntry(
+          Text(text),
+          checked: checked,
+          onPressed: () => Navigator.of(popup).pop((setting, n)),
+        );
         return LensMenu(
           rowHeight: 28,
           entries: [
@@ -141,15 +146,23 @@ class _MiniPanelState extends State<MiniPanel> {
             for (final seconds in MiniPreferences.intervals)
               option(
                 s.miniInterval(seconds),
-                true,
+                _MiniSetting.refresh,
                 seconds,
                 mini.seconds == seconds,
+              ),
+            heading(s.miniChartRange),
+            for (final minutes in MiniPreferences.chartRanges)
+              option(
+                s.miniChartChoice(minutes),
+                _MiniSetting.chart,
+                minutes,
+                mini.chartMinutes == minutes,
               ),
             heading(s.miniProjectsShown),
             for (final count in MiniPreferences.projectCounts)
               option(
                 s.miniProjectsChoice(count),
-                false,
+                _MiniSetting.projects,
                 count,
                 mini.projects == count,
               ),
@@ -158,13 +171,15 @@ class _MiniPanelState extends State<MiniPanel> {
       },
     );
     if (!mounted || selection == null) return;
-    final (interval, value) = selection;
+    final (setting, value) = selection;
     final prefs = c.preferences;
     await c.setPreferences(
       prefs.copyWith(
-        mini: interval
-            ? prefs.mini.copyWith(seconds: value)
-            : prefs.mini.copyWith(projects: value),
+        mini: switch (setting) {
+          _MiniSetting.refresh => prefs.mini.copyWith(seconds: value),
+          _MiniSetting.chart => prefs.mini.copyWith(chartMinutes: value),
+          _MiniSetting.projects => prefs.mini.copyWith(projects: value),
+        },
       ),
     );
   }
@@ -229,11 +244,60 @@ class _MiniPanelState extends State<MiniPanel> {
     );
   }
 
-  Widget _hero(LensPalette p, StatsMiniUsage? usage) {
+  Widget _heroTotal(LensPalette p, StatsTotals? total) {
     final s = context.strings;
-    final total = usage?.totals;
     final reduce = MediaQuery.disableAnimationsOf(context);
-    final hours = usage?.hours ?? const <int>[];
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween(
+                  begin: 0,
+                  end: (total?.grossTokens ?? 0).toDouble(),
+                ),
+                duration: reduce ? Duration.zero : LensTokens.grow,
+                curve: LensTokens.ease,
+                builder: (context, n, _) => Text(
+                  total == null ? '—' : _miniTokens(c, n.round()),
+                  style: p.serif(36),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(s.tokenUnit, style: p.text(11.5, p.faint)),
+            ],
+          ),
+        ),
+        if (total?.costMicros case final micros?)
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: micros.toDouble()),
+            duration: reduce ? Duration.zero : LensTokens.grow,
+            curve: LensTokens.ease,
+            builder: (context, n, _) => Text(
+              s.miniEstimate(_miniMoney(n.round())),
+              style: p.text(12, p.secondary),
+            ),
+          )
+        else if (total != null)
+          Tooltip(
+            message: s.unpriced,
+            child: Text('—', style: p.text(12, p.faint)),
+          ),
+      ],
+    );
+  }
+
+  Widget _hero(LensPalette p, StatsMiniUsage? usage) {
+    final values = usage?.minutes ?? const <int>[];
+    final observedAt = c.miniObservedAt;
+    final total = _heroTotal(p, usage?.totals);
     return SizedBox(
       height: 96,
       child: Padding(
@@ -242,71 +306,37 @@ class _MiniPanelState extends State<MiniPanel> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              TweenAnimationBuilder<double>(
-                                tween: Tween(
-                                  begin: 0,
-                                  end: (total?.grossTokens ?? 0).toDouble(),
-                                ),
-                                duration: reduce
-                                    ? Duration.zero
-                                    : LensTokens.grow,
-                                curve: LensTokens.ease,
-                                builder: (context, n, _) => Text(
-                                  total == null
-                                      ? '—'
-                                      : _miniTokens(c, n.round()),
-                                  style: p.serif(36),
-                                ),
+              child: observedAt == null || values.isEmpty
+                  ? total
+                  : LayoutBuilder(
+                      builder: (context, constraints) => Row(
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: math.max(
+                                0,
+                                constraints.maxWidth -
+                                    10 -
+                                    _MiniUsageChart.minWidth,
                               ),
-                              const SizedBox(width: 5),
-                              Text(s.tokenUnit, style: p.text(11.5, p.faint)),
-                            ],
-                          ),
-                        ),
-                        if (total?.costMicros case final micros?)
-                          TweenAnimationBuilder<double>(
-                            tween: Tween(begin: 0, end: micros.toDouble()),
-                            duration: reduce ? Duration.zero : LensTokens.grow,
-                            curve: LensTokens.ease,
-                            builder: (context, n, _) => Text(
-                              s.miniEstimate(_miniMoney(n.round())),
-                              style: p.text(12, p.secondary),
                             ),
-                          )
-                        else if (total != null)
-                          Tooltip(
-                            message: s.unpriced,
-                            child: Text('—', style: p.text(12, p.faint)),
+                            child: total,
                           ),
-                      ],
-                    ),
-                  ),
-                  if (hours.isNotEmpty) ...[
-                    const SizedBox(width: 10),
-                    Tooltip(
-                      message: s.miniHourlyUsage,
-                      child: _MiniSpark(
-                        values: hours,
-                        revision: _sparkRevision,
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: _MiniUsageChart(
+                                key: ValueKey(values.length),
+                                values: values,
+                                observedAt: observedAt,
+                                unitSystem: c.unitSystem,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ],
-              ),
             ),
             _MiniStatus(controller: c),
           ],

@@ -12,24 +12,28 @@ class MiniPreferences {
     this.pinned = true,
     this.seconds = 10,
     this.projects = -1,
+    this.chartMinutes = 15,
   });
 
   static const intervals = [5, 10, 15, 30, 60, 300];
   static const projectCounts = [-1, 3, 5, 10, 0];
+  static const chartRanges = [15, 30, 60];
   final Rect? bounds;
   final bool pinned;
-  final int seconds, projects;
+  final int seconds, projects, chartMinutes;
 
   MiniPreferences copyWith({
     Rect? bounds,
     bool? pinned,
     int? seconds,
     int? projects,
+    int? chartMinutes,
   }) => MiniPreferences(
     bounds: bounds ?? this.bounds,
     pinned: pinned ?? this.pinned,
     seconds: seconds ?? this.seconds,
     projects: projects ?? this.projects,
+    chartMinutes: chartMinutes ?? this.chartMinutes,
   );
 
   static MiniPreferences decode(Object? value) {
@@ -55,6 +59,11 @@ class MiniPreferences {
           value['projects'] is int && projectCounts.contains(value['projects'])
           ? value['projects'] as int
           : -1,
+      chartMinutes:
+          value['chartMinutes'] is int &&
+              chartRanges.contains(value['chartMinutes'])
+          ? value['chartMinutes'] as int
+          : 15,
     );
   }
 
@@ -63,6 +72,7 @@ class MiniPreferences {
     'pinned': pinned,
     'seconds': seconds,
     'projects': projects,
+    'chartMinutes': chartMinutes,
   };
 }
 

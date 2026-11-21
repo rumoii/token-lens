@@ -21,7 +21,7 @@ void main() {
   ]) {
     testWidgets('aligns project bars and totals in $language', (tester) async {
       final palette = LensPalette(language == 'en');
-      await _pumpOverview(tester, language, width, palette);
+      final controller = await _pumpOverview(tester, language, width, palette);
       final bars = [
         for (final name in ['atlas', _longName, 'relay'])
           find.descendant(
@@ -78,11 +78,17 @@ void main() {
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
+      await controller.shutdown();
     });
   }
 
   testWidgets('only the long project name is ellipsized', (tester) async {
-    await _pumpOverview(tester, 'en', 296, const LensPalette(false));
+    final controller = await _pumpOverview(
+      tester,
+      'en',
+      296,
+      const LensPalette(false),
+    );
     final shortName = find.text('atlas');
     final shortParagraph = tester.renderObject<RenderParagraph>(shortName);
     expect(
@@ -116,13 +122,14 @@ void main() {
       );
     }
     expect(tester.takeException(), isNull);
+    await controller.shutdown();
   });
 }
 
 Finder _projectRow(String name) =>
     find.ancestor(of: find.text(name), matching: find.byType(MiniProjectRow));
 
-Future<void> _pumpOverview(
+Future<StatsController> _pumpOverview(
   WidgetTester tester,
   String language,
   double width,
@@ -165,7 +172,7 @@ Future<void> _pumpOverview(
         tools: [StatsMiniTool(source: 'codex', grossTokens: 2)],
       ),
     ],
-    hours: [175214],
+    minutes: [175214],
     activeModels: [],
     requests: gateway.data.requests,
   );
@@ -179,7 +186,6 @@ Future<void> _pumpOverview(
   final window = MiniWindow(controller: controller, platform: MiniPlatform());
   addTearDown(() async {
     window.dispose();
-    await controller.shutdown();
     controller.dispose();
     await tester.binding.setSurfaceSize(null);
   });
@@ -201,4 +207,5 @@ Future<void> _pumpOverview(
     ),
   );
   await tester.pumpAndSettle();
+  return controller;
 }

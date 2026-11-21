@@ -37,7 +37,11 @@ abstract interface class StatsProgressGateway {
 }
 
 abstract interface class StatsMiniGateway {
-  Future<StatsMiniUsage> miniUsage(DateTime now, List<String> excluded);
+  Future<StatsMiniUsage> miniUsage(
+    DateTime now,
+    int windowMinutes,
+    List<String> excluded,
+  );
 }
 
 abstract interface class StatsSessionQueryGateway {
@@ -78,12 +82,17 @@ class RustStatsGateway
   final StatsClient client;
   int get offsetMinutes => DateTime.now().timeZoneOffset.inMinutes;
   @override
-  Future<StatsMiniUsage> miniUsage(DateTime now, List<String> excluded) {
+  Future<StatsMiniUsage> miniUsage(
+    DateTime now,
+    int windowMinutes,
+    List<String> excluded,
+  ) {
     final local = now.toLocal();
     final midnight = DateTime(local.year, local.month, local.day);
     return client.miniUsage(
       localMidnightMs: midnight.millisecondsSinceEpoch,
       nowMs: local.millisecondsSinceEpoch,
+      windowMinutes: windowMinutes,
       excludeSources: excluded,
     );
   }
