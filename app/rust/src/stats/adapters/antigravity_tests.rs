@@ -228,7 +228,12 @@ fn timing2_antigravity_reported_durations() {
             );
         }
         if expected.iter().any(Option::is_some) {
-            assert_eq!(timing["status"], "unknown");
+            let status = if expected[2].is_some() {
+                "completed"
+            } else {
+                "unknown"
+            };
+            assert_eq!(timing["status"], status, "#{index}");
             assert_eq!(timing["scope"], "request");
             assert_eq!(timing["timing_output_tokens"], 27);
         }
@@ -236,9 +241,37 @@ fn timing2_antigravity_reported_durations() {
     sync(temp.path(), &temp.path().join("data"));
     let ledger = Ledger::open(&temp.path().join("data/ledger.db"), CLOCK).unwrap();
     let summary = ledger.timing_summary(&json!({})).unwrap();
-    assert!(summary["speed"].is_null());
-    assert!(summary["throughput"].is_null());
+    assert_eq!(summary["speed"][0]["sample_count"], 3);
+    assert_eq!(summary["speed"][0]["output_tokens"], 81);
+    assert_eq!(summary["speed"][0]["generation_ms"], 1115);
+    assert_eq!(summary["throughput"][0]["sample_count"], 5);
+    assert_eq!(summary["throughput"][0]["output_tokens"], 135);
+    assert_eq!(summary["throughput"][0]["duration_ms"], 6090);
     assert_eq!(summary["ttft"][0]["sample_count"], 8);
+}
+
+#[test]
+fn timing2_antigravity_distinguishes_missing_output_from_reported_zero() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = session(temp.path());
+    step(&db, 1, 15, timestamp(1, START + 1));
+    let timing = bytes(
+        1,
+        [bytes(11, number(1, 1)), bytes(12, number(1, 2))].concat(),
+    );
+    for (index, usage) in [number(2, 300), usage(300, 0)].into_iter().enumerate() {
+        let mut data = generation("", Some(0), Some(usage));
+        data.extend(&timing);
+        insert(&db, index as i64, data);
+    }
+    let (records, _) = parsed(temp.path());
+    assert_eq!(records.len(), 2);
+    assert_eq!(records[0]["output_tokens"], 0);
+    assert_eq!(records[1]["output_tokens"], 0);
+    assert_eq!(records[0]["timing"]["status"], "unknown");
+    assert_eq!(records[0]["timing"]["timing_output_tokens"], Value::Null);
+    assert_eq!(records[1]["timing"]["status"], "completed");
+    assert_eq!(records[1]["timing"]["timing_output_tokens"], 0);
 }
 
 fn sync(home: &Path, data: &Path) -> Value {

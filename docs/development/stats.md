@@ -122,7 +122,7 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 - `client_reported` 表示客户端记录的计时（如 Kimi、ZCode、Antigravity），`log_timestamps` 表示以日志时间戳为基准的估算（如 Codex、Claude Code）。`content_event_proxy` 表示“按推理开始事件估算”。首字、生成时长、整次调用耗时分别带 method；缺值的 method 也为 NULL。客户端计时仍受网络、代理、分块与缓冲影响。
 - status：`completed` 为请求窗口正常结束（含工具调用结束、达到输出上限）；`partial` 为有用量但仍在运行；`failed` 为已记录失败；`cancelled` 为已记录取消；`unknown` 为无法确定结束状态。后三类与 partial 不进入速度统计；已有合法首字仍可计入首字分布。Kimi 读取 finishReason，ZCode 读取 model_usage.status（error 映射 failed、running 映射 partial）；Codex 的 token_usage_record 是每次响应终结的用量记录，记 completed，中止边界清空尚未配对的计时。
 - **Claude Code**。整次耗时以唯一匹配的 `api-request` 时间戳为起点。首块明确为 thinking（`apiBlockIndex=0`）并有正的 `thinkingDurationMs` 时，从首块时间戳减去该时长，再减同一个请求起点，得到首字估算。只保留大于 0 且不超过整次耗时的首字。以日志记录作为起点可能包含客户端的请求准备时间。
-- **Antigravity**。客户端分别记录首字等待和后续输出时长，相加后取整毫秒作为整次耗时。后续输出不足 50 ms 时生成时长存 NULL。极短的工具调用可能使少量输出 token 得出异常高的速率。首字和整次耗时仍按各自有效值记录。已识别字段无法确认结束状态，记 `unknown`，可纳入首字分布。
+- **Antigravity**。客户端分别记录首字等待和后续输出时长，相加后取整毫秒作为整次耗时。两段时长均有效且客户端明确记录了输出 token（含 0）时，视为请求窗口已结束，计时记 `completed`。即使请求被取消，已记录的 token 和时长仍对应同一段实际输出。缺少任一项时记 `unknown`，合法首字仍可纳入首字分布。后续输出不足 50 ms 时生成时长存 NULL，避免极短工具调用把速度放大。首字和整次耗时照记，满足完成条件的请求仍可计入平均速度。
 
 查询通过 usage_records join 计时，继承 active、时段、工具、项目、模型与会话筛选。会话详情的 timing 使用 period 筛选；明细 source/model/source_model 分组保持同一过滤口径。breakdown 和 session_detail 各在一个读取事务里计算用量与计时。`source_model` 另外返回每个模型在当前筛选下的 `model_timing`，供界面合并工具分组时使用，不能由各工具的中位数推导模型中位数。首页不展示计时。
 

@@ -784,7 +784,7 @@ antigravity:
     fields: "gen_metadata.data 的 1.11 为首字等待；1.12 为首字之后的输出时长。两者均为 google.protobuf.Duration（字段 1 秒、字段 2 纳秒）"
     method: "client_reported"
     scope: "request"
-    completion: "unknown；已识别的响应元数据和步骤时间戳不足以确认请求结束状态"
+    completion: "1.11、1.12 均为有效 Duration，且 1.4.3 显式记录输出 token（含 0）时记 completed，表示该计时窗口已结束，无法区分正常结束与取消；否则记 unknown。1.4.3 缺失时计时的输出 token 为 NULL"
     limits: "输出时长不足 50 ms 时生成时长为 NULL；两个有效 Duration 相加后截断至整毫秒得到整次耗时。缺失或无效字段不影响用量和另一字段；各展示指标仅保留正毫秒值"
 
 codebuddy_and_workbuddy:

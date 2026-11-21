@@ -107,7 +107,7 @@ impl<'a> Fields<'a> {
 #[derive(Default)]
 struct Usage {
     input: u64,
-    output: u64,
+    output: Option<u64>,
     cache_read: u64,
 }
 
@@ -116,7 +116,7 @@ impl Usage {
         while let Some((field, value)) = fields.next()? {
             let count = match field {
                 2 => &mut self.input,
-                3 => &mut self.output,
+                3 => self.output.get_or_insert(0),
                 5 => &mut self.cache_read,
                 _ => continue,
             };
@@ -381,7 +381,8 @@ pub(super) fn parse(
         let Some(usage) = generation.usage else {
             continue;
         };
-        if usage.input == 0 && usage.output == 0 && usage.cache_read == 0 {
+        let output_tokens = usage.output.unwrap_or_default();
+        if usage.input == 0 && output_tokens == 0 && usage.cache_read == 0 {
             note(notes, "zero_usage");
             continue;
         }
@@ -405,7 +406,7 @@ pub(super) fn parse(
             "record_key": key, "source": "antigravity", "kind": "event",
             "session_id": session_id, "project_key": project, "model": generation.model,
             "provider": null, "observed_at": time, "input_tokens": usage.input,
-            "output_tokens": usage.output, "cache_read_tokens": usage.cache_read, "cache_write_tokens": null
+            "output_tokens": output_tokens, "cache_read_tokens": usage.cache_read, "cache_write_tokens": null
         });
         // The validated protobuf range fits in i64 milliseconds, even after summing.
         let positive_millis = |value: Duration| {
@@ -417,14 +418,17 @@ pub(super) fn parse(
             .streaming
             .filter(|value| *value >= Duration::from_millis(50))
             .and_then(positive_millis);
-        let duration = generation
-            .first_token
-            .zip(generation.streaming)
-            .and_then(|(first, rest)| positive_millis(first + rest));
+        let durations = generation.first_token.zip(generation.streaming);
+        let duration = durations.and_then(|(first, rest)| positive_millis(first + rest));
         if ttft.is_some() || streaming.is_some() || duration.is_some() {
             let method = "client_reported";
+            let status = if durations.is_some() && usage.output.is_some() {
+                "completed"
+            } else {
+                "unknown"
+            };
             let mut request =
-                timing::request(ttft, streaming, method, "unknown", &record["output_tokens"]);
+                timing::request(ttft, streaming, method, status, &json!(usage.output));
             request["duration_ms"] = json!(duration);
             request["duration_method"] = json!(duration.map(|_| method));
             record["timing"] = request;
