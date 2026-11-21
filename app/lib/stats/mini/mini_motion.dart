@@ -239,32 +239,39 @@ class _ProjectBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = tools.fold(0, (sum, tool) => sum + tool.grossTokens);
+    final radius = BorderRadius.circular(LensTokens.radii['xs']!);
     return SizedBox(
       width: 52,
       height: 2,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: maximum <= 0 ? 0 : total / maximum),
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : LensTokens.grow,
-        curve: LensTokens.ease,
-        builder: (context, fraction, _) => Align(
-          alignment: Alignment.centerLeft,
-          child: FractionallySizedBox(
-            widthFactor: fraction.clamp(0, 1),
-            heightFactor: 1,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(LensTokens.radii['xs']!),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final tool in tools)
-                    if (tool.grossTokens > 0)
-                      Expanded(
-                        flex: tool.grossTokens,
-                        child: ColoredBox(color: colors[tool.source]!),
-                      ),
-                ],
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: LensPalette.of(context)['line-soft'],
+          borderRadius: radius,
+        ),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: maximum <= 0 ? 0 : total / maximum),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : LensTokens.grow,
+          curve: LensTokens.ease,
+          builder: (context, fraction, _) => Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: fraction.clamp(0, 1),
+              heightFactor: 1,
+              child: ClipRRect(
+                borderRadius: radius,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final tool in tools)
+                      if (tool.grossTokens > 0)
+                        Expanded(
+                          flex: tool.grossTokens,
+                          child: ColoredBox(color: colors[tool.source]!),
+                        ),
+                  ],
+                ),
               ),
             ),
           ),

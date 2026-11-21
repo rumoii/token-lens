@@ -740,7 +740,7 @@ class _ToolTileState extends State<ToolTile> {
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
     final t = toolOf(widget.id);
-    final s = [16, 20, 24, 28, 32, 40].contains(widget.size)
+    final s = [14, 16, 20, 24, 28, 32, 40].contains(widget.size)
         ? widget.size
         : 24.0;
     final logo = t.logo != null && !failed;
@@ -766,7 +766,9 @@ class _ToolTileState extends State<ToolTile> {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: logo ? p[t.darkGlyph ? 'tile-dark' : 'tile'] : brand,
-            borderRadius: BorderRadius.circular(s * .28),
+            borderRadius: BorderRadius.circular(
+              s == 14 ? LensTokens.radii['sm']! : s * .28,
+            ),
             border: switch (widget.accent) {
               final color? => Border.all(color: color),
               null when logo => Border.all(

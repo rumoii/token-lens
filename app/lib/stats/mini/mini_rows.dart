@@ -210,25 +210,31 @@ class MiniProjectRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: p.text(
-                13,
-                project.key == null ? p.muted : p.ink,
-                FontWeight.w500,
-              ),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: p.text(
+                      13,
+                      project.key == null ? p.muted : p.ink,
+                      FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (project.tools.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  _MiniToolStack(project.tools),
+                ],
+              ],
             ),
           ),
-          const SizedBox(width: 5),
-          _MiniToolStack(project.tools),
           const SizedBox(width: 6),
           _ProjectBar(tools: project.tools, colors: colors, maximum: maximum),
           const SizedBox(width: 7),
-          Text(tokens(project.grossTokens), style: p.text(12.5)),
-          const SizedBox(width: 8),
-          Text(_miniMoney(project.costMicros), style: p.text(11.5, p.faint)),
+          _MiniProjectTotals(tokens(project.grossTokens), project.costMicros),
         ],
       ),
     );
@@ -243,20 +249,26 @@ class _MiniToolStack extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
     final count = math.min(3, tools.length);
+    const size = 14.0;
+    const step = size - 4;
     return Tooltip(
       message: tools.map((t) => toolOf(t.source).name).join(' · '),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: count == 0 ? 0 : 16 + 11 * (count - 1).toDouble(),
-            height: 16,
+            width: size + step * (count - 1),
+            height: size,
             child: Stack(
               children: [
                 for (var i = 0; i < count; i++)
                   Positioned(
-                    left: i * 11,
-                    child: ToolTile(tools[i].source, size: 16),
+                    left: i * step,
+                    child: ToolTile(
+                      tools[i].source,
+                      size: size,
+                      accent: p['surface-1'],
+                    ),
                   ),
               ],
             ),
@@ -300,15 +312,48 @@ class _MoreProjects extends StatelessWidget {
                 style: p.text(12, p.muted),
               ),
             ),
-            Text(
+            _MiniProjectTotals(
               _miniTokens(controller, total),
-              style: p.text(12, p.secondary),
+              cost,
+              isSummary: true,
             ),
-            const SizedBox(width: 8),
-            Text(_miniMoney(cost), style: p.text(11.5, p.faint)),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MiniProjectTotals extends StatelessWidget {
+  const _MiniProjectTotals(
+    this.tokens,
+    this.costMicros, {
+    this.isSummary = false,
+  });
+
+  final String tokens;
+  final int? costMicros;
+  final bool isSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context);
+    Widget cell(double width, String value, TextStyle style) => SizedBox(
+      width: width,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerRight,
+        child: Text(value, style: style, maxLines: 1),
+      ),
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        cell(46, tokens, isSummary ? p.text(12, p.secondary) : p.text(12.5)),
+        const SizedBox(width: 8),
+        cell(38, _miniMoney(costMicros), p.text(11.5, p.faint)),
+      ],
     );
   }
 }
