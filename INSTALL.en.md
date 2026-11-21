@@ -41,7 +41,7 @@ The same page has `SHA256SUMS.txt` with the SHA-256 of each package. Save it in 
 
 1. Right-click the zip → "Extract All", and extract it somewhere it will stay, for example `D:\Apps\Token Lens`.
 2. Open the extracted folder and double-click `token-lens.exe`.
-   > Keep the exe, the DLLs and the `data` folder together; copying the exe alone does not work. For a desktop icon, right-click the exe → "Show more options" → "Send to → Desktop (create shortcut)".
+   > Keep the exe, the DLLs and the `data` folder together; copying the exe alone does not work. First-run setup creates a desktop shortcut by default; if you move the folder later, click "Create again" under Pricing & settings → Appearance.
 3. The program is not signed, so the first run may show a blue "Windows protected your PC" screen. Click "**More info**", then "**Run anyway**". You will not be asked again.
 
 ### macOS

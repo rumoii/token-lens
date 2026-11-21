@@ -37,6 +37,7 @@ The interface is in English and Simplified Chinese; the development specificatio
 - **Request timing**: time to first token, output speed, and average speed including the wait. Only tools whose logs record timestamps have it; gaps say why.
 - **Tools**: every supported tool, the folders where Token Lens looks for its logs, and whether they were found, missing or not readable; how each one logs usage, whether it was checked against real or sample logs, and its known limitations. Tools you do not want to see can be hidden; hiding only affects display, and usage is still recorded.
 - **Sync status**: syncing, first-sync progress, and failed or partial syncs show at the top of the data pages.
+- **Mini window**: switch the main window into a small panel that can stay on top, so you can watch today's usage, usage per project, the models in use and recent requests while you work with AI.
 - **Pricing**: list prices per model, including long-context and time-of-day pricing, shown in USD or CNY. Amounts are for comparison only and are not your bill; on a subscription plan you usually pay less.
 - **AI news**: 20 official blogs, changelogs and community sources, refreshed every 30 minutes while the app is open; read and starred state stays on this computer. If you do not want it, tick "Local statistics only" during first-run setup or turn it off later in Settings; the app then stops fetching news.
 - **Export and CLI**: export the breakdown as CSV or JSON; the bundled `token-lens-cli` prints usage, cost and sessions as JSON for scripts and AI agents.
