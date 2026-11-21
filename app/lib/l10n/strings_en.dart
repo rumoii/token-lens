@@ -1929,7 +1929,7 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String get onboardingTimeHint =>
-      'With lots of logs, the first count takes 1–5 minutes. After that, only new entries are read, so it\'s much faster.';
+      'With lots of logs, the first count may take a few minutes. After that, only new entries are read, so it\'s much faster.';
 
   @override
   String get onboardingToolDone => 'Done';

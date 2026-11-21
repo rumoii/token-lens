@@ -1825,7 +1825,7 @@ final class ChineseStrings extends AppStrings {
       '已用 $minutes 分 $seconds 秒';
 
   @override
-  String get onboardingTimeHint => '日志多的话，第一次统计要 1～5 分钟。以后打开只读新增的部分，会快很多。';
+  String get onboardingTimeHint => '日志多的话，第一次统计可能要几分钟。以后打开只读新增的部分，会快很多。';
 
   @override
   String get onboardingToolDone => '已读完';
@@ -1837,7 +1837,8 @@ final class ChineseStrings extends AppStrings {
   String get onboardingToolWaiting => '等待中';
 
   @override
-  String get onboardingContinueHint => '不用等，可以先去看看，统计会在后台继续；关掉窗口也没关系，下次打开会接着读。';
+  String get onboardingContinueHint =>
+      '不用等，可以先去看看，统计会在后台继续；\n关掉窗口也没关系，下次打开会接着读。';
 
   @override
   String get readsLogsOnThisComputerAndLeaves => '只读取本机日志，不上传任何内容，也不改动这些工具。';

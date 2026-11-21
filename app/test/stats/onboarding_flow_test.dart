@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:token_lens_app/l10n/app_strings.dart';
 import 'package:token_lens_app/stats/onboarding_page.dart';
 import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
@@ -11,6 +13,8 @@ import 'package:token_lens_app/stats/widgets/settings_display.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
+import 'demo_visual_support.dart'
+    show loadSystemFonts, requireWindowsLayoutFonts;
 import 'fake_gateway.dart';
 
 class OnboardingGateway extends FakeStatsGateway
@@ -164,6 +168,54 @@ void main() {
   const created = '已在桌面创建快捷方式';
   const failed = '没能创建桌面快捷方式，可以稍后在「价格与设置」里再试。';
 
+  test('English onboarding hints use the approved copy', () {
+    expect(
+      englishStrings.onboardingTimeHint,
+      "With lots of logs, the first count may take a few minutes. After that, only new entries are read, so it's much faster.",
+    );
+    expect(
+      englishStrings.onboardingContinueHint,
+      'No need to wait: look around while counting continues in the background. If you close the window, it picks up where it left off next time.',
+    );
+  });
+
+  testWidgets('Chinese continue hint is centered on two lines at width 420', (
+    tester,
+  ) async {
+    await loadSystemFonts(tester);
+    if (!requireWindowsLayoutFonts(chinese: true)) return;
+    final g = OnboardingGateway()..syncBarrier = Completer<void>();
+    final c = own(g);
+    await mount(tester, c);
+    await click(tester, '开始统计');
+    final hint = find.textContaining('不用等，可以先去看看');
+    final rich = find.descendant(of: hint, matching: find.byType(RichText));
+    final paragraph = tester.renderObject<RenderParagraph>(rich);
+    final width = paragraph.constraints.maxWidth;
+    expect(width, 420);
+    final copy = paragraph.text.toPlainText();
+    final painter = TextPainter(
+      text: paragraph.text,
+      textAlign: paragraph.textAlign,
+      textDirection: paragraph.textDirection,
+      textScaler: paragraph.textScaler,
+    )..layout(minWidth: width, maxWidth: width);
+    addTearDown(painter.dispose);
+    final lines = painter.computeLineMetrics();
+    expect(lines, hasLength(2));
+    final first = painter.getLineBoundary(const TextPosition(offset: 0));
+    final second = painter.getLineBoundary(
+      TextPosition(offset: copy.length - 1),
+    );
+    expect(first.textInside(copy).trimRight(), '不用等，可以先去看看，统计会在后台继续；');
+    expect(second.textInside(copy).trimRight(), '关掉窗口也没关系，下次打开会接着读。');
+    for (final line in lines) {
+      expect(line.left + line.width / 2, closeTo(width / 2, .1));
+    }
+    g.syncBarrier!.complete();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('onboarding counts files and waits for sync to finish', (
     tester,
   ) async {
@@ -204,8 +256,11 @@ void main() {
     expect(find.text('等待中'), findsOneWidget);
     expect(find.text('已读完'), findsOneWidget);
     expect(find.textContaining('· 40%'), findsOneWidget);
-    expect(find.textContaining('1～5 分钟'), findsOneWidget);
-    expect(find.textContaining('下次打开会接着读'), findsOneWidget);
+    expect(find.text('日志多的话，第一次统计可能要几分钟。以后打开只读新增的部分，会快很多。'), findsOneWidget);
+    expect(
+      find.text('不用等，可以先去看看，统计会在后台继续；\n关掉窗口也没关系，下次打开会接着读。'),
+      findsOneWidget,
+    );
     g.progress = const StatsSyncProgress(
       stage: 'reading',
       source: 'claude',
