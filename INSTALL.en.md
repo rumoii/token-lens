@@ -7,7 +7,7 @@ Token Lens runs straight from the extracted folder: no installer, no administrat
 ## Before you start
 
 - **Windows**: Windows 10 or 11, 64-bit (x64).
-- **macOS**: a Mac with Apple silicon (M1 or later), macOS 12 or later. Intel Macs are not supported yet.
+- **macOS**: a Mac with Apple silicon (M1 or later), macOS 13 or later. Intel Macs are not supported yet.
 
 ## 1. Download
 
@@ -50,7 +50,7 @@ The same page has `SHA256SUMS.txt` with the SHA-256 of each package. Save it in 
 2. **Drag `Token Lens.app` into Applications first**, then open it from there.
 3. The app is not signed or notarized, so macOS says it cannot verify the developer on first launch:
    1. Click "**Done**" (not "Move to Trash").
-   2. Open "System Settings → Privacy & Security" ("System Preferences → Security & Privacy → General" on macOS 12), find the message that Token Lens was blocked near the bottom, click "**Open Anyway**" and confirm.
+   2. Open "System Settings → Privacy & Security", find the message that Token Lens was blocked near the bottom, click "**Open Anyway**" and confirm.
    > The approval applies only to that copy of the app, which is why it goes into Applications first. Approve it again after each upgrade.
 
 ## 3. First run

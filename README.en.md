@@ -101,7 +101,7 @@ Verified = checked against real logs (field by field by hand, against the client
 Download the zip for your system from [Releases](https://github.com/rumoii/token-lens/releases/latest) and extract it; no Node, Python or other runtime is needed. `SHA256SUMS.txt` in the same release lets you check the download.
 
 - **Windows**: Windows 10 or 11, x64. Run `token-lens.exe` from the extracted folder; keep the exe, the DLLs and the `data/` folder together.
-- **macOS**: Apple silicon (M series), macOS 12 or later. Drag `Token Lens.app` into Applications, then open it.
+- **macOS**: Apple silicon (M series), macOS 13 or later. Drag `Token Lens.app` into Applications, then open it.
 
 The app is not signed, so Windows SmartScreen or macOS stops it the first time. The [installation guide](INSTALL.en.md) explains how to allow it, check the download and uninstall.
 

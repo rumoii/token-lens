@@ -99,7 +99,7 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 从 [Releases](https://github.com/rumoii/token-lens/releases/latest) 下载对应系统的 zip，解压即用，不需要安装 Node、Python 或其他运行环境。同一个 Release 里的 `SHA256SUMS.txt` 可以用来确认下载完整。
 
 - **Windows**：Windows 10 / 11，x64。解压后双击 `token-lens.exe`；文件夹里的 exe、DLL 和 `data/` 要放在一起。
-- **macOS**：Apple 芯片（M 系列），macOS 12 或更新。解压后把 `Token Lens.app` 拖进「应用程序」再打开。
+- **macOS**：Apple 芯片（M 系列），macOS 13 或更新。解压后把 `Token Lens.app` 拖进「应用程序」再打开。
 
 程序没有签名，第一次打开时 Windows SmartScreen 或 macOS 会拦一下。放行的步骤、怎么校验下载、怎么卸载，见[安装指南](INSTALL.md)。
 
