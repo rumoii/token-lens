@@ -24,6 +24,7 @@
 | jni | 1.1.2 | BSD-3-Clause | 运行时声明图上界；插件 linux/windows/android | https://pub.dev/packages/jni/versions/1.1.2/license |
 | jni_flutter | 1.0.4+1 | BSD-3-Clause | 运行时声明图上界；插件 android | https://pub.dev/packages/jni_flutter/versions/1.0.4+1/license |
 | jni_util | 1.0.0 | BSD-3-Clause | 运行时声明图上界 | https://pub.dev/packages/jni_util/versions/1.0.0/license |
+| json_annotation | 4.12.0 | BSD-3-Clause | 运行时声明图上界 | https://pub.dev/packages/json_annotation/versions/4.12.0/license |
 | logging | 1.3.0 | BSD-3-Clause | 运行时 / 构建声明图共用 | https://pub.dev/packages/logging/versions/1.3.0/license |
 | material_color_utilities | 0.13.0 | Apache-2.0 | 运行时声明图上界 | https://pub.dev/packages/material_color_utilities/versions/0.13.0/license |
 | meta | 1.18.3 | BSD-3-Clause | 运行时 / 构建声明图共用 | https://pub.dev/packages/meta/versions/1.18.3/license |
@@ -40,6 +41,11 @@
 | plugin_platform_interface | 2.1.8 | BSD-3-Clause | 运行时声明图上界 | https://pub.dev/packages/plugin_platform_interface/versions/2.1.8/license |
 | pub_semver | 2.2.1 | BSD-3-Clause | 运行时 / 构建声明图共用 | https://pub.dev/packages/pub_semver/versions/2.2.1/license |
 | record_use | 0.6.0 | BSD-3-Clause | 运行时 / 构建声明图共用 | https://pub.dev/packages/record_use/versions/0.6.0/license |
+| screen_retriever | 0.2.2 | MIT | 运行时声明图上界；插件 linux/macos/windows | https://pub.dev/packages/screen_retriever/versions/0.2.2/license |
+| screen_retriever_linux | 0.2.2 | MIT | 运行时声明图上界；插件 linux | https://pub.dev/packages/screen_retriever_linux/versions/0.2.2/license |
+| screen_retriever_macos | 0.2.2 | MIT | 运行时声明图上界；插件 macos | https://pub.dev/packages/screen_retriever_macos/versions/0.2.2/license |
+| screen_retriever_platform_interface | 0.2.2 | MIT | 运行时声明图上界 | https://pub.dev/packages/screen_retriever_platform_interface/versions/0.2.2/license |
+| screen_retriever_windows | 0.2.2 | MIT | 运行时声明图上界；插件 windows | https://pub.dev/packages/screen_retriever_windows/versions/0.2.2/license |
 | sky_engine | 0.0.0（Flutter 3.47.9） | 多许可证（Flutter Engine 许可合集） | 运行时声明图上界 | https://github.com/flutter/flutter/tree/3.47.9 |
 | source_span | 1.10.2 | BSD-3-Clause | 运行时 / 构建声明图共用 | https://pub.dev/packages/source_span/versions/1.10.2/license |
 | string_scanner | 1.4.1 | BSD-3-Clause | 运行时 / 构建声明图共用 | https://pub.dev/packages/string_scanner/versions/1.4.1/license |
@@ -54,6 +60,7 @@
 | url_launcher_windows | 3.1.6 | BSD-3-Clause | 运行时声明图上界；插件 windows | https://pub.dev/packages/url_launcher_windows/versions/3.1.6/license |
 | vector_math | 2.4.0 | BSD-3-Clause | 运行时声明图上界 | https://pub.dev/packages/vector_math/versions/2.4.0/license |
 | web | 1.1.2 | BSD-3-Clause | 运行时 / 构建声明图共用 | https://pub.dev/packages/web/versions/1.1.2/license |
+| window_manager | 0.5.2 | MIT | 运行时声明图上界；插件 linux/macos/windows | https://pub.dev/packages/window_manager/versions/0.5.2/license |
 | xdg_directories | 1.1.0 | BSD-3-Clause | 运行时声明图上界 | https://pub.dev/packages/xdg_directories/versions/1.1.0/license |
 | yaml | 3.1.4 | MIT | 运行时 / 构建声明图共用 | https://pub.dev/packages/yaml/versions/3.1.4/license |
 

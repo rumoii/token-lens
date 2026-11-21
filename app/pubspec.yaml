@@ -13,6 +13,7 @@ dependencies:
   flutter_rust_bridge_hooks: 2.13.0
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
+  window_manager: 0.5.2
 
 dev_dependencies:
   flutter_test:
