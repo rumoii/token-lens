@@ -36,7 +36,7 @@ Token Lens 是一个桌面应用。它读取 Claude Code、Codex、Kimi、Qwen C
 - **工具**：全部支持的工具各去哪几个目录找日志、找到没有、没找到是没装还是没有权限；每个工具的日志怎么记、用真实日志还是样例日志核对过、有哪些已知限制。不想看的工具可以隐藏，只影响显示，照常记账。
 - **同步状态**：同步中、第一次同步的进度、同步失败或有异常，都会在数据页顶部提示。
 - **迷你窗口**：主窗口一键切成可置顶的小面板，边用 AI 边看今天的用量、各项目用量、正在用的模型和最近的请求。
-- **价格**：各模型的公开价、长上下文和分时段计价，按美元或人民币显示。金额只用来比较和感知，不是你的账单；用套餐的话，实际花费通常更低。
+- **价格**：各模型的公开价、长上下文和分时段计价，按美元或人民币显示。价格表每天联网更新一次（可以关掉），新模型不用等发新版；还查不到价格的模型，你可以自己填，只存在本机。金额只用来比较和感知，不是你的账单；用套餐的话，实际花费通常更低。
 - **AI 热点**：20 个官方博客、更新日志和社区来源的新闻，程序开着时每 30 分钟刷新一次；已读和收藏只存在本机。不需要的话，可以在首次引导里勾选“只用本地统计”，或之后在设置里关掉，关掉后不再联网取新闻。
 - **导出与命令行**：明细可以导出成 CSV 或 JSON；随程序附带的 `token-lens-cli` 用 JSON 输出用量、花费和会话，给脚本和 AI 助手用。
 - **中文和英文界面**，默认跟随系统语言；深色模式；数字单位可选“万 / 亿”或“K / M / B”。
@@ -130,7 +130,7 @@ token-lens-cli sync                            # 同步一次
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
-  <img src="docs/images/architecture.svg" alt="各工具的本机日志只读进入 Rust 适配器，写进 SQLite 账本，再由 Flutter 界面显示；联网只有 AI 热点、汇率和检查更新三处，结果只给界面用，不进账本。">
+  <img src="docs/images/architecture.svg" alt="各工具的本机日志只读进入 Rust 适配器，写进 SQLite 账本，再由 Flutter 界面显示；联网只有 AI 热点、汇率、价格表和检查更新四处，只下载、不上传；下载的价格表用来重算账本里的金额，其余结果只给界面用。">
 </picture>
 
 - 界面是 Flutter，统计、计价和新闻刷新都在随程序分发的 Rust 库里，通过 flutter_rust_bridge 在进程内调用；没有本地网页服务，也不用 WebView。
@@ -179,7 +179,7 @@ flutter build windows --release   # 或 flutter build macos --release
 
 - **只读本机日志**：在本机读取并解析各工具的日志，只提取用量元数据（四类 token、模型、时间、会话、项目路径）；日志里的提示词、回复、代码和凭据不会写进账本，也不会发出去。不修改这些工具的任何文件。
 - **数据只在本机**：用量、偏好和新闻缓存都在系统的应用支持目录下的 `data` 文件夹里：Windows 上是 `%APPDATA%\Token Lens\Token Lens\data`，macOS 上是 `~/Library/Application Support/io.github.rumoii.token-lens/data`。不再需要时整个删掉即可。
-- **会联网的只有三件事**：AI 热点开着时按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）。请求不带账号、凭据或用量数据。来源清单和请求方式见 [docs/development/news.md](docs/development/news.md)，检查更新见 [docs/development/update.md](docs/development/update.md)。
+- **会联网的只有四件事**：AI 热点开着时按上面的时间刷新新闻来源；在设置里点「更新汇率」时取一次美元兑人民币汇率；每天最多一次向 GitHub 查询有没有新版本（可在设置里关掉，有新版只提示，不自动下载）；每天最多一次从本项目仓库下载核对过的价格表（可在设置里关掉，关掉后只用程序自带的）。请求不带账号、凭据或用量数据，你手填的价格也不会上传。来源清单和请求方式见 [docs/development/news.md](docs/development/news.md)，检查更新见 [docs/development/update.md](docs/development/update.md)，价格表见 [docs/development/pricing.md](docs/development/pricing.md)。
 - 没有账号、上传、遥测或第三方分析。完整说明见 [隐私说明](PRIVACY.md)。
 
 ## 贡献

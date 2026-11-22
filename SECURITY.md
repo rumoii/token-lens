@@ -32,6 +32,7 @@ https://github.com/rumoii/token-lens/security/advisories/new
    - AI 热点：每个来源只请求固定地址，不加载远程图片；条目链接在 Rust 端只保留 http/https 地址（`safe_url`），其他协议的链接被丢弃。
    - 汇率：只在用户点「更新汇率」时请求一次。
    - 检查更新：只向 `api.github.com` 请求本项目最新正式版本，不跟随重定向，响应超过 512 KiB 中止；下载页地址由校验过的版本号拼出，不使用响应里的链接（[docs/development/update.md](docs/development/update.md)）。
+   - 价格表：只从 `raw.githubusercontent.com` 下载本项目仓库里的固定文件，不跟随重定向，超过 1 MiB 中止；内容只当数据解析，在 Rust 端按内置价格表的同一套规则校验（格式版本、日期、价格范围、模型名不重复），不合法就丢弃、不写盘，校验通过才原子写入数据目录（[docs/development/pricing.md](docs/development/pricing.md)）。
    - 所有外部链接交给系统默认浏览器打开。
 5. **诊断导出**（`app/rust/src/diagnostics.rs`）：只在用户点击时生成；不含账本和对话内容；先把用户主目录替换成 `~`，再过滤敏感字段，最后截断。
 
@@ -52,4 +53,4 @@ https://github.com/rumoii/token-lens/security/advisories/new
 
 ## English Summary
 
-Token Lens runs entirely on the local machine. The desktop app is a Flutter UI calling a Rust library in-process: it runs no local server, listens on no port and uses no WebView. It reads AI tools' local logs read-only (SQLite databases are opened read-only) and never modifies them. It uses the network for three things only: refreshing AI news from fixed source URLs (item links are limited to http/https), fetching an exchange rate when the user clicks "Update rate", and checking GitHub for a newer release at most once a day (no redirects, response size capped, the download link is built from the validated version). No usage data or telemetry is ever uploaded and no account is involved. Please report vulnerabilities privately through GitHub's private vulnerability reporting channel.
+Token Lens runs entirely on the local machine. The desktop app is a Flutter UI calling a Rust library in-process: it runs no local server, listens on no port and uses no WebView. It reads AI tools' local logs read-only (SQLite databases are opened read-only) and never modifies them. It uses the network for four things only: refreshing AI news from fixed source URLs (item links are limited to http/https), fetching an exchange rate when the user clicks "Update rate", checking GitHub for a newer release at most once a day (no redirects, response size capped, the download link is built from the validated version), and downloading this project's price list from a fixed GitHub URL at most once a day (no redirects, capped at 1 MiB, parsed as data and validated by the same rules as the built-in list before it is written). No usage data or telemetry is ever uploaded and no account is involved. Please report vulnerabilities privately through GitHub's private vulnerability reporting channel.
