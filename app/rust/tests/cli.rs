@@ -108,6 +108,11 @@ fn cli_sync_preserves_ffi_manual_and_downloaded_prices() {
     let priced = costs();
     assert_eq!(priced, [Some(135), Some(136), before[2]]);
     let snapshot = client.pricing().unwrap();
+    fs::write(
+        data.join("ui-preferences.json"),
+        r#"{"rates":{"USD":1,"CNY":12}}"#,
+    )
+    .unwrap();
 
     let status = success(cli(Some(&data), Some(&home), &["status"]), "status");
     assert_eq!(status["data"]["price_version"], snapshot.price_version);

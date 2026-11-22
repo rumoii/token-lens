@@ -280,6 +280,20 @@ fn d33_queries_match_node_golden_and_conserve() {
                             json!(known + rust_only_evidence as u64);
                     }
                     "pricing" => {
+                        let fields = actual.as_object_mut().unwrap();
+                        let expected_date = json!(ledger.prices.builtin_date());
+                        assert_eq!(fields.remove("published_at"), Some(expected_date.clone()));
+                        assert_eq!(fields.remove("builtin_published_at"), Some(expected_date));
+                        assert_eq!(fields.remove("downloaded"), Some(json!(false)));
+                        assert!(fields
+                            .remove("copy_prices")
+                            .unwrap()
+                            .as_array()
+                            .is_some_and(|prices| !prices.is_empty()));
+                        assert_eq!(
+                            fields["counts"].as_object_mut().unwrap().remove("manual"),
+                            Some(json!(0))
+                        );
                         for model in expected["models"].as_array_mut().unwrap() {
                             if model["model"] == "deepseek-flash" {
                                 model["note"] = json!(model["note"]

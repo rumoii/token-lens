@@ -204,10 +204,7 @@ fn date(value: &Value) -> Option<NaiveDate> {
 }
 
 fn valid_rates(value: &Value) -> bool {
-    let valid = |v: &Value| {
-        v.as_f64()
-            .is_some_and(|n| n.is_finite() && n >= 0.0 && n <= 10_000.0)
-    };
+    let valid = |v: &Value| v.as_f64().is_some_and(|n| (0.0..=10_000.0).contains(&n));
     valid(&value["input"])
         && valid(&value["output"])
         && ["cacheRead", "cacheWrite", "cacheWrite1h"]

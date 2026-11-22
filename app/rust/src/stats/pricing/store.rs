@@ -104,8 +104,9 @@ fn manual_values(input: &Value) -> Result<Value> {
         }
         usd[k] = json!(raw
             .as_f64()
+            .filter(|x| x.is_finite() && *x >= 0.0)
             .map(|x| x / rate)
-            .filter(|x| x.is_finite() && (0.0..=10_000.0).contains(x))
+            .filter(|x| (0.0..=10_000.0).contains(x))
             .ok_or_else(|| Error(format!("PRICE_OUT_OF_RANGE:{k}:0–10000 USD")))?);
     }
     usd["cacheWrite1h"] = usd["cacheWrite"].clone();
@@ -305,5 +306,30 @@ mod tests {
         assert_eq!(model["prices"]["output"], 2.0);
         assert!(model["list_prices"]["output"].is_number());
         assert_eq!(price["counts"]["manual"], 1);
+    }
+
+    #[test]
+    fn version_is_independent_of_on_disk_manual_entry_order() {
+        let temp = tempfile::tempdir().unwrap();
+        let data = temp.path();
+        let ledger = open(data);
+        seed(&ledger, "another-model");
+        seed(&ledger, "new-model");
+        let entry =
+            |model| json!({"model":model,"currency":"USD","input":1,"output":2}).to_string();
+        save_manual(data, &ledger, &entry("another-model")).unwrap();
+        let ledger = open(data);
+        save_manual(data, &ledger, &entry("new-model")).unwrap();
+        let ledger = open(data);
+        let entries = &ledger.prices.manual;
+        std::fs::write(
+            data.join(MANUAL_FILE),
+            format!(
+                "{{\"new-model\":{},\"another-model\":{}}}",
+                entries["new-model"], entries["another-model"],
+            ),
+        )
+        .unwrap();
+        assert_eq!(open(data).prices.version(), ledger.prices.version());
     }
 }
