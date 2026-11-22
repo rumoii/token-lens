@@ -109,6 +109,20 @@ void main() {
     expect(h.requests, 3);
   });
 
+  test('上次尝试在未来时自动检查，并从当前时间重新计算间隔', () async {
+    final h = _Harness();
+    h.preferences = h.preferences.copyWith(
+      pricingLastAttemptMs: h.now
+          .add(const Duration(hours: 1))
+          .millisecondsSinceEpoch,
+    );
+    await h.controller.check(automatic: true);
+    expect(h.requests, 1);
+    expect(h.preferences.pricingLastAttemptMs, h.now.millisecondsSinceEpoch);
+    await h.controller.check(automatic: true);
+    expect(h.requests, 1);
+  });
+
   test('同一时间只有一次检查，关闭后丢弃迟到结果，删除并触发同步', () async {
     final h = _Harness()..request = Completer<UpdateResponse>();
     final checking = h.controller.check();

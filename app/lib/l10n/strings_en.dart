@@ -1919,7 +1919,7 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String manualEstimate(String n, String amount, String parts) =>
-      'After saving, these $n records are priced at this rate: about $amount ($parts).';
+      'After saving, these $n records are priced at this rate: about $amount${parts.isEmpty ? '' : ' ($parts)'}.';
 
   @override
   String get manualNoCacheRead =>

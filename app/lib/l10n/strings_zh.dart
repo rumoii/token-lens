@@ -1816,7 +1816,7 @@ final class ChineseStrings extends AppStrings {
 
   @override
   String manualEstimate(String n, String amount, String parts) =>
-      '保存后，这 $n 条记录按这个价算，约 $amount（$parts）。';
+      '保存后，这 $n 条记录按这个价算，约 $amount${parts.isEmpty ? '' : '（$parts）'}。';
 
   @override
   String get manualNoCacheRead => '缓存读留空，这部分 token 不计金额。';

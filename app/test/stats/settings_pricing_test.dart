@@ -219,6 +219,50 @@ Finder priceRow(String name) => find.byKey(ValueKey('settings-model-$name'));
 Finder inRow(String name, String text) =>
     find.descendant(of: priceRow(name), matching: find.text(text));
 
+Future<void> showPriceEstimate(
+  WidgetTester tester, {
+  required StatsPrices prices,
+  required int inputTokens,
+  int? outputTokens,
+  int? cacheReadTokens,
+  int? cacheWriteTokens,
+  UiPreferences preferences = const UiPreferences(currency: 'USD'),
+}) async {
+  const id = 'demo-unpriced-model';
+  final gateway = SettingsGateway([model(id, state: 'unknown', prices: null)])
+    ..copyPrices = [
+      StatsCopyPrice(id: 'catalog-model', prices: prices, baseOnly: false),
+    ]
+    ..usage = [
+      StatsGroup(
+        source: 'claude',
+        model: id,
+        grossTokens:
+            inputTokens +
+            (outputTokens ?? 0) +
+            (cacheReadTokens ?? 0) +
+            (cacheWriteTokens ?? 0),
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        cacheReadTokens: cacheReadTokens,
+        cacheWriteTokens: cacheWriteTokens,
+        unpricedRecords: 1,
+        recordCount: 1,
+      ),
+    ];
+  await showSettings(tester, gateway, preferences: preferences);
+  await tester.tap(priceRow(id));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('填写价格'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('manual-price-copy')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('catalog-model').last);
+  await tester.pumpAndSettle();
+}
+
+Finder priceEstimate() => find.textContaining('条记录按这个价算，约');
+
 void main() {
   testWidgets('未定价模型可打开共用价格对话框', (t) async {
     await showSettings(
@@ -293,8 +337,8 @@ void main() {
     await t.pumpAndSettle();
     expect(t.widget<LensInput>(input).controller.text, '2');
     expect(t.widget<LensInput>(output).controller.text, '10');
-    expect(find.textContaining('约 \$15.0000'), findsOneWidget);
-    expect(find.textContaining('缓存写 \$3.0000'), findsOneWidget);
+    expect(find.textContaining('约 \$15.00（'), findsOneWidget);
+    expect(find.textContaining('缓存写 \$3.00）'), findsOneWidget);
     expect(find.text('缓存读留空，这部分 token 不计金额。'), findsOneWidget);
     expect(find.text('照 catalog-model 的官方价'), findsOneWidget);
     await t.enterText(input, '-1');
@@ -320,6 +364,58 @@ void main() {
     await t.sendKeyEvent(LogicalKeyboardKey.escape);
     await t.pumpAndSettle();
     expect(find.text('照已有模型的价格填'), findsNothing);
+  });
+
+  testWidgets('预估总额和各分项通常显示两位小数', (t) async {
+    await showPriceEstimate(
+      t,
+      prices: const StatsPrices(input: 2, output: 1, cacheRead: .5),
+      inputTokens: 1000000,
+      outputTokens: 1000000,
+      cacheReadTokens: 1000000,
+    );
+    expect(
+      find.textContaining(r'约 $3.50（新输入 $2.00 · 输出 $1.00 · 缓存读 $0.50）'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('预估按显示币种判断不足 0.01 的金额并显示四位小数', (t) async {
+    await showPriceEstimate(
+      t,
+      prices: const StatsPrices(input: 1, output: 2),
+      inputTokens: 700,
+      outputTokens: 2550,
+      preferences: const UiPreferences(
+        currency: 'CNY',
+        rates: {'USD': 1, 'CNY': 2},
+      ),
+    );
+    expect(
+      find.textContaining('约 ¥0.01（新输入 ¥0.0014 · 输出 ¥0.01）'),
+      findsOneWidget,
+    );
+    await t.enterText(find.byKey(const ValueKey('manual-price-1')), '1');
+    await t.pumpAndSettle();
+    expect(
+      find.textContaining('约 ¥0.0065（新输入 ¥0.0014 · 输出 ¥0.0051）'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('预估省略 token 未知、为零和价格留空的分项', (t) async {
+    await showPriceEstimate(
+      t,
+      prices: const StatsPrices(input: 2, output: 1, cacheWrite5M: 3),
+      inputTokens: 1000000,
+      outputTokens: 0,
+      cacheReadTokens: 1000000,
+    );
+    final text = t.widget<Text>(priceEstimate()).data!;
+    expect(text, isNot(contains('缓存写')));
+    expect(text, isNot(contains('输出')));
+    expect(text, isNot(contains('缓存读')));
+    expect(find.text('缓存读留空，这部分 token 不计金额。'), findsOneWidget);
   });
 
   testWidgets('手填卡片显示人民币与来源，目录补价后只提供直接改用', (t) async {

@@ -80,6 +80,7 @@ class PricingUpdateController extends ChangeNotifier {
         !prefs.autoUpdatePricing ||
         (automatic &&
             last != null &&
+            last <= now &&
             now - last < const Duration(days: 1).inMilliseconds)) {
       return Future.value();
     }

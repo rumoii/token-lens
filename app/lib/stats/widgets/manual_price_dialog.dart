@@ -186,24 +186,35 @@ class _ManualPriceDialogState extends State<_ManualPriceDialog> {
   ];
 
   String _estimate(AppStrings s) {
-    if (_number(0) == null || _number(1) == null) {
+    final prices = List.generate(widget.tokens.length, _number);
+    if (prices[0] == null || prices[1] == null) {
       return s.manualEstimatePending(count);
     }
-    final values = List.generate(
-      4,
-      (i) => widget.tokens[i] / 1e6 * (_number(i) ?? 0),
-    );
     final display = widget.preferences.currency;
     final rate = rateFor(widget.preferences.rates, display);
     final divisor = currency == 'CNY' ? exchange : 1.0;
-    String money(double v) =>
-        usdCurrency(v / divisor, currency: display, rate: rate, decimals: 4);
+    String money(double value) {
+      final usd = value / divisor;
+      return usdCurrency(
+        usd,
+        currency: display,
+        rate: rate,
+        decimals: moneyDecimals(usd * rate),
+      );
+    }
+
     final labels = _labels(s);
-    return s.manualEstimate(
-      count,
-      money(values.reduce((a, b) => a + b)),
-      List.generate(4, (i) => '${labels[i]} ${money(values[i])}').join(' · '),
-    );
+    final parts = <String>[];
+    var total = 0.0;
+    for (var i = 0; i < prices.length; i++) {
+      final price = prices[i];
+      final tokens = widget.tokens[i];
+      if (tokens <= 0 || price == null) continue;
+      final amount = tokens / 1e6 * price;
+      total += amount;
+      parts.add('${labels[i]} ${money(amount)}');
+    }
+    return s.manualEstimate(count, money(total), parts.join(' · '));
   }
 
   @override

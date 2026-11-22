@@ -115,6 +115,8 @@ String chineseNumber(Object? value, {num decimals = 1}) {
   return sign + _fixed(coefficient, precision) + labels[level];
 }
 
+int moneyDecimals(num converted) => converted > 0 && converted < .01 ? 4 : 2;
+
 String usdCurrency(
   Object? value, {
   num decimals = 2,

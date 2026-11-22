@@ -938,7 +938,7 @@ class MoneyText extends StatelessWidget {
           value,
           currency: currency,
           rate: rate,
-          decimals: digits ?? (converted > 0 && converted < .01 ? 4 : 2),
+          decimals: digits ?? moneyDecimals(converted),
         ),
         style: style ?? p.text(),
       ),
