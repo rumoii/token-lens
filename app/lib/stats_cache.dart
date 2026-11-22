@@ -57,6 +57,8 @@ final class CachedStatsGateway
 
   StatsProgressGateway? get progressGateway =>
       _inner is StatsProgressGateway ? _inner as StatsProgressGateway : null;
+  StatsPricingEditor? get pricingEditor =>
+      _inner is StatsPricingEditor ? _inner as StatsPricingEditor : null;
   DesktopShortcutGateway? get shortcutGateway =>
       _inner is DesktopShortcutGateway
       ? _inner as DesktopShortcutGateway

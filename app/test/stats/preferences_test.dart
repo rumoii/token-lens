@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,28 @@ import 'package:token_lens_app/stats/logic/period.dart';
 import 'package:token_lens_app/stats/logic/format.dart';
 
 void main() {
+  test('价格更新偏好兼容旧文件并保存上次检查', () {
+    final old = jsonDecode(UiPreferences.decode('{"language":"en"}').encode());
+    expect(old['autoUpdatePricing'], true);
+    expect(old['pricingLastAttemptMs'], isNull);
+    expect(old['pricingLastKind'], isNull);
+    expect(old['pricingCheckedMs'], isNull);
+    expect(old['pricingUpdatedNote'], isNull);
+    final saved = jsonDecode(
+      UiPreferences.decode(
+        '{"autoUpdatePricing":false,"pricingLastAttemptMs":100,"pricingLastKind":"installed","pricingCheckedMs":101,"pricingUpdatedNote":{"publishedAt":"2026-11-23","newlyPriced":2}}',
+      ).copyWith(language: 'en').encode(),
+    );
+    expect(saved['autoUpdatePricing'], false);
+    expect(saved['pricingLastAttemptMs'], 100);
+    expect(saved['pricingLastKind'], 'installed');
+    expect(saved['pricingCheckedMs'], 101);
+    expect(saved['pricingUpdatedNote'], {
+      'publishedAt': '2026-11-23',
+      'newlyPriced': 2,
+    });
+  });
+
   late Directory directory;
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('token-lens-d34a-prefs-');

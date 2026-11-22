@@ -134,6 +134,8 @@ Future<UpdateResponse> requestUpdate(
   Map<String, String> headers,
   UpdateCancellation cancellation, {
   HttpClient Function()? createClient,
+  int maxBytes = updateMaxBytes,
+  bool readSuccessfulOnly = false,
 }) async {
   if (cancellation.cancelled) throw const HttpException('Update cancelled');
   final client = (createClient ?? HttpClient.new)();
@@ -147,12 +149,15 @@ Future<UpdateResponse> requestUpdate(
     request.headers.removeAll(HttpHeaders.acceptEncodingHeader);
     headers.forEach((key, value) => request.headers.set(key, value));
     final response = await request.close();
-    if (response.contentLength > updateMaxBytes) {
+    if (response.contentLength > maxBytes) {
       throw const UpdateBodyTooLarge();
+    }
+    if (readSuccessfulOnly && response.statusCode != HttpStatus.ok) {
+      return UpdateResponse(response.statusCode, '');
     }
     final bytes = <int>[];
     await for (final chunk in response) {
-      if (bytes.length + chunk.length > updateMaxBytes) {
+      if (bytes.length + chunk.length > maxBytes) {
         throw const UpdateBodyTooLarge();
       }
       bytes.addAll(chunk);

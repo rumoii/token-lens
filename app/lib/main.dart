@@ -22,6 +22,7 @@ import 'src/rust/api/stats.dart' as stats;
 import 'stats_controller.dart';
 import 'stats_gateway.dart';
 import 'stats/preferences.dart';
+import 'stats/logic/pricing_update.dart';
 import 'stats/mini/mini_window.dart';
 import 'stats/theme/palette.dart';
 import 'stats/widgets/primitives.dart';
@@ -165,6 +166,9 @@ class _TokenLensAppState extends State<TokenLensApp>
           store: preferenceStore,
           preferences: _preferences,
           news: controller,
+          pricingRequest: override == null && logsHome == null
+              ? requestPricing
+              : null,
           systemLanguage: () => PlatformDispatcher.instance.locale.languageCode,
         );
       } catch (error, stack) {

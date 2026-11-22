@@ -76,6 +76,8 @@ class MiniPreferences {
   };
 }
 
+typedef PricingUpdatedNote = ({String publishedAt, int newlyPriced});
+
 class UiPreferences {
   const UiPreferences({
     this.appearance = 'light',
@@ -92,6 +94,11 @@ class UiPreferences {
     this.updateLastAttemptMs,
     this.updateResult,
     this.updateIgnoredVersion,
+    this.autoUpdatePricing = true,
+    this.pricingLastAttemptMs,
+    this.pricingLastKind,
+    this.pricingCheckedMs,
+    this.pricingUpdatedNote,
     this.hiddenTools = const [],
     this.density = 'comfortable',
     this.uiScale = 1.0,
@@ -123,6 +130,10 @@ class UiPreferences {
   final int? updateLastAttemptMs;
   final UpdateResult? updateResult;
   final String? updateIgnoredVersion;
+  final bool autoUpdatePricing;
+  final int? pricingLastAttemptMs, pricingCheckedMs;
+  final String? pricingLastKind;
+  final PricingUpdatedNote? pricingUpdatedNote;
   final List<String> hiddenTools;
   final String density, defaultPeriod, weekStart;
   final double uiScale;
@@ -164,6 +175,11 @@ class UiPreferences {
     Object? updateLastAttemptMs = _unchanged,
     Object? updateResult = _unchanged,
     Object? updateIgnoredVersion = _unchanged,
+    bool? autoUpdatePricing,
+    Object? pricingLastAttemptMs = _unchanged,
+    Object? pricingLastKind = _unchanged,
+    Object? pricingCheckedMs = _unchanged,
+    Object? pricingUpdatedNote = _unchanged,
     List<String>? hiddenTools,
     String? density,
     double? uiScale,
@@ -186,6 +202,19 @@ class UiPreferences {
         ? this.ratesFetchedAt
         : _fetchedAt(ratesFetchedAt),
     autoCheckUpdates: autoCheckUpdates ?? this.autoCheckUpdates,
+    autoUpdatePricing: autoUpdatePricing ?? this.autoUpdatePricing,
+    pricingLastAttemptMs: identical(pricingLastAttemptMs, _unchanged)
+        ? this.pricingLastAttemptMs
+        : _fetchedAt(pricingLastAttemptMs),
+    pricingLastKind: identical(pricingLastKind, _unchanged)
+        ? this.pricingLastKind
+        : _pricingKind(pricingLastKind),
+    pricingCheckedMs: identical(pricingCheckedMs, _unchanged)
+        ? this.pricingCheckedMs
+        : _fetchedAt(pricingCheckedMs),
+    pricingUpdatedNote: identical(pricingUpdatedNote, _unchanged)
+        ? this.pricingUpdatedNote
+        : pricingUpdatedNote as PricingUpdatedNote?,
     density: density ?? this.density,
     uiScale: uiScale ?? this.uiScale,
     defaultPeriod: defaultPeriod ?? this.defaultPeriod,
@@ -274,6 +303,13 @@ class UiPreferences {
             ? value['autoCheckUpdates']
             : true,
         updateLastAttemptMs: _fetchedAt(value['updateLastAttemptMs']),
+        autoUpdatePricing: value['autoUpdatePricing'] is bool
+            ? value['autoUpdatePricing']
+            : true,
+        pricingLastAttemptMs: _fetchedAt(value['pricingLastAttemptMs']),
+        pricingLastKind: _pricingKind(value['pricingLastKind']),
+        pricingCheckedMs: _fetchedAt(value['pricingCheckedMs']),
+        pricingUpdatedNote: _pricingNote(value['pricingUpdatedNote']),
         updateResult: _updateResult(value),
         hiddenTools: value['hiddenTools'] is List
             ? List.unmodifiable(
@@ -308,6 +344,17 @@ class UiPreferences {
     'rateSource': _rateSource(rateSource),
     'ratesFetchedAt': _fetchedAt(ratesFetchedAt),
     'autoCheckUpdates': autoCheckUpdates,
+    'autoUpdatePricing': autoUpdatePricing,
+    'pricingLastAttemptMs': pricingLastAttemptMs,
+    'pricingLastKind': pricingLastKind,
+    'pricingCheckedMs': pricingCheckedMs,
+    'pricingUpdatedNote': switch (pricingUpdatedNote) {
+      final note? => {
+        'publishedAt': note.publishedAt,
+        'newlyPriced': note.newlyPriced,
+      },
+      null => null,
+    },
     'updateLastAttemptMs': _fetchedAt(updateLastAttemptMs),
     'updateKind': updateResult?.kind.name,
     'updateLatestVersion': updateResult?.kind == UpdateKind.available
@@ -318,6 +365,28 @@ class UiPreferences {
         : null,
     'updateIgnoredVersion': UpdateVersion.parse(updateIgnoredVersion)?.value,
   });
+
+  static String? _pricingKind(Object? value) => switch (value) {
+    'installed' ||
+    'unchanged' ||
+    'older' ||
+    'invalid' ||
+    'limited' ||
+    'offline' => value as String,
+    _ => null,
+  };
+
+  static PricingUpdatedNote? _pricingNote(Object? value) {
+    if (value case {'publishedAt': String date, 'newlyPriced': int count}) {
+      final parsed = DateTime.tryParse(date);
+      if (count >= 0 &&
+          date.length == 10 &&
+          parsed?.toIso8601String().startsWith('${date}T') == true) {
+        return (publishedAt: date, newlyPriced: count);
+      }
+    }
+    return null;
+  }
 
   static UpdateResult? _updateResult(Map<String, dynamic> value) {
     final kind = UpdateKind.values

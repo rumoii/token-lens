@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'stats_cache.dart';
 import 'stats_gateway.dart';
 import 'stats/logic/period.dart';
+import 'stats/logic/pricing_update.dart';
 import 'stats/logic/tools.dart';
 import 'stats/preferences.dart';
 import 'news_controller.dart';
@@ -62,6 +63,7 @@ class StatsController extends ChangeNotifier {
     this.prefetchEnabled = true,
     this.updateRequest = requestUpdate,
     this.updateTimer = Timer.new,
+    this.pricingRequest,
   }) : gateway = CachedStatsGateway(gateway, clock ?? DateTime.now),
        preferences = preferences,
        _period = preferences.defaultPeriod == 'last'
@@ -81,6 +83,7 @@ class StatsController extends ChangeNotifier {
   final bool prefetchEnabled;
   final UpdateRequest updateRequest;
   final UpdateTimer updateTimer;
+  final UpdateRequest? pricingRequest;
   late final updates = UpdateController(
     readPreferences: () => preferences,
     savePreferences: setPreferences,
@@ -88,6 +91,30 @@ class StatsController extends ChangeNotifier {
     request: updateRequest,
     createTimer: updateTimer,
   )..addListener(_notify);
+  late final pricingUpdates = PricingUpdateController(
+    readPreferences: () => preferences,
+    savePreferences: setPreferences,
+    install: (text) => _priceEditor.installPriceCatalog(text),
+    remove: () => _priceEditor.removePriceCatalog(),
+    sync: reprice,
+    clock: clock,
+    request:
+        pricingRequest ?? ((_, _, _) async => const UpdateResponse(503, '')),
+  )..addListener(_notify);
+  StatsPricingEditor get _priceEditor =>
+      gateway.pricingEditor ??
+      (throw UnsupportedError('Pricing editor unavailable'));
+
+  Future<void> saveManualPrice(String text) async {
+    await _priceEditor.saveManualPrice(text);
+    await reprice();
+  }
+
+  Future<void> removeManualPrice(String model) async {
+    await _priceEditor.removeManualPrice(model);
+    await reprice();
+  }
+
   Future<StatsHealth>? _health;
   Future<StatsHealth> health() => _health ??= gateway.health().then(
     (value) {
@@ -334,6 +361,7 @@ class StatsController extends ChangeNotifier {
     if (_started || _closed) return;
     _started = true;
     updates.start();
+    if (pricingRequest != null && preferences.onboarded) pricingUpdates.start();
     unawaited(
       health().then<void>((_) {}, onError: (Object _, StackTrace _) {}),
     );
@@ -505,6 +533,9 @@ class StatsController extends ChangeNotifier {
         value.mini.chartMinutes != preferences.mini.chartMinutes;
     final enteredApp = value.onboarded && !preferences.onboarded;
     preferences = value;
+    if (enteredApp && _started && pricingRequest != null) {
+      pricingUpdates.start();
+    }
     if (miniMode && cadenceChanged) _restartSyncTimer();
     if (newsChanged) _applyNewsPreference();
     final periodChanged =
@@ -779,6 +810,21 @@ class StatsController extends ChangeNotifier {
 
   Future<void> rereadLogs() => sync(trigger: 'reread');
 
+  bool _repricePending = false;
+  Future<bool> reprice() async {
+    await _sync;
+    if (_closed) return false;
+    if (phase == StatsSyncPhase.conflict) {
+      _repricePending = true;
+      return false;
+    }
+    _repricePending = false;
+    gateway.clear();
+    await sync(trigger: 'pricing');
+    if (phase == StatsSyncPhase.conflict) _repricePending = true;
+    return !_closed && phase == StatsSyncPhase.success;
+  }
+
   Future<void> _synchronize(String trigger) async {
     _stopPrefetch();
     _statusGeneration++;
@@ -892,6 +938,9 @@ class StatsController extends ChangeNotifier {
       syncErrorKind = StatsSyncErrorKind.status;
       _syncError = (strings) => strings.syncStatusReadFailed(failure);
     }
+    if (_repricePending && !_closed && phase != StatsSyncPhase.conflict) {
+      unawaited(reprice());
+    }
     _notify();
   }
 
@@ -933,6 +982,7 @@ class StatsController extends ChangeNotifier {
     _closed = true;
     _stopPrefetch();
     updates.close();
+    pricingUpdates.close();
     _generation++;
     _statusGeneration++;
     _timer?.cancel();
@@ -956,6 +1006,8 @@ class StatsController extends ChangeNotifier {
     unawaited(shutdown());
     updates.removeListener(_notify);
     updates.dispose();
+    pricingUpdates.removeListener(_notify);
+    pricingUpdates.dispose();
     super.dispose();
   }
 }

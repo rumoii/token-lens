@@ -37,6 +37,13 @@ abstract interface class StatsProgressGateway {
   Future<StatsSyncProgress?> syncProgress();
 }
 
+abstract interface class StatsPricingEditor {
+  Future<StatsPriceInstall> installPriceCatalog(String text);
+  Future<void> removePriceCatalog();
+  Future<void> saveManualPrice(String text);
+  Future<void> removeManualPrice(String model);
+}
+
 abstract interface class DesktopShortcutGateway {
   Future<bool> desktopShortcutExists();
   Future<void> createDesktopShortcut();
@@ -80,6 +87,7 @@ class RustStatsGateway
     implements
         StatsGateway,
         StatsProgressGateway,
+        StatsPricingEditor,
         DesktopShortcutGateway,
         StatsMiniGateway,
         StatsUsageExporter,
@@ -87,6 +95,17 @@ class RustStatsGateway
         StatsComparisonGateway {
   RustStatsGateway(this.client);
   final StatsClient client;
+  @override
+  Future<StatsPriceInstall> installPriceCatalog(String text) =>
+      client.installPriceCatalog(text: text);
+  @override
+  Future<void> removePriceCatalog() => client.removePriceCatalog();
+  @override
+  Future<void> saveManualPrice(String text) =>
+      client.saveManualPrice(text: text);
+  @override
+  Future<void> removeManualPrice(String model) =>
+      client.removeManualPrice(model: model);
   @override
   Future<bool> desktopShortcutExists() => shortcut.desktopShortcutExists();
 
