@@ -396,7 +396,11 @@ class LensButton extends StatelessWidget {
                   (states) => _controlFill(p, variant, states),
                 ),
                 foregroundColor: WidgetStatePropertyAll(
-                  variant == 'primary' ? Colors.white : p.secondary,
+                  variant == 'danger'
+                      ? (p.dark ? p['surface-0'] : p.ink)
+                      : variant == 'primary'
+                      ? Colors.white
+                      : p.secondary,
                 ),
                 overlayColor: const WidgetStatePropertyAll(
                   LensPalette.transparent,
@@ -1186,6 +1190,7 @@ class _LensTextLinkState extends State<LensTextLink> {
         widget.trailingIcon ?? (widget.arrow ? Icons.arrow_forward : null);
     final color = switch (widget.tone) {
       'warn' => p['warn'],
+      'danger' => p['danger'],
       'clay' => p['clay-ink'],
       _ => hovered ? p.ink : p.muted,
     };

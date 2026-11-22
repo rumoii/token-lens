@@ -441,6 +441,10 @@ class _StatsPageState extends State<StatsPage> {
                                                   },
                                                   onSettings: () =>
                                                       navigate('settings'),
+                                                  onMissingPrices: () =>
+                                                      navigate('settings', {
+                                                        'prices': 'missing',
+                                                      }),
                                                 )
                                               : page == 'sessions'
                                               ? StatsSessionsPage(

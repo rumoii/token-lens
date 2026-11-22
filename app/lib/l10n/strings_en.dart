@@ -1859,6 +1859,210 @@ final class EnglishStrings extends AppStrings {
   String get pricing => 'Pricing';
 
   @override
+  String get addPrice => 'Add price';
+
+  @override
+  String get manualPriceIntro =>
+      'This model isn\'t in the price list. If you know its price, enter it here. It stays on this computer, is labeled Manual, and you can change or remove it anytime.';
+
+  @override
+  String manualPriceSubtitle(String model, String tool, String n) =>
+      '$model · from $tool · $n records';
+
+  @override
+  String get copyPricesFrom => 'Copy prices from';
+
+  @override
+  String get copyPricesNone => 'None, enter manually';
+
+  @override
+  String get copyPricesHelp =>
+      'Use this when it is another model under a different name, such as a provider-specific model ID.';
+
+  @override
+  String get copyBaseOnly => '(base price only)';
+
+  @override
+  String copiedPriceSource(String id) => 'Same as $id list price';
+
+  @override
+  String get manualUsd => 'US dollar \$';
+
+  @override
+  String get manualCny => 'Chinese yuan ¥';
+
+  @override
+  String get manualOptional => 'Optional';
+
+  @override
+  String get manualNewInput => 'New input';
+
+  @override
+  String get manualCacheRead => 'Cache read';
+
+  @override
+  String get manualCacheWrite => 'Cache write';
+
+  @override
+  String get manualPriceUnit =>
+      'Prices per million tokens. Leave optional fields blank to add no cost for those tokens.';
+
+  @override
+  String get manualSource => 'Source';
+
+  @override
+  String get manualSourceHint => 'Pricing page URL or a note';
+
+  @override
+  String manualEstimatePending(String n) =>
+      'Enter input and output prices to see the total for these $n records.';
+
+  @override
+  String manualEstimate(String n, String amount, String parts) =>
+      'After saving, these $n records are priced at this rate: about $amount ($parts).';
+
+  @override
+  String get manualNoCacheRead =>
+      'Cache read is blank, so those tokens add no cost.';
+
+  @override
+  String manualSavedAtRate(String rate) =>
+      'Saved in US dollars at 1 USD ≈ $rate CNY; later rate changes do not apply.';
+
+  @override
+  String get manualPriceFootnote =>
+      'If the price list adds this model later, your price still applies and you\'ll be offered the list price.';
+
+  @override
+  String get manualPriceRequired => 'Enter input and output prices.';
+
+  @override
+  String get manualPriceNonnegative => 'Prices must be 0 or more.';
+
+  @override
+  String get saveManual => 'Save';
+
+  @override
+  String get manualBadge => 'Manual';
+
+  @override
+  String get manualBadgeTooltip => 'Priced with your manual price';
+
+  @override
+  String get manualPriceState => 'Your own prices, kept on this computer';
+
+  @override
+  String unpricedFillHelp(String n) =>
+      'If you know its price, add it and these $n records get a cost.';
+
+  @override
+  String manualPriceCreated(String date) =>
+      'You entered this price on $date; it stays on this computer.';
+
+  @override
+  String manualConverted(String rate) =>
+      'Converted to US dollars at 1 USD ≈ $rate CNY.';
+
+  @override
+  String manualSourceNote(String note) => 'Source: $note';
+
+  @override
+  String get editManualPrice => 'Edit';
+
+  @override
+  String get removeManualPrice => 'Remove manual price';
+
+  @override
+  String get removeManualTitle => 'Remove manual price?';
+
+  @override
+  String removeManualBody(String model, String n) =>
+      'After removal, the $n records of $model go back to Unpriced and add no cost.';
+
+  @override
+  String get removeManualConfirm => 'Remove';
+
+  @override
+  String manualListPrice(String input, String output) =>
+      'The price list now has an official price for this model ($input in · $output out). Your manual price still applies.';
+
+  @override
+  String get useListPrice => 'Use list price';
+
+  @override
+  String pricingCatalogRow(String date, String source) =>
+      'Price list: $date · $source';
+
+  @override
+  String get pricingCatalogOnline => 'Updated online';
+
+  @override
+  String get pricingCatalogBuiltin => 'Built-in';
+
+  @override
+  String pricingCatalogManual(String n) => '$n manual';
+
+  @override
+  String get pricingOnlineSettings => 'Online update settings ›';
+
+  @override
+  String get addMissingPrices => 'Add missing prices ›';
+
+  @override
+  String get autoUpdatePricingLabel => 'Update price list automatically';
+
+  @override
+  String get autoUpdatePricingHelp =>
+      'Once a day, downloads this project\'s checked price list from raw.githubusercontent.com. Nothing is uploaded. Turn off to use only the built-in list.';
+
+  @override
+  String pricingUsingDate(String date) => 'Using the $date price list';
+
+  @override
+  String pricingCheckedAt(String time) => 'Checked $time';
+
+  @override
+  String get pricingUpdateNow => 'Update now';
+
+  @override
+  String get pricingChecking => 'Checking…';
+
+  @override
+  String pricingUpdated(String date, String n) =>
+      'Updated to the $date list. $n models newly priced; past amounts recalculated.';
+
+  @override
+  String pricingUpdatedNoNew(String date) =>
+      'Updated to the $date list; past amounts recalculated.';
+
+  @override
+  String get pricingOffline => 'Couldn\'t update: GitHub is unreachable.';
+
+  @override
+  String get pricingLimited =>
+      'Couldn\'t update: GitHub refused the request for now.';
+
+  @override
+  String get pricingInvalid =>
+      'Couldn\'t update: the downloaded price list couldn\'t be read.';
+
+  @override
+  String pricingStillUsing(String date) =>
+      'Still using the $date list; will try again tomorrow.';
+
+  @override
+  String pricingDisabled(String date) =>
+      'Using only the built-in $date price list.';
+
+  @override
+  String pricingAboutOnline(String date, String version, String builtin) =>
+      'Online $date · $version (built-in $builtin)';
+
+  @override
+  String pricingAboutBuiltin(String date, String version) =>
+      'Built-in $date · $version';
+
+  @override
   String get pricingIsUnavailableForThisModel =>
       'Pricing is unavailable for this model';
 

@@ -6,11 +6,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../stats_gateway.dart';
+import '../../stats_controller.dart';
 import '../logic/pricing_display.dart';
 import '../logic/format.dart';
 import '../preferences.dart';
 import '../theme/palette.dart';
 import 'primitives.dart';
+import 'manual_price_dialog.dart';
 
 class SettingsStateBadge extends StatelessWidget {
   const SettingsStateBadge(this.state, {super.key});
@@ -48,11 +50,15 @@ class SettingsPrices extends StatefulWidget {
     required this.pricing,
     required this.usage,
     required this.preferences,
+    this.controller,
+    this.expandFirst = false,
     this.openLink,
   });
   final StatsPricing pricing;
   final StatsBreakdown? usage;
   final UiPreferences preferences;
+  final StatsController? controller;
+  final bool expandFirst;
   final Future<bool> Function(Uri)? openLink;
   @override
   State<SettingsPrices> createState() => _SettingsPricesState();
@@ -60,16 +66,92 @@ class SettingsPrices extends StatefulWidget {
 
 class _SettingsPricesState extends State<SettingsPrices> {
   String? expanded;
+  String? _removing;
+  Object? _removeError;
   LensPalette get p => LensPalette.of(context);
-  bool get narrow => MediaQuery.sizeOf(context).width < 768;
-  Widget _line(StatsModelPrice m) => Column(
+  @override
+  void initState() {
+    super.initState();
+    if (widget.expandFirst) {
+      expanded = widget.pricing.models
+          .where(
+            (m) => m.state == 'unknown' && m.model?.trim().isNotEmpty == true,
+          )
+          .firstOrNull
+          ?.model;
+    }
+  }
+
+  void _edit(StatsModelPrice model) {
+    final controller = widget.controller;
+    if (controller == null) return;
+    unawaited(
+      showManualPriceDialog(
+        context,
+        controller: controller,
+        pricing: widget.pricing,
+        model: model,
+        usage: widget.usage,
+      ),
+    );
+  }
+
+  Future<void> _remove(StatsModelPrice model, {required bool confirm}) async {
+    final controller = widget.controller, id = model.model;
+    if (controller == null || id == null || _removing != null) return;
+    if (confirm) {
+      final s = context.strings;
+      if (await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: LensPalette.of(context).surface,
+                  title: Text(s.removeManualTitle),
+                  content: Text(
+                    s.removeManualBody(id, recordText(model.records)),
+                  ),
+                  actions: [
+                    LensButton(
+                      label: s.cancel,
+                      onPressed: () => Navigator.pop(context, false),
+                    ),
+                    LensButton(
+                      label: s.removeManualConfirm,
+                      variant: 'danger',
+                      onPressed: () => Navigator.pop(context, true),
+                    ),
+                  ],
+                ),
+              ) !=
+              true ||
+          !mounted) {
+        return;
+      }
+    }
+    setState(() {
+      _removing = id;
+      _removeError = null;
+    });
+    try {
+      await controller.removeManualPrice(id);
+    } catch (error) {
+      if (mounted) setState(() => _removeError = error);
+    } finally {
+      if (mounted) setState(() => _removing = null);
+    }
+  }
+
+  StatsPrices? _displayPrices(StatsModelPrice m) =>
+      m.manual?.original ?? m.prices;
+  String _price(StatsModelPrice model, num? value) =>
+      priceText(value, model.manual?.currency ?? 'USD');
+  Widget _line(StatsModelPrice m, {required bool narrow}) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        m.prices?.input != null
+        _displayPrices(m)?.input != null
             ? context.strings.inputOutputPrices(
-                priceText(m.prices!.input),
-                priceText(m.prices!.output),
+                _price(m, _displayPrices(m)?.input),
+                _price(m, _displayPrices(m)?.output),
               )
             : context.strings.noListPrice,
         style: p.text(
@@ -98,14 +180,23 @@ class _SettingsPricesState extends State<SettingsPrices> {
     );
   }
 
-  Widget _row(StatsModelPrice m, int tokens, bool open) {
+  Widget _row(
+    StatsModelPrice m,
+    int tokens,
+    bool open,
+    bool narrow,
+    List<double> widths,
+  ) {
     final name = m.model ?? context.strings.modelNotLogged;
     return Semantics(
       button: true,
       expanded: open,
       child: LensFocusOutline(
         child: InkWell(
-          onTap: () => setState(() => expanded = open ? null : name),
+          onTap: () => setState(() {
+            expanded = open ? null : name;
+            _removeError = null;
+          }),
           borderRadius: BorderRadius.circular(narrow ? 12 : 0),
           child: Container(
             key: ValueKey('settings-model-$name'),
@@ -149,7 +240,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
                         spacing: 12,
                         runSpacing: 4,
                         children: [
-                          _line(m),
+                          _line(m, narrow: narrow),
                           Text(
                             context.strings.total0(
                               tokenCount(
@@ -171,7 +262,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
                       if (hasConditionalPrices(m)) _summary(m),
                     ],
                   )
-                : _desktopCells([
+                : _desktopCells(widths, [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -194,7 +285,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _line(m),
+                        _line(m, narrow: narrow),
                         if (hasConditionalPrices(m)) _summary(m),
                       ],
                     ),
@@ -219,50 +310,56 @@ class _SettingsPricesState extends State<SettingsPrices> {
     );
   }
 
-  Widget _desktopCells(List<Widget> cells) => LayoutBuilder(
-    builder: (context, constraints) {
-      final modelWidth =
-          [
-            'claude-sonnet-5-5',
-            'gemini-3.8-flash-k',
-            'kimi-code/k3.1-pro',
-          ].fold(0.0, (width, name) {
-            final painter = TextPainter(
-              text: TextSpan(
-                text: name,
-                style: DefaultTextStyle.of(context).style
-                    .merge(p.text(13, null, FontWeight.w500)),
-              ),
-              textDirection: Directionality.of(context),
-              textScaler: MediaQuery.textScalerOf(context),
-            )..layout();
-            final measured = painter.width;
-            painter.dispose();
-            return math.max(width, measured);
-          }) +
-          20;
-      final widths = [
-        modelWidth,
-        constraints.maxWidth - modelWidth - 193,
-        105.0,
-        88.0,
-      ];
-      return Row(
-        children: [
-          for (var i = 0; i < cells.length; i++)
-            SizedBox(
-              width: widths[i],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: cells[i],
-              ),
-            ),
-        ],
-      );
-    },
+  List<double> _columnWidths(BuildContext context, double available) {
+    double measure(String text, double size) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: DefaultTextStyle.of(context).style
+              .merge(p.text(size, null, FontWeight.w500)),
+        ),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      final width = painter.width;
+      painter.dispose();
+      return width;
+    }
+
+    final modelWidth =
+        [
+          'claude-sonnet-5-5',
+          'gemini-3.8-flash-k',
+          'kimi-code/k3.1-pro',
+        ].fold(0.0, (width, name) => math.max(width, measure(name, 13))) +
+        20;
+    final statusWidth = pricingStates(context.strings).values.fold(
+      105.0,
+      (width, state) => math.max(width, measure(state.$1, 11.5) + 36),
+    );
+    const usageWidth = 88.0;
+    return [
+      modelWidth,
+      available - modelWidth - statusWidth - usageWidth,
+      statusWidth,
+      usageWidth,
+    ];
+  }
+
+  Widget _desktopCells(List<double> widths, List<Widget> cells) => Row(
+    children: [
+      for (var i = 0; i < cells.length; i++)
+        SizedBox(
+          width: widths[i],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: cells[i],
+          ),
+        ),
+    ],
   );
 
-  Widget _expanded(StatsModelPrice model) => Container(
+  Widget _expanded(StatsModelPrice model, bool narrow) => Container(
     margin: EdgeInsets.only(bottom: narrow ? 8 : 0),
     padding: EdgeInsets.symmetric(horizontal: narrow ? 12 : 10, vertical: 12),
     decoration: BoxDecoration(
@@ -272,22 +369,69 @@ class _SettingsPricesState extends State<SettingsPrices> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (model.listPrices case final official?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: LensCard(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 4,
+                  children: [
+                    Text(
+                      context.strings.manualListPrice(
+                        priceText(official.input),
+                        priceText(official.output),
+                      ),
+                      style: p.text(12.5, p.secondary),
+                    ),
+                    LensTextLink(
+                      label: context.strings.useListPrice,
+                      tone: 'clay',
+                      onTap: _removing == null
+                          ? () => unawaited(_remove(model, confirm: false))
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         if (hasConditionalPrices(model))
           _conditional(model)
         else
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = narrow ? 2 : 5;
+              final columns = narrow
+                  ? 2
+                  : model.manual != null
+                  ? 4
+                  : 5;
               return Wrap(
                 spacing: 18,
                 runSpacing: 10,
                 children: [
                   for (final pair in [
-                    (context.strings.newInput, model.prices?.input),
-                    (context.strings.output, model.prices?.output),
-                    (context.strings.cacheRead, model.prices?.cacheRead),
-                    (context.strings.cacheWrite5m, model.prices?.cacheWrite5M),
-                    (context.strings.cacheWrite1h, model.prices?.cacheWrite1H),
+                    (context.strings.newInput, _displayPrices(model)?.input),
+                    (context.strings.output, _displayPrices(model)?.output),
+                    (
+                      model.manual == null
+                          ? context.strings.cacheRead
+                          : context.strings.manualCacheRead,
+                      _displayPrices(model)?.cacheRead,
+                    ),
+                    (
+                      model.manual == null
+                          ? context.strings.cacheWrite5m
+                          : context.strings.manualCacheWrite,
+                      _displayPrices(model)?.cacheWrite5M,
+                    ),
+                    if (model.manual == null)
+                      (
+                        context.strings.cacheWrite1h,
+                        model.prices?.cacheWrite1H,
+                      ),
                   ])
                     SizedBox(
                       width:
@@ -297,7 +441,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
                         children: [
                           Text(pair.$1, style: p.text(12.5, p.muted)),
                           Text(
-                            priceText(pair.$2),
+                            _price(model, pair.$2),
                             style: p.text(12.5, null, FontWeight.w500),
                           ),
                         ],
@@ -308,29 +452,103 @@ class _SettingsPricesState extends State<SettingsPrices> {
             },
           ),
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              '${(context.strings.isChinese ? model.note : model.noteEn ?? model.note) ?? (model.state == 'verified' ? context.strings.checkedAgainstTheProviderSPricingPage : pricingStates(context.strings)[model.state]?.$2 ?? '')}${model.billing == 'plan' ? context.strings.subscriptionsAreBilledSeparately : ''}',
-              style: p.text(12.5, p.muted),
+        if (model.manual case final manual?)
+          _manualDetails(model, manual)
+        else
+          Wrap(
+            spacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                '${(context.strings.isChinese ? model.note : model.noteEn ?? model.note) ?? (model.state == 'verified' ? context.strings.checkedAgainstTheProviderSPricingPage : pricingStates(context.strings)[model.state]?.$2 ?? '')}${model.billing == 'plan' ? context.strings.subscriptionsAreBilledSeparately : ''}',
+                style: p.text(12.5, p.muted),
+              ),
+              if (model.sourceUrl != null)
+                LensTextLink(
+                  label: context.strings.officialPricingPage,
+                  trailingIcon: Icons.open_in_new,
+                  onTap: widget.openLink == null
+                      ? null
+                      : () => unawaited(
+                          widget.openLink!(Uri.parse(model.sourceUrl!)),
+                        ),
+                ),
+            ],
+          ),
+        if (model.state == 'unknown' &&
+            model.model?.trim().isNotEmpty == true &&
+            widget.controller != null) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              LensButton(
+                label: context.strings.addPrice,
+                variant: 'primary',
+                size: 'sm',
+                onPressed: () => _edit(model),
+              ),
+              Text(
+                context.strings.unpricedFillHelp(recordText(model.records)),
+                style: p.text(12.5, p.muted),
+              ),
+            ],
+          ),
+        ],
+        if (_removeError case final error?)
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              context.strings.requestFailed0(error),
+              style: p.text(12.5, p['danger']),
             ),
-            if (model.sourceUrl != null)
+          ),
+      ],
+    ),
+  );
+
+  Widget _manualDetails(StatsModelPrice model, StatsManualPrice manual) {
+    final s = context.strings;
+    final timestamp = DateTime.tryParse(manual.createdAt)?.toLocal();
+    final date = timestamp == null
+        ? '—'
+        : s.calendarDayWithYear(timestamp.year, timestamp.month, timestamp.day);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Text(s.manualPriceCreated(date), style: p.text(12.5, p.muted)),
+        if (manual.rate case final rate?)
+          Text(
+            s.manualConverted(rate.toStringAsFixed(2)),
+            style: p.text(12.5, p.muted),
+          ),
+        if (manual.note?.isNotEmpty == true)
+          Text(s.manualSourceNote(manual.note!), style: p.text(12.5, p.muted)),
+        Wrap(
+          spacing: 10,
+          children: [
+            LensTextLink(
+              label: s.editManualPrice,
+              tone: 'clay',
+              onTap: _removing == null ? () => _edit(model) : null,
+            ),
+            if (model.listPrices == null)
               LensTextLink(
-                label: context.strings.officialPricingPage,
-                trailingIcon: Icons.open_in_new,
-                onTap: widget.openLink == null
-                    ? null
-                    : () => unawaited(
-                        widget.openLink!(Uri.parse(model.sourceUrl!)),
-                      ),
+                label: s.removeManualPrice,
+                tone: 'danger',
+                onTap: _removing == null
+                    ? () => unawaited(_remove(model, confirm: true))
+                    : null,
               ),
           ],
         ),
       ],
-    ),
-  );
+    );
+  }
+
   Widget _conditional(StatsModelPrice model) {
     final tod = model.timeOfDay;
     final rows = [
@@ -498,7 +716,15 @@ class _SettingsPricesState extends State<SettingsPrices> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final widths = _columnWidths(context, constraints.maxWidth);
+      final narrow = MediaQuery.sizeOf(context).width < 768 || widths[1] < 120;
+      return _buildPricing(narrow, widths);
+    },
+  );
+
+  Widget _buildPricing(bool narrow, List<double> widths) {
     final data = widget.pricing, usage = modelUsage(widget.usage);
     if (data.models.isEmpty) {
       return EmptyState(
@@ -511,6 +737,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
       data.counts.aggregate,
       data.counts.unknown,
       data.counts.local,
+      if (data.counts.manual > 0) data.counts.manual,
     ];
     Widget statusCard(int i) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -543,7 +770,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (var i = 0; i < 4; i++) ...[
+              for (var i = 0; i < counts.length; i++) ...[
                 if (i > 0) const SizedBox(height: 12),
                 statusCard(i),
               ],
@@ -554,7 +781,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (var i = 0; i < 4; i++) ...[
+                for (var i = 0; i < counts.length; i++) ...[
                   if (i > 0) const SizedBox(width: 12),
                   Expanded(child: statusCard(i)),
                 ],
@@ -573,7 +800,7 @@ class _SettingsPricesState extends State<SettingsPrices> {
                 ),
               ),
             ),
-            child: _desktopCells([
+            child: _desktopCells(widths, [
               for (final label in [
                 context.strings.model,
                 context.strings.perMillionTokens,
@@ -596,9 +823,11 @@ class _SettingsPricesState extends State<SettingsPrices> {
             model,
             usage[model.model] ?? 0,
             expanded == (model.model ?? context.strings.modelNotLogged),
+            narrow,
+            widths,
           ),
           if (expanded == (model.model ?? context.strings.modelNotLogged))
-            _expanded(model),
+            _expanded(model, narrow),
         ],
         const SizedBox(height: 10),
         Text(

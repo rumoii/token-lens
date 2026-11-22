@@ -13,6 +13,7 @@ import 'widgets/primitives.dart';
 import 'widgets/resource.dart';
 import 'widgets/settings_display.dart';
 import 'widgets/settings_prices.dart';
+import 'logic/pricing_display.dart';
 import '../update/update_widgets.dart';
 
 class StatsSettingsPage extends StatefulWidget {
@@ -35,6 +36,8 @@ class StatsSettingsPage extends StatefulWidget {
 }
 
 class _StatsSettingsPageState extends State<StatsSettingsPage> {
+  final _networkCard = GlobalKey();
+  final _pricingCard = GlobalKey();
   late final pricing = LensResource<StatsPricing>(changed);
   late final usage = LensResource<StatsBreakdown>(changed);
   late final health = LensResource<StatsHealth>(changed);
@@ -42,6 +45,23 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
   bool exporting = false;
   String? exportPath;
   String Function(AppStrings)? exportError;
+  Object? pricingUpdateError;
+  bool get revealMissing =>
+      Uri.splitQueryString(widget.query)['prices'] == 'missing';
+  GlobalKey get networkCard => widget.updateCardKey ?? _networkCard;
+
+  void _reveal(GlobalKey key) {
+    if (key.currentContext case final target?) {
+      unawaited(Scrollable.ensureVisible(target, alignment: .05));
+    }
+  }
+
+  void _scheduleReveal() {
+    if (!revealMissing) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && revealMissing) _reveal(_pricingCard);
+    });
+  }
 
   Future<void> exportDiagnostics() async {
     if (exporting) return;
@@ -143,6 +163,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
     super.initState();
     widget.controller.addListener(controllerChanged);
     read();
+    _scheduleReveal();
   }
 
   @override
@@ -153,6 +174,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
       widget.controller.addListener(controllerChanged);
       read();
     }
+    if (widget.query != oldWidget.query) _scheduleReveal();
   }
 
   @override
@@ -162,6 +184,142 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
     usage.dispose();
     health.dispose();
     super.dispose();
+  }
+
+  Future<void> _updatePricing(Future<void> Function() action) async {
+    setState(() => pricingUpdateError = null);
+    try {
+      await action();
+    } catch (error) {
+      if (mounted) setState(() => pricingUpdateError = error);
+    }
+  }
+
+  Widget _pricingOnline() {
+    final controller = widget.controller;
+    final updates = controller.pricingUpdates, prefs = controller.preferences;
+    final p = LensPalette.of(context), s = context.strings;
+    final date = pricingDate(pricing.data?.publishedAt, s);
+    final builtin = pricingDate(pricing.data?.builtinPublishedAt, s);
+    final failed = switch (prefs.pricingLastKind) {
+      'offline' => s.pricingOffline,
+      'limited' => s.pricingLimited,
+      'invalid' => s.pricingInvalid,
+      _ => null,
+    };
+    final checking = updates.checking || updates.changingAutomatic;
+    final note = prefs.pricingUpdatedNote;
+    final checked = prefs.pricingCheckedMs;
+    final status = checking
+        ? s.pricingChecking
+        : !prefs.autoUpdatePricing
+        ? s.pricingDisabled(builtin)
+        : failed ??
+              (note == null
+                  ? s.pricingUsingDate(date)
+                  : note.newlyPriced == 0
+                  ? s.pricingUpdatedNoNew(pricingDate(note.publishedAt, s))
+                  : s.pricingUpdated(
+                      pricingDate(note.publishedAt, s),
+                      recordText(note.newlyPriced),
+                    ));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LensSwitch(
+          label: s.autoUpdatePricingLabel,
+          value: prefs.autoUpdatePricing,
+          onChanged: updates.changingAutomatic
+              ? null
+              : (value) => unawaited(
+                  _updatePricing(() => updates.setAutomatic(value)),
+                ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.autoUpdatePricingLabel,
+                  style: p.text(14, null, FontWeight.w500),
+                ),
+                Text(s.autoUpdatePricingHelp, style: p.text(12.5, p.muted)),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Semantics(
+            liveRegion: true,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (!checking && prefs.autoUpdatePricing && note != null)
+                  Icon(Icons.check, size: 14, color: p['ok']),
+                Text(
+                  status,
+                  style: p.text(
+                    12.5,
+                    checking || !prefs.autoUpdatePricing
+                        ? p.muted
+                        : failed != null
+                        ? p['danger']
+                        : note != null
+                        ? p['ok']
+                        : p.secondary,
+                  ),
+                ),
+                if (!checking && prefs.autoUpdatePricing && failed != null)
+                  Text(s.pricingStillUsing(date), style: p.text(12.5, p.muted)),
+                if (!checking &&
+                    prefs.autoUpdatePricing &&
+                    failed == null &&
+                    note == null &&
+                    checked != null)
+                  Text(
+                    '· ${s.pricingCheckedAt(updateAttemptTime(checked, controller.clock(), s))}',
+                    style: p.text(12.5, p.muted),
+                  ),
+                if (prefs.autoUpdatePricing && (note == null || checking))
+                  LensTextLink(
+                    label: failed == null ? s.pricingUpdateNow : s.retry,
+                    tone: 'clay',
+                    onTap: checking
+                        ? null
+                        : () => unawaited(_updatePricing(updates.check)),
+                  ),
+                if (pricingUpdateError case final error?)
+                  Text(
+                    s.requestFailed0(error),
+                    style: p.text(12.5, p['danger']),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _aboutPrice() {
+    final data = pricing.data;
+    if (data == null) return '—';
+    final s = context.strings;
+    if (data.publishedAt == null) return s.builtInVersion(data.priceVersion);
+    final version = data.priceVersion.length > 8
+        ? data.priceVersion.substring(0, 8)
+        : data.priceVersion;
+    final date = pricingDate(data.publishedAt, s);
+    return data.downloaded
+        ? s.pricingAboutOnline(
+            date,
+            version,
+            pricingDate(data.builtinPublishedAt, s),
+          )
+        : s.pricingAboutBuiltin(date, version);
   }
 
   @override
@@ -187,7 +345,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
         SettingsDisplay(controller: widget.controller),
         gap(),
         SettingsUpdate(
-          key: widget.updateCardKey,
+          key: networkCard,
           controller: widget.controller.updates,
           openLink: widget.openLink,
           networkHeader: Column(
@@ -223,11 +381,13 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                   ),
                 ),
               ),
+              _pricingOnline(),
             ],
           ),
         ),
         gap(),
         LensCard(
+          key: _pricingCard,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -245,6 +405,36 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                       context.strings.costsAreEstimatesAtEachModelS3,
                       style: p.text(12.5, p.muted),
                     ),
+                    if (pricing.data case final data?)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              context.strings.pricingCatalogRow(
+                                pricingDate(data.publishedAt, context.strings),
+                                data.downloaded
+                                    ? context.strings.pricingCatalogOnline
+                                    : context.strings.pricingCatalogBuiltin,
+                              ),
+                              style: p.text(12.5, p.secondary),
+                            ),
+                            if (data.counts.manual > 0)
+                              Text(
+                                '· ${context.strings.pricingCatalogManual(recordText(data.counts.manual))}',
+                                style: p.text(12.5, p.secondary),
+                              ),
+                            LensTextLink(
+                              label: context.strings.pricingOnlineSettings,
+                              tone: 'clay',
+                              onTap: () => _reveal(networkCard),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -260,6 +450,8 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                       pricing: data!,
                       usage: usage.data,
                       preferences: widget.controller.preferences,
+                      controller: widget.controller,
+                      expandFirst: revealMissing,
                       openLink: widget.openLink,
                     ),
                   ),
@@ -359,12 +551,7 @@ class _StatsSettingsPageState extends State<StatsSettingsPage> {
                             context.strings.schemaVersion,
                             data?.schemaVersion.toString() ?? '—',
                           ),
-                          (
-                            context.strings.pricingVersion,
-                            context.strings.builtInVersion(
-                              pricing.data?.priceVersion ?? '—',
-                            ),
-                          ),
+                          (context.strings.pricingVersion, _aboutPrice()),
                         ])
                           TableRow(
                             children: [

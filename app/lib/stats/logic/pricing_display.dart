@@ -20,10 +20,18 @@ Map<String, (String, String, String)> pricingStates(AppStrings strings) => {
     'danger',
   ),
   'local': (strings.local, strings.localProviderZeroCost, 'neutral'),
+  'manual': (strings.manualBadge, strings.manualPriceState, 'tool-qwen'),
 };
-String priceText(num? value) => value == null
+String priceText(num? value, [String currency = 'USD']) => value == null
     ? '—'
-    : '\$${value.toString().replaceFirst(RegExp(r'\.0$'), '')}';
+    : '${currencySymbol(currency)}${value.toString().replaceFirst(RegExp(r'\.0$'), '')}';
+String pricingDate(String? date, AppStrings strings) {
+  final parsed = date == null ? null : DateTime.tryParse(date);
+  return parsed == null
+      ? '—'
+      : strings.calendarDayWithYear(parsed.year, parsed.month, parsed.day);
+}
+
 String recordText(num? count) => toDisplayNumber(count ?? 0);
 bool hasConditionalPrices(StatsModelPrice model) =>
     model.tiers?.isNotEmpty == true || model.timeOfDay != null;

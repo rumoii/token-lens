@@ -1759,6 +1759,197 @@ final class ChineseStrings extends AppStrings {
   String get pricing => '价格';
 
   @override
+  String get addPrice => '填写价格';
+
+  @override
+  String get manualPriceIntro =>
+      '这个模型不在价格表里。知道它的价格的话可以自己填，填的价只存在这台电脑上，标为「手填」，随时能改或删。';
+
+  @override
+  String manualPriceSubtitle(String model, String tool, String n) =>
+      '$model · 来自 $tool · $n 条记录';
+
+  @override
+  String get copyPricesFrom => '照已有模型的价格填';
+
+  @override
+  String get copyPricesNone => '不用，自己填';
+
+  @override
+  String get copyPricesHelp => '它其实是别的模型换了个名字时用，比如接入方自定义的模型名。';
+
+  @override
+  String get copyBaseOnly => '（只复制基础价）';
+
+  @override
+  String copiedPriceSource(String id) => '照 $id 的官方价';
+
+  @override
+  String get manualUsd => '美元 \$';
+
+  @override
+  String get manualCny => '人民币 ¥';
+
+  @override
+  String get manualOptional => '可不填';
+
+  @override
+  String get manualNewInput => '新输入';
+
+  @override
+  String get manualCacheRead => '缓存读';
+
+  @override
+  String get manualCacheWrite => '缓存写';
+
+  @override
+  String get manualPriceUnit => '每百万 token 的价格。可不填的项留空，这部分 token 不计金额。';
+
+  @override
+  String get manualSource => '价格出处';
+
+  @override
+  String get manualSourceHint => '价格页地址，或者一句备注';
+
+  @override
+  String manualEstimatePending(String n) => '填好输入和输出价格后，这里会显示 $n 条记录一共会算出多少金额。';
+
+  @override
+  String manualEstimate(String n, String amount, String parts) =>
+      '保存后，这 $n 条记录按这个价算，约 $amount（$parts）。';
+
+  @override
+  String get manualNoCacheRead => '缓存读留空，这部分 token 不计金额。';
+
+  @override
+  String manualSavedAtRate(String rate) =>
+      '按 1 美元 ≈ $rate 元折成美元保存，以后汇率变了也不跟着变。';
+
+  @override
+  String get manualPriceFootnote => '以后价格表有了这个模型的价，仍按你手填的算，会提示你可以改用价格表的价。';
+
+  @override
+  String get manualPriceRequired => '输入和输出价格要填。';
+
+  @override
+  String get manualPriceNonnegative => '价格只能填 0 或正数。';
+
+  @override
+  String get saveManual => '保存';
+
+  @override
+  String get manualBadge => '手填';
+
+  @override
+  String get manualBadgeTooltip => '按你手填的价算';
+
+  @override
+  String get manualPriceState => '你自己填的价，只存在这台电脑上';
+
+  @override
+  String unpricedFillHelp(String n) => '知道它的价格的话，自己填上，这 $n 条记录就有金额了。';
+
+  @override
+  String manualPriceCreated(String date) => '你在 $date 填的价，只存在这台电脑上。';
+
+  @override
+  String manualConverted(String rate) => '按 1 美元 ≈ $rate 元折成美元计算。';
+
+  @override
+  String manualSourceNote(String note) => '出处：$note';
+
+  @override
+  String get editManualPrice => '修改';
+
+  @override
+  String get removeManualPrice => '删除手填价';
+
+  @override
+  String get removeManualTitle => '删除手填价？';
+
+  @override
+  String removeManualBody(String model, String n) =>
+      '删除后，$model 的 $n 条记录回到「未定价」，不再计入金额。';
+
+  @override
+  String get removeManualConfirm => '删除';
+
+  @override
+  String manualListPrice(String input, String output) =>
+      '价格表现在也有这个模型的官方价（输入 $input · 输出 $output）。现在仍按你手填的价算。';
+
+  @override
+  String get useListPrice => '改用价格表的价';
+
+  @override
+  String pricingCatalogRow(String date, String source) =>
+      '价格表：$date版 · $source';
+
+  @override
+  String get pricingCatalogOnline => '联网更新';
+
+  @override
+  String get pricingCatalogBuiltin => '程序自带';
+
+  @override
+  String pricingCatalogManual(String n) => '手填 $n 个模型';
+
+  @override
+  String get pricingOnlineSettings => '联网更新设置 ›';
+
+  @override
+  String get addMissingPrices => '去补价格 ›';
+
+  @override
+  String get autoUpdatePricingLabel => '自动更新价格表';
+
+  @override
+  String get autoUpdatePricingHelp =>
+      '每天向 raw.githubusercontent.com 下载本项目核对过的价格表，只下载，不上传任何数据。关掉后只用程序自带的价格表。';
+
+  @override
+  String pricingUsingDate(String date) => '正在用 $date版价格表';
+
+  @override
+  String pricingCheckedAt(String time) => '$time 检查过';
+
+  @override
+  String get pricingUpdateNow => '立即更新';
+
+  @override
+  String get pricingChecking => '正在检查…';
+
+  @override
+  String pricingUpdated(String date, String n) =>
+      '已更新到 $date版。新增 $n 个模型的价格，历史金额已按新价重算。';
+
+  @override
+  String pricingUpdatedNoNew(String date) => '已更新到 $date版，历史金额已按新价重算。';
+
+  @override
+  String get pricingOffline => '没更新成功，连不上 GitHub。';
+
+  @override
+  String get pricingLimited => '没更新成功，GitHub 暂时拒绝了请求。';
+
+  @override
+  String get pricingInvalid => '没更新成功，下载到的价格表读不懂。';
+
+  @override
+  String pricingStillUsing(String date) => '继续用 $date版，明天再试。';
+
+  @override
+  String pricingDisabled(String date) => '只用程序自带的 $date版价格表。';
+
+  @override
+  String pricingAboutOnline(String date, String version, String builtin) =>
+      '联网 $date版 · $version（内置 $builtin版）';
+
+  @override
+  String pricingAboutBuiltin(String date, String version) =>
+      '内置 $date版 · $version';
+
+  @override
   String get pricingIsUnavailableForThisModel => '该模型没有可用价格';
 
   @override

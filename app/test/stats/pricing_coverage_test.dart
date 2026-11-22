@@ -42,6 +42,72 @@ class _EmptyPeriodPricingGateway extends _PricingGateway {
   Future<StatsSources> sources() => FakeStatsGateway().sources();
 }
 
+class _ModelPricingGateway extends _PricingGateway {
+  _ModelPricingGateway() : super(2, 12000, 4);
+  static const modelGroups = [
+    StatsGroup(
+      model: 'unknown-demo',
+      source: 'claude',
+      grossTokens: 40,
+      inputTokens: 25,
+      outputTokens: 15,
+      unpricedRecords: 2,
+      recordCount: 2,
+      priceState: 'unknown',
+    ),
+    StatsGroup(
+      model: 'manual-demo',
+      source: 'codex',
+      grossTokens: 60,
+      inputTokens: 40,
+      outputTokens: 20,
+      unpricedRecords: 0,
+      recordCount: 2,
+      priceState: 'manual',
+      costMicros: 12000,
+    ),
+  ];
+  @override
+  List<StatsGroup> groups(StatsFilter filter, {String by = 'source_model'}) =>
+      by == 'source_model' ? modelGroups : super.groups(filter, by: by);
+
+  @override
+  Future<StatsPricing> pricing() async => const StatsPricing(
+    priceVersion: 'fixture',
+    currency: 'USD',
+    provisional: false,
+    models: [
+      StatsModelPrice(
+        model: 'unknown-demo',
+        records: 2,
+        state: 'unknown',
+        billing: 'metered',
+        localRecords: 0,
+        localProviders: {},
+        priceMarks: {},
+      ),
+      StatsModelPrice(
+        model: 'manual-demo',
+        records: 2,
+        state: 'manual',
+        billing: 'metered',
+        localRecords: 0,
+        localProviders: {},
+        priceMarks: {},
+        prices: StatsPrices(input: 1, output: 1),
+      ),
+    ],
+    counts: StatsPriceCounts(
+      verified: 0,
+      aggregate: 0,
+      unknown: 1,
+      local: 0,
+      manual: 1,
+    ),
+    snapshot: demoSnapshot,
+  );
+}
+
 const _estimate = '按公开标准价估算，不是账单';
 const _pricingHint = '没有价格的记录不计入金额。到「价格与设置」里查看是哪些模型。';
 
@@ -80,6 +146,29 @@ Future<void> _mount(
 }
 
 void main() {
+  testWidgets('按模型明细显示两种价格入口并跳到第一个缺价模型', (tester) async {
+    await _mount(tester, _ModelPricingGateway(), detail: true);
+    expect(find.text('去补价格 ›'), findsNothing);
+    final byModel = find.text('按模型');
+    await tester.ensureVisible(byModel);
+    await tester.tap(byModel);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('按你手填的价算'), findsOneWidget);
+    final add = find.text('填写价格');
+    await tester.ensureVisible(add);
+    await tester.tap(add);
+    await tester.pumpAndSettle();
+    expect(find.text('照已有模型的价格填'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    final missing = find.text('去补价格 ›');
+    await tester.ensureVisible(missing);
+    await tester.tap(missing);
+    await tester.pumpAndSettle();
+    expect(find.byType(StatsSettingsPage), findsOneWidget);
+    expect(find.text('知道它的价格的话，自己填上，这 2 条记录就有金额了。'), findsOneWidget);
+  });
+
   const cases = [
     (
       name: '全有价格（零价也计价）',

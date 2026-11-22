@@ -28,6 +28,8 @@ import 'widgets/filters.dart';
 import 'widgets/resource.dart';
 import 'widgets/timing.dart';
 import 'widgets/request_log.dart';
+import 'widgets/manual_price_dialog.dart';
+import 'widgets/settings_prices.dart' show SettingsStateBadge;
 
 String bucketText(
   String bucket, [
@@ -49,6 +51,8 @@ class DetailRow {
     this.relativeDay,
     this.drill,
     this.tools = const [],
+    this.model,
+    this.priceState,
   });
   final String id, name;
   final int tokens;
@@ -56,6 +60,7 @@ class DetailRow {
   final int? costMicros, requestCount, eventGrossTokens;
   final StatsTiming? timing;
   final String? sub, relativeDay;
+  final String? model, priceState;
   final (String, String)? drill;
   final List<String> tools;
 }
@@ -155,6 +160,8 @@ List<DetailRow> detailRows(
             eventGrossTokens: eventGross,
             kinds: kinds,
             costMicros: cost,
+            model: e.key,
+            priceState: e.value.first.priceState,
             tools: tools.toList(),
             // Percentiles cannot be merged from per-tool summaries. Rust returns
             // the model's request distribution under the same filter/snapshot.
@@ -206,6 +213,7 @@ class StatsDetail extends StatefulWidget {
     required this.onQuery,
     required this.onHome,
     required this.onSettings,
+    this.onMissingPrices,
     this.onSessions,
     this.onSources,
     this.onManageHidden,
@@ -217,6 +225,7 @@ class StatsDetail extends StatefulWidget {
   final String query;
   final ValueChanged<String> onQuery;
   final VoidCallback onHome, onSettings;
+  final VoidCallback? onMissingPrices;
   final VoidCallback? onSources, onManageHidden;
   final VoidCallback? onMini;
   final ValueChanged<Map<String, String>>? onSessions;
@@ -266,6 +275,36 @@ class _StatsDetailState extends State<StatsDetail> {
   bool get narrow => MediaQuery.sizeOf(context).width < 768;
   void changed() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _fillModelPrice(String id) async {
+    try {
+      final (prices, usage) = await (
+        c.gateway.pricing(),
+        c.gateway.breakdown('source_model', const StatsFilter()),
+      ).wait;
+      if (!mounted) return;
+      final model = prices.models
+          .where((model) => model.model == id)
+          .firstOrNull;
+      if (model == null ||
+          (model.state != 'unknown' && model.state != 'manual')) {
+        return;
+      }
+      await showManualPriceDialog(
+        context,
+        controller: c,
+        pricing: prices,
+        model: model,
+        usage: usage,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.strings.requestFailed0(error))),
+        );
+      }
+    }
   }
 
   StatsFilter detailFilter(Map<String, String> detail, DayRange range) =>
@@ -792,6 +831,12 @@ class _StatsDetailState extends State<StatsDetail> {
                     cells[i].$3,
                     style: p.text(12, p.muted).copyWith(height: 1.4),
                   ),
+                  if (i == 1 && unpriced > 0 && d['dim'] == 'model')
+                    LensTextLink(
+                      label: context.strings.addMissingPrices,
+                      tone: 'clay',
+                      onTap: widget.onMissingPrices ?? widget.onSettings,
+                    ),
                 ],
               ),
             ),
@@ -1053,6 +1098,8 @@ class _StatsDetailState extends State<StatsDetail> {
               requestCount: g?.requestCount,
               eventGrossTokens: g?.eventGrossTokens,
               costMicros: g?.costMicros,
+              model: row?.model,
+              priceState: row?.priceState ?? g?.priceState,
               timing: row?.timing,
               sub: row?.sub,
               tools: row?.tools ?? (dim == 'tool' && key != null ? [key] : []),
@@ -1138,7 +1185,39 @@ class _StatsDetailState extends State<StatsDetail> {
       final badge = change?.badge(context.strings);
       final unused = change?.unused ?? false;
       Widget emptyCell() => Text('—', style: p.text(13, p.muted));
-      Widget cost() => unused ? emptyCell() : money(r.costMicros);
+      final manual = dim == 'model' && r.priceState == 'manual';
+      final addPrice =
+          dim == 'model' &&
+          r.model?.trim().isNotEmpty == true &&
+          r.priceState == 'unknown' &&
+          r.costMicros == null;
+      Widget cost() {
+        if (unused) return emptyCell();
+        if (!manual && !addPrice) return money(r.costMicros);
+        return Wrap(
+          alignment: compact ? WrapAlignment.start : WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 4,
+          children: [
+            if (addPrice)
+              Text(context.strings.unpriced, style: p.text(12.5, p.muted))
+            else
+              money(r.costMicros),
+            if (addPrice)
+              LensTextLink(
+                label: context.strings.addPrice,
+                tone: 'clay',
+                onTap: () => unawaited(_fillModelPrice(r.model!)),
+              ),
+            if (manual)
+              Tooltip(
+                message: context.strings.manualBadgeTooltip,
+                child: const SettingsStateBadge('manual'),
+              ),
+          ],
+        );
+      }
+
       Widget requests({bool label = false}) => unused
           ? emptyCell()
           : Text(

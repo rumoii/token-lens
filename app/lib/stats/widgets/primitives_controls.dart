@@ -67,6 +67,11 @@ double _controlRadius(String size) => switch (size) {
 };
 
 Color _controlFill(LensPalette p, String variant, Set<WidgetState> states) {
+  if (variant == 'danger') {
+    return p['danger'].withValues(
+      alpha: states.contains(WidgetState.pressed) ? .84 : 1,
+    );
+  }
   if (variant == 'primary') {
     return p[states.contains(WidgetState.hovered) ||
             states.contains(WidgetState.pressed)
@@ -306,6 +311,7 @@ class LensInput extends StatelessWidget {
     this.error = false,
     this.enabled = true,
     this.autofocus = false,
+    this.maxLength,
   });
 
   final TextEditingController controller;
@@ -317,6 +323,7 @@ class LensInput extends StatelessWidget {
   final Widget? hintAccessory;
   final String size;
   final bool search, error, enabled, autofocus;
+  final int? maxLength;
 
   void _clear() {
     controller.clear();
@@ -330,6 +337,12 @@ class LensInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = LensPalette.of(context);
+    final errorOutline = error
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(_controlRadius(size)),
+            borderSide: BorderSide(color: p['danger']),
+          )
+        : null;
     return Focus(
       canRequestFocus: false,
       skipTraversal: true,
@@ -367,6 +380,8 @@ class LensInput extends StatelessWidget {
                   maxLines: null,
                   inputFormatters: [
                     FilteringTextInputFormatter.singleLineFormatter,
+                    if (maxLength case final limit?)
+                      LengthLimitingTextInputFormatter(limit),
                   ],
                   textAlignVertical: TextAlignVertical.center,
                   style: p.text(13),
@@ -398,6 +413,8 @@ class LensInput extends StatelessWidget {
                             ),
                           )
                         : hintAccessory,
+                    enabledBorder: errorOutline,
+                    focusedBorder: errorOutline,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(_controlRadius(size)),
                       borderSide: BorderSide.none,

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
 
@@ -10,6 +12,8 @@ import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 import 'package:token_lens_app/stats/widgets/settings_prices.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart';
+import 'package:token_lens_app/update/update_check.dart';
 
 import 'fake_gateway.dart';
 
@@ -52,6 +56,8 @@ StatsModelPrice model(
   Map<String, int> marks = const {'': 1},
   int local = 0,
   String? url,
+  StatsManualPrice? manual,
+  StatsPrices? listPrices,
 }) => StatsModelPrice(
   model: name,
   records: marks.values.fold(0, (a, b) => a + b),
@@ -64,14 +70,40 @@ StatsModelPrice model(
   localRecords: local,
   localProviders: local > 0 ? {'ollama': local} : {},
   sourceUrl: url,
+  manual: manual,
+  listPrices: listPrices,
 );
 
-class SettingsGateway extends FakeStatsGateway {
+class SettingsGateway extends FakeStatsGateway implements StatsPricingEditor {
   SettingsGateway(this.models);
   final List<StatsModelPrice> models;
   List<StatsGroup> usage = [];
   bool healthFails = false;
   int healthReads = 0, priceReads = 0, usageReads = 0;
+  String? publishedAt, saveError, attemptedSave, removed;
+  bool downloaded = false;
+  var catalogRemovals = 0;
+  List<StatsCopyPrice> copyPrices = [];
+
+  @override
+  Future<StatsPriceInstall> installPriceCatalog(String text) async =>
+      const StatsPriceInstall(kind: 'unchanged');
+  @override
+  Future<void> removePriceCatalog() async {
+    catalogRemovals++;
+  }
+
+  @override
+  Future<void> removeManualPrice(String model) async {
+    removed = model;
+  }
+
+  @override
+  Future<void> saveManualPrice(String text) async {
+    attemptedSave = text;
+    if (saveError case final error?) throw StateError(error);
+  }
+
   @override
   Future<StatsPricing> pricing() async {
     priceReads++;
@@ -86,8 +118,13 @@ class SettingsGateway extends FakeStatsGateway {
         aggregate: models.where((m) => m.state == 'aggregate').length,
         unknown: models.where((m) => m.state == 'unknown').length,
         local: models.where((m) => m.state == 'local').length,
+        manual: models.where((m) => m.state == 'manual').length,
       ),
       snapshot: demoSnapshot,
+      publishedAt: publishedAt,
+      builtinPublishedAt: publishedAt == null ? null : '2026-11-22',
+      downloaded: downloaded,
+      copyPrices: copyPrices,
     );
   }
 
@@ -115,7 +152,12 @@ class SettingsGateway extends FakeStatsGateway {
 }
 
 class SettingsController extends StatsController {
-  SettingsController(super.gateway, {super.preferences});
+  SettingsController(
+    super.gateway, {
+    super.preferences,
+    super.pricingRequest,
+    super.clock,
+  });
   void reloadLedger() {
     ledgerVersion++;
     notifyListeners();
@@ -131,12 +173,19 @@ Future<SettingsController> showSettings(
   UiPreferences preferences = const UiPreferences(unitSystem: 'english'),
   Future<bool> Function(Uri)? openLink,
   Future<Directory?> Function()? downloadsDirectory,
+  UpdateRequest? pricingRequest,
+  String query = '',
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 2400);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  final c = SettingsController(gateway, preferences: preferences);
+  final c = SettingsController(
+    gateway,
+    preferences: preferences,
+    pricingRequest: pricingRequest,
+    clock: () => demoNow,
+  );
   addTearDown(c.dispose);
   await tester.pumpWidget(
     MaterialApp(
@@ -152,6 +201,7 @@ Future<SettingsController> showSettings(
               padding: const EdgeInsets.all(14),
               child: StatsSettingsPage(
                 controller: c,
+                query: query,
                 openLink: openLink,
                 downloadsDirectory: downloadsDirectory,
               ),
@@ -170,6 +220,202 @@ Finder inRow(String name, String text) =>
     find.descendant(of: priceRow(name), matching: find.text(text));
 
 void main() {
+  testWidgets('未定价模型可打开共用价格对话框', (t) async {
+    await showSettings(
+      t,
+      SettingsGateway([
+        model('demo-unpriced-model', state: 'unknown', prices: null),
+      ]),
+    );
+    await t.tap(priceRow('demo-unpriced-model'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('填写价格'));
+    await t.pumpAndSettle();
+    expect(find.text('照已有模型的价格填'), findsOneWidget);
+    await t.tap(find.text('保存'));
+    await t.pumpAndSettle();
+    expect(find.text('输入和输出价格要填。'), findsWidgets);
+  });
+
+  testWidgets('复制基础价、编辑复位、币种和分项预估、Rust 拒绝保留表单', (t) async {
+    final gateway =
+        SettingsGateway([
+            model('demo-unpriced-model', state: 'unknown', prices: null),
+          ])
+          ..saveError = 'MODEL_ALREADY_PRICED'
+          ..copyPrices = [
+            const StatsCopyPrice(
+              id: 'catalog-model',
+              prices: StatsPrices(input: 2, output: 10, cacheWrite5M: 3),
+              baseOnly: true,
+            ),
+          ]
+          ..usage = [
+            const StatsGroup(
+              source: 'claude',
+              model: 'demo-unpriced-model',
+              grossTokens: 4000000,
+              inputTokens: 1000000,
+              outputTokens: 1000000,
+              cacheReadTokens: 1000000,
+              cacheWriteTokens: 1000000,
+              unpricedRecords: 1,
+              recordCount: 1,
+            ),
+          ];
+    final c = await showSettings(
+      t,
+      gateway,
+      query: 'prices=missing',
+      preferences: const UiPreferences(
+        currency: 'USD',
+        rates: {'USD': 1, 'CNY': 7},
+      ),
+    );
+    await t.ensureVisible(find.text('填写价格'));
+    await t.tap(find.text('填写价格'));
+    await t.pumpAndSettle();
+    final copy = find.byKey(const ValueKey('manual-price-copy'));
+    final input = find.byKey(const ValueKey('manual-price-0'));
+    final output = find.byKey(const ValueKey('manual-price-1'));
+    expect(
+      t
+          .widget<EditableText>(
+            find.descendant(of: input, matching: find.byType(EditableText)),
+          )
+          .focusNode
+          .hasFocus,
+      isTrue,
+    );
+    await t.tap(copy);
+    await t.pumpAndSettle();
+    await t.tap(find.text('catalog-model （只复制基础价）').last);
+    await t.pumpAndSettle();
+    expect(t.widget<LensInput>(input).controller.text, '2');
+    expect(t.widget<LensInput>(output).controller.text, '10');
+    expect(find.textContaining('约 \$15.0000'), findsOneWidget);
+    expect(find.textContaining('缓存写 \$3.0000'), findsOneWidget);
+    expect(find.text('缓存读留空，这部分 token 不计金额。'), findsOneWidget);
+    expect(find.text('照 catalog-model 的官方价'), findsOneWidget);
+    await t.enterText(input, '-1');
+    await t.tap(find.text('保存'));
+    await t.pumpAndSettle();
+    expect(t.widget<DropdownButton<String>>(copy).value, '');
+    expect(find.text('价格只能填 0 或正数。'), findsOneWidget);
+    await t.enterText(input, '7');
+    await t.tap(
+      find.descendant(of: find.byType(Dialog), matching: find.text('人民币 ¥')),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('按 1 美元 ≈ 7.00 元折成美元保存，以后汇率变了也不跟着变。'), findsOneWidget);
+    await c.setPreferences(
+      c.preferences.copyWith(rates: const {'USD': 1, 'CNY': 8}),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('按 1 美元 ≈ 8.00 元折成美元保存，以后汇率变了也不跟着变。'), findsOneWidget);
+    await t.tap(find.text('保存'));
+    await t.pumpAndSettle();
+    expect(jsonDecode(gateway.attemptedSave!)['rate'], 8);
+    expect(find.textContaining('MODEL_ALREADY_PRICED'), findsOneWidget);
+    await t.sendKeyEvent(LogicalKeyboardKey.escape);
+    await t.pumpAndSettle();
+    expect(find.text('照已有模型的价格填'), findsNothing);
+  });
+
+  testWidgets('手填卡片显示人民币与来源，目录补价后只提供直接改用', (t) async {
+    const manual = StatsManualPrice(
+      currency: 'CNY',
+      original: StatsPrices(input: 7, output: 14),
+      rate: 7,
+      note: 'example source',
+      createdAt: '2026-11-21T12:00:00Z',
+      updatedAt: '2026-11-21T12:00:00Z',
+    );
+    for (final hasListPrice in [false, true]) {
+      final gateway = SettingsGateway([
+        model(
+          'manual-demo',
+          state: 'manual',
+          manual: manual,
+          listPrices: hasListPrice ? base : null,
+        ),
+      ])..publishedAt = '2026-11-22';
+      await showSettings(t, gateway);
+      expect(find.text('手填'), findsNWidgets(2));
+      expect(find.textContaining('¥7'), findsOneWidget);
+      await t.tap(priceRow('manual-demo'));
+      await t.pumpAndSettle();
+      expect(find.text('出处：example source'), findsOneWidget);
+      expect(find.text('按 1 美元 ≈ 7.00 元折成美元计算。'), findsOneWidget);
+      if (hasListPrice) {
+        expect(find.text('删除手填价'), findsNothing);
+        await t.tap(find.text('改用价格表的价'));
+        await t.pumpAndSettle();
+        expect(find.text('删除手填价？'), findsNothing);
+      } else {
+        expect(find.text('改用价格表的价'), findsNothing);
+        await t.tap(find.text('删除手填价'));
+        await t.pumpAndSettle();
+        expect(find.textContaining('回到「未定价」'), findsOneWidget);
+        await t.tap(find.text('删除'));
+        await t.pumpAndSettle();
+      }
+      expect(gateway.removed, 'manual-demo');
+      expect(gateway.syncs, 1);
+      await t.pumpWidget(const SizedBox());
+      await t.pumpAndSettle();
+    }
+  });
+
+  testWidgets('联网四种状态、检查中禁用和关于版本', (t) async {
+    final pending = Completer<UpdateResponse>();
+    final gateway = SettingsGateway([model('demo')])
+      ..publishedAt = '2026-11-22';
+    final c = await showSettings(
+      t,
+      gateway,
+      preferences: UiPreferences(
+        onboarded: true,
+        pricingCheckedMs: demoNow.millisecondsSinceEpoch,
+      ),
+      pricingRequest: (_, _, _) => pending.future,
+    );
+    expect(find.textContaining('正在用'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^· .*检查过$')), findsOneWidget);
+    await t.tap(find.text('立即更新'));
+    await t.pump();
+    expect(find.text('正在检查…'), findsOneWidget);
+    pending.complete(const UpdateResponse(403, ''));
+    await t.pumpAndSettle();
+    expect(find.text('没更新成功，GitHub 暂时拒绝了请求。'), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
+    await c.setPreferences(
+      c.preferences.copyWith(
+        pricingLastKind: 'installed',
+        pricingUpdatedNote: (publishedAt: '2026-11-23', newlyPriced: 3),
+      ),
+    );
+    gateway.downloaded = true;
+    gateway.publishedAt = '2026-11-23';
+    c.gateway.clear();
+    c.reloadLedger();
+    await t.pumpAndSettle();
+    expect(find.textContaining('新增 3 个模型的价格'), findsOneWidget);
+    await t.tap(find.text('关于这台电脑上的 Token Lens'));
+    await t.pumpAndSettle();
+    expect(
+      find.text('联网 2026年11月23日版 · fixture（内置 2026年11月22日版）'),
+      findsOneWidget,
+    );
+    gateway.downloaded = false;
+    gateway.publishedAt = '2026-11-22';
+    await c.pricingUpdates.setAutomatic(false);
+    await t.pumpAndSettle();
+    expect(find.text('只用程序自带的 2026年11月22日版价格表。'), findsOneWidget);
+    expect(find.text('内置 2026年11月22日版 · fixture'), findsOneWidget);
+    expect(gateway.catalogRemovals, 1);
+  });
+
   for (final width in [1100.0, 720.0]) {
     group('SettingsPricing ${width.toInt()}', () {
       testWidgets('本地零价和混合用量', (t) async {
@@ -530,6 +776,7 @@ void main() {
         );
         final position = t.state<ScrollableState>(scroll).position;
         expect(position.maxScrollExtent, greaterThan(0));
+        await t.ensureVisible(scroll);
         await t.drag(scroll, const Offset(-120, 0));
         await t.pumpAndSettle();
         expect(position.pixels, greaterThan(0));
