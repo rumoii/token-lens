@@ -49,6 +49,81 @@ fn error(out: Output, status: i32, code: &str) {
 }
 
 #[test]
+fn cli_sync_preserves_ffi_manual_and_downloaded_prices() {
+    use rust_lib_token_lens::api::stats::StatsClient;
+
+    let temp = tempfile::tempdir().unwrap();
+    let data = temp.path().join("data");
+    let home = temp.path().join("home");
+    let logs = home.join(".claude/projects/demo");
+    fs::create_dir_all(&logs).unwrap();
+    let models = ["manual-demo", "online-demo", "claude-opus-4-6"];
+    let records = models.iter().enumerate().map(|(i, model)| {
+        json!({"sessionId":"test","timestamp":"2026-03-30T12:00:00Z",
+            "message":{"id":format!("test-{i}"),"model":model,"usage":{"input_tokens":101+i,"output_tokens":17}}})
+    }).map(|row| row.to_string()).collect::<Vec<_>>().join("\n");
+    fs::write(logs.join("test.jsonl"), format!("{records}\n")).unwrap();
+    let client = StatsClient::new(
+        data.to_string_lossy().into_owned(),
+        Some(home.to_string_lossy().into_owned()),
+    )
+    .unwrap();
+    client.sync_triggered("pricing".into()).unwrap();
+    let costs = || {
+        let db = Connection::open(data.join("ledger.db")).unwrap();
+        models.map(|model| {
+            db.query_row(
+                "SELECT cost_micros FROM usage_records WHERE model=? AND active=1",
+                [model],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .unwrap()
+        })
+    };
+    let before = costs();
+    assert_eq!(&before[..2], &[None, None]);
+    client
+        .save_manual_price(
+            json!({"model":"manual-demo","currency":"CNY","rate":7,"input":7,"output":14})
+                .to_string(),
+        )
+        .unwrap();
+    assert_eq!(client.sync_triggered("pricing".into()).unwrap().repriced, 3);
+    let manual = costs();
+    assert_eq!(manual, [Some(135), None, before[2]]);
+
+    let mut next: Value =
+        serde_json::from_str(include_str!("../src/stats/pricing-catalog.json")).unwrap();
+    let mut entry = next["entries"][0].clone();
+    entry["id"] = json!("online-demo");
+    entry["aliases"] = json!([]);
+    entry["perMTok"]["input"] = json!(1);
+    entry["perMTok"]["output"] = json!(2);
+    next["entries"].as_array_mut().unwrap().push(entry);
+    next["publishedAt"] = json!("2026-11-23");
+    let installed = client.install_price_catalog(next.to_string()).unwrap();
+    assert_eq!(installed.kind, "installed");
+    assert_eq!(installed.newly_priced, Some(1));
+    assert_eq!(client.sync_triggered("pricing".into()).unwrap().repriced, 3);
+    let priced = costs();
+    assert_eq!(priced, [Some(135), Some(136), before[2]]);
+    let snapshot = client.pricing().unwrap();
+
+    let status = success(cli(Some(&data), Some(&home), &["status"]), "status");
+    assert_eq!(status["data"]["price_version"], snapshot.price_version);
+    let sync = success(cli(Some(&data), Some(&home), &["sync"]), "sync");
+    assert_eq!(sync["data"]["repriced"], 0);
+    assert_eq!(costs(), priced);
+
+    client.remove_manual_price("manual-demo".into()).unwrap();
+    client.sync_triggered("pricing".into()).unwrap();
+    assert_eq!(costs(), [None, Some(136), before[2]]);
+    client.remove_price_catalog().unwrap();
+    client.sync_triggered("pricing".into()).unwrap();
+    assert_eq!(costs(), before);
+}
+
+#[test]
 fn normal_cli_exit_flushes_runtime_logs() {
     use fs2::FileExt;
     use std::{

@@ -608,14 +608,41 @@ pub struct StatsModelPrice {
     pub tiers: Option<Vec<StatsPriceTier>>,
     pub time_of_day: Option<StatsTimeOfDay>,
     pub price_marks: HashMap<String, i64>,
+    pub manual: Option<StatsManualPrice>,
+    pub list_prices: Option<StatsPrices>,
 }
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsManualPrice {
+    pub currency: String,
+    pub original: StatsPrices,
+    pub rate: Option<f64>,
+    pub note: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsCopyPrice {
+    pub id: String,
+    pub prices: StatsPrices,
+    pub base_only: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatsPriceInstall {
+    pub kind: String,
+    pub published_at: Option<String>,
+    pub newly_priced: Option<i64>,
+}
+#[flutter_rust_bridge::frb]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsPriceCounts {
     pub verified: i64,
     pub aggregate: i64,
     pub unknown: i64,
     pub local: i64,
+    #[frb(default = 0)]
+    pub manual: i64,
 }
+#[flutter_rust_bridge::frb]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatsPricing {
     pub price_version: String,
@@ -625,6 +652,12 @@ pub struct StatsPricing {
     pub models: Vec<StatsModelPrice>,
     pub counts: StatsPriceCounts,
     pub snapshot: StatsSnapshot,
+    pub published_at: Option<String>,
+    pub builtin_published_at: Option<String>,
+    #[frb(default = false)]
+    pub downloaded: bool,
+    #[frb(default = [])]
+    pub copy_prices: Vec<StatsCopyPrice>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -646,6 +679,7 @@ struct State {
     clock: Clock,
     discovery: Mutex<Option<(i64, StatsDiscovery)>>,
     progress: Mutex<Option<StatsSyncProgress>>,
+    price_write: Mutex<()>,
     log: crate::diagnostics::RuntimeLog,
 }
 
@@ -768,6 +802,7 @@ impl StatsClient {
                 clock,
                 discovery: Mutex::new(None),
                 progress: Mutex::new(None),
+                price_write: Mutex::new(()),
             }),
         })
     }
@@ -1183,6 +1218,43 @@ impl StatsClient {
             serde_json::from_value(with_micros(value)).map_err(|e| e.to_string())
         })();
         self.state.log.ffi("pricing", result)
+    }
+    pub fn install_price_catalog(&self, text: String) -> Result<StatsPriceInstall, String> {
+        self.change_prices("install_price_catalog", |ledger| {
+            let value = pricing::store::install(&self.state.data, ledger, &text)?;
+            Ok(serde_json::from_value(value)?)
+        })
+    }
+    pub fn remove_price_catalog(&self) -> Result<(), String> {
+        self.change_prices("remove_price_catalog", |_| {
+            pricing::store::remove_download(&self.state.data)
+        })
+    }
+    pub fn save_manual_price(&self, text: String) -> Result<(), String> {
+        self.change_prices("save_manual_price", |ledger| {
+            pricing::store::save_manual(&self.state.data, ledger, &text)
+        })
+    }
+    pub fn remove_manual_price(&self, model: String) -> Result<(), String> {
+        self.change_prices("remove_manual_price", |ledger| {
+            pricing::store::remove_manual(&self.state.data, ledger, &model)
+        })
+    }
+    #[flutter_rust_bridge::frb(ignore)]
+    fn change_prices<T>(
+        &self,
+        operation: &str,
+        apply: impl FnOnce(&Ledger) -> crate::stats::Result<T>,
+    ) -> Result<T, String> {
+        let result = (|| {
+            let _guard = self
+                .state
+                .price_write
+                .lock()
+                .map_err(|_| "PRICING_UNAVAILABLE")?;
+            apply(&self.open()?).map_err(|error| error.to_string())
+        })();
+        self.state.log.ffi(operation, result)
     }
     pub fn health(&self) -> Result<StatsHealth, String> {
         let result = (|| {

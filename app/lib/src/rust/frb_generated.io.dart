@@ -99,6 +99,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsFilter dco_decode_box_autoadd_stats_filter(dynamic raw);
 
   @protected
+  StatsManualPrice dco_decode_box_autoadd_stats_manual_price(dynamic raw);
+
+  @protected
   StatsPrices dco_decode_box_autoadd_stats_prices(dynamic raw);
 
   @protected
@@ -177,6 +180,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<StatsBucket> dco_decode_list_stats_bucket(dynamic raw);
+
+  @protected
+  List<StatsCopyPrice> dco_decode_list_stats_copy_price(dynamic raw);
 
   @protected
   List<StatsDiscoveredSource> dco_decode_list_stats_discovered_source(
@@ -270,6 +276,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsCounts? dco_decode_opt_box_autoadd_stats_counts(dynamic raw);
 
   @protected
+  StatsManualPrice? dco_decode_opt_box_autoadd_stats_manual_price(dynamic raw);
+
+  @protected
   StatsPrices? dco_decode_opt_box_autoadd_stats_prices(dynamic raw);
 
   @protected
@@ -354,6 +363,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsComparisonSide dco_decode_stats_comparison_side(dynamic raw);
 
   @protected
+  StatsCopyPrice dco_decode_stats_copy_price(dynamic raw);
+
+  @protected
   StatsCostParts dco_decode_stats_cost_parts(dynamic raw);
 
   @protected
@@ -384,6 +396,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsLogDirectory dco_decode_stats_log_directory(dynamic raw);
 
   @protected
+  StatsManualPrice dco_decode_stats_manual_price(dynamic raw);
+
+  @protected
   StatsMatrix dco_decode_stats_matrix(dynamic raw);
 
   @protected
@@ -400,6 +415,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsPriceCounts dco_decode_stats_price_counts(dynamic raw);
+
+  @protected
+  StatsPriceInstall dco_decode_stats_price_install(dynamic raw);
 
   @protected
   StatsPricePeak dco_decode_stats_price_peak(dynamic raw);
@@ -595,6 +613,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StatsFilter sse_decode_box_autoadd_stats_filter(SseDeserializer deserializer);
 
   @protected
+  StatsManualPrice sse_decode_box_autoadd_stats_manual_price(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsPrices sse_decode_box_autoadd_stats_prices(SseDeserializer deserializer);
 
   @protected
@@ -693,6 +716,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<StatsBucket> sse_decode_list_stats_bucket(SseDeserializer deserializer);
+
+  @protected
+  List<StatsCopyPrice> sse_decode_list_stats_copy_price(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<StatsDiscoveredSource> sse_decode_list_stats_discovered_source(
@@ -818,6 +846,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsManualPrice? sse_decode_opt_box_autoadd_stats_manual_price(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StatsPrices? sse_decode_opt_box_autoadd_stats_prices(
     SseDeserializer deserializer,
   );
@@ -932,6 +965,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsCopyPrice sse_decode_stats_copy_price(SseDeserializer deserializer);
+
+  @protected
   StatsCostParts sse_decode_stats_cost_parts(SseDeserializer deserializer);
 
   @protected
@@ -970,6 +1006,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StatsManualPrice sse_decode_stats_manual_price(SseDeserializer deserializer);
+
+  @protected
   StatsMatrix sse_decode_stats_matrix(SseDeserializer deserializer);
 
   @protected
@@ -986,6 +1025,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatsPriceCounts sse_decode_stats_price_counts(SseDeserializer deserializer);
+
+  @protected
+  StatsPriceInstall sse_decode_stats_price_install(
+    SseDeserializer deserializer,
+  );
 
   @protected
   StatsPricePeak sse_decode_stats_price_peak(SseDeserializer deserializer);
@@ -1214,6 +1258,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_stats_manual_price(
+    StatsManualPrice self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_stats_prices(
     StatsPrices self,
     SseSerializer serializer,
@@ -1351,6 +1401,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_stats_bucket(
     List<StatsBucket> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_stats_copy_price(
+    List<StatsCopyPrice> self,
     SseSerializer serializer,
   );
 
@@ -1508,6 +1564,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_stats_manual_price(
+    StatsManualPrice? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_stats_prices(
     StatsPrices? self,
     SseSerializer serializer,
@@ -1652,6 +1714,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_stats_copy_price(
+    StatsCopyPrice self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_stats_cost_parts(
     StatsCostParts self,
     SseSerializer serializer,
@@ -1700,6 +1768,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_stats_manual_price(
+    StatsManualPrice self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_stats_matrix(StatsMatrix self, SseSerializer serializer);
 
   @protected
@@ -1726,6 +1800,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_stats_price_counts(
     StatsPriceCounts self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_stats_price_install(
+    StatsPriceInstall self,
     SseSerializer serializer,
   );
 

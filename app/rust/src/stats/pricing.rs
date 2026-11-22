@@ -2,9 +2,11 @@ use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use std::sync::OnceLock;
+
+pub(crate) mod store;
 
 pub const PRICE_VERSION: &str = "c9fe1db9270c1778";
 
@@ -19,6 +21,7 @@ pub(crate) const DOWNLOAD_FILE: &str = "price-catalog.json";
 
 pub(crate) struct EffectivePrices {
     downloaded: Option<Value>,
+    manual: BTreeMap<String, Value>,
     version: String,
 }
 
@@ -45,16 +48,25 @@ impl EffectivePrices {
                 }
             }
         });
-        Self::from_download(downloaded)
+        Self::from_parts(
+            downloaded,
+            directory.map(store::read_manual).unwrap_or_default(),
+        )
     }
 
-    pub(crate) fn from_download(downloaded: Option<Value>) -> Self {
-        let version = downloaded.as_ref().map_or_else(
+    fn from_parts(downloaded: Option<Value>, manual: BTreeMap<String, Value>) -> Self {
+        let list_version = downloaded.as_ref().map_or_else(
             || PRICE_VERSION.into(),
             |value| digest(&json!([PRICE_VERSION, value]).to_string()),
         );
+        let version = if manual.is_empty() {
+            list_version
+        } else {
+            digest(&json!([list_version, manual]).to_string())
+        };
         Self {
             downloaded,
+            manual,
             version,
         }
     }
@@ -64,6 +76,17 @@ impl EffectivePrices {
     }
 
     pub(crate) fn find_price(&self, model: Option<&str>) -> Value {
+        if let Some(entry) = self.manual_price(model) {
+            return json!({"id":entry["model"],"tier":"manual","billing":"metered","perMTok":entry["usd"]});
+        }
+        self.list_price(model)
+    }
+
+    pub(crate) fn manual_price(&self, model: Option<&str>) -> Option<&Value> {
+        self.manual.get(model?)
+    }
+
+    pub(crate) fn list_price(&self, model: Option<&str>) -> Value {
         let price = self
             .downloaded
             .as_ref()
@@ -73,6 +96,55 @@ impl EffectivePrices {
         } else {
             price
         }
+    }
+
+    pub(crate) fn catalog_date(&self) -> &str {
+        published_at(self.downloaded.as_ref().unwrap_or_else(|| catalog()))
+    }
+
+    pub(crate) fn builtin_date(&self) -> &'static str {
+        published_at(catalog())
+    }
+
+    pub(crate) fn is_downloaded(&self) -> bool {
+        self.downloaded.is_some()
+    }
+
+    pub(crate) fn copy_prices(&self, used_models: &[Value]) -> Vec<Value> {
+        let used = used_models
+            .iter()
+            .filter_map(|model| {
+                self.list_price(model["model"].as_str())["id"]
+                    .as_str()
+                    .map(str::to_owned)
+            })
+            .collect::<HashSet<_>>();
+        let mut entries = BTreeMap::new();
+        for table in std::iter::once(catalog()).chain(self.downloaded.iter()) {
+            for entry in table["entries"].as_array().unwrap() {
+                entries.insert(entry["id"].as_str().unwrap(), entry);
+            }
+        }
+        let mut choices: Vec<_> = entries
+            .into_iter()
+            .map(|(id, entry)| {
+                let is_used = used.contains(id);
+                (is_used, id, entry)
+            })
+            .collect();
+        choices.sort_by(|a, b| {
+            b.0.cmp(&a.0)
+                .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+        });
+        choices
+            .into_iter()
+            .map(|(_, id, entry)| {
+                json!({
+                    "id":id, "rates":entry["perMTok"],
+                    "base_only": !entry["tiers"].is_null() || !entry["timeOfDay"].is_null()
+                })
+            })
+            .collect()
     }
 
     pub(crate) fn classify_price(&self, model: Option<&str>) -> Value {
@@ -466,7 +538,7 @@ pub fn price_record(record: &Value) -> Value {
 
 #[cfg(test)]
 fn price_record_with<'a>(record: &Value, model_price: impl FnOnce() -> Cow<'a, Value>) -> Value {
-    EffectivePrices::from_download(None).price_record_with(record, model_price)
+    EffectivePrices::load(None).price_record_with(record, model_price)
 }
 
 fn compute_record<'a>(

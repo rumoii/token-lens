@@ -7,9 +7,9 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `discovery_with_env`, `for_cli`, `initialize`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
+// These functions are ignored because they are not marked as `pub`: `change_prices`, `discovery_with_env`, `for_cli`, `initialize`, `open`, `sync_inner`, `sync_with_env`, `with_clock`, `with_micros`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `State`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `new_with_fixed_clock`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>>
@@ -37,6 +37,8 @@ abstract class StatsClient implements RustOpaqueInterface {
   });
 
   Future<StatsHealth> health();
+
+  Future<StatsPriceInstall> installPriceCatalog({required String text});
 
   Future<StatsRun?> lastRun();
 
@@ -77,11 +79,17 @@ abstract class StatsClient implements RustOpaqueInterface {
     required int offsetMinutes,
   });
 
+  Future<void> removeManualPrice({required String model});
+
+  Future<void> removePriceCatalog();
+
   Future<StatsRequests> requests({
     required StatsFilter filter,
     required StatsRequestQuery query,
     required int offsetMinutes,
   });
+
+  Future<void> saveManualPrice({required String text});
 
   Future<StatsSessionDetail?> sessionDetail({
     required String source,
@@ -348,6 +356,30 @@ class StatsComparisonSide {
           runtimeType == other.runtimeType &&
           totals == other.totals &&
           groups == other.groups;
+}
+
+class StatsCopyPrice {
+  final String id;
+  final StatsPrices prices;
+  final bool baseOnly;
+
+  const StatsCopyPrice({
+    required this.id,
+    required this.prices,
+    required this.baseOnly,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ prices.hashCode ^ baseOnly.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsCopyPrice &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          prices == other.prices &&
+          baseOnly == other.baseOnly;
 }
 
 class StatsCostParts {
@@ -774,6 +806,45 @@ class StatsLogDirectory {
           exists == other.exists;
 }
 
+class StatsManualPrice {
+  final String currency;
+  final StatsPrices original;
+  final double? rate;
+  final String? note;
+  final String createdAt;
+  final String updatedAt;
+
+  const StatsManualPrice({
+    required this.currency,
+    required this.original,
+    this.rate,
+    this.note,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      currency.hashCode ^
+      original.hashCode ^
+      rate.hashCode ^
+      note.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsManualPrice &&
+          runtimeType == other.runtimeType &&
+          currency == other.currency &&
+          original == other.original &&
+          rate == other.rate &&
+          note == other.note &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt;
+}
+
 class StatsMatrix {
   final String granularity;
   final String by;
@@ -907,6 +978,8 @@ class StatsModelPrice {
   final List<StatsPriceTier>? tiers;
   final StatsTimeOfDay? timeOfDay;
   final Map<String, int> priceMarks;
+  final StatsManualPrice? manual;
+  final StatsPrices? listPrices;
 
   const StatsModelPrice({
     this.model,
@@ -922,6 +995,8 @@ class StatsModelPrice {
     this.tiers,
     this.timeOfDay,
     required this.priceMarks,
+    this.manual,
+    this.listPrices,
   });
 
   @override
@@ -938,7 +1013,9 @@ class StatsModelPrice {
       prices.hashCode ^
       tiers.hashCode ^
       timeOfDay.hashCode ^
-      priceMarks.hashCode;
+      priceMarks.hashCode ^
+      manual.hashCode ^
+      listPrices.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -957,7 +1034,9 @@ class StatsModelPrice {
           prices == other.prices &&
           tiers == other.tiers &&
           timeOfDay == other.timeOfDay &&
-          priceMarks == other.priceMarks;
+          priceMarks == other.priceMarks &&
+          manual == other.manual &&
+          listPrices == other.listPrices;
 }
 
 class StatsPriceCounts {
@@ -965,12 +1044,14 @@ class StatsPriceCounts {
   final int aggregate;
   final int unknown;
   final int local;
+  final int manual;
 
   const StatsPriceCounts({
     required this.verified,
     required this.aggregate,
     required this.unknown,
     required this.local,
+    this.manual = 0,
   });
 
   @override
@@ -978,7 +1059,8 @@ class StatsPriceCounts {
       verified.hashCode ^
       aggregate.hashCode ^
       unknown.hashCode ^
-      local.hashCode;
+      local.hashCode ^
+      manual.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -988,7 +1070,33 @@ class StatsPriceCounts {
           verified == other.verified &&
           aggregate == other.aggregate &&
           unknown == other.unknown &&
-          local == other.local;
+          local == other.local &&
+          manual == other.manual;
+}
+
+class StatsPriceInstall {
+  final String kind;
+  final String? publishedAt;
+  final int? newlyPriced;
+
+  const StatsPriceInstall({
+    required this.kind,
+    this.publishedAt,
+    this.newlyPriced,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^ publishedAt.hashCode ^ newlyPriced.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StatsPriceInstall &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          publishedAt == other.publishedAt &&
+          newlyPriced == other.newlyPriced;
 }
 
 class StatsPricePeak {
@@ -1076,6 +1184,10 @@ class StatsPricing {
   final List<StatsModelPrice> models;
   final StatsPriceCounts counts;
   final StatsSnapshot snapshot;
+  final String? publishedAt;
+  final String? builtinPublishedAt;
+  final bool downloaded;
+  final List<StatsCopyPrice> copyPrices;
 
   const StatsPricing({
     required this.priceVersion,
@@ -1085,6 +1197,10 @@ class StatsPricing {
     required this.models,
     required this.counts,
     required this.snapshot,
+    this.publishedAt,
+    this.builtinPublishedAt,
+    this.downloaded = false,
+    this.copyPrices = const [],
   });
 
   @override
@@ -1095,7 +1211,11 @@ class StatsPricing {
       provisional.hashCode ^
       models.hashCode ^
       counts.hashCode ^
-      snapshot.hashCode;
+      snapshot.hashCode ^
+      publishedAt.hashCode ^
+      builtinPublishedAt.hashCode ^
+      downloaded.hashCode ^
+      copyPrices.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1108,7 +1228,11 @@ class StatsPricing {
           provisional == other.provisional &&
           models == other.models &&
           counts == other.counts &&
-          snapshot == other.snapshot;
+          snapshot == other.snapshot &&
+          publishedAt == other.publishedAt &&
+          builtinPublishedAt == other.builtinPublishedAt &&
+          downloaded == other.downloaded &&
+          copyPrices == other.copyPrices;
 }
 
 class StatsRequest {

@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1736499367;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1555750079;
 
 // Section: executor
 
@@ -819,6 +819,59 @@ fn wire__crate__api__stats__StatsClient_health_impl(
         },
     )
 }
+fn wire__crate__api__stats__StatsClient_install_price_catalog_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_install_price_catalog",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_text = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::install_price_catalog(
+                        &*api_that_guard,
+                        api_text,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats__StatsClient_last_run_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1186,6 +1239,109 @@ fn wire__crate__api__stats__StatsClient_query_sessions_impl(
         },
     )
 }
+fn wire__crate__api__stats__StatsClient_remove_manual_price_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_remove_manual_price",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_model = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::remove_manual_price(
+                        &*api_that_guard,
+                        api_model,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__stats__StatsClient_remove_price_catalog_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_remove_price_catalog",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        crate::api::stats::StatsClient::remove_price_catalog(&*api_that_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats__StatsClient_requests_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1236,6 +1392,59 @@ fn wire__crate__api__stats__StatsClient_requests_impl(
                         api_filter,
                         api_query,
                         api_offset_minutes,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__stats__StatsClient_save_manual_price_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "StatsClient_save_manual_price",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StatsClient>,
+            >>::sse_decode(&mut deserializer);
+            let api_text = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::stats::StatsClient::save_manual_price(
+                        &*api_that_guard,
+                        api_text,
                     )?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -2337,6 +2546,20 @@ impl SseDecode for Vec<crate::api::stats::StatsBucket> {
     }
 }
 
+impl SseDecode for Vec<crate::api::stats::StatsCopyPrice> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::stats::StatsCopyPrice>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::stats::StatsDiscoveredSource> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2739,6 +2962,19 @@ impl SseDecode for Option<crate::api::stats::StatsCounts> {
     }
 }
 
+impl SseDecode for Option<crate::api::stats::StatsManualPrice> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::stats::StatsManualPrice>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::stats::StatsPrices> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3114,6 +3350,20 @@ impl SseDecode for crate::api::stats::StatsComparisonSide {
     }
 }
 
+impl SseDecode for crate::api::stats::StatsCopyPrice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_prices = <crate::api::stats::StatsPrices>::sse_decode(deserializer);
+        let mut var_baseOnly = <bool>::sse_decode(deserializer);
+        return crate::api::stats::StatsCopyPrice {
+            id: var_id,
+            prices: var_prices,
+            base_only: var_baseOnly,
+        };
+    }
+}
+
 impl SseDecode for crate::api::stats::StatsCostParts {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3337,6 +3587,26 @@ impl SseDecode for crate::api::stats::StatsLogDirectory {
     }
 }
 
+impl SseDecode for crate::api::stats::StatsManualPrice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_currency = <String>::sse_decode(deserializer);
+        let mut var_original = <crate::api::stats::StatsPrices>::sse_decode(deserializer);
+        let mut var_rate = <Option<f64>>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
+        let mut var_createdAt = <String>::sse_decode(deserializer);
+        let mut var_updatedAt = <String>::sse_decode(deserializer);
+        return crate::api::stats::StatsManualPrice {
+            currency: var_currency,
+            original: var_original,
+            rate: var_rate,
+            note: var_note,
+            created_at: var_createdAt,
+            updated_at: var_updatedAt,
+        };
+    }
+}
+
 impl SseDecode for crate::api::stats::StatsMatrix {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3421,6 +3691,9 @@ impl SseDecode for crate::api::stats::StatsModelPrice {
         let mut var_timeOfDay =
             <Option<crate::api::stats::StatsTimeOfDay>>::sse_decode(deserializer);
         let mut var_priceMarks = <std::collections::HashMap<String, i64>>::sse_decode(deserializer);
+        let mut var_manual =
+            <Option<crate::api::stats::StatsManualPrice>>::sse_decode(deserializer);
+        let mut var_listPrices = <Option<crate::api::stats::StatsPrices>>::sse_decode(deserializer);
         return crate::api::stats::StatsModelPrice {
             model: var_model,
             records: var_records,
@@ -3435,6 +3708,8 @@ impl SseDecode for crate::api::stats::StatsModelPrice {
             tiers: var_tiers,
             time_of_day: var_timeOfDay,
             price_marks: var_priceMarks,
+            manual: var_manual,
+            list_prices: var_listPrices,
         };
     }
 }
@@ -3446,11 +3721,27 @@ impl SseDecode for crate::api::stats::StatsPriceCounts {
         let mut var_aggregate = <i64>::sse_decode(deserializer);
         let mut var_unknown = <i64>::sse_decode(deserializer);
         let mut var_local = <i64>::sse_decode(deserializer);
+        let mut var_manual = <i64>::sse_decode(deserializer);
         return crate::api::stats::StatsPriceCounts {
             verified: var_verified,
             aggregate: var_aggregate,
             unknown: var_unknown,
             local: var_local,
+            manual: var_manual,
+        };
+    }
+}
+
+impl SseDecode for crate::api::stats::StatsPriceInstall {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <String>::sse_decode(deserializer);
+        let mut var_publishedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_newlyPriced = <Option<i64>>::sse_decode(deserializer);
+        return crate::api::stats::StatsPriceInstall {
+            kind: var_kind,
+            published_at: var_publishedAt,
+            newly_priced: var_newlyPriced,
         };
     }
 }
@@ -3509,6 +3800,10 @@ impl SseDecode for crate::api::stats::StatsPricing {
         let mut var_models = <Vec<crate::api::stats::StatsModelPrice>>::sse_decode(deserializer);
         let mut var_counts = <crate::api::stats::StatsPriceCounts>::sse_decode(deserializer);
         let mut var_snapshot = <crate::api::stats::StatsSnapshot>::sse_decode(deserializer);
+        let mut var_publishedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_builtinPublishedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_downloaded = <bool>::sse_decode(deserializer);
+        let mut var_copyPrices = <Vec<crate::api::stats::StatsCopyPrice>>::sse_decode(deserializer);
         return crate::api::stats::StatsPricing {
             price_version: var_priceVersion,
             verified_at: var_verifiedAt,
@@ -3517,6 +3812,10 @@ impl SseDecode for crate::api::stats::StatsPricing {
             models: var_models,
             counts: var_counts,
             snapshot: var_snapshot,
+            published_at: var_publishedAt,
+            builtin_published_at: var_builtinPublishedAt,
+            downloaded: var_downloaded,
+            copy_prices: var_copyPrices,
         };
     }
 }
@@ -4358,85 +4657,109 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         15 => wire__crate__api__stats__StatsClient_health_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__stats__StatsClient_last_run_impl(port, ptr, rust_vec_len, data_len),
-        17 => {
+        16 => wire__crate__api__stats__StatsClient_install_price_catalog_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        17 => wire__crate__api__stats__StatsClient_last_run_impl(port, ptr, rust_vec_len, data_len),
+        18 => {
             wire__crate__api__stats__StatsClient_log_error_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
-        19 => {
+        19 => wire__crate__api__stats__StatsClient_matrix_impl(port, ptr, rust_vec_len, data_len),
+        20 => {
             wire__crate__api__stats__StatsClient_mini_usage_impl(port, ptr, rust_vec_len, data_len)
         }
-        20 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__stats__StatsClient_query_sessions_impl(
+        21 => wire__crate__api__stats__StatsClient_new_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__stats__StatsClient_pricing_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__stats__StatsClient_query_sessions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__stats__StatsClient_requests_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__stats__StatsClient_session_detail_impl(
+        24 => wire__crate__api__stats__StatsClient_remove_manual_price_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
+        25 => wire__crate__api__stats__StatsClient_remove_price_catalog_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__stats__StatsClient_sync_progress_impl(
+        26 => wire__crate__api__stats__StatsClient_requests_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__stats__StatsClient_save_manual_price_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
+        28 => wire__crate__api__stats__StatsClient_session_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => {
+        29 => wire__crate__api__stats__StatsClient_session_detail_in_period_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        30 => wire__crate__api__stats__StatsClient_sessions_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__stats__StatsClient_shutdown_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__stats__StatsClient_sources_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__stats__StatsClient_summary_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__stats__StatsClient_sync_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__stats__StatsClient_sync_progress_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        36 => wire__crate__api__stats__StatsClient_sync_triggered_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        37 => {
             wire__crate__api__stats__StatsClient_timeseries_impl(port, ptr, rust_vec_len, data_len)
         }
-        34 => wire__crate__api__shortcut__create_desktop_shortcut_impl(
+        38 => wire__crate__api__shortcut__create_desktop_shortcut_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__shortcut__desktop_shortcut_exists_impl(
+        39 => wire__crate__api__shortcut__desktop_shortcut_exists_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__diagnostics__export_startup_diagnostics_impl(
+        40 => wire__crate__api__diagnostics__export_startup_diagnostics_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__diagnostics__startup_build_info_impl(
+        41 => wire__crate__api__news__news_snapshot_default_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__diagnostics__runtime_exit_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__diagnostics__runtime_start_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__diagnostics__startup_build_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__diagnostics__write_runtime_error_impl(
+        45 => wire__crate__api__stats__stats_counts_default_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__stats__stats_filter_default_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__diagnostics__write_runtime_error_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4737,6 +5060,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsComparisonSide>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsCopyPrice {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.prices.into_into_dart().into_dart(),
+            self.base_only.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsCopyPrice
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsCopyPrice>
+    for crate::api::stats::StatsCopyPrice
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsCopyPrice {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsCostParts {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -4993,6 +5338,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsLogDirectory>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsManualPrice {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.currency.into_into_dart().into_dart(),
+            self.original.into_into_dart().into_dart(),
+            self.rate.into_into_dart().into_dart(),
+            self.note.into_into_dart().into_dart(),
+            self.created_at.into_into_dart().into_dart(),
+            self.updated_at.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsManualPrice
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsManualPrice>
+    for crate::api::stats::StatsManualPrice
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsManualPrice {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsMatrix {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -5101,6 +5471,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsModelPrice {
             self.tiers.into_into_dart().into_dart(),
             self.time_of_day.into_into_dart().into_dart(),
             self.price_marks.into_into_dart().into_dart(),
+            self.manual.into_into_dart().into_dart(),
+            self.list_prices.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -5124,6 +5496,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsPriceCounts {
             self.aggregate.into_into_dart().into_dart(),
             self.unknown.into_into_dart().into_dart(),
             self.local.into_into_dart().into_dart(),
+            self.manual.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -5136,6 +5509,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsPriceCounts>
     for crate::api::stats::StatsPriceCounts
 {
     fn into_into_dart(self) -> crate::api::stats::StatsPriceCounts {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsPriceInstall {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.kind.into_into_dart().into_dart(),
+            self.published_at.into_into_dart().into_dart(),
+            self.newly_priced.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::stats::StatsPriceInstall
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::stats::StatsPriceInstall>
+    for crate::api::stats::StatsPriceInstall
+{
+    fn into_into_dart(self) -> crate::api::stats::StatsPriceInstall {
         self
     }
 }
@@ -5217,6 +5612,10 @@ impl flutter_rust_bridge::IntoDart for crate::api::stats::StatsPricing {
             self.models.into_into_dart().into_dart(),
             self.counts.into_into_dart().into_dart(),
             self.snapshot.into_into_dart().into_dart(),
+            self.published_at.into_into_dart().into_dart(),
+            self.builtin_published_at.into_into_dart().into_dart(),
+            self.downloaded.into_into_dart().into_dart(),
+            self.copy_prices.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -6268,6 +6667,16 @@ impl SseEncode for Vec<crate::api::stats::StatsBucket> {
     }
 }
 
+impl SseEncode for Vec<crate::api::stats::StatsCopyPrice> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::stats::StatsCopyPrice>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::stats::StatsDiscoveredSource> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6569,6 +6978,16 @@ impl SseEncode for Option<crate::api::stats::StatsCounts> {
     }
 }
 
+impl SseEncode for Option<crate::api::stats::StatsManualPrice> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::stats::StatsManualPrice>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::stats::StatsPrices> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6843,6 +7262,15 @@ impl SseEncode for crate::api::stats::StatsComparisonSide {
     }
 }
 
+impl SseEncode for crate::api::stats::StatsCopyPrice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <crate::api::stats::StatsPrices>::sse_encode(self.prices, serializer);
+        <bool>::sse_encode(self.base_only, serializer);
+    }
+}
+
 impl SseEncode for crate::api::stats::StatsCostParts {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6975,6 +7403,18 @@ impl SseEncode for crate::api::stats::StatsLogDirectory {
     }
 }
 
+impl SseEncode for crate::api::stats::StatsManualPrice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.currency, serializer);
+        <crate::api::stats::StatsPrices>::sse_encode(self.original, serializer);
+        <Option<f64>>::sse_encode(self.rate, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
+        <String>::sse_encode(self.created_at, serializer);
+        <String>::sse_encode(self.updated_at, serializer);
+    }
+}
+
 impl SseEncode for crate::api::stats::StatsMatrix {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7031,6 +7471,8 @@ impl SseEncode for crate::api::stats::StatsModelPrice {
         <Option<Vec<crate::api::stats::StatsPriceTier>>>::sse_encode(self.tiers, serializer);
         <Option<crate::api::stats::StatsTimeOfDay>>::sse_encode(self.time_of_day, serializer);
         <std::collections::HashMap<String, i64>>::sse_encode(self.price_marks, serializer);
+        <Option<crate::api::stats::StatsManualPrice>>::sse_encode(self.manual, serializer);
+        <Option<crate::api::stats::StatsPrices>>::sse_encode(self.list_prices, serializer);
     }
 }
 
@@ -7041,6 +7483,16 @@ impl SseEncode for crate::api::stats::StatsPriceCounts {
         <i64>::sse_encode(self.aggregate, serializer);
         <i64>::sse_encode(self.unknown, serializer);
         <i64>::sse_encode(self.local, serializer);
+        <i64>::sse_encode(self.manual, serializer);
+    }
+}
+
+impl SseEncode for crate::api::stats::StatsPriceInstall {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.kind, serializer);
+        <Option<String>>::sse_encode(self.published_at, serializer);
+        <Option<i64>>::sse_encode(self.newly_priced, serializer);
     }
 }
 
@@ -7082,6 +7534,10 @@ impl SseEncode for crate::api::stats::StatsPricing {
         <Vec<crate::api::stats::StatsModelPrice>>::sse_encode(self.models, serializer);
         <crate::api::stats::StatsPriceCounts>::sse_encode(self.counts, serializer);
         <crate::api::stats::StatsSnapshot>::sse_encode(self.snapshot, serializer);
+        <Option<String>>::sse_encode(self.published_at, serializer);
+        <Option<String>>::sse_encode(self.builtin_published_at, serializer);
+        <bool>::sse_encode(self.downloaded, serializer);
+        <Vec<crate::api::stats::StatsCopyPrice>>::sse_encode(self.copy_prices, serializer);
     }
 }
 

@@ -760,7 +760,7 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
             model["local_records"] = json!(model["local_records"].as_i64().unwrap() + count);
         }
     }
-    let mut counts = json!({"verified":0,"aggregate":0,"unknown":0,"local":0});
+    let mut counts = json!({"verified":0,"aggregate":0,"unknown":0,"local":0,"manual":0});
     for model in &mut models {
         let local = model["local_records"] == model["records"];
         let class = ledger.prices.classify_price(model["model"].as_str());
@@ -801,6 +801,19 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
         } else {
             prices_of(&price["perMTok"])
         };
+        if !local {
+            if let Some(manual) = ledger.prices.manual_price(model["model"].as_str()) {
+                let list = ledger.prices.list_price(model["model"].as_str());
+                model["manual"] = json!({
+                    "currency":manual["currency"],"rate":manual["rate"],"note":manual["note"],
+                    "created_at":manual["createdAt"],"updated_at":manual["updatedAt"],
+                    "original":prices_of(manual)
+                });
+                if !list.is_null() {
+                    model["list_prices"] = prices_of(&list["perMTok"]);
+                }
+            }
+        }
         model["tiers"] = price["tiers"]
             .as_array()
             .map(|tiers| {
@@ -821,8 +834,12 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
         let state = model["state"].as_str().unwrap();
         counts[state] = json!(counts[state].as_i64().unwrap() + 1);
     }
+    let copy_prices: Vec<_> = ledger.prices.copy_prices(&models).into_iter().map(|choice| {
+        json!({"id":choice["id"], "prices":prices_of(&choice["rates"]), "base_only":choice["base_only"]})
+    }).collect();
     Ok(
-        json!({"price_version":ledger.prices.version(),"verified_at":if models.is_empty(){None}else{Some(ledger.clock.iso()[..10].to_owned())},"currency":"USD","provisional":counts["aggregate"].as_i64().unwrap()>0,"models":models,"counts":counts,"snapshot":snapshot(ledger,&json!({}),tz)}),
+        json!({"price_version":ledger.prices.version(),"verified_at":if models.is_empty(){None}else{Some(ledger.clock.iso()[..10].to_owned())},"currency":"USD","provisional":counts["aggregate"].as_i64().unwrap()>0,"models":models,"counts":counts,"snapshot":snapshot(ledger,&json!({}),tz),
+            "published_at":ledger.prices.catalog_date(),"builtin_published_at":ledger.prices.builtin_date(),"downloaded":ledger.prices.is_downloaded(),"copy_prices":copy_prices}),
     )
 }
 
