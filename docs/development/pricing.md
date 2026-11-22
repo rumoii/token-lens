@@ -6,18 +6,26 @@
 
 这个区分决定了套餐制怎么处理：厂商按订阅售卖时，用户没有按 token 付钱，但 token 依然有价值。把这些用量记成「无价格」会让看板少掉一整块，记成 0 会显示成免费——都对用户没用。所以套餐制模型照样按公开市场价折算，另用 `billing: 'plan'` 标明计费方式。
 
-价格来源分两档，都写进 `price_source`：
+模型价格来源写进 `price_source`：
 
 | 档 | 含义 | 标记 |
 |---|---|---|
 | 官方核验 | 厂商官方价目页逐条对照，带 URL 与核验日期 | `verified:<model-id>` |
 | 聚合/市场价 | models.dev 等公开聚合或转售报价，未在厂商页核验 | `aggregate:<model-id>` |
+| 手填 | 用户本人保存的本机价格 | `manual:<原始模型 ID>` |
 
 本地提供方按第九节第 5 条计 0；其余查不到任何公开价的模型是「未定价」，返回 `cost_micros = null`。
 
 ---
 
 ## 一、价的来源
+
+桌面应用和 CLI 均从所用数据目录加载价格。远端模型按「手填 → 下载表 → 内置表」查价。手填按账本原始模型 ID 区分大小写，目录沿用既有 ID 规范化与显式别名匹配。本地提供方沿用零价优先规则。
+
+- `manual-prices.json` 按原始模型 ID 存储手填条目。首次仅能给两份目录都无价且有非本地用量的模型填写。每百万 token 的新输入、输出为必填，缓存读、缓存写可空。缓存写价同时用于五分钟和一小时档。文件保留原始 USD 或 CNY 输入、可选出处、创建和更新时间。人民币按保存时的偏好汇率折成美元单价，后续汇率变化只影响界面显示换算。美元单价上限为 10,000。目录补价后，手填条目继续生效，用户可以删除条目并采用目录价。
+- `price-catalog.json` 是已下载的目录，内容为格式版本 `formatVersion: 1`、ISO 日期 `publishedAt`、`entries` 与 `localProviders`。只有发布日期晚于内置表才参与定价。Rust 对两份目录使用同一套验证，检查模型 ID 和别名、日期、币种、费率、来源档和计费类型，并验证长上下文阈值和峰谷时段。费率有限且在 0 至 10,000 USD 范围内，缺省缓存价按零计。格式错误的目录不安装，格式正确但发布日期不晚于内置表时保留现状，已安装的相同 JSON 内容不重写。读取失败时忽略对应文件并记运行日志。
+- 下载地址固定为 `https://raw.githubusercontent.com/rumoii/token-lens/main/app/rust/src/stats/pricing-catalog.json`，是桌面应用的公开接口。请求使用 GET、`Accept: application/json` 和 `User-Agent: TokenLens-Pricing`，没有查询参数或账号数据。连接及读取共 15 秒，大小上限 1 MiB，禁止重定向。
+- 两个文件均用同目录临时文件写入并原子替换。手填价和下载表变更后，桌面通过 `pricing` 触发同步，由同步末尾按每条有效记录自己的时间估值。估值只更新价格和金额字段。
 
 优先采用厂商公开的商业标准价（公网 API 标价）。厂商没有公开按量价时，按第九节第 1 条取网关公开标价，标 `aggregate`。不采用反代、内部渠道或批量折扣价。
 
@@ -44,9 +52,9 @@
 | 存储 | 内容 |
 |---|---|
 | `usage_records` | 用量事实（四类 token、时间、来源、模型） |
-| `pricing_snapshot` | 某一时点的价表快照，`version` = 目录内容哈希 |
+| `pricing_snapshot` | 已重算价格版本及时间，当前重算仅保存版本元数据 |
 
-换价格版本只重算 `cost_micros`，不改用量事实。历史可按任意保留的价格版本重新估值。
+换价格版本重算 `cost_micros`、`price_version` 和 `price_source`，用量事实保留原值。重现过去的估值需要当时的目录和手填价文件。
 
 ## 三、金额计算
 
@@ -62,7 +70,7 @@ part_micros = floor(tokens * perMTok_micros / 1_000_000)
 total_micros = input_cost + output_cost + cache_read_cost + cache_write_cost
 ```
 
-`pricing/engine.js` 的 `priceRecord` 是总额与分项的唯一计算入口，返回整数分项及价格元数据；`costOf` 使用同一结果，保持原来的三个返回字段和金额口径。禁止在聚合路径用浮点费率重新计算金额或使用 SQL `REAL`。
+`app/rust/src/stats/pricing.rs` 的 `compute_record` 计算总额与四项整数金额。`EffectivePrices::cost_of` 使用同一结果写入账本，保留总额和价格元数据。聚合路径使用整数金额。
 
 `LedgerQueries.costRows` 以 SQLite iterator 流式读取已定价记录，共用聚合查询的 active、日期、时区和维度过滤。API 逐行核对价格版本及已存金额，核对失败只把所在组的分项标为 NULL，不改变账本和其他组。
 
@@ -164,7 +172,7 @@ API 的 `cost_by_kind` 固定六位小数，直接由已核对的整数 micro-US
 
 ### 6. 价格版本
 
-`PRICE_VERSION` 的内容哈希包含 `id`、`perMTok`、`verifiedAt`、`tier`、`tiers`、`timeOfDay`、`billing` 和 `LOCAL_PROVIDERS` 本地提供方名单。仅名单变化也会换价格版本，采集后的 `reprice` 使用保存的 provider 重算估值，不改用量事实。
+内置 `PRICE_VERSION` 的原有内容哈希包含 `id`、`perMTok`、`verifiedAt`、`tier`、`tiers`、`timeOfDay`、`billing` 和本地提供方名单。启动时核对内置表内容，新增格式版本与发布日期不改内置哈希。用到下载表时，当前目录版本由内置版本和下载表完整 JSON 内容计算。存在手填价时，再以当前目录版本及按原始 ID 排序的全部手填条目计算生效版本。新哈希沿用 SHA-256 前 16 位十六进制。无有效下载表且无手填条目时，生效版本等于内置版本。同步以打开账本时加载的同一份价格计算写入与重算，查询以自己的价格快照核对已存版本和分项。
 
 ### 7. 不变量
 

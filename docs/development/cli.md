@@ -2,6 +2,8 @@
 
 桌面发行包包含 Windows 的 `token-lens-cli.exe`（与 `token-lens.exe` 同目录）和 macOS 的 `Token Lens.app/Contents/MacOS/token-lens-cli`。它们与应用使用同一个账本和价格目录。
 
+同步和查询从所用数据目录读取手填价和已下载的价格表，`status` 的 `data.price_version` 显示生效版本。CLI 不发起联网更新。
+
 ```text
 token-lens-cli [--data-dir ABSOLUTE] [--project-paths] [--pretty] COMMAND
 ```
