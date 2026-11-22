@@ -1,6 +1,7 @@
 use super::{
     clock::Clock,
     jscompat::{number_string, string, truthy},
+    pricing::EffectivePrices,
     Error, Result,
 };
 use rusqlite::{
@@ -57,6 +58,7 @@ const DELETE_TIMING: &str = "DELETE FROM usage_timings WHERE record_key=?";
 pub struct Ledger {
     pub db: Connection,
     pub clock: Clock,
+    pub(crate) prices: EffectivePrices,
     prune_cache: std::cell::RefCell<read::PruneCache>,
     timing_revisions: RefCell<Option<TimingFileRevisions>>,
 }
@@ -287,7 +289,7 @@ impl Ledger {
             Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| {
                 ReadOpenError::Unavailable(crate::startup_error::sqlite_open_error(e, path, false))
             })?;
-        let ledger = Self::from_connection(db, clock);
+        let ledger = Self::from_connection(db, clock, path);
         Ok(ledger)
     }
 
@@ -388,13 +390,18 @@ impl Ledger {
         if current < LEDGER_VERSION {
             ingest_cache::migrate(&db, path, &clock, current > 0)?;
         }
-        Ok(Self::from_connection(db, clock))
+        Ok(Self::from_connection(db, clock, path))
     }
 
-    fn from_connection(db: Connection, clock: Clock) -> Self {
+    fn from_connection(db: Connection, clock: Clock, path: &Path) -> Self {
         Self {
             db,
             clock,
+            prices: EffectivePrices::load(
+                (path != Path::new(":memory:"))
+                    .then(|| path.parent())
+                    .flatten(),
+            ),
             prune_cache: Default::default(),
             timing_revisions: Default::default(),
         }

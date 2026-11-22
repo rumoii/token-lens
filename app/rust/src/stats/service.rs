@@ -70,7 +70,7 @@ fn totals_shape(value: &Value) -> Value {
     result
 }
 fn snapshot(ledger: &Ledger, filter: &Value, tz: &str) -> Value {
-    json!({"generated_at":ledger.clock.iso(),"price_version":pricing::PRICE_VERSION,"tz":tz,"filters":filter})
+    json!({"generated_at":ledger.clock.iso(),"price_version":ledger.prices.version(),"tz":tz,"filters":filter})
 }
 fn display_parts(parts: &[i64; 4]) -> Value {
     let strings = pricing::allocate_display(parts, parts.iter().sum(), 6);
@@ -143,17 +143,17 @@ pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resu
         let mut prices = HashMap::new();
         for row in &rows {
             let group = kinds.entry(group_key(row)).or_insert(([0; 4], false));
-            if row["price_version"] != pricing::PRICE_VERSION {
+            if row["price_version"] != ledger.prices.version() {
                 group.1 = true;
                 continue;
             }
             let prices = &mut prices;
-            let price = pricing::price_record_with(row, move || {
+            let price = ledger.prices.price_record_with(row, move || {
                 let model = row["model"].as_str();
                 Cow::Borrowed(
                     prices
                         .entry(model)
-                        .or_insert_with(|| pricing::find_price(model)),
+                        .or_insert_with(|| ledger.prices.find_price(model)),
                 )
             });
             if price["cost_micros"].is_null() || price["cost_micros"] != row["cost_micros"] {
@@ -189,7 +189,7 @@ pub fn breakdown(ledger: &Ledger, params: &Value, offset: i32, tz: &str) -> Resu
                 result["model"] = key.clone();
             }
             result["price_state"] = if by == "model" || by == "source_model" {
-                let price = pricing::find_price(key.as_str());
+                let price = ledger.prices.find_price(key.as_str());
                 json!(price["tier"].as_str().unwrap_or("unknown"))
             } else {
                 Value::Null
@@ -349,7 +349,7 @@ fn request_page(ledger: &Ledger, params: &Value, filter: &Value, tz: &str) -> Re
     )?;
     for row in result["items"].as_array_mut().unwrap() {
         row["cost_usd"] = money(&row["cost_micros"]);
-        row["price_state"] = pricing::classify_price(row["model"].as_str())["state"].clone();
+        row["price_state"] = ledger.prices.classify_price(row["model"].as_str())["state"].clone();
     }
     result["snapshot"] = snapshot(ledger, filter, tz);
     Ok(result)
@@ -585,7 +585,8 @@ pub fn session_detail(
         .map(|row| {
             let mut value = totals_shape(row);
             value["model"] = row["model"].clone();
-            value["price_state"] = pricing::classify_price(row["model"].as_str())["state"].clone();
+            value["price_state"] =
+                ledger.prices.classify_price(row["model"].as_str())["state"].clone();
             value
         })
         .collect();
@@ -753,7 +754,7 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
         let count = row["records"].as_i64().unwrap();
         model["price_marks"][mark] =
             json!(model["price_marks"][mark].as_i64().unwrap_or(0) + count);
-        if let Some(local) = pricing::local_provider(row["provider"].as_str()) {
+        if let Some(local) = ledger.prices.local_provider(row["provider"].as_str()) {
             model["local_providers"][&local] =
                 json!(model["local_providers"][&local].as_i64().unwrap_or(0) + count);
             model["local_records"] = json!(model["local_records"].as_i64().unwrap() + count);
@@ -762,11 +763,11 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
     let mut counts = json!({"verified":0,"aggregate":0,"unknown":0,"local":0});
     for model in &mut models {
         let local = model["local_records"] == model["records"];
-        let class = pricing::classify_price(model["model"].as_str());
+        let class = ledger.prices.classify_price(model["model"].as_str());
         let price = if local {
             Value::Null
         } else {
-            pricing::find_price(model["model"].as_str())
+            ledger.prices.find_price(model["model"].as_str())
         };
         model["state"] = if local {
             json!("local")
@@ -791,7 +792,7 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
         model["note_en"] = if local {
             json!("Local provider. Cost is zero.")
         } else {
-            json!(pricing::english_note(class["id"].as_str()))
+            price["conditionsEn"].clone()
         };
         model["prices"] = if local {
             prices_of(&json!({"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cacheWrite1h":0}))
@@ -821,7 +822,7 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
         counts[state] = json!(counts[state].as_i64().unwrap() + 1);
     }
     Ok(
-        json!({"price_version":pricing::PRICE_VERSION,"verified_at":if models.is_empty(){None}else{Some(ledger.clock.iso()[..10].to_owned())},"currency":"USD","provisional":counts["aggregate"].as_i64().unwrap()>0,"models":models,"counts":counts,"snapshot":snapshot(ledger,&json!({}),tz)}),
+        json!({"price_version":ledger.prices.version(),"verified_at":if models.is_empty(){None}else{Some(ledger.clock.iso()[..10].to_owned())},"currency":"USD","provisional":counts["aggregate"].as_i64().unwrap()>0,"models":models,"counts":counts,"snapshot":snapshot(ledger,&json!({}),tz)}),
     )
 }
 

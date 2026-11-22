@@ -753,7 +753,7 @@ impl StatsClient {
         if !home.is_absolute() {
             return Err("logs home must be absolute".into());
         }
-        if pricing::catalog_version() != pricing::PRICE_VERSION {
+        if !pricing::builtin_consistent() {
             return Err("pricing catalog version mismatch".into());
         }
         Ok(Self {
@@ -811,6 +811,7 @@ impl StatsClient {
             "timer" => "timer",
             "reread" => "reread",
             "cli" => "cli",
+            "pricing" => "pricing",
             _ => "manual",
         };
         self.state

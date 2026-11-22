@@ -220,7 +220,7 @@ pub(crate) fn status(ledger: &Ledger, timezone: &str) -> Result<Value> {
         &last,
         static_query(timezone),
         json!({
-            "ledger_version":LEDGER_VERSION,"price_version":pricing::PRICE_VERSION,
+            "ledger_version":LEDGER_VERSION,"price_version":ledger.prices.version(),
             "last_sync":last,"tools_with_usage":ledger.source_status()?.len()
         }),
     ))

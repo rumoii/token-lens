@@ -1,14 +1,236 @@
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::OnceLock;
 
 pub const PRICE_VERSION: &str = "c9fe1db9270c1778";
 
 fn catalog() -> &'static Value {
     static CATALOG: OnceLock<Value> = OnceLock::new();
-    CATALOG.get_or_init(|| serde_json::from_str(include_str!("pricing-catalog.json")).unwrap())
+    CATALOG.get_or_init(|| {
+        parse_catalog(include_str!("pricing-catalog.json")).expect("valid built-in price catalog")
+    })
+}
+
+pub(crate) const DOWNLOAD_FILE: &str = "price-catalog.json";
+
+pub(crate) struct EffectivePrices {
+    downloaded: Option<Value>,
+    version: String,
+}
+
+impl EffectivePrices {
+    pub(crate) fn load(directory: Option<&Path>) -> Self {
+        let downloaded = directory.and_then(|dir| {
+            let log = crate::diagnostics::RuntimeLog::new(dir, None);
+            match std::fs::read_to_string(dir.join(DOWNLOAD_FILE)) {
+                Ok(text) => match parse_catalog(&text) {
+                    Some(value) if newer_than_builtin(&value) => Some(value),
+                    Some(_) => {
+                        log.write("INFO", "pricing", "ignoring price catalog: older");
+                        None
+                    }
+                    None => {
+                        log.write("WARN", "pricing", "ignoring price catalog: invalid");
+                        None
+                    }
+                },
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(_) => {
+                    log.write("WARN", "pricing", "ignoring price catalog: read failed");
+                    None
+                }
+            }
+        });
+        Self::from_download(downloaded)
+    }
+
+    pub(crate) fn from_download(downloaded: Option<Value>) -> Self {
+        let version = downloaded.as_ref().map_or_else(
+            || PRICE_VERSION.into(),
+            |value| digest(&json!([PRICE_VERSION, value]).to_string()),
+        );
+        Self {
+            downloaded,
+            version,
+        }
+    }
+
+    pub(crate) fn version(&self) -> &str {
+        &self.version
+    }
+
+    pub(crate) fn find_price(&self, model: Option<&str>) -> Value {
+        let price = self
+            .downloaded
+            .as_ref()
+            .map_or(Value::Null, |value| find_in_catalog(value, model));
+        if price.is_null() {
+            find_in_catalog(catalog(), model)
+        } else {
+            price
+        }
+    }
+
+    pub(crate) fn classify_price(&self, model: Option<&str>) -> Value {
+        classify_price_value(&self.find_price(model))
+    }
+
+    pub(crate) fn local_provider(&self, provider: Option<&str>) -> Option<String> {
+        let id = provider?.to_lowercase();
+        self.downloaded.as_ref().unwrap_or_else(|| catalog())["localProviders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value.as_str() == Some(&id))
+            .then_some(id)
+    }
+
+    pub(crate) fn price_record_with<'a>(
+        &self,
+        record: &Value,
+        model_price: impl FnOnce() -> Cow<'a, Value>,
+    ) -> Value {
+        compute_record(
+            record,
+            self.version(),
+            self.local_provider(record["provider"].as_str()),
+            model_price,
+        )
+    }
+
+    pub(crate) fn cost_of(&self, record: &Value) -> Value {
+        let mut output = self.price_record_with(record, || {
+            Cow::Owned(self.find_price(record["model"].as_str()))
+        });
+        output.as_object_mut().unwrap().remove("parts");
+        output
+    }
+}
+
+pub(crate) fn published_at(value: &Value) -> &str {
+    value["publishedAt"]
+        .as_str()
+        .expect("validated publication date")
+}
+
+pub(crate) fn newer_than_builtin(value: &Value) -> bool {
+    published_at(value) > published_at(catalog())
+}
+
+fn digest(text: &str) -> String {
+    format!("{:x}", Sha256::digest(text.as_bytes()))[..16].into()
+}
+
+fn date(value: &Value) -> Option<NaiveDate> {
+    let text = value.as_str()?;
+    let date = NaiveDate::parse_from_str(text, "%Y-%m-%d").ok()?;
+    (date.format("%Y-%m-%d").to_string() == text && text.len() == 10).then_some(date)
+}
+
+fn valid_rates(value: &Value) -> bool {
+    let valid = |v: &Value| {
+        v.as_f64()
+            .is_some_and(|n| n.is_finite() && n >= 0.0 && n <= 10_000.0)
+    };
+    valid(&value["input"])
+        && valid(&value["output"])
+        && ["cacheRead", "cacheWrite", "cacheWrite1h"]
+            .iter()
+            .all(|&k| value[k].is_null() || valid(&value[k]))
+}
+
+fn valid_peak(value: &Value) -> Option<()> {
+    let offset = value["utcOffsetMinutes"].as_i64()?;
+    if !(-1439..=1439).contains(&offset) || !valid_rates(&value["offPeak"]) {
+        return None;
+    }
+    let mut windows = [const { Vec::<(i64, i64)>::new() }; 7];
+    for period in value["peak"].as_array()? {
+        let from = period["from"].as_i64()?;
+        let to = period["to"].as_i64()?;
+        let days = period["days"].as_array()?;
+        if from < 0 || from >= to || to > 1440 || days.is_empty() {
+            return None;
+        }
+        for day in days {
+            let day = day.as_u64().filter(|&d| d < 7)?;
+            let windows = &mut windows[day as usize];
+            if windows.iter().any(|&(start, end)| from < end && start < to) {
+                return None;
+            }
+            windows.push((from, to));
+        }
+    }
+    value["holidays"]
+        .as_array()?
+        .iter()
+        .try_for_each(|day| date(day).map(|_| ()))
+}
+
+pub(crate) fn parse_catalog(text: &str) -> Option<Value> {
+    let value: Value = serde_json::from_str(text).ok()?;
+    if value["formatVersion"].as_u64() != Some(1) {
+        return None;
+    }
+    date(&value["publishedAt"])?;
+    let mut providers = HashSet::new();
+    for provider in value["localProviders"].as_array()? {
+        let id = provider.as_str()?;
+        if id.trim().is_empty() || id != id.to_lowercase() || !providers.insert(id) {
+            return None;
+        }
+    }
+    let entries = value["entries"].as_array()?;
+    let mut names = HashMap::new();
+    for entry in entries {
+        let id = entry["id"].as_str()?;
+        if id.trim().is_empty()
+            || names.insert(id.to_lowercase(), id).is_some()
+            || entry["currency"] != "USD"
+            || !matches!(entry["tier"].as_str(), Some("verified" | "aggregate"))
+            || !matches!(entry["billing"].as_str(), Some("metered" | "plan"))
+            || !entry["provisional"].is_boolean()
+            || !valid_rates(&entry["perMTok"])
+        {
+            return None;
+        }
+        date(&entry["verifiedAt"])?;
+        for key in ["conditions", "conditionsEn", "sourceUrl"] {
+            if !entry[key].is_null() && !entry[key].is_string() {
+                return None;
+            }
+        }
+        if !entry["tiers"].is_null() {
+            if !entry["timeOfDay"].is_null() {
+                return None;
+            }
+            let mut last = -1;
+            for tier in entry["tiers"].as_array()? {
+                let above = tier["above"].as_i64()?;
+                if above <= last || !valid_rates(&tier["perMTok"]) {
+                    return None;
+                }
+                last = above;
+            }
+        }
+        if !entry["timeOfDay"].is_null() {
+            valid_peak(&entry["timeOfDay"])?;
+        }
+    }
+    for entry in entries {
+        let id = entry["id"].as_str()?;
+        for alias in entry["aliases"].as_array()? {
+            let alias = alias.as_str()?.to_lowercase();
+            if alias.trim().is_empty() || *names.entry(alias).or_insert(id) != id {
+                return None;
+            }
+        }
+    }
+    Some(value)
 }
 
 fn canonical(value: &Value) -> String {
@@ -40,7 +262,7 @@ fn canonical(value: &Value) -> String {
     }
 }
 
-pub fn catalog_version() -> String {
+fn catalog_version() -> String {
     let entries: Vec<_> = catalog()["entries"]
         .as_array()
         .unwrap()
@@ -62,6 +284,11 @@ pub fn catalog_version() -> String {
         Sha256::digest(canonical(&json!([entries, catalog()["localProviders"]])).as_bytes())
     )[..16]
         .into()
+}
+
+pub(crate) fn builtin_consistent() -> bool {
+    static CONSISTENT: OnceLock<bool> = OnceLock::new();
+    *CONSISTENT.get_or_init(|| catalog_version() == PRICE_VERSION)
 }
 
 fn numeric_separators(name: &str, from: char, to: char) -> String {
@@ -141,7 +368,7 @@ fn candidates(raw: &str) -> Vec<String> {
     output
 }
 
-pub fn find_price(model: Option<&str>) -> Value {
+fn find_in_catalog(catalog: &Value, model: Option<&str>) -> Value {
     let Some(model) = model.filter(|s| !s.is_empty()) else {
         return Value::Null;
     };
@@ -149,7 +376,7 @@ pub fn find_price(model: Option<&str>) -> Value {
     let mut keys = vec![key.clone()];
     keys.extend(candidates(model).into_iter().filter(|c| c != &key));
     for (index, key) in keys.iter().enumerate() {
-        for entry in catalog()["entries"].as_array().unwrap() {
+        for entry in catalog["entries"].as_array().unwrap() {
             if entry["id"].as_str().unwrap().to_lowercase() == *key
                 || entry["aliases"]
                     .as_array()
@@ -169,6 +396,7 @@ pub fn find_price(model: Option<&str>) -> Value {
                     "sourceUrl",
                     "verifiedAt",
                     "conditions",
+                    "conditionsEn",
                 ] {
                     output[name] = entry[name].clone();
                 }
@@ -180,27 +408,16 @@ pub fn find_price(model: Option<&str>) -> Value {
     Value::Null
 }
 
-pub(super) fn english_note(id: Option<&str>) -> Option<&'static str> {
-    let id = id?;
-    catalog()["entries"]
-        .as_array()?
-        .iter()
-        .find(|entry| entry["id"].as_str() == Some(id))?["conditionsEn"]
-        .as_str()
+#[cfg(test)]
+fn find_price(model: Option<&str>) -> Value {
+    let mut price = find_in_catalog(catalog(), model);
+    if let Some(fields) = price.as_object_mut() {
+        fields.remove("conditionsEn");
+    }
+    price
 }
 
-pub fn local_provider(provider: Option<&str>) -> Option<String> {
-    let id = provider?.to_lowercase();
-    catalog()["localProviders"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|value| value.as_str() == Some(&id))
-        .then_some(id)
-}
-
-pub fn classify_price(model: Option<&str>) -> Value {
-    let price = find_price(model);
+fn classify_price_value(price: &Value) -> Value {
     if price.is_null() {
         json!({"state":"unknown","billing":"metered","id":null,"sourceUrl":null,"note":null,"provisional":false,"matchedBy":null})
     } else {
@@ -242,26 +459,28 @@ fn overlap(tod: &Value, day: i64, from: i64, to: i64) -> i64 {
         .sum()
 }
 
+#[cfg(test)]
 pub fn price_record(record: &Value) -> Value {
     price_record_with(record, || Cow::Owned(find_price(record["model"].as_str())))
 }
 
-pub(super) fn price_record_with<'a>(
+#[cfg(test)]
+fn price_record_with<'a>(record: &Value, model_price: impl FnOnce() -> Cow<'a, Value>) -> Value {
+    EffectivePrices::from_download(None).price_record_with(record, model_price)
+}
+
+fn compute_record<'a>(
     record: &Value,
+    version: &str,
+    provider: Option<String>,
     model_price: impl FnOnce() -> Cow<'a, Value>,
 ) -> Value {
-    let provider = record["provider"].as_str().map(str::to_lowercase);
-    if let Some(provider) = provider.filter(|p| {
-        catalog()["localProviders"]
-            .as_array()
-            .unwrap()
-            .contains(&json!(p))
-    }) {
-        return json!({"cost_micros":0,"price_version":PRICE_VERSION,"price_source":format!("local:{provider}"),"parts":{"input":0,"output":0,"cache_read":0,"cache_write":0}});
+    if let Some(provider) = provider {
+        return json!({"cost_micros":0,"price_version":version,"price_source":format!("local:{provider}"),"parts":{"input":0,"output":0,"cache_read":0,"cache_write":0}});
     }
     let price = model_price();
     if price.is_null() {
-        return json!({"cost_micros":null,"price_version":PRICE_VERSION,"price_source":null,"parts":null});
+        return json!({"cost_micros":null,"price_version":version,"price_source":null,"parts":null});
     }
     let mut table = &price["perMTok"];
     let mut mark = String::new();
@@ -362,9 +581,10 @@ pub(super) fn price_record_with<'a>(
         .values()
         .map(|v| v.as_i64().unwrap())
         .sum();
-    json!({"cost_micros":total,"price_version":PRICE_VERSION,"price_source":format!("{}:{}{mark}",price["tier"].as_str().unwrap(),price["id"].as_str().unwrap()),"parts":parts})
+    json!({"cost_micros":total,"price_version":version,"price_source":format!("{}:{}{mark}",price["tier"].as_str().unwrap(),price["id"].as_str().unwrap()),"parts":parts})
 }
 
+#[cfg(test)]
 pub fn cost_of(record: &Value) -> Value {
     let mut output = price_record(record);
     output.as_object_mut().unwrap().remove("parts");
@@ -411,6 +631,42 @@ pub fn allocate_display(values: &[i64], total: i64, scale: usize) -> Vec<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn builtin_catalog_declares_a_publication_date() {
+        assert_eq!(catalog()["formatVersion"], 1);
+        let published = catalog()["publishedAt"].as_str().unwrap();
+        assert_eq!(published, "2026-11-22");
+        for entry in catalog()["entries"].as_array().unwrap() {
+            assert!(published >= entry["verifiedAt"].as_str().unwrap());
+        }
+    }
+
+    #[test]
+    fn pricing_snapshot_uses_the_catalog_in_its_data_directory() {
+        use super::super::{clock::Clock, ledger::Ledger, service};
+
+        let data = tempfile::tempdir().unwrap();
+        let prices = || {
+            let ledger = Ledger::open(&data.path().join("ledger.db"), Clock::System).unwrap();
+            service::pricing(&ledger, "UTC").unwrap()
+        };
+        assert_eq!(prices()["price_version"], PRICE_VERSION);
+        let mut downloaded = catalog().clone();
+        downloaded["formatVersion"] = json!(1);
+        downloaded["publishedAt"] = json!("2026-11-21");
+        downloaded["entries"][0]["perMTok"]["input"] = json!(123);
+        let path = data.path().join("price-catalog.json");
+        std::fs::write(&path, downloaded.to_string()).unwrap();
+        assert_eq!(prices()["price_version"], PRICE_VERSION);
+        assert!(path.exists());
+        downloaded["publishedAt"] = json!("2026-11-23");
+        std::fs::write(path, downloaded.to_string()).unwrap();
+        let version = prices()["price_version"].clone();
+        assert_ne!(version, PRICE_VERSION);
+        assert_eq!(prices()["price_version"], version);
+        assert_eq!(prices()["snapshot"]["price_version"], version);
+    }
 
     #[test]
     fn trial_catalog_estimates_new_models_and_tier_boundaries() {

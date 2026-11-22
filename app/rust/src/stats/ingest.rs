@@ -2,6 +2,8 @@ pub use super::discovery::Environment;
 #[cfg(test)]
 #[path = "ingest_cache_tests.rs"]
 mod cache_tests;
+#[cfg(test)]
+use super::pricing;
 use super::{
     adapters,
     clock::Clock,
@@ -9,7 +11,7 @@ use super::{
     jscompat::{self, LocalZone},
     ledger::{CachedFile, FileOutput, Ledger, Revisions},
     lock::SyncLock,
-    pricing, Error, Result,
+    Error, Result,
 };
 #[path = "ingest_fingerprint.rs"]
 mod fingerprint;
@@ -206,7 +208,7 @@ mod e4b_real_tests {
                         Some(&file.file),
                         Some(adapters::parser_rev(source)),
                         elsewhere.get(&file.file).map_or(&[], Vec::as_slice),
-                        pricing::cost_of,
+                        super::pricing::cost_of,
                     )
                     .unwrap();
                 assert_eq!(result["rejected"], 0);
@@ -806,7 +808,7 @@ fn sync_profiled(
                             revisions,
                             elsewhere.get(&file.file).map(Vec::as_slice).unwrap_or(&[]),
                         ),
-                        pricing::cost_of,
+                        |record| ledger.prices.cost_of(record),
                         || cancel.load(Ordering::Acquire),
                         |transaction| {
                             let cached = match &update {
@@ -892,10 +894,11 @@ fn sync_profiled(
             return Err(Error("cancelled".into()));
         }
         let start = Instant::now();
-        let repriced =
-            ledger.reprice_cancellable(pricing::PRICE_VERSION, pricing::cost_of, || {
-                cancel.load(Ordering::Acquire)
-            })?;
+        let repriced = ledger.reprice_cancellable(
+            ledger.prices.version(),
+            |record| ledger.prices.cost_of(record),
+            || cancel.load(Ordering::Acquire),
+        )?;
         phases.reprice_ns = start.elapsed().as_nanos() as u64;
         totals["repriced"] = json!(repriced);
         totals["parsedFiles"] = json!(phases.parsed_files);
