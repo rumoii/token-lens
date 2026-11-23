@@ -192,11 +192,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final entry = find.widgetWithText(LensButton, '迷你窗口');
+    final entry = find.widgetWithText(LensButton, '小窗');
     final navigation = find.widgetWithText(LensSegmented, '明细');
     void expectEntry() {
       expect(entry, findsOneWidget);
-      expect(find.byTooltip('迷你窗口'), findsNothing);
+      expect(find.byTooltip('小窗'), findsNothing);
       expect(
         tester.getTopLeft(entry).dy,
         lessThanOrEqualTo(tester.getTopLeft(navigation).dy),
@@ -250,7 +250,7 @@ void main() {
       if (scenario == 'dismiss') {
         await tester.tap(find.byTooltip('不再提示'));
       } else {
-        await tester.tap(find.text('打开迷你窗口'));
+        await tester.tap(find.text('打开小窗'));
         await tester.pumpAndSettle();
         expect(c.miniMode, isTrue);
         await window.exit();
@@ -391,7 +391,7 @@ void main() {
       expect(axis(value), findsOneWidget);
     }
     expect(axis('14:25'), findsNothing);
-    await tester.tap(find.byTooltip('Mini window settings'));
+    await tester.tap(find.byTooltip('Compact window settings'));
     await tester.pumpAndSettle();
     expect(find.text('Chart range'), findsOneWidget);
     for (final label in ['15 min', '30 min', '1 hour']) {
@@ -404,7 +404,7 @@ void main() {
     }
     expect(axis('14:15'), findsNothing);
     expect(axis('14:20'), findsNothing);
-    await tester.tap(find.byTooltip('Mini window settings'));
+    await tester.tap(find.byTooltip('Compact window settings'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('1 hour'));
     await tester.pumpAndSettle();

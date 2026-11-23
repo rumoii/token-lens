@@ -2,7 +2,7 @@ part of 'app_strings.dart';
 
 final class EnglishStrings extends AppStrings {
   @override
-  String get miniWindow => 'Mini window';
+  String get miniWindow => 'Compact window';
 
   @override
   String get miniHintTitle =>
@@ -10,10 +10,10 @@ final class EnglishStrings extends AppStrings {
 
   @override
   String get miniHintDescription =>
-      'The mini window stays on top in a corner, showing today\'s usage and the models in use.';
+      'The compact window stays on top in a corner, showing today\'s usage and the models in use.';
 
   @override
-  String get miniHintOpen => 'Open mini window';
+  String get miniHintOpen => 'Open compact window';
 
   @override
   String get miniHintDismiss => 'Don\'t show again';
@@ -58,7 +58,7 @@ final class EnglishStrings extends AppStrings {
   String get miniUnpin => 'Stop keeping on top';
 
   @override
-  String get miniSettings => 'Mini window settings';
+  String get miniSettings => 'Compact window settings';
 
   @override
   String get miniExpand => 'Open full window';

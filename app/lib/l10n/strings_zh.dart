@@ -2,16 +2,16 @@ part of 'app_strings.dart';
 
 final class ChineseStrings extends AppStrings {
   @override
-  String get miniWindow => '迷你窗口';
+  String get miniWindow => '小窗';
 
   @override
   String get miniHintTitle => '想边用 AI 边看 token 用量？';
 
   @override
-  String get miniHintDescription => '迷你窗口可以置顶在屏幕一角，随时看今天的用量和正在用的模型。';
+  String get miniHintDescription => '小窗可以置顶在屏幕一角，随时看今天的用量和正在用的模型。';
 
   @override
-  String get miniHintOpen => '打开迷你窗口';
+  String get miniHintOpen => '打开小窗';
 
   @override
   String get miniHintDismiss => '不再提示';
@@ -53,7 +53,7 @@ final class ChineseStrings extends AppStrings {
   String get miniUnpin => '取消置顶';
 
   @override
-  String get miniSettings => '迷你窗口设置';
+  String get miniSettings => '小窗设置';
 
   @override
   String get miniExpand => '展开完整窗口';
