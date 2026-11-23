@@ -669,6 +669,158 @@ fn assert_replacement(oracle: &Oracle, pending: bool) {
 }
 
 #[test]
+fn claude_idle_skips_its_source_and_hot_skips_unchanged_files() {
+    let mut oracle = Oracle::new();
+    let files = [0, 1, 2].map(|slot| Source::Claude.path(&oracle.home, slot, false));
+    for (slot, file) in files.iter().enumerate() {
+        oracle.write(
+            file,
+            encode(
+                Source::Claude,
+                &[Event {
+                    id: slot,
+                    minute: slot as i64,
+                    tokens: 20,
+                }],
+            ),
+        );
+    }
+    oracle.compare_round("Claude cold");
+    let (idle, idle_phases) = oracle.compare_profiled_round("Claude idle");
+
+    oracle.write(
+        &files[0],
+        encode(
+            Source::Claude,
+            &[Event {
+                id: 0,
+                minute: 0,
+                tokens: 45,
+            }],
+        ),
+    );
+    let (hot, phases) = oracle.compare_profiled_round("Claude hot");
+    assert_eq!(hot["updated"], 1);
+    assert_eq!(hot["unchanged"], 2);
+    assert_eq!(hot["cachedFiles"], 2);
+    assert_eq!(phases["writeTransactions"], 1);
+    assert_eq!(phases["writeSkippedFiles"], 2);
+    assert_eq!(idle["skippedFiles"], 3);
+    assert_eq!(idle["attempted"], 0);
+    assert_eq!(idle_phases["writeTransactions"], 0);
+    assert_eq!(idle_phases["cachePayloadReadNs"], 0);
+}
+
+fn claude_with_pending_replacement() -> (Oracle, PathBuf) {
+    let mut oracle = Oracle::new();
+    oracle.write(
+        &Source::Claude.path(&oracle.home, 0, false),
+        encode(
+            Source::Claude,
+            &[Event {
+                id: 1,
+                minute: 0,
+                tokens: 40,
+            }],
+        ),
+    );
+    oracle.compare_round("Claude declaration without target");
+    let target = Source::Claude.path(&oracle.home, 1, false);
+    oracle.write(
+        &target,
+        jsonl([json!({
+            "type":"assistant","sessionId":SESSION,"timestamp":time(1, 1000),
+            "uuid":format!("{SESSION}|msg_1"),
+            "message":{"model":"claude-sonnet-5-5","usage":{"input_tokens":20}}
+        })]),
+    );
+    oracle.compare_round("Claude target is first inserted after the declaration");
+    assert_replacement(&oracle, true);
+    (oracle, target)
+}
+
+#[test]
+fn claude_replays_when_a_later_file_first_produces_a_replacement_target() {
+    let (mut oracle, _) = claude_with_pending_replacement();
+    let (replay, phases) = oracle.compare_profiled_round("Claude pending target is retired");
+    assert_eq!(replay["counts"]["replaced"], 1);
+    assert_eq!(phases["writeTransactions"], 2);
+    assert_replacement(&oracle, false);
+    let (idle, phases) = oracle.compare_profiled_round("Claude replacement is settled");
+    assert_eq!(idle["skippedFiles"], 2);
+    assert_eq!(phases["writeTransactions"], 0);
+    assert_replacement(&oracle, false);
+}
+
+#[test]
+fn claude_replays_for_an_active_historical_target_and_skips_after_retirement() {
+    let (mut oracle, target) = claude_with_pending_replacement();
+    fs::remove_file(&target).unwrap();
+    let (replay, phases) = oracle.compare_profiled_round("removed file leaves an active target");
+    assert_eq!(replay["counts"]["replaced"], 1);
+    assert_eq!(phases["writeTransactions"], 1);
+    assert_replacement(&oracle, false);
+
+    oracle.write(
+        &Source::Claude.path(&oracle.home, 2, false),
+        encode(
+            Source::Claude,
+            &[Event {
+                id: 2,
+                minute: 2,
+                tokens: 20,
+            }],
+        ),
+    );
+    let (hot, phases) = oracle.compare_profiled_round("historical target is now inactive");
+    assert_eq!(hot["counts"]["replaced"], 0);
+    assert_eq!(phases["writeTransactions"], 1);
+    assert_eq!(phases["writeSkippedFiles"], 1);
+}
+
+fn gemini_snapshot(oracle: &Oracle, file: &str, session: &str, minute: i64) {
+    oracle.write(
+        &oracle.home.join(".gemini/sessions").join(file),
+        json!({
+            "sessionId":session,"startTime":time(minute, 0),"model":"gemini-2.5-pro",
+            "usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":10}
+        })
+        .to_string(),
+    );
+}
+
+#[test]
+fn gemini_idle_skips_multiple_files_with_distinct_snapshot_keys() {
+    let mut oracle = Oracle::new();
+    gemini_snapshot(&oracle, "a.json", "first", 0);
+    gemini_snapshot(&oracle, "b.json", "second", 1);
+    oracle.compare_round("Gemini distinct snapshots cold");
+    let (idle, phases) = oracle.compare_profiled_round("Gemini distinct snapshots idle");
+    assert_eq!(idle["skippedFiles"], 2);
+    assert_eq!(phases["writeTransactions"], 0);
+}
+
+#[test]
+fn gemini_shared_snapshot_key_in_two_files_requires_replay() {
+    let mut oracle = Oracle::new();
+    gemini_snapshot(&oracle, "a.json", "shared", 0);
+    gemini_snapshot(&oracle, "b.json", "shared", 1);
+    oracle.compare_round("Gemini shared snapshot cold");
+    let (replay, phases) = oracle.compare_profiled_round("Gemini shared snapshot idle");
+    assert_eq!(replay["updated"], 2);
+    assert_eq!(phases["writeTransactions"], 2);
+    assert_eq!(
+        select(&oracle.ledger(0), "SELECT revision FROM usage_records"),
+        [json!({"revision":4})]
+    );
+    gemini_snapshot(&oracle, "b.json", "separate", 1);
+    oracle.compare_round("Gemini snapshot keys diverge");
+    let (idle, phases) = oracle.compare_profiled_round("Gemini diverged snapshot keys idle");
+    assert_eq!(idle["skippedFiles"], 2);
+    assert_eq!(phases["writeTransactions"], 0);
+}
+
+#[test]
 fn declaration_before_target_replays_then_skips_on_the_third_round() {
     let mut oracle = Oracle::new();
     replacement(&oracle, true);
@@ -685,12 +837,12 @@ fn declaration_before_target_replays_then_skips_on_the_third_round() {
     assert_eq!(replay["cachedFiles"], 2);
     assert_eq!(replay["counts"]["replaced"], 1);
     assert_replacement(&oracle, false);
-    let (settled, phases) = oracle.compare_profiled_round("settled declaration still replays");
-    assert_eq!(settled["cachedFiles"], 3);
-    assert_eq!(settled["skippedFiles"], 0);
-    assert_eq!(settled["counts"]["replaced"], 0);
-    assert_eq!(phases["writeSkippedFiles"], 1);
-    assert_eq!(phases["writeTransactions"], 2);
+    let (settled, phases) = oracle.compare_profiled_round("settled declaration skips the source");
+    assert_eq!(settled["cachedFiles"], 0);
+    assert_eq!(settled["skippedFiles"], 3);
+    assert_eq!(settled["attempted"], 0);
+    assert_eq!(phases["writeSkippedFiles"], 0);
+    assert_eq!(phases["writeTransactions"], 0);
     assert_replacement(&oracle, false);
 }
 
@@ -846,9 +998,9 @@ fn target_before_declaration_is_replaced_in_the_first_round() {
     );
     assert_replacement(&oracle, false);
     let settled = oracle.compare_round("no pending replacement");
-    assert_eq!(settled["cachedFiles"], 2);
-    assert_eq!(settled["skippedFiles"], 0);
-    assert_eq!(settled["counts"]["replaced"], 0);
+    assert_eq!(settled["cachedFiles"], 0);
+    assert_eq!(settled["skippedFiles"], 2);
+    assert_eq!(settled["attempted"], 0);
 }
 
 #[test]
@@ -888,9 +1040,21 @@ fn reused_long_id_should_match_full_replay() {
             codex_usage(0, json!({"response_id": TARGET}), 200),
         ]),
     );
+    oracle.write(
+        &Source::Claude.path(&oracle.home, 0, false),
+        encode(
+            Source::Claude,
+            &[Event {
+                id: 0,
+                minute: 0,
+                tokens: 20,
+            }],
+        ),
+    );
     oracle.compare_round("duplicate long ID initial");
+    let codex_revision = "SELECT revision FROM usage_records WHERE source='codex'";
     assert_eq!(
-        select(&oracle.ledger(0), "SELECT revision FROM usage_records"),
+        select(&oracle.ledger(0), codex_revision),
         [json!({"revision":2})]
     );
     // A v7 cache written by an older version has no replay metadata.
@@ -907,15 +1071,19 @@ fn reused_long_id_should_match_full_replay() {
     oracle
         .ledger(0)
         .db
-        .execute("UPDATE ingest_files SET fingerprint=?", [old_fingerprint])
+        .execute(
+            "UPDATE ingest_files SET fingerprint=? WHERE source='codex'",
+            [old_fingerprint],
+        )
         .unwrap();
     for label in ["legacy cache replay", "classified cache replay"] {
         let result = oracle.compare_round(label);
         assert_eq!(result["cachedFiles"], 1);
+        assert_eq!(result["skippedFiles"], 1);
         assert_eq!(result["updated"], 2);
     }
     assert_eq!(
-        select(&oracle.ledger(0), "SELECT revision FROM usage_records"),
+        select(&oracle.ledger(0), codex_revision),
         [json!({"revision":6})]
     );
 }

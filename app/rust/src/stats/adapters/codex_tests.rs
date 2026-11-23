@@ -136,10 +136,10 @@ fn e1_same_thread_turn_and_timestamp_get_stable_occurrence_suffixes() {
     let repeated = sync(dir.path());
     assert_eq!(repeated["inserted"], 0);
     assert_eq!(repeated["updated"], 0);
-    assert_eq!(repeated["unchanged"], 2);
-    assert_eq!(repeated["cachedFiles"], 1);
+    assert_eq!(repeated["unchanged"], 0);
+    assert_eq!(repeated["cachedFiles"], 0);
     assert_eq!(repeated["parsedFiles"], 0);
-    assert_eq!(repeated["skippedFiles"], 0);
+    assert_eq!(repeated["skippedFiles"], 1);
     rows.push(usage(ROOT, TIME, "resp_0", 300));
     write(&home, "rollout-a.jsonl", ROOT, &rows);
     let appended = sync(dir.path());

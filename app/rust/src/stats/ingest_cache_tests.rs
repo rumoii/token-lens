@@ -147,9 +147,9 @@ fn system_timezone_allows_first_source_to_reuse_cache() {
     };
     run();
     let warm = run();
-    assert_eq!(warm["cachedFiles"], 1);
+    assert_eq!(warm["cachedFiles"], 0);
     assert_eq!(warm["parsedFiles"], 0);
-    assert_eq!(warm["skippedFiles"], 0); // Claude declares replacement keys.
+    assert_eq!(warm["skippedFiles"], 1);
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn unchanged_source_skips_parsing_and_all_batches() {
 }
 
 #[test]
-fn pending_replacement_reuses_cache_on_every_replay() {
+fn pending_replacement_reuses_cache_and_only_then_skips() {
     let fixture = Fixture::new();
     fixture.file(
         ".codex/sessions/rollout-replacement.jsonl",
@@ -187,10 +187,9 @@ fn pending_replacement_reuses_cache_on_every_replay() {
     assert_eq!(replay["cachedFiles"], 1);
     assert_eq!(replay["parsedFiles"], 0);
     let settled = fixture.run(0);
-    assert_eq!(settled["skippedFiles"], 0);
-    assert_eq!(settled["cachedFiles"], 1);
-    assert_eq!(settled["attempted"], 2);
-    assert_eq!(settled["counts"]["replaced"], 0);
+    assert_eq!(settled["skippedFiles"], 1);
+    assert_eq!(settled["cachedFiles"], 0);
+    assert_eq!(settled["attempted"], 0);
 }
 
 #[test]

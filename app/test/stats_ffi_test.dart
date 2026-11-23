@@ -59,15 +59,15 @@ void main() {
     expect(first.parsedFiles, 3);
     final cached = await gateway.sync(trigger: 'manual');
     expect(cached.parsedFiles, 0);
-    expect(cached.cachedFiles, 3);
-    expect(cached.skippedFiles, 0);
-    expect(cached.attempted, 4);
-    expect(cached.unchanged, 4);
-    expect(cached.counts.crossFileCopies, 2);
+    expect(cached.cachedFiles, 0);
+    expect(cached.skippedFiles, 3);
+    expect(cached.attempted, 0);
+    expect(cached.unchanged, 0);
+    expect(cached.counts.crossFileCopies, 0);
     final lastRun = (await gateway.sources()).lastRun!;
-    expect(lastRun.skippedFiles, 0);
-    expect(lastRun.attempted, 4);
-    expect(lastRun.unchanged, 4);
+    expect(lastRun.skippedFiles, 3);
+    expect(lastRun.attempted, 0);
+    expect(lastRun.unchanged, 0);
     final reread = await gateway.sync(trigger: 'reread');
     expect(reread.parsedFiles, 3);
     expect(reread.skippedFiles, 0);
@@ -306,9 +306,9 @@ void main() {
       expect((await gateway.pricing()).models.single.model, 'claude-opus-5-5');
       final cached = await client.sync_();
       expect(cached.parsedFiles, 0);
-      expect(cached.cachedFiles, 1);
-      expect(cached.skippedFiles, 0);
-      expect(cached.unchanged, 1);
+      expect(cached.cachedFiles, 0);
+      expect(cached.skippedFiles, 1);
+      expect(cached.unchanged, 0);
       expect((await client.syncTriggered(trigger: 'reread')).unchanged, 1);
       expect(
         (await gateway.summary(const StatsFilter())).totals.costMicros,
