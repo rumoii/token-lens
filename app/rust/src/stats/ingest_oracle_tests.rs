@@ -722,6 +722,32 @@ fn add_independent_files(oracle: &Oracle, source: Source) {
 }
 
 #[test]
+fn oversized_index_falls_back_to_full_replay_and_idle_skip() {
+    let mut oracle = Oracle::new();
+    let source = Source::Codex;
+    let file = source.path(&oracle.home, 0, false);
+    let event = |id| Event {
+        id,
+        minute: id as i64,
+        tokens: 10,
+    };
+    oracle.executor.memory_limit = Some(1);
+    oracle.write(&file, encode(source, &[event(1)]));
+    let (_, (_, cold)) = oracle.compare_all("index exceeds the cap");
+    assert_eq!(cold["indexMemoryBytes"], 0);
+    assert_eq!(cold["indexRebuilds"], 0);
+
+    let (_, (receipt, idle)) = oracle.compare_all("fallback skips an idle source");
+    assert_eq!(receipt["skippedFiles"], 1);
+    assert_eq!(idle["cacheDecodedBytes"], 0);
+
+    oracle.write(&file, encode(source, &[event(1), event(2)]));
+    let (_, (receipt, hot)) = oracle.compare_all("fallback processes changed content");
+    assert_eq!(receipt["inserted"], 1);
+    assert_eq!(hot["indexMemoryBytes"], 0);
+}
+
+#[test]
 fn persistent_hot_round_only_decodes_an_affected_cache_hit() {
     for source in [Source::Codex, Source::Claude] {
         let mut oracle = Oracle::new();

@@ -431,6 +431,9 @@ pub(crate) enum Progress<'a> {
 #[derive(Default)]
 pub struct SyncExecutor {
     retained: Option<Retained>,
+    budget_exceeded: bool,
+    #[cfg(test)]
+    memory_limit: Option<usize>,
 }
 
 struct Retained {
@@ -474,6 +477,7 @@ struct RoundIndexes {
     zone: Option<String>,
     usable: bool,
     publish: bool,
+    budget_exceeded: bool,
     data_version: i64,
 }
 
@@ -532,7 +536,7 @@ impl RoundIndexes {
                 .iter()
                 .map(|file| file.to_string_lossy())
                 .filter(|file| {
-                    !previous.is_some_and(|state| state.index.files.contains_key(file.as_ref()))
+                    !previous.is_some_and(|state| state.index.contains_file(file.as_ref()))
                 })
                 .collect();
             if new.is_empty() {
@@ -861,6 +865,20 @@ fn sync_profiled(
     let log = crate::diagnostics::RuntimeLog::new(data, Some(home));
     // Take ownership before any fallible work. An error or unwind drops proofs.
     let mut executor = options.executor.take();
+    if options.no_cache {
+        if let Some(executor) = &mut executor {
+            executor.budget_exceeded = false;
+        }
+    }
+    let budget_fallback = executor
+        .as_ref()
+        .is_some_and(|executor| executor.budget_exceeded);
+    let memory_limit = index::MEMORY_LIMIT;
+    #[cfg(test)]
+    let memory_limit = executor
+        .as_ref()
+        .and_then(|executor| executor.memory_limit)
+        .unwrap_or(memory_limit);
     let retained = executor
         .as_deref_mut()
         .and_then(|executor| executor.retained.take());
@@ -906,7 +924,8 @@ fn sync_profiled(
             None => ledger.data_version()?,
         };
         indexes.zone = zone_identity;
-        indexes.usable = indexes.zone.is_some()
+        indexes.usable = !budget_fallback
+            && indexes.zone.is_some()
             && !options.no_cache
             && opened_file.is_some()
             && file_before
@@ -1040,7 +1059,10 @@ fn sync_profiled(
                     });
                 }
                 let fingerprint_ns = start.elapsed().as_nanos() as u64;
-                let target = executor.is_some() && supports_index(&source);
+                let target = executor.is_some()
+                    && !budget_fallback
+                    && !indexes.budget_exceeded
+                    && supports_index(&source);
                 let indexed = indexes.usable && target;
                 let mut remove: Vec<String> = previous.into_keys().collect();
                 let mut state = indexes.sources.remove(&source).filter(|state| {
@@ -1138,7 +1160,7 @@ fn sync_profiled(
                         .as_ref()
                         .filter(|affected| !affected.files.contains(file))
                         .and(state.as_mut())
-                        .and_then(|state| state.index.files.get_mut(file))
+                        .and_then(|state| state.index.summary_mut(file))
                     {
                         merge_counts(
                             &mut totals,
@@ -1203,8 +1225,9 @@ fn sync_profiled(
                                 .flatten()
                                 .unwrap_or_else(|| Summary::new(&output));
                             summary.order = order;
-                            summary_bytes += summary.bytes(file);
-                            if summary_bytes > index::MEMORY_LIMIT {
+                            summary_bytes += summary.staging_bytes();
+                            if summary_bytes > memory_limit {
+                                indexes.budget_exceeded = true;
                                 complete = false;
                                 summaries.clear();
                             } else {
@@ -1419,6 +1442,7 @@ fn sync_profiled(
                         )?;
                         phases.write_skip_check_ns += proof_started.elapsed().as_nanos() as u64;
                         let index_started = Instant::now();
+                        let source_limit = memory_limit.saturating_sub(indexes.bytes());
                         let rebuild = state.is_none();
                         let mut source_index = state.map(|state| state.index).unwrap_or_default();
                         for file in &remove {
@@ -1432,19 +1456,22 @@ fn sync_profiled(
                             summary.replay =
                                 conflict || !(certified[index] || post.contains(index, &ledger)?);
                             source_index.put(&file.file, summary);
-                            if source_index.bytes() > index::MEMORY_LIMIT {
+                            if source_index.bytes() > source_limit {
                                 break;
                             }
                         }
-                        indexes.publish = source_index.bytes() <= index::MEMORY_LIMIT
+                        let within_budget = source_index.bytes() <= source_limit;
+                        indexes.publish = within_budget
                             && source_index.refresh_owners(
                                 &ledger,
                                 &source,
                                 revisions,
                                 affected.as_ref(),
+                                source_limit,
                                 cancelled,
-                            )?
-                            && source_index.bytes() + indexes.bytes() <= index::MEMORY_LIMIT;
+                            )?;
+                        indexes.budget_exceeded =
+                            !within_budget || source_index.bytes() > source_limit;
                         phases.index_ns += index_started.elapsed().as_nanos() as u64;
                         if indexes.publish {
                             if rebuild {
@@ -1569,6 +1596,10 @@ fn sync_profiled(
         );
     }
     if let Some(executor) = executor {
+        if result.is_ok() && indexes.budget_exceeded {
+            // Further rounds use the second-stage path until reread or a new executor.
+            executor.budget_exceeded = true;
+        }
         if result.is_ok() && indexes.usable && indexes.publish && !cancel.load(Ordering::Acquire) {
             if let Some(file) =
                 opened_file.filter(|file| LedgerFile::read(ledger_path).ok().as_ref() == Some(file))
