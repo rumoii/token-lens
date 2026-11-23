@@ -8,11 +8,13 @@ const SESSION: &str = "oracle-session";
 const TARGET: &str = "resp_oracle_replacement_target";
 
 struct Oracle {
+    executor: SyncExecutor,
     _root: tempfile::TempDir,
     home: PathBuf,
-    data: [PathBuf; 2],
+    data: [PathBuf; 3],
     round: i64,
     revisions: Option<Revisions>,
+    reread_next: bool,
 }
 
 impl Oracle {
@@ -20,7 +22,7 @@ impl Oracle {
         let root = tempfile::tempdir().unwrap();
         let home = root.path().join("home");
         fs::create_dir(&home).unwrap();
-        let data = ["cached", "no-cache"].map(|side| root.path().join(side));
+        let data = ["cached", "no-cache", "persistent"].map(|side| root.path().join(side));
         for dir in &data {
             let ledger = Ledger::open(&dir.join("ledger.db"), Clock::Fixed(START_MS)).unwrap();
             // SQLite checks the production default using the INSERT's own wall clock, then
@@ -41,11 +43,13 @@ impl Oracle {
                 .unwrap();
         }
         Self {
+            executor: SyncExecutor::default(),
             _root: root,
             home,
             data,
             round: 0,
             revisions: None,
+            reread_next: false,
         }
     }
 
@@ -67,6 +71,10 @@ impl Oracle {
     }
 
     fn compare_profiled_round(&mut self, label: &str) -> (Value, Value) {
+        self.compare_all(label).0
+    }
+
+    fn compare_all(&mut self, label: &str) -> ((Value, Value), (Value, Value)) {
         self.round += 1;
         let context = format!("{label}, round {}", self.round);
         let run = |side: usize, no_cache| {
@@ -87,6 +95,21 @@ impl Oracle {
         // The same immutable input tree is read by both passes, including its absolute paths.
         let (cached, phases) = run(0, false);
         let (replay, replay_phases) = run(1, true);
+        let (persistent, persistent_phases) = sync_profiled(
+            &self.data[2],
+            &self.home,
+            &Environment::default(),
+            Clock::Fixed(START_MS + self.round * 1000),
+            &LocalZone::Fixed(0),
+            &AtomicBool::new(false),
+            SyncOptions {
+                executor: Some(&mut self.executor),
+                revisions: self.revisions,
+                no_cache: std::mem::take(&mut self.reread_next),
+                ..Default::default()
+            },
+        )
+        .unwrap_or_else(|error| panic!("persistent {context}: {error}"));
         assert_eq!(replay["cachedFiles"], 0, "{context}");
         assert_eq!(replay["skippedFiles"], 0, "{context}");
         assert_eq!(replay_phases["writeSkippedFiles"], 0, "{context}");
@@ -96,11 +119,15 @@ impl Oracle {
         );
         assert_eq!(replay["parsedFiles"], replay["fileCount"], "{context}");
         assert_eq!(cached["fileCount"], replay["fileCount"], "{context}");
-        for result in [&cached, &replay] {
+        for result in [&cached, &replay, &persistent] {
             assert_eq!(result["counts"]["read_failed"], 0, "{context}");
             assert_eq!(result["rejected"], 0, "{context}");
         }
-        if cached["skippedFiles"] == 0 {
+        for ordinary in [&cached, &persistent] {
+            assert_eq!(ordinary["fileCount"], replay["fileCount"], "{context}");
+            if ordinary["skippedFiles"] != 0 {
+                continue;
+            }
             for key in [
                 "attempted",
                 "inserted",
@@ -109,12 +136,70 @@ impl Oracle {
                 "rejected",
                 "counts",
             ] {
-                assert_eq!(cached[key], replay[key], "{context}: {key}");
+                assert_eq!(ordinary[key], replay[key], "{context}: {key}");
             }
-            assert_eq!(cached["anomalies"], replay["anomalies"], "{context}");
+            assert_eq!(ordinary["anomalies"], replay["anomalies"], "{context}");
         }
         compare_ledgers(&self.ledger(0), &self.ledger(1), &context);
-        (cached, phases)
+        compare_ledgers(
+            &self.ledger(2),
+            &self.ledger(1),
+            &format!("persistent {context}"),
+        );
+        ((cached, phases), (persistent, persistent_phases))
+    }
+
+    fn other_instance_sync(&mut self) {
+        self.round += 1;
+        for data in &self.data {
+            sync_profiled(
+                data,
+                &self.home,
+                &Environment::default(),
+                Clock::Fixed(self.now()),
+                &LocalZone::Fixed(0),
+                &AtomicBool::new(false),
+                SyncOptions {
+                    revisions: self.revisions,
+                    ..SyncOptions::new(true)
+                },
+            )
+            .unwrap();
+        }
+    }
+
+    fn set_manual_price(&self, price: usize) {
+        for (side, data) in self.data.iter().enumerate() {
+            crate::stats::pricing::store::save_manual(
+                data,
+                &self.ledger(side),
+                &json!({"model":"oracle-random-price","currency":"USD","input":price,"output":0})
+                    .to_string(),
+            )
+            .unwrap();
+        }
+    }
+
+    fn cancel_round(&mut self) {
+        self.round += 1;
+        let now = self.now();
+        for (side, data) in self.data.iter().enumerate() {
+            let result = sync_profiled(
+                data,
+                &self.home,
+                &Environment::default(),
+                Clock::Fixed(now),
+                &LocalZone::Fixed(0),
+                &AtomicBool::new(true),
+                SyncOptions {
+                    executor: (side == 2).then_some(&mut self.executor),
+                    revisions: self.revisions,
+                    ..SyncOptions::new(side == 1)
+                },
+            );
+            assert_eq!(result.unwrap_err().0, "cancelled");
+        }
+        assert!(self.executor.retained.is_none());
     }
 }
 
@@ -543,6 +628,70 @@ fn seeded_mutations_match_full_replay() {
     }
 }
 
+#[test]
+fn seeded_executor_invalidations_match_full_replay() {
+    let mut covered = [0; 7];
+    for seed in [0x9029_a635, 0x1737_d2b1, 0xc05c_4857] {
+        let mut rng = Random(seed);
+        let mut lifecycle = Random(seed ^ 0x824a_8a59);
+        let mut oracle = Oracle::new();
+        let mut histories =
+            [Source::Codex, Source::Claude].map(|source| History::new(source, &oracle));
+        let mut unpriced = codex_usage(0, json!({"response_id":"resp_oracle_random_price"}), 31);
+        unpriced["payload"]["usage"]["model"] = json!("oracle-random-price");
+        oracle.write(
+            &Source::Codex.path(&oracle.home, 99, false),
+            jsonl([unpriced]),
+        );
+        oracle.compare_round("initial executor state");
+        for round in 0..36 {
+            let action = lifecycle.index(14);
+            if action < covered.len() {
+                covered[action] += 1;
+            }
+            match action {
+                0 => oracle.executor = SyncExecutor::default(),
+                1 => oracle.other_instance_sync(),
+                2 => oracle.cancel_round(),
+                3 | 4 => {
+                    let mut revisions = oracle.revisions.unwrap_or(Revisions {
+                        usage: Some(adapters::parser_rev("codex")),
+                        timing: adapters::timing_rev("codex"),
+                    });
+                    if action == 3 {
+                        revisions.usage = revisions.usage.map(|rev| rev + 1);
+                    } else {
+                        revisions.timing = revisions.timing.map(|rev| rev + 1);
+                    }
+                    oracle.revisions = Some(revisions);
+                }
+                5 => oracle.set_manual_price(round + 1),
+                6 => oracle.reread_next = true,
+                _ => {}
+            }
+            for history in &mut histories {
+                let action = Action::ALL[rng.index(Action::ALL.len())];
+                if !matches!(
+                    (history.source, action),
+                    (Source::Claude, Action::ToggleZstd)
+                ) {
+                    history.apply(&oracle, &mut rng, action);
+                }
+            }
+            let (_, (_, phases)) = oracle.compare_all(&format!(
+                "seed {seed:#x}, round {round}, lifecycle action {action}"
+            ));
+            if action <= 6 {
+                assert_eq!(phases["indexHits"], 0);
+            }
+            if action == 6 {
+                assert!(oracle.executor.retained.is_none());
+            }
+        }
+    }
+    assert!(covered.into_iter().all(|count| count > 0), "{covered:?}");
+}
+
 fn owner(oracle: &Oracle, id: usize) -> Value {
     let ledger = oracle.ledger(0);
     ledger
@@ -554,6 +703,67 @@ fn owner(oracle: &Oracle, id: usize) -> Value {
         )
         .map(Value::String)
         .unwrap()
+}
+
+fn add_independent_files(oracle: &Oracle, source: Source) {
+    for slot in 20..28 {
+        oracle.write(
+            &source.path(&oracle.home, slot, false),
+            encode(
+                source,
+                &[Event {
+                    id: slot,
+                    minute: slot as i64,
+                    tokens: 20,
+                }],
+            ),
+        );
+    }
+}
+
+#[test]
+fn persistent_hot_round_only_decodes_an_affected_cache_hit() {
+    for source in [Source::Codex, Source::Claude] {
+        let mut oracle = Oracle::new();
+        let event = |id| Event {
+            id,
+            minute: id as i64,
+            tokens: 20,
+        };
+        for file in 0..32 {
+            let events = if file == 1 {
+                vec![event(1), event(2)]
+            } else {
+                vec![event(file + 1)]
+            };
+            oracle.write(
+                &source.path(&oracle.home, file, false),
+                encode(source, &events),
+            );
+        }
+        oracle.compare_round("build the index with one copy group");
+        let path = source.path(&oracle.home, 1, false);
+        let bytes: i64 = oracle
+            .ledger(2)
+            .db
+            .query_row(
+                "SELECT length(payload) FROM ingest_files WHERE path=?",
+                [path.to_str().unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        oracle.write(
+            &source.path(&oracle.home, 0, false),
+            encode(source, &[event(1), event(33)]),
+        );
+        let (_, (result, phases)) = oracle.compare_all("change only one copy group");
+        assert_eq!(phases["cacheDecodedBytes"], bytes, "{source:?}");
+        assert_eq!(phases["affectedFiles"], 2, "{source:?}");
+        assert_eq!(phases["indexHits"], 30, "{source:?}");
+        assert_eq!(result["attempted"], 33, "{source:?}");
+        assert_eq!(result["unchanged"], 32, "{source:?}");
+        assert_eq!(result["counts"]["cross_file_copies"], 1, "{source:?}");
+    }
 }
 
 #[test]
@@ -580,10 +790,13 @@ fn copy_owner_disappears_and_the_remaining_file_takes_ownership() {
             ],
         ),
     );
+    add_independent_files(&oracle, Source::Codex);
     oracle.compare_round("partial copy");
     assert_eq!(owner(&oracle, 1), json!(a));
     fs::remove_file(&a).unwrap();
-    oracle.compare_round("copy owner removed");
+    let (_, (_, phases)) = oracle.compare_all("copy owner removed");
+    assert_eq!(phases["affectedFiles"], 1);
+    assert_eq!(phases["indexHits"], 8);
     assert_eq!(owner(&oracle, 1), json!(b));
 }
 
@@ -616,6 +829,7 @@ fn changing_the_earliest_time_reassigns_a_shared_record() {
             ],
         ),
     );
+    add_independent_files(&oracle, Source::Codex);
     oracle.compare_round("A starts earlier");
     assert_eq!(owner(&oracle, 1), json!(a));
     let mut bytes = encode(
@@ -630,8 +844,171 @@ fn changing_the_earliest_time_reassigns_a_shared_record() {
     );
     bytes.push(b'\n');
     oracle.write(&a, bytes);
-    oracle.compare_round("B starts earlier");
+    let (_, (_, phases)) = oracle.compare_all("B starts earlier");
+    assert_eq!(phases["affectedFiles"], 2);
+    assert_eq!(phases["indexHits"], 8);
     assert_eq!(owner(&oracle, 1), json!(b));
+}
+
+#[test]
+fn historical_owner_that_no_longer_produces_the_key_joins_the_closure() {
+    let mut oracle = Oracle::new();
+    let [a, b] = [0, 1].map(|slot| Source::Codex.path(&oracle.home, slot, false));
+    let first = Event {
+        id: 1,
+        minute: 0,
+        tokens: 20,
+    };
+    let second = Event {
+        id: 2,
+        minute: 5,
+        tokens: 20,
+    };
+    oracle.write(&a, encode(Source::Codex, &[first]));
+    oracle.write(&b, encode(Source::Codex, &[second]));
+    add_independent_files(&oracle, Source::Codex);
+    oracle.compare_round("original actual owner");
+    oracle.write(&a, []);
+    oracle.compare_round("empty output leaves the actual owner in the ledger");
+    assert_eq!(owner(&oracle, 1), json!(a));
+    oracle.write(&b, encode(Source::Codex, &[first, second]));
+    let (_, (_, phases)) = oracle.compare_all("another file starts producing the old key");
+    assert_eq!(phases["affectedFiles"], 2);
+    assert_eq!(phases["cachedFiles"], 1);
+    assert_eq!(phases["indexHits"], 8);
+    assert_eq!(owner(&oracle, 1), json!(b));
+}
+
+#[test]
+fn one_file_transitively_joins_two_copy_groups() {
+    let mut oracle = Oracle::new();
+    let [a, bridge, c] = [0, 1, 2].map(|slot| Source::Codex.path(&oracle.home, slot, false));
+    let first = Event {
+        id: 1,
+        minute: 1,
+        tokens: 20,
+    };
+    let second = Event {
+        id: 2,
+        minute: 2,
+        tokens: 20,
+    };
+    oracle.write(&a, encode(Source::Codex, &[first]));
+    oracle.write(&bridge, encode(Source::Codex, &[first, second]));
+    oracle.write(&c, encode(Source::Codex, &[second]));
+    add_independent_files(&oracle, Source::Codex);
+    oracle.compare_round("two copy groups with one shared file");
+    oracle.write(
+        &a,
+        encode(
+            Source::Codex,
+            &[Event {
+                tokens: 200,
+                ..first
+            }],
+        ),
+    );
+    let (_, (result, phases)) = oracle.compare_all("change one end of the connected copy groups");
+    assert_eq!(phases["affectedFiles"], 3);
+    assert_eq!(phases["cachedFiles"], 2);
+    assert_eq!(phases["indexHits"], 8);
+    assert_eq!(result["counts"]["cross_file_copies"], 2);
+}
+
+#[test]
+fn claude_chained_replacements_use_original_write_order() {
+    let mut oracle = Oracle::new();
+    let inputs = [
+        ("head", "tail"),
+        ("middle", "head|tail"),
+        ("end", "middle|head|tail"),
+    ];
+    let record = |(session, key), tokens| {
+        json!({
+            "type":"assistant", "sessionId":session, "timestamp":time(0, 1000),
+            "message":{"id":key,"model":"claude-sonnet-5-5","stop_reason":"end_turn",
+                       "usage":{"input_tokens":tokens,"output_tokens":2}}
+        })
+    };
+    for (slot, identity) in inputs.into_iter().enumerate() {
+        oracle.write(
+            &Source::Claude.path(&oracle.home, slot, false),
+            jsonl([record(identity, 20)]),
+        );
+    }
+    add_independent_files(&oracle, Source::Claude);
+    oracle.compare_round("build an index with two delayed replacements");
+    oracle.write(
+        &Source::Claude.path(&oracle.home, 0, false),
+        jsonl([record(inputs[0], 200)]),
+    );
+    let (_, (_, phases)) = oracle.compare_all("settle the delayed replacement chain");
+    assert_eq!(phases["affectedFiles"], 3);
+    assert_eq!(phases["cachedFiles"], 2);
+    assert_eq!(phases["indexHits"], 8);
+    assert_eq!(
+        select(
+            &oracle.ledger(2),
+            "SELECT record_key,active FROM usage_records WHERE record_key LIKE '%tail' ORDER BY id"
+        ),
+        [
+            json!({"record_key":"claude|tail","active":1}),
+            json!({"record_key":"claude|head|tail","active":0}),
+            json!({"record_key":"claude|middle|head|tail","active":1}),
+        ]
+    );
+}
+
+#[test]
+fn committed_prefix_cancellation_discards_the_index_and_recovers_pending() {
+    let mut oracle = Oracle::new();
+    let first = Source::Codex.path(&oracle.home, 0, false);
+    let event = |id| Event {
+        id,
+        minute: id as i64,
+        tokens: 20,
+    };
+    oracle.write(&first, encode(Source::Codex, &[event(1)]));
+    add_independent_files(&oracle, Source::Codex);
+    oracle.compare_round("before cancellation");
+    oracle.write(&first, encode(Source::Codex, &[event(1), event(2)]));
+    oracle.round += 1;
+    let now = oracle.now();
+    for (side, data) in oracle.data.iter().enumerate() {
+        let cancel = AtomicBool::new(false);
+        let cancel_after_commit = || cancel.store(true, Ordering::Release);
+        let result = sync_profiled(
+            data,
+            &oracle.home,
+            &Environment::default(),
+            Clock::Fixed(now),
+            &LocalZone::Fixed(0),
+            &cancel,
+            SyncOptions {
+                executor: (side == 2).then_some(&mut oracle.executor),
+                after_commit: Some(&cancel_after_commit),
+                ..SyncOptions::new(side == 1)
+            },
+        );
+        assert_eq!(result.unwrap_err().0, "cancelled");
+        assert_eq!(
+            select(
+                &oracle.ledger(side),
+                "SELECT source FROM ingest_pending_sources"
+            ),
+            [json!({"source":"codex"})]
+        );
+    }
+    assert!(oracle.executor.retained.is_none());
+    compare_ledgers(
+        &oracle.ledger(2),
+        &oracle.ledger(1),
+        "cancelled committed prefix",
+    );
+    let (_, (_, phases)) = oracle.compare_all("full replay from the same committed prefix");
+    assert_eq!(phases["indexHits"], 0);
+    assert_eq!(phases["indexRebuilds"], 1);
+    assert!(select(&oracle.ledger(2), "SELECT * FROM ingest_pending_sources").is_empty());
 }
 
 fn replacement(oracle: &Oracle, declaration_first: bool) {
@@ -860,7 +1237,7 @@ fn manual_price_changes_with_a_cached_file_in_a_processed_source() {
         select(&oracle.ledger(0), sql)[0]["cost_micros"],
         Value::Null
     );
-    for side in 0..2 {
+    for side in 0..oracle.data.len() {
         crate::stats::pricing::store::save_manual(
             &oracle.data[side],
             &oracle.ledger(side),
@@ -935,7 +1312,7 @@ fn cached_output_replays_to_fix_its_timing_and_report_omissions() {
     oracle.write(&truncated, encode(Source::Codex, &[event(2)]));
     oracle.compare_round("one same-revision usage vanished");
 
-    for side in 0..2 {
+    for side in 0..oracle.data.len() {
         oracle
             .ledger(side)
             .db
