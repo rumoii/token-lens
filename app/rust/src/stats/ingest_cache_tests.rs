@@ -587,7 +587,7 @@ fn cancel_after_cache_write_rolls_back_cache_and_usage() {
             "{table}"
         );
     }
-    let next = ledger
+    let (next, _) = ledger
         .batch_with_commit(
             &[record],
             (Some("test"), qwen_revisions(), &[]),

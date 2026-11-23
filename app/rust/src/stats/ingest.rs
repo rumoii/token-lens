@@ -36,12 +36,18 @@ struct SyncPhases {
     adapter: adapters::ReadParsePhases,
     settle_ns: u64,
     cache_read_ns: u64,
+    cache_fingerprint_ns: u64,
+    cache_replay_check_ns: u64,
+    cache_payload_read_ns: u64,
+    cache_decoded_bytes: usize,
     cache_write_ns: u64,
     parsed_files: usize,
     cached_files: usize,
     skipped_files: usize,
     write_ns: u64,
+    write_records: usize,
     write_transactions: usize,
+    timing_file_revisions_read_ns: u64,
     reprice_ns: u64,
     finish_run_ns: u64,
     total_ns: u64,
@@ -623,12 +629,16 @@ fn sync_profiled(
                         had_cache: old.is_some(),
                     });
                 }
+                let fingerprint_ns = start.elapsed().as_nanos() as u64;
                 let skip = cache_source
                     && !options.no_cache
                     && previous.is_empty()
                     && candidates.iter().all(|input| input.hit)
                     && !ledger.cache_needs_replay(&source)?;
-                phases.cache_read_ns += start.elapsed().as_nanos() as u64;
+                let cache_read_ns = start.elapsed().as_nanos() as u64;
+                phases.cache_read_ns += cache_read_ns;
+                phases.cache_fingerprint_ns += fingerprint_ns;
+                phases.cache_replay_check_ns += cache_read_ns - fingerprint_ns;
                 if skip {
                     phases.skipped_files += source_files;
                     if source_files > 0 {
@@ -658,8 +668,11 @@ fn sync_profiled(
                     }
                     if hit {
                         let start = Instant::now();
-                        let output = ledger.cached_file(&source, &file)?;
-                        phases.cache_read_ns += start.elapsed().as_nanos() as u64;
+                        let (output, bytes) = ledger.cached_file(&source, &file)?;
+                        let elapsed = start.elapsed().as_nanos() as u64;
+                        phases.cache_read_ns += elapsed;
+                        phases.cache_payload_read_ns += elapsed;
+                        phases.cache_decoded_bytes += bytes;
                         if let Some(output) = output {
                             merge_counts(&mut totals, output.notes);
                             phases.cached_files += 1;
@@ -737,7 +750,9 @@ fn sync_profiled(
                                     zone_after.as_deref(),
                                     revisions,
                                 );
-                                phases.cache_read_ns += start.elapsed().as_nanos() as u64;
+                                let elapsed = start.elapsed().as_nanos() as u64;
+                                phases.cache_read_ns += elapsed;
+                                phases.cache_fingerprint_ns += elapsed;
                                 if after.as_ref() == Some(&before) {
                                     let start = Instant::now();
                                     let replaces = replacement_keys(&records);
@@ -804,7 +819,7 @@ fn sync_profiled(
                 for (file, update) in parsed.into_iter().zip(updates) {
                     let start = Instant::now();
                     let cache_before = phases.cache_write_ns;
-                    let stats = ledger.batch_with_commit(
+                    let (stats, timing_file_revisions_read_ns) = ledger.batch_with_commit(
                         &file.records,
                         (
                             Some(&file.file),
@@ -831,7 +846,9 @@ fn sync_profiled(
                     }
                     phases.write_ns += (start.elapsed().as_nanos() as u64)
                         .saturating_sub(phases.cache_write_ns - cache_before);
+                    phases.write_records += file.records.len();
                     phases.write_transactions += 1;
+                    phases.timing_file_revisions_read_ns += timing_file_revisions_read_ns;
                     for note in stats["anomalies"]
                         .as_array()
                         .into_iter()
@@ -1008,13 +1025,21 @@ mod tests {
         assert_eq!(phases["parsedFiles"], 1);
         assert_eq!(phases["sqliteFiles"], 0);
         assert_eq!(phases["decompressedFiles"], 0);
+        assert_eq!(phases["writeRecords"], 1);
         assert_eq!(phases["writeTransactions"], 1);
+        assert_eq!(phases["cachePayloadReadNs"], 0);
+        assert_eq!(phases["cacheDecodedBytes"], 0);
+        let timing_read_ns = phases["timingFileRevisionsReadNs"].as_u64().unwrap();
+        assert!(timing_read_ns > 0 && timing_read_ns <= phases["writeNs"].as_u64().unwrap());
         let phase_ns: u64 = [
             "discoveryNs",
             "readNs",
             "decompressNs",
             "parseNs",
             "sqliteNs",
+            "cacheFingerprintNs",
+            "cacheReplayCheckNs",
+            "cachePayloadReadNs",
             "settleNs",
             "writeNs",
             "repriceNs",
@@ -1024,6 +1049,73 @@ mod tests {
         .map(|key| phases[key].as_u64().unwrap())
         .sum();
         assert!(phase_ns <= phases["totalNs"].as_u64().unwrap());
+    }
+
+    #[test]
+    fn warm_sync_counts_cached_payload_and_exports_the_same_phases() {
+        let directory = tempfile::tempdir().unwrap();
+        let home = directory.path().join("home");
+        let data = directory.path().join("data");
+        let logs = home.join(".claude/projects");
+        std::fs::create_dir_all(&logs).unwrap();
+        let text = r#"{"sessionId":"session","timestamp":"2026-01-15T01:00:00Z","message":{"id":"message","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":2}}}"#;
+        std::fs::write(logs.join("original.jsonl"), text).unwrap();
+        let env = Environment::default();
+        let clock = Clock::Fixed(1768478400000);
+        let run = || {
+            sync_profiled(
+                &data,
+                &home,
+                &env,
+                clock.clone(),
+                &LocalZone::Fixed(0),
+                &AtomicBool::new(false),
+                SyncOptions::default(),
+            )
+            .unwrap()
+        };
+        run();
+        let ledger = Ledger::open(&data.join("ledger.db"), clock.clone()).unwrap();
+        let blob_bytes: i64 = ledger
+            .db
+            .query_row("SELECT length(payload) FROM ingest_files", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert!(blob_bytes > 0);
+        std::fs::write(
+            logs.join("changed.jsonl"),
+            text.replace("\"id\":\"message\"", "\"id\":\"other\""),
+        )
+        .unwrap();
+        let (result, phases) = run();
+        assert_eq!(result["cachedFiles"], 1);
+        assert_eq!(result["parsedFiles"], 1);
+        assert_eq!(phases["cacheDecodedBytes"], blob_bytes);
+        assert!(phases["cachePayloadReadNs"].as_u64().unwrap() > 0);
+        let cache_read_ns: u64 = [
+            "cacheFingerprintNs",
+            "cacheReplayCheckNs",
+            "cachePayloadReadNs",
+        ]
+        .iter()
+        .map(|key| phases[key].as_u64().unwrap())
+        .sum();
+        assert_eq!(phases["cacheReadNs"], cache_read_ns);
+        assert_eq!(phases["writeRecords"], 2);
+        assert_eq!(phases["writeTransactions"], 2);
+
+        let export = crate::diagnostics::RuntimeLog::new(&data, Some(&home))
+            .export(&ledger, &directory.path().join("export"), &home, &env)
+            .unwrap();
+        let text = std::fs::read_to_string(export).unwrap();
+        let (_, exported) = text
+            .lines()
+            .rev()
+            .find_map(|line| line.split_once("phases "))
+            .expect("warm phase summary in diagnostic export");
+        let exported: Value = serde_json::from_str(exported).unwrap();
+        assert_eq!(exported, phases);
     }
 
     #[test]

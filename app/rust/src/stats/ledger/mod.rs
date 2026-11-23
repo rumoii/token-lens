@@ -15,6 +15,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::LazyLock;
+use std::time::Instant;
 mod ingest_cache;
 mod read;
 pub(in crate::stats) use ingest_cache::{CachedFile, FileOutput};
@@ -563,6 +564,7 @@ impl Ledger {
             cancelled,
             |_| Ok(()),
         )
+        .map(|(stats, _)| stats)
     }
 
     pub(in crate::stats) fn batch_with_commit(
@@ -572,7 +574,7 @@ impl Ledger {
         price: impl Fn(&Value) -> Value,
         cancelled: impl Fn() -> bool,
         before_commit: impl FnOnce(&Transaction<'_>) -> Result<()>,
-    ) -> Result<Value> {
+    ) -> Result<(Value, u64)> {
         let (file, revisions, elsewhere) = file_rules;
         let revision = revisions.usage;
         let transaction = Transaction::new_unchecked(&self.db, TransactionBehavior::Immediate)?;
@@ -740,6 +742,7 @@ impl Ledger {
             return Err(Error("cancelled".into()));
         }
         let mut timing_revisions = None;
+        let mut timing_file_revisions_read_ns = 0;
         if let (Some(file), Some(revision)) = (file, revisions.timing) {
             // A successful new timing revision may revoke timings even when the empty-output
             // guard deliberately preserves the historical usage rows.
@@ -760,7 +763,12 @@ impl Ledger {
                     }
                     previous
                 }
-                _ => TimingFileRevisions::read(&self.db, data_version)?,
+                _ => {
+                    let start = Instant::now();
+                    let revisions = TimingFileRevisions::read(&self.db, data_version)?;
+                    timing_file_revisions_read_ns = start.elapsed().as_nanos() as u64;
+                    revisions
+                }
             };
             if current
                 .files
@@ -785,7 +793,7 @@ impl Ledger {
             current.total_changes = self.db.total_changes();
             *self.timing_revisions.borrow_mut() = Some(current);
         }
-        Ok(stats)
+        Ok((stats, timing_file_revisions_read_ns))
     }
 
     #[cfg(test)]

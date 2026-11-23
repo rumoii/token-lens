@@ -74,13 +74,17 @@ impl Ledger {
         &self,
         source: &str,
         path: &str,
-    ) -> Result<Option<FileOutput>> {
+    ) -> Result<(Option<FileOutput>, usize)> {
         let payload: Option<Vec<u8>> = self
             .db
             .prepare_cached("SELECT payload FROM ingest_files WHERE source=? AND path=?")?
             .query_row(params![source, path], |row| row.get(0))
             .optional()?;
-        Ok(payload.and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+        let bytes = payload.as_ref().map_or(0, Vec::len);
+        Ok((
+            payload.and_then(|bytes| serde_json::from_slice(&bytes).ok()),
+            bytes,
+        ))
     }
 
     pub(in crate::stats) fn cache_needs_replay(&self, source: &str) -> Result<bool> {
