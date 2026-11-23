@@ -635,6 +635,12 @@ pub(crate) fn sources_for(
 ) -> Result<Value> {
     let evidence: Value = serde_json::from_str(source_notes::EVIDENCE)?;
     let limits: Value = serde_json::from_str(source_notes::SOURCE_LIMITS)?;
+    // Checks, source rows, and sync history must see the same committed ledger.
+    let _snapshot = ledger
+        .db
+        .is_autocommit()
+        .then(|| ledger.db.unchecked_transaction())
+        .transpose()?;
     let checks = ledger.source_checks(now)?;
     let mut reviewable = HashMap::<String, i64>::new();
     for row in ledger.source_files()? {
@@ -846,8 +852,76 @@ pub fn pricing(ledger: &Ledger, tz: &str) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::stats::StatsSources;
     use crate::stats::{clock::Clock, ingest, jscompat::LocalZone};
     use std::{path::Path, sync::atomic::AtomicBool};
+
+    #[test]
+    fn sources_keep_one_snapshot_when_a_new_source_commits() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("ledger.db");
+        let clock = Clock::Fixed(1768478400000);
+        let now = clock.iso();
+        let writer = Ledger::open(&path, clock.clone()).unwrap();
+        let reader = Ledger::open(&path, clock).unwrap();
+        let add_source = |source: &str, file: &str| {
+            writer
+                .batch(
+                    &[json!({
+                        "record_key": source, "source": source, "session_id": "synthetic",
+                        "observed_at": "2026-01-15T00:00:00.000Z", "input_tokens": 7,
+                        "source_file": file
+                    })],
+                    Some(file),
+                    None,
+                    &[],
+                    pricing::cost_of,
+                )
+                .unwrap();
+        };
+        add_source("codex", "synthetic-codex");
+
+        let first = sources_for(
+            &reader,
+            &now,
+            |file| {
+                // The preceding checks and file rows have already been read.
+                assert_eq!(file, "synthetic-codex");
+                let run = writer.begin_run().unwrap();
+                add_source("claude", "synthetic-claude");
+                writer
+                    .finish_run(
+                        run,
+                        "ok",
+                        &json!({"attempted":1,"inserted":1,"updated":0,"unchanged":0,"rejected":0}),
+                    )
+                    .unwrap();
+                true
+            },
+            "UTC",
+            true,
+        )
+        .unwrap();
+        let first: StatsSources = serde_json::from_value(first).unwrap();
+        assert_eq!(first.sources.len(), 1);
+        assert_eq!(first.sources[0].source, "codex");
+        assert!(first.last_run.is_none());
+        assert_eq!(first.has_successful_sync, Some(false));
+
+        let next = sources_for(&reader, &now, |_| true, "UTC", true).unwrap();
+        let next: StatsSources = serde_json::from_value(next).unwrap();
+        assert_eq!(next.sources.len(), 2);
+        let claude = next
+            .sources
+            .iter()
+            .find(|row| row.source == "claude")
+            .unwrap();
+        assert_eq!(claude.checks.null_model, 1);
+        assert_eq!(claude.retention.reviewable, 1);
+        assert_eq!(next.last_run.unwrap().status, "ok");
+        assert_eq!(next.has_successful_sync, Some(true));
+    }
+
     #[test]
     fn d33_common_invalid_range_and_detail_params() {
         let ledger = Ledger::open(Path::new(":memory:"), Clock::Fixed(1768478400000)).unwrap();
