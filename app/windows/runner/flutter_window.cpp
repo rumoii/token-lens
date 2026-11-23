@@ -321,15 +321,20 @@ bool FlutterWindow::SetPillTooltip(const std::string* text) {
       nullptr);
   if (!pill_tooltip_) return false;
   TOOLINFOW tool = {};
-  tool.cbSize = sizeof(tool);
+  tool.cbSize = TTTOOLINFOW_V2_SIZE;
   tool.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
   tool.hwnd = owner;
   tool.uId = reinterpret_cast<UINT_PTR>(flutter_controller_->view()->GetNativeWindow());
   tool.lpszText = pill_tooltip_text_.data();
   SendMessage(pill_tooltip_, TTM_SETMAXTIPWIDTH, 0,
               MulDiv(320, GetDpiForWindow(owner), 96));
-  return SendMessageW(pill_tooltip_, TTM_ADDTOOLW, 0,
-                      reinterpret_cast<LPARAM>(&tool)) != FALSE;
+  if (!SendMessageW(pill_tooltip_, TTM_ADDTOOLW, 0,
+                    reinterpret_cast<LPARAM>(&tool))) {
+    DestroyWindow(pill_tooltip_);
+    pill_tooltip_ = nullptr;
+    return false;
+  }
+  return true;
 }
 
 LRESULT
