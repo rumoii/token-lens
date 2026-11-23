@@ -28,8 +28,26 @@ mod native {
         CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
     };
     use windows::Win32::UI::Shell::{
-        FOLDERID_Desktop, IShellLinkW, SHGetKnownFolderPath, ShellLink, KF_FLAG_DEFAULT,
+        FOLDERID_Desktop, IShellLinkW, SHChangeNotify, SHGetKnownFolderPath, ShellLink,
+        KF_FLAG_DEFAULT, SHCNE_CREATE, SHCNE_ID, SHCNE_UPDATEITEM, SHCNF_PATHW,
     };
+
+    fn shortcut_event(existed: bool) -> SHCNE_ID {
+        if existed {
+            SHCNE_UPDATEITEM
+        } else {
+            SHCNE_CREATE
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn selects_shell_events_for_create_and_replace() {
+        assert_eq!(
+            (shortcut_event(false), shortcut_event(true)),
+            (SHCNE_CREATE, SHCNE_UPDATEITEM)
+        );
+    }
 
     pub(super) fn path(create: bool) -> Result<PathBuf, String> {
         let desktop = if let Some(home) = std::env::var_os("TOKEN_LENS_PREVIEW_HOME") {
@@ -109,10 +127,15 @@ mod native {
                     .Save(PCWSTR(save_path.as_ptr()), false)
             }
         };
+        let event = shortcut_event(destination.exists());
         save().map_err(|error| format!("Save Windows Shell link: {error}"))?;
         temporary
-            .persist(destination)
-            .map_err(|error| format!("Replace desktop shortcut: {error}"))
+            .persist(&destination)
+            .map_err(|error| format!("Replace desktop shortcut: {error}"))?;
+        let destination = wide(destination.as_os_str());
+        // SHCNF_PATHW expects a null-terminated UTF-16 path for the affected item.
+        unsafe { SHChangeNotify(event, SHCNF_PATHW, Some(destination.as_ptr().cast()), None) };
+        Ok(())
     }
 }
 
