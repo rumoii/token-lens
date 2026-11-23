@@ -117,6 +117,8 @@ fn cli_sync_preserves_ffi_manual_and_downloaded_prices() {
     let status = success(cli(Some(&data), Some(&home), &["status"]), "status");
     assert_eq!(status["data"]["price_version"], snapshot.price_version);
     let sync = success(cli(Some(&data), Some(&home), &["sync"]), "sync");
+    assert_eq!(sync["data"]["skipped_files"], 1);
+    assert_eq!(sync["data"]["attempted"], 0);
     assert_eq!(sync["data"]["repriced"], 0);
     assert_eq!(costs(), priced);
 

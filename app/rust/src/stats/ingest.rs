@@ -567,7 +567,9 @@ impl SyncExecutor {
         let mut options = SyncOptions::new(trigger == "reread");
         options.trigger = Some(trigger);
         options.progress = Some(progress);
-        options.executor = Some(self);
+        // The CLI creates a fresh client for every command. Its idle sync can
+        // skip straight from the v7 fingerprints without rebuilding an index.
+        options.executor = (trigger != "cli").then_some(self);
         sync_profiled(
             data,
             home,

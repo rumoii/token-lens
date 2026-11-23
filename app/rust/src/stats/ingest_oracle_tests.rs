@@ -767,6 +767,31 @@ fn persistent_hot_round_only_decodes_an_affected_cache_hit() {
 }
 
 #[test]
+fn omitted_copy_group_preserves_cached_notes_and_copy_counts() {
+    let mut oracle = Oracle::new();
+    let [owner, copy, hot] = [0, 1, 2].map(|slot| Source::Codex.path(&oracle.home, slot, false));
+    let event = |id| Event {
+        id,
+        minute: id as i64,
+        tokens: 20,
+    };
+    oracle.write(&owner, encode(Source::Codex, &[event(1)]));
+    let mut copied = encode(Source::Codex, &[event(1)]);
+    copied.extend_from_slice(b"{bad json\n");
+    oracle.write(&copy, copied);
+    oracle.write(&hot, encode(Source::Codex, &[event(2)]));
+    add_independent_files(&oracle, Source::Codex);
+    oracle.compare_round("certify a stable copy group with a parse note");
+    oracle.write(&hot, encode(Source::Codex, &[event(2), event(3)]));
+    let (_, (result, phases)) = oracle.compare_all("omit the complete copy group");
+    assert_eq!(phases["affectedFiles"], 1);
+    assert_eq!(phases["indexHits"], 10);
+    assert_eq!(phases["cacheDecodedBytes"], 0);
+    assert_eq!(result["counts"]["bad_lines"], 1);
+    assert_eq!(result["counts"]["cross_file_copies"], 1);
+}
+
+#[test]
 fn copy_owner_disappears_and_the_remaining_file_takes_ownership() {
     let mut oracle = Oracle::new();
     let [a, b] = [0, 1].map(|slot| Source::Codex.path(&oracle.home, slot, false));
