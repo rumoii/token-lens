@@ -21,12 +21,15 @@ use super::{
 };
 #[path = "ingest_fingerprint.rs"]
 mod fingerprint;
+#[path = "ingest_index.rs"]
+mod index;
+use index::{SourceIndex, Summary};
 
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
     time::Instant,
 };
@@ -47,6 +50,11 @@ struct SyncPhases {
     parsed_files: usize,
     cached_files: usize,
     skipped_files: usize,
+    index_hits: usize,
+    affected_files: usize,
+    index_rebuilds: usize,
+    index_memory_bytes: usize,
+    index_ns: u64,
     write_ns: u64,
     write_records: usize,
     write_transactions: usize,
@@ -214,7 +222,7 @@ mod e4b_real_tests {
                 });
             }
             let mut totals = json!({"counts":{"cross_file_copies":0},"anomalies":[]});
-            let elsewhere = settle(&mut parsed, &mut totals);
+            let elsewhere = settle(&mut parsed, &mut totals, None);
             for file in parsed {
                 let result = ledger
                     .batch(
@@ -252,7 +260,11 @@ mod e4b_real_tests {
     }
 }
 
-fn settle(parsed: &mut [Parsed], totals: &mut Value) -> HashMap<String, Vec<String>> {
+fn settle(
+    parsed: &mut [Parsed],
+    totals: &mut Value,
+    mut copy_stats: Option<&mut HashMap<usize, (usize, bool)>>,
+) -> HashMap<String, Vec<String>> {
     let mut starts = Vec::new();
     let mut holders: Vec<(String, Vec<(usize, usize)>)> = Vec::new();
     let mut indexes = HashMap::new();
@@ -314,15 +326,20 @@ fn settle(parsed: &mut [Parsed], totals: &mut Value) -> HashMap<String, Vec<Stri
             dropped.entry(*file_index).or_default().insert(key.clone());
             totals["counts"]["cross_file_copies"] =
                 json!(totals["counts"]["cross_file_copies"].as_i64().unwrap() + 1);
-            if [
+            let conflict = [
                 "input_tokens",
                 "output_tokens",
                 "cache_read_tokens",
                 "cache_write_tokens",
             ]
             .iter()
-            .any(|f| copy[*f] != kept[*f])
-            {
+            .any(|f| copy[*f] != kept[*f]);
+            if let Some(stats) = copy_stats.as_deref_mut() {
+                let owner = stats.entry(owner).or_default();
+                owner.0 += 1;
+                owner.1 |= conflict;
+            }
+            if conflict {
                 totals["anomalies"]
                     .as_array_mut()
                     .unwrap()
@@ -411,28 +428,157 @@ pub(crate) enum Progress<'a> {
     SourceFinished(&'a str),
 }
 
-pub(crate) fn sync_triggered(
-    data: &Path,
-    home: &Path,
-    environment: &Environment,
-    clock: Clock,
-    cancel: &AtomicBool,
-    trigger: &'static str,
-    progress: &mut dyn FnMut(Progress<'_>),
-) -> Result<Value> {
-    let mut options = SyncOptions::new(trigger == "reread");
-    options.trigger = Some(trigger);
-    options.progress = Some(progress);
-    sync_profiled(
-        data,
-        home,
-        environment,
-        clock,
-        &LocalZone::System,
-        cancel,
-        options,
-    )
-    .map(|(result, _)| result)
+#[derive(Default)]
+pub struct SyncExecutor {
+    retained: Option<Retained>,
+}
+
+struct Retained {
+    ledger: Ledger,
+    file: LedgerFile,
+    stamp: (i64, u64),
+    indexes: RoundIndexes,
+}
+
+// SQLite's Windows VFS opens main DB files without FILE_SHARE_DELETE. On Unix
+// an open file can be replaced at the same path, so also track device/inode.
+#[derive(PartialEq, Eq)]
+struct LedgerFile {
+    path: PathBuf,
+    canonical: PathBuf,
+    #[cfg(unix)]
+    identity: (u64, u64),
+}
+
+impl LedgerFile {
+    fn read(path: PathBuf) -> Result<Self> {
+        let canonical = path.canonicalize()?;
+        #[cfg(unix)]
+        let identity = {
+            use std::os::unix::fs::MetadataExt;
+            let metadata = path.metadata()?;
+            (metadata.dev(), metadata.ino())
+        };
+        Ok(Self {
+            path,
+            canonical,
+            #[cfg(unix)]
+            identity,
+        })
+    }
+}
+
+#[derive(Default)]
+struct RoundIndexes {
+    sources: HashMap<String, IndexedSource>,
+    zone: Option<String>,
+    usable: bool,
+    publish: bool,
+    data_version: i64,
+}
+
+struct IndexedSource {
+    revisions: Revisions,
+    index: SourceIndex,
+}
+
+fn supports_index(source: &str) -> bool {
+    matches!(source, "codex" | "claude")
+}
+
+impl RoundIndexes {
+    fn bytes(&self) -> usize {
+        self.sources
+            .values()
+            .map(|source| source.index.bytes())
+            .sum()
+    }
+
+    fn check_external_write(&self, ledger: &Ledger) -> Result<()> {
+        if ledger.data_version()? != self.data_version {
+            return Err(Error("ledger changed during indexed sync".into()));
+        }
+        Ok(())
+    }
+
+    fn paths_are_disjoint(
+        &self,
+        files: &[(String, Vec<PathBuf>)],
+        ledger: &Ledger,
+    ) -> Result<bool> {
+        let mut discovered = HashMap::new();
+        for (source, files) in files {
+            for file in files {
+                if discovered
+                    .insert(file.to_string_lossy(), source.as_str())
+                    .is_some()
+                {
+                    return Ok(false);
+                }
+            }
+        }
+        for (source, state) in &self.sources {
+            if state
+                .index
+                .owner_paths()
+                .any(|path| discovered.get(path).is_some_and(|owner| *owner != source))
+            {
+                return Ok(false);
+            }
+        }
+        for (source, files) in files.iter().filter(|(source, _)| supports_index(source)) {
+            let previous = self.sources.get(source);
+            let new: Vec<_> = files
+                .iter()
+                .map(|file| file.to_string_lossy())
+                .filter(|file| {
+                    !previous.is_some_and(|state| state.index.files.contains_key(file.as_ref()))
+                })
+                .collect();
+            if new.is_empty() {
+                continue;
+            }
+            let paths = serde_json::to_string(&new)?;
+            let foreign: bool = ledger.db.prepare_cached(
+                "SELECT EXISTS (
+                    SELECT 1 FROM json_each(?1) p CROSS JOIN usage_records u ON u.source_file=p.value WHERE u.source!=?2
+                 ) OR EXISTS (
+                    SELECT 1 FROM usage_timings WHERE source!=?2 AND source_file IN (SELECT value FROM json_each(?1))
+                 )",
+            )?.query_row(rusqlite::params![paths, source], |row| row.get(0))?;
+            if foreign {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+impl SyncExecutor {
+    pub(crate) fn sync_triggered(
+        &mut self,
+        (data, home): (&Path, &Path),
+        environment: &Environment,
+        clock: Clock,
+        cancel: &AtomicBool,
+        trigger: &'static str,
+        progress: &mut dyn FnMut(Progress<'_>),
+    ) -> Result<Value> {
+        let mut options = SyncOptions::new(trigger == "reread");
+        options.trigger = Some(trigger);
+        options.progress = Some(progress);
+        options.executor = Some(self);
+        sync_profiled(
+            data,
+            home,
+            environment,
+            clock,
+            &LocalZone::System,
+            cancel,
+            options,
+        )
+        .map(|(result, _)| result)
+    }
 }
 
 // Rust-only entry point for the synthetic benchmark. Discovery uses no process overrides.
@@ -527,6 +673,7 @@ struct SyncOptions<'a> {
     no_cache: bool,
     trigger: Option<&'static str>,
     progress: Option<&'a mut dyn FnMut(Progress<'_>)>,
+    executor: Option<&'a mut SyncExecutor>,
     #[cfg(test)]
     revisions: Option<Revisions>,
     #[cfg(test)]
@@ -541,6 +688,7 @@ impl SyncOptions<'_> {
             no_cache,
             trigger: None,
             progress: None,
+            executor: None,
             #[cfg(test)]
             revisions: None,
             #[cfg(test)]
@@ -557,6 +705,138 @@ struct Input<'a> {
     fingerprint: Option<String>,
     hit: Option<CacheReplay>,
     had_cache: bool,
+}
+
+struct Loaded {
+    output: Option<(FileOutput, CacheUpdate)>,
+    anomaly: Option<String>,
+    rejected: i64,
+    parsed: bool,
+}
+
+struct InputReader<'a> {
+    ledger: &'a Ledger,
+    source: &'a str,
+    zone: &'a LocalZone,
+    preview: Option<&'a Path>,
+    revisions: Revisions,
+    #[cfg(test)]
+    after_parse: Option<fn(&Path)>,
+}
+
+impl InputReader<'_> {
+    fn read(&self, input: &Input<'_>, phases: &mut SyncPhases) -> Result<Loaded> {
+        if let Some(replay) = input.hit {
+            let start = Instant::now();
+            let (output, bytes) = self.ledger.cached_file(self.source, &input.file)?;
+            let elapsed = start.elapsed().as_nanos() as u64;
+            phases.cache_read_ns += elapsed;
+            phases.cache_payload_read_ns += elapsed;
+            phases.cache_decoded_bytes += bytes;
+            if let Some(output) = output {
+                phases.cached_files += 1;
+                return Ok(Loaded {
+                    output: Some((
+                        output,
+                        CacheUpdate::Reuse {
+                            fingerprint: input
+                                .fingerprint
+                                .clone()
+                                .expect("cache hit requires a fingerprint"),
+                            replay,
+                        },
+                    )),
+                    anomaly: None,
+                    rejected: 0,
+                    parsed: false,
+                });
+            }
+        }
+        phases.parsed_files += 1;
+        let result = adapters::parse_profiled(
+            self.source,
+            &input.file,
+            input.path,
+            self.zone,
+            self.preview,
+            &mut phases.adapter,
+        );
+        let (mut records, mut notes) = match result {
+            Ok(output) => output,
+            Err(error) => {
+                return Ok(Loaded {
+                    output: None,
+                    anomaly: Some(format!(
+                        "read_failed: {} {} — {error}",
+                        self.source, input.file
+                    )),
+                    rejected: 0,
+                    parsed: true,
+                })
+            }
+        };
+        #[cfg(test)]
+        if let Some(after_parse) = self.after_parse {
+            after_parse(input.path);
+        }
+        records.retain(|record| {
+            if record.is_object() && !jscompat::truthy(&record["observed_at"]) {
+                notes["bad_times"] = json!(notes["bad_times"].as_i64().unwrap() + 1);
+                false
+            } else {
+                true
+            }
+        });
+        let mut output = FileOutput {
+            records,
+            notes: serde_json::from_value(notes)?,
+        };
+        let rejected = output
+            .notes
+            .remove("rejected_missing_time")
+            .unwrap_or_default();
+        let anomaly = (rejected > 0).then(|| format!(
+            "rejected: {} — {rejected} 条用量缺少 observed_at（回复步骤、下一步和会话元数据均无可用时间）", self.source,
+        ));
+        let mut update = if input.had_cache {
+            CacheUpdate::Invalidate
+        } else {
+            CacheUpdate::Keep
+        };
+        if let Some(before) = &input.fingerprint {
+            let start = Instant::now();
+            let zone_after = fingerprint::zone_identity(self.zone);
+            let after = fingerprint::fingerprint(
+                self.source,
+                input.path,
+                zone_after.as_deref(),
+                self.revisions,
+            );
+            let elapsed = start.elapsed().as_nanos() as u64;
+            phases.cache_read_ns += elapsed;
+            phases.cache_fingerprint_ns += elapsed;
+            if after.as_ref() == Some(before) {
+                let start = Instant::now();
+                update = CacheUpdate::Store(CachedFile {
+                    fingerprint: before.clone(),
+                    payload: serde_json::to_vec(&output)?,
+                    replaces: output
+                        .records
+                        .iter()
+                        .flat_map(replacement_targets)
+                        .map(str::to_owned)
+                        .collect(),
+                });
+                phases.cache_write_ns += start.elapsed().as_nanos() as u64;
+            }
+        }
+        Ok(Loaded {
+            output: Some((output, update)),
+            anomaly,
+            rejected,
+            parsed: true,
+        })
+    }
 }
 
 fn merge_counts(totals: &mut Value, counts: impl IntoIterator<Item = (impl AsRef<str>, i64)>) {
@@ -577,8 +857,70 @@ fn sync_profiled(
 ) -> Result<(Value, Value)> {
     let started = Instant::now();
     let log = crate::diagnostics::RuntimeLog::new(data, Some(home));
+    // Take ownership before any fallible work. An error or unwind drops proofs.
+    let mut executor = options.executor.take();
+    let retained = executor
+        .as_deref_mut()
+        .and_then(|executor| executor.retained.take());
     let _lock = SyncLock::acquire(data)?;
-    let ledger = Ledger::open(&data.join("ledger.db"), clock)?;
+    let ledger_path = data.join("ledger.db");
+    let file_before = executor
+        .as_ref()
+        .and_then(|_| LedgerFile::read(ledger_path.clone()).ok());
+    let mut indexes = RoundIndexes::default();
+    let zone_identity = executor
+        .as_ref()
+        .and_then(|_| fingerprint::zone_identity(zone));
+    let (ledger, data_version) = match retained {
+        Some(mut previous)
+            if file_before.as_ref() == Some(&previous.file)
+                && previous.ledger.check_read_version().is_ok() =>
+        {
+            let prices = super::pricing::EffectivePrices::load(Some(data));
+            let stamp = (
+                previous.ledger.data_version()?,
+                previous.ledger.db.total_changes(),
+            );
+            if stamp == previous.stamp
+                && zone_identity.is_some()
+                && previous.indexes.zone == zone_identity
+                && previous.ledger.prices.version() == prices.version()
+                && !options.no_cache
+            {
+                indexes = previous.indexes;
+            }
+            previous.ledger.prices = prices;
+            previous.ledger.clock = clock;
+            (previous.ledger, Some(stamp.0))
+        }
+        _ => (Ledger::open(&ledger_path, clock)?, None),
+    };
+    let opened_file = executor
+        .as_ref()
+        .and_then(|_| LedgerFile::read(ledger_path.clone()).ok());
+    if executor.is_some() {
+        indexes.data_version = match data_version {
+            Some(version) => version,
+            None => ledger.data_version()?,
+        };
+        indexes.zone = zone_identity;
+        indexes.usable = indexes.zone.is_some()
+            && !options.no_cache
+            && opened_file.is_some()
+            && file_before
+                .as_ref()
+                .is_none_or(|before| opened_file.as_ref() == Some(before));
+        indexes.publish = indexes.usable;
+        if indexes.usable
+            && ledger.db.query_row(
+                "SELECT EXISTS(SELECT 1 FROM ingest_pending_sources)",
+                [],
+                |row| row.get::<_, bool>(0),
+            )?
+        {
+            indexes.sources.clear();
+        }
+    }
     if let Some(progress) = options.progress.as_deref_mut() {
         progress(Progress::Discovering {
             first_sync: !ledger.has_successful_sync()?,
@@ -594,7 +936,19 @@ fn sync_profiled(
         let discovered =
             discovery::discover_profiled(home, environment, Some(&mut source_discovery), false);
         phases.discovery_ns = start.elapsed().as_nanos() as u64;
+        if indexes.usable {
+            let start = Instant::now();
+            // File-wide cleanup is keyed by path even across adapters.
+            if !indexes.paths_are_disjoint(&discovered.files, &ledger)? {
+                indexes.usable = false;
+                indexes.sources.clear();
+            }
+            phases.index_ns += start.elapsed().as_nanos() as u64;
+        }
         for issue in discovered.issues {
+            if issue.unreadable_entries > 0 {
+                indexes.publish = false;
+            }
             let counts = issue
                 .counts()
                 .into_iter()
@@ -684,17 +1038,73 @@ fn sync_profiled(
                     });
                 }
                 let fingerprint_ns = start.elapsed().as_nanos() as u64;
-                let skip = cache_source
-                    && !options.no_cache
-                    && previous.is_empty()
+                let target = executor.is_some() && supports_index(&source);
+                let indexed = indexes.usable && target;
+                let mut remove: Vec<String> = previous.into_keys().collect();
+                let mut state = indexes.sources.remove(&source).filter(|state| {
+                    state.revisions == revisions && state.index.compatible(&candidates, &remove)
+                });
+                if state.is_some()
                     && candidates
                         .iter()
-                        .all(|input| input.hit == Some(CacheReplay::Stable))
-                    && !ledger.cache_needs_replay(&source)?;
-                let cache_read_ns = start.elapsed().as_nanos() as u64;
-                phases.cache_read_ns += cache_read_ns;
+                        .filter(|input| input.hit.is_none())
+                        .count()
+                        + remove.len()
+                        > source_files / 2
+                {
+                    state = None;
+                }
+                let reader = InputReader {
+                    ledger: &ledger,
+                    source: &source,
+                    zone,
+                    preview: environment.preview.then_some(home),
+                    revisions,
+                    #[cfg(test)]
+                    after_parse: options.after_parse,
+                };
+                let mut staged = HashMap::new();
+                let mut changed = HashMap::new();
+                let mut affected = None;
+                if let Some(previous) = &state {
+                    for input in candidates.iter().filter(|input| input.hit.is_none()) {
+                        if cancel.load(Ordering::Acquire) {
+                            return Err(Error("cancelled".into()));
+                        }
+                        let loaded = reader.read(input, &mut phases)?;
+                        changed.insert(
+                            input.file.clone(),
+                            loaded
+                                .output
+                                .as_ref()
+                                .map(|(output, _)| Summary::new(output)),
+                        );
+                        staged.insert(input.file.clone(), loaded);
+                    }
+                    let start = Instant::now();
+                    affected = previous.index.affected(&changed, &remove, source_files);
+                    phases.index_ns += start.elapsed().as_nanos() as u64;
+                    if affected.is_none() {
+                        state = None;
+                    }
+                }
+                let replay_started = Instant::now();
+                let skip = if let Some(affected) = &affected {
+                    affected.files.is_empty()
+                } else {
+                    (!target || source_files == 0)
+                        && cache_source
+                        && !options.no_cache
+                        && remove.is_empty()
+                        && candidates
+                            .iter()
+                            .all(|input| input.hit == Some(CacheReplay::Stable))
+                        && !ledger.cache_needs_replay(&source)?
+                };
+                let replay_ns = replay_started.elapsed().as_nanos() as u64;
+                phases.cache_read_ns += fingerprint_ns + replay_ns;
                 phases.cache_fingerprint_ns += fingerprint_ns;
-                phases.cache_replay_check_ns += cache_read_ns - fingerprint_ns;
+                phases.cache_replay_check_ns += replay_ns;
                 if skip {
                     phases.skipped_files += source_files;
                     if source_files > 0 {
@@ -705,155 +1115,126 @@ fn sync_profiled(
                             });
                         }
                     }
+                    if let Some(state) = state {
+                        indexes.sources.insert(source.clone(), state);
+                    }
                     return Ok(());
                 }
 
-                let mut remove: Vec<String> = previous.into_keys().collect();
-                let mut parsed = Vec::with_capacity(source_files);
-                let mut updates = Vec::with_capacity(source_files);
-                for Input {
-                    path,
-                    file,
-                    fingerprint: before,
-                    hit,
-                    had_cache,
-                } in candidates
-                {
+                let mut parsed = Vec::new();
+                let mut updates = Vec::new();
+                let mut summaries = Vec::new();
+                let mut complete = true;
+                let mut summary_bytes = 0;
+                let mut omitted = (0, 0, 0);
+                for (order, input) in candidates.into_iter().enumerate() {
                     if cancel.load(Ordering::Acquire) {
                         return Err(Error("cancelled".into()));
                     }
-                    if let Some(replay) = hit {
-                        let start = Instant::now();
-                        let (output, bytes) = ledger.cached_file(&source, &file)?;
-                        let elapsed = start.elapsed().as_nanos() as u64;
-                        phases.cache_read_ns += elapsed;
-                        phases.cache_payload_read_ns += elapsed;
-                        phases.cache_decoded_bytes += bytes;
-                        if let Some(output) = output {
-                            merge_counts(&mut totals, output.notes);
-                            phases.cached_files += 1;
-                            parsed.push(Parsed {
-                                file,
-                                records: output.records,
+                    let file = input.file.as_str();
+                    if let Some(skipped) = affected
+                        .as_ref()
+                        .filter(|affected| !affected.files.contains(file))
+                        .and(state.as_mut())
+                        .and_then(|state| state.index.files.get_mut(file))
+                    {
+                        merge_counts(
+                            &mut totals,
+                            skipped
+                                .notes
+                                .iter()
+                                .filter(|(_, count)| **count != 0)
+                                .map(|(key, count)| (key, *count)),
+                        );
+                        omitted.0 += 1;
+                        omitted.1 += skipped.attempted as u64;
+                        omitted.2 += skipped.copies as i64;
+                        skipped.order = order;
+                        if let Some(progress) = options.progress.as_deref_mut() {
+                            progress(Progress::FilesProcessed {
+                                count: 1,
+                                parsed: false,
                             });
-                            updates.push(CacheUpdate::Reuse {
-                                fingerprint: before.expect("cache hit requires a fingerprint"),
-                                replay,
-                            });
-                            if let Some(progress) = options.progress.as_deref_mut() {
-                                progress(Progress::FilesProcessed {
-                                    count: 1,
-                                    parsed: false,
-                                });
-                            }
-                            continue;
                         }
+                        continue;
                     }
-                    phases.parsed_files += 1;
-                    let parsed_file = adapters::parse_profiled(
-                        &source,
-                        &file,
-                        path,
-                        zone,
-                        environment.preview.then_some(home),
-                        &mut phases.adapter,
-                    );
+                    if indexed {
+                        phases.affected_files += 1;
+                    }
+                    let loaded = match staged.remove(file) {
+                        Some(loaded) => loaded,
+                        None => reader.read(&input, &mut phases)?,
+                    };
+                    if affected.is_some() && input.hit.is_some() && loaded.parsed {
+                        return Err(Error("indexed cache payload unavailable".into()));
+                    }
                     if let Some(progress) = options.progress.as_deref_mut() {
                         progress(Progress::FilesProcessed {
                             count: 1,
-                            parsed: true,
+                            parsed: loaded.parsed,
                         });
                     }
-                    match parsed_file {
-                        Ok((mut records, mut notes)) => {
-                            #[cfg(test)]
-                            if let Some(after_parse) = options.after_parse {
-                                after_parse(path);
-                            }
-                            records.retain(|r| {
-                                if r.is_object() && !jscompat::truthy(&r["observed_at"]) {
-                                    notes["bad_times"] =
-                                        json!(notes["bad_times"].as_i64().unwrap() + 1);
-                                    false
-                                } else {
-                                    true
-                                }
-                            });
-                            let mut notes: HashMap<String, i64> = serde_json::from_value(notes)?;
-                            if let Some(rejected) = notes.remove("rejected_missing_time") {
-                                for field in ["attempted", "rejected"] {
-                                    totals[field] =
-                                        json!(totals[field].as_i64().unwrap_or(0) + rejected);
-                                }
-                                let note = format!(
-                                    "rejected: {source} — {rejected} 条用量缺少 observed_at（回复步骤、下一步和会话元数据均无可用时间）"
-                                );
-                                log.write("WARN", "sync", &note);
-                                totals["anomalies"]
-                                    .as_array_mut()
-                                    .unwrap()
-                                    .push(json!(note));
-                            }
-                            merge_counts(&mut totals, notes.iter().map(|(k, v)| (k, *v)));
-                            let mut update = if had_cache {
-                                CacheUpdate::Invalidate
-                            } else {
-                                CacheUpdate::Keep
-                            };
-                            if let Some(before) = before {
-                                let start = Instant::now();
-                                let zone_after = fingerprint::zone_identity(zone);
-                                let after = fingerprint::fingerprint(
-                                    &source,
-                                    path,
-                                    zone_after.as_deref(),
-                                    revisions,
-                                );
-                                let elapsed = start.elapsed().as_nanos() as u64;
-                                phases.cache_read_ns += elapsed;
-                                phases.cache_fingerprint_ns += elapsed;
-                                if after.as_ref() == Some(&before) {
-                                    let start = Instant::now();
-                                    let replaces = records
-                                        .iter()
-                                        .flat_map(replacement_targets)
-                                        .map(str::to_owned)
-                                        .collect();
-                                    let output = FileOutput { records, notes };
-                                    let payload = serde_json::to_vec(&output)?;
-                                    records = output.records;
-                                    update = CacheUpdate::Store(CachedFile {
-                                        fingerprint: before,
-                                        payload,
-                                        replaces,
-                                    });
-                                    phases.cache_write_ns += start.elapsed().as_nanos() as u64;
-                                }
-                            }
-                            parsed.push(Parsed { file, records });
-                            updates.push(update);
+                    if let Some(note) = loaded.anomaly {
+                        for field in ["attempted", "rejected"] {
+                            totals[field] =
+                                json!(totals[field].as_i64().unwrap() + loaded.rejected);
                         }
-                        Err(error) => {
-                            totals["counts"]["read_failed"] =
-                                json!(totals["counts"]["read_failed"].as_i64().unwrap() + 1);
-                            let note = format!("read_failed: {source} {file} — {error}");
-                            log.write(
-                                "WARN",
-                                "sync",
-                                &crate::diagnostics::safe_anomaly(&note, &files),
-                            );
-                            totals["anomalies"]
-                                .as_array_mut()
-                                .unwrap()
-                                .push(json!(note));
-                            if had_cache {
-                                remove.push(file);
+                        if loaded.output.is_none() {
+                            merge_counts(&mut totals, [("read_failed", 1)]);
+                        }
+                        log.write(
+                            "WARN",
+                            "sync",
+                            &crate::diagnostics::safe_anomaly(&note, &files),
+                        );
+                        totals["anomalies"]
+                            .as_array_mut()
+                            .unwrap()
+                            .push(json!(note));
+                    }
+                    if let Some((output, update)) = loaded.output {
+                        if indexed && complete && indexes.publish {
+                            complete &=
+                                matches!(update, CacheUpdate::Reuse { .. } | CacheUpdate::Store(_));
+                            let mut summary = changed
+                                .remove(file)
+                                .flatten()
+                                .unwrap_or_else(|| Summary::new(&output));
+                            summary.order = order;
+                            summary_bytes += summary.bytes(file);
+                            if summary_bytes > index::MEMORY_LIMIT {
+                                complete = false;
+                                summaries.clear();
+                            } else {
+                                summaries.push(summary);
                             }
+                        }
+                        merge_counts(&mut totals, output.notes);
+                        parsed.push(Parsed {
+                            file: input.file,
+                            records: output.records,
+                        });
+                        updates.push(update);
+                    } else {
+                        complete = false;
+                        if input.had_cache {
+                            remove.push(input.file);
                         }
                     }
                 }
+                if omitted.0 > 0 {
+                    phases.index_hits += omitted.0;
+                    for field in ["attempted", "unchanged"] {
+                        totals[field] = json!(totals[field].as_u64().unwrap() + omitted.1);
+                    }
+                    merge_counts(&mut totals, [("cross_file_copies", omitted.2)]);
+                    merge_counts(&mut totals, BATCH_COUNT_FIELDS.map(|key| (key, 0)));
+                }
                 if cancel.load(Ordering::Acquire) {
                     return Err(Error("cancelled".into()));
+                }
+                if indexed {
+                    indexes.check_external_write(&ledger)?;
                 }
                 let track_source = cache_source
                     && (source_files > 0
@@ -867,7 +1248,8 @@ fn sync_profiled(
                 }
                 let previous_anomalies = totals["anomalies"].as_array().unwrap().len();
                 let start = Instant::now();
-                let elsewhere = settle(&mut parsed, &mut totals);
+                let mut copies = HashMap::new();
+                let elsewhere = settle(&mut parsed, &mut totals, indexed.then_some(&mut copies));
                 phases.settle_ns += start.elapsed().as_nanos() as u64;
                 if track_source {
                     let start = Instant::now();
@@ -885,28 +1267,41 @@ fn sync_profiled(
                     );
                 }
                 let cancelled = || cancel.load(Ordering::Acquire);
+                let timing_current = state
+                    .as_ref()
+                    .is_some_and(|state| state.index.timing_current);
+                let write_candidates = |certified: &[bool]| {
+                    parsed
+                        .iter()
+                        .zip(&updates)
+                        .enumerate()
+                        .map(|(index, (file, update))| WriteCandidate {
+                            file: &file.file,
+                            records: &file.records,
+                            elsewhere: elsewhere.get(&file.file).map_or(&[], Vec::as_slice),
+                            cache_unchanged: if certified.is_empty() {
+                                matches!(update, CacheUpdate::Keep | CacheUpdate::Reuse { .. })
+                            } else {
+                                !certified[index]
+                            },
+                        })
+                        .collect::<Vec<_>>()
+                };
                 let write_skips = if options.no_cache {
                     None
                 } else {
                     let start = Instant::now();
-                    let candidates: Vec<_> = parsed
-                        .iter()
-                        .zip(&updates)
-                        .map(|(file, update)| WriteCandidate {
-                            file: &file.file,
-                            records: &file.records,
-                            elsewhere: elsewhere.get(&file.file).map_or(&[], Vec::as_slice),
-                            cache_unchanged: matches!(
-                                update,
-                                CacheUpdate::Keep | CacheUpdate::Reuse { .. }
-                            ),
-                        })
-                        .collect();
-                    let skips = ledger.write_skips(&candidates, revisions, cancelled)?;
+                    let skips = ledger.write_skips(
+                        &write_candidates(&[]),
+                        revisions,
+                        timing_current,
+                        cancelled,
+                    )?;
                     phases.write_skip_check_ns += start.elapsed().as_nanos() as u64;
                     Some(skips)
                 };
-                for (index, (file, update)) in parsed.into_iter().zip(updates).enumerate() {
+                let mut certified = vec![false; if indexed { parsed.len() } else { 0 }];
+                for (index, (file, update)) in parsed.iter().zip(&updates).enumerate() {
                     if let Some(skips) = &write_skips {
                         if cancelled() {
                             return Err(Error("cancelled".into()));
@@ -915,6 +1310,9 @@ fn sync_profiled(
                         let skip = skips.contains(index, &ledger)?;
                         phases.write_skip_check_ns += start.elapsed().as_nanos() as u64;
                         if skip {
+                            if indexed {
+                                certified[index] = true;
+                            }
                             if phases.write_skipped_files == 0 {
                                 merge_counts(&mut totals, BATCH_COUNT_FIELDS.map(|key| (key, 0)));
                             }
@@ -940,7 +1338,7 @@ fn sync_profiled(
                         cancelled,
                         |transaction| {
                             let start = Instant::now();
-                            match &update {
+                            match update {
                                 CacheUpdate::Keep | CacheUpdate::Reuse { .. } => return Ok(()),
                                 CacheUpdate::Invalidate => {
                                     Ledger::write_ingest_file(
@@ -1006,6 +1404,60 @@ fn sync_profiled(
                         .unwrap()
                         .extend(stats["anomalies"].as_array().unwrap().clone());
                 }
+                if indexed {
+                    indexes.check_external_write(&ledger)?;
+                    indexes.publish &= complete;
+                    if complete && indexes.publish && source_files > 0 {
+                        let proof_started = Instant::now();
+                        let post = ledger.write_skips(
+                            &write_candidates(&certified),
+                            revisions,
+                            timing_current,
+                            cancelled,
+                        )?;
+                        phases.write_skip_check_ns += proof_started.elapsed().as_nanos() as u64;
+                        let index_started = Instant::now();
+                        let rebuild = state.is_none();
+                        let mut source_index = state.map(|state| state.index).unwrap_or_default();
+                        for file in &remove {
+                            source_index.remove(file);
+                        }
+                        for (index, (file, mut summary)) in parsed.iter().zip(summaries).enumerate()
+                        {
+                            let (count, conflict) = copies.get(&index).copied().unwrap_or_default();
+                            summary.attempted = file.records.len();
+                            summary.copies = count;
+                            summary.replay =
+                                conflict || !(certified[index] || post.contains(index, &ledger)?);
+                            source_index.put(&file.file, summary);
+                            if source_index.bytes() > index::MEMORY_LIMIT {
+                                break;
+                            }
+                        }
+                        indexes.publish = source_index.bytes() <= index::MEMORY_LIMIT
+                            && source_index.refresh_owners(
+                                &ledger,
+                                &source,
+                                revisions,
+                                affected.as_ref(),
+                                cancelled,
+                            )?
+                            && source_index.bytes() + indexes.bytes() <= index::MEMORY_LIMIT;
+                        phases.index_ns += index_started.elapsed().as_nanos() as u64;
+                        if indexes.publish {
+                            if rebuild {
+                                phases.index_rebuilds += 1;
+                            }
+                            indexes.sources.insert(
+                                source.clone(),
+                                IndexedSource {
+                                    revisions,
+                                    index: source_index,
+                                },
+                            );
+                        }
+                    }
+                }
                 if track_source {
                     let start = Instant::now();
                     ledger.cache_finish_source(&source)?;
@@ -1044,6 +1496,9 @@ fn sync_profiled(
         if cancel.load(Ordering::Acquire) {
             return Err(Error("cancelled".into()));
         }
+        if indexes.usable {
+            indexes.check_external_write(&ledger)?;
+        }
         let start = Instant::now();
         let repriced = ledger.reprice_cancellable(
             ledger.prices.version(),
@@ -1055,6 +1510,14 @@ fn sync_profiled(
         totals["parsedFiles"] = json!(phases.parsed_files);
         totals["cachedFiles"] = json!(phases.cached_files);
         totals["skippedFiles"] = json!(phases.skipped_files);
+        if indexes.usable {
+            indexes.check_external_write(&ledger)?;
+            if indexes.publish && fingerprint::zone_identity(zone) == indexes.zone {
+                phases.index_memory_bytes = indexes.bytes();
+            } else {
+                indexes.publish = false;
+            }
+        }
         let start = Instant::now();
         let counts = totals["counts"].clone();
         totals["counts"]
@@ -1102,6 +1565,20 @@ fn sync_profiled(
                 started.elapsed().as_millis()
             ),
         );
+    }
+    if let Some(executor) = executor {
+        if result.is_ok() && indexes.usable && indexes.publish && !cancel.load(Ordering::Acquire) {
+            if let Some(file) =
+                opened_file.filter(|file| LedgerFile::read(ledger_path).ok().as_ref() == Some(file))
+            {
+                executor.retained = Some(Retained {
+                    stamp: (indexes.data_version, ledger.db.total_changes()),
+                    file,
+                    ledger,
+                    indexes,
+                });
+            }
+        }
     }
     result
 }

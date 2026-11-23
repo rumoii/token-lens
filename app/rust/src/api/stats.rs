@@ -679,6 +679,7 @@ struct State {
     clock: Clock,
     discovery: Mutex<Option<(i64, StatsDiscovery)>>,
     progress: Mutex<Option<StatsSyncProgress>>,
+    sync_executor: Mutex<ingest::SyncExecutor>,
     price_write: Mutex<()>,
     log: crate::diagnostics::RuntimeLog,
 }
@@ -802,6 +803,7 @@ impl StatsClient {
                 clock,
                 discovery: Mutex::new(None),
                 progress: Mutex::new(None),
+                sync_executor: Mutex::default(),
                 price_write: Mutex::new(()),
             }),
         })
@@ -921,50 +923,55 @@ impl StatsClient {
                 .unwrap_or_else(|e| e.into_inner()) = Some(progress.clone());
         };
         publish(&progress);
-        let result = ingest::sync_triggered(
-            &self.state.data,
-            &self.state.home,
-            environment,
-            self.state.clock.clone(),
-            &self.state.closed,
-            trigger,
-            &mut |event| {
-                match event {
-                    ingest::Progress::Discovering { first_sync } => {
-                        progress.first_sync = Some(first_sync);
-                    }
-                    ingest::Progress::Discovered { files } => {
-                        progress.files_total = Some(files as i64);
-                    }
-                    ingest::Progress::Reading {
-                        source,
-                        index,
-                        total,
-                        source_files,
-                    } => {
-                        progress.stage = "reading".into();
-                        progress.source = Some(source.into());
-                        progress.index = index as i64;
-                        progress.total = total as i64;
-                        progress.source_files_processed = 0;
-                        progress.source_files_total = source_files as i64;
-                    }
-                    ingest::Progress::FilesProcessed { count, parsed } => {
-                        let count = count as i64;
-                        progress.files_processed += count;
-                        progress.source_files_processed += count;
-                        if parsed {
-                            progress.files_read += count;
+        let mut executor = self
+            .state
+            .sync_executor
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let result = executor
+            .sync_triggered(
+                (&self.state.data, &self.state.home),
+                environment,
+                self.state.clock.clone(),
+                &self.state.closed,
+                trigger,
+                &mut |event| {
+                    match event {
+                        ingest::Progress::Discovering { first_sync } => {
+                            progress.first_sync = Some(first_sync);
+                        }
+                        ingest::Progress::Discovered { files } => {
+                            progress.files_total = Some(files as i64);
+                        }
+                        ingest::Progress::Reading {
+                            source,
+                            index,
+                            total,
+                            source_files,
+                        } => {
+                            progress.stage = "reading".into();
+                            progress.source = Some(source.into());
+                            progress.index = index as i64;
+                            progress.total = total as i64;
+                            progress.source_files_processed = 0;
+                            progress.source_files_total = source_files as i64;
+                        }
+                        ingest::Progress::FilesProcessed { count, parsed } => {
+                            let count = count as i64;
+                            progress.files_processed += count;
+                            progress.source_files_processed += count;
+                            if parsed {
+                                progress.files_read += count;
+                            }
+                        }
+                        ingest::Progress::SourceFinished(source) => {
+                            progress.completed_sources.push(source.into());
                         }
                     }
-                    ingest::Progress::SourceFinished(source) => {
-                        progress.completed_sources.push(source.into());
-                    }
-                }
-                publish(&progress);
-            },
-        )
-        .map_err(|e| e.to_string())?;
+                    publish(&progress);
+                },
+            )
+            .map_err(|e| e.to_string())?;
         serde_json::from_value(result).map_err(|e| e.to_string())
     }
     pub fn summary(
@@ -1356,6 +1363,11 @@ impl StatsClient {
         while self.state.running.load(Ordering::Acquire) {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
+        *self
+            .state
+            .sync_executor
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Default::default();
         let deadline = Instant::now() + LOG_FLUSH_TIMEOUT;
         let mut flush = tokio::task::spawn_blocking(move || {
             flush_runtime_log(deadline.saturating_duration_since(Instant::now()))

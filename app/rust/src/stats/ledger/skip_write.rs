@@ -37,6 +37,7 @@ impl Ledger {
         &self,
         files: &[WriteCandidate<'_>],
         revisions: Revisions,
+        timing_current: bool,
         cancelled: impl Fn() -> bool,
     ) -> Result<WriteSkips> {
         if !files.iter().any(|input| input.cache_unchanged) {
@@ -177,7 +178,7 @@ impl Ledger {
             }
         }
         drop(rows);
-        if let Some(revision) = revisions.timing {
+        if let Some(revision) = revisions.timing.filter(|_| !timing_current) {
             let mut statement = self.db.prepare_cached(
                 "SELECT source_file,record_key FROM usage_timings
                  WHERE coalesce(parser_rev,1)!=?",

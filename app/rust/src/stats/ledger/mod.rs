@@ -289,7 +289,7 @@ fn timing_hash(values: &[&Value; TIMING_FIELDS.len()]) -> Result<String> {
     Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(values)?)))
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Revisions {
     pub usage: Option<i64>,
     pub timing: Option<i64>,
