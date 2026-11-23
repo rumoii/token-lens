@@ -527,3 +527,198 @@ fn shared_export_bytes_and_collision_handling() {
     }
     assert!(csv.contains("\"comma,\"\"name\"\"\""));
 }
+
+fn synthetic_pricing_profile() -> tempfile::TempDir {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let logs = home.join(".opencode");
+    fs::create_dir_all(&logs).unwrap();
+    let db = Connection::open(logs.join("opencode.db")).unwrap();
+    db.execute_batch(
+        "CREATE TABLE session(id TEXT, directory TEXT);
+         CREATE TABLE message(id TEXT, session_id TEXT, time_updated INTEGER, time_created INTEGER, data TEXT);",
+    )
+    .unwrap();
+    for (session, project, day, model, provider) in [
+        ("jan", "mixed", "2026-01-15", "claude-opus-4-6", "remote"),
+        ("feb", "mixed", "2026-02-15", "unpriced-synthetic", "remote"),
+        ("mar", "mixed", "2026-03-15", "claude-opus-4-6", "remote"),
+        ("local", "local", "2026-03-15", "local-synthetic", "OLLaMa"),
+        (
+            "unknown",
+            "unpriced",
+            "2026-02-15",
+            "unpriced-synthetic",
+            "remote",
+        ),
+    ] {
+        let time = chrono::DateTime::parse_from_rfc3339(&format!("{day}T12:00:00Z"))
+            .unwrap()
+            .timestamp_millis();
+        let message = json!({
+            "role": "assistant", "modelID": model, "providerID": provider,
+            "tokens": {"input": 100}
+        });
+        db.execute(
+            "INSERT INTO session VALUES (?1,?2)",
+            (session, format!("/demo/{project}")),
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO message VALUES (?1,?1,?2,?2,?3)",
+            (session, time, message.to_string()),
+        )
+        .unwrap();
+    }
+    drop(db);
+    let data = temp.path().join("data");
+    let sync = success(cli(Some(&data), Some(&home), &["sync"]), "sync");
+    assert_eq!(sync["data"]["inserted"], 5);
+    temp
+}
+
+fn cost_fields(row: &Value) -> [&Value; 2] {
+    ["cost_usd", "cost_micros"].map(|field| row.get(field).unwrap())
+}
+
+#[test]
+fn fully_unpriced_cli_groups_are_distinct_from_other_totals() {
+    let temp = synthetic_pricing_profile();
+    let data = temp.path().join("data");
+    let grouped = success(
+        cli(
+            Some(&data),
+            None,
+            &["breakdown", "--by", "project", "--period", "all"],
+        ),
+        "breakdown",
+    );
+    let group = |key: &str| {
+        grouped["data"]["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["key"] == key)
+            .unwrap()
+    };
+    let mixed = group("mixed");
+    assert_eq!(mixed["record_count"], 3);
+    assert_eq!(mixed["unpriced_records"], 1);
+    assert_eq!(cost_fields(mixed), [&json!("0.001000"), &json!(1000)]);
+    let local = group("local");
+    assert_eq!(local["record_count"], 1);
+    assert_eq!(local["unpriced_records"], 0);
+    assert_eq!(cost_fields(local), [&json!("0.000000"), &json!(0)]);
+
+    let empty = success(
+        cli(
+            Some(&data),
+            None,
+            &["summary", "--period", "all", "--model", "missing-synthetic"],
+        ),
+        "summary",
+    );
+    assert_eq!(empty["data"]["record_count"], 0);
+    assert_eq!(cost_fields(&empty["data"]), [&json!("0.000000"), &json!(0)]);
+
+    let unknown = group("unpriced");
+    assert_eq!(unknown["record_count"], 1);
+    assert_eq!(unknown["unpriced_records"], 1);
+    assert_eq!(cost_fields(unknown), [&Value::Null, &Value::Null]);
+}
+
+#[test]
+fn fully_unpriced_cli_comparison_has_unknown_delta_on_either_side() {
+    let temp = synthetic_pricing_profile();
+    let data = temp.path().join("data");
+    let comparison = |from: &str, to: &str| {
+        success(
+            cli(
+                Some(&data),
+                None,
+                &[
+                    "summary",
+                    "--compare",
+                    "--project",
+                    "mixed",
+                    "--from",
+                    from,
+                    "--to",
+                    to,
+                ],
+            ),
+            "summary",
+        )
+    };
+    let feb = comparison("2026-02-01", "2026-02-28");
+    let mar = comparison("2026-03-01", "2026-03-31");
+    assert_eq!(
+        cost_fields(&feb["data"]["previous"]["totals"]),
+        [&json!("0.000500"), &json!(500)]
+    );
+    assert_eq!(
+        cost_fields(&mar["data"]["current"]),
+        [&json!("0.000500"), &json!(500)]
+    );
+    assert_eq!(feb["data"]["current"]["unpriced_records"], 1);
+    assert_eq!(mar["data"]["previous"]["totals"]["unpriced_records"], 1);
+    assert_eq!(
+        [
+            cost_fields(&feb["data"]["current"]),
+            cost_fields(&feb["data"]["delta"]),
+            cost_fields(&mar["data"]["previous"]["totals"]),
+            cost_fields(&mar["data"]["delta"]),
+        ],
+        [[&Value::Null, &Value::Null]; 4]
+    );
+}
+
+#[test]
+fn fully_unpriced_detail_export_uses_null_json_and_empty_csv_amounts() {
+    use rust_lib_token_lens::api::stats::{StatsClient, StatsFilter, StatsUsageExport};
+
+    let temp = synthetic_pricing_profile();
+    let client = StatsClient::new(
+        temp.path().join("data").to_string_lossy().into_owned(),
+        Some(temp.path().join("home").to_string_lossy().into_owned()),
+    )
+    .unwrap();
+    let export = |format: &str| {
+        let path = client
+            .export_usage(
+                StatsUsageExport {
+                    by: "project".into(),
+                    period: "all".into(),
+                    filter: StatsFilter::default(),
+                    format: format.into(),
+                    project_paths: false,
+                    directory: temp.path().join("out").to_string_lossy().into_owned(),
+                },
+                0,
+            )
+            .unwrap();
+        fs::read_to_string(path).unwrap()
+    };
+    let doc: Value = serde_json::from_str(&export("json")).unwrap();
+    let unknown = doc["data"]["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["key"] == "unpriced")
+        .unwrap();
+    let csv = export("csv");
+    let mut lines = csv.lines();
+    let columns: Vec<_> = lines.next().unwrap().split(',').collect();
+    let row: Vec<_> = lines
+        .find(|line| line.starts_with("unpriced,"))
+        .unwrap()
+        .split(',')
+        .collect();
+    assert_eq!(row.len(), columns.len());
+    let csv_costs = ["cost_usd", "cost_micros"]
+        .map(|column| row[columns.iter().position(|&name| name == column).unwrap()]);
+    assert_eq!(
+        (cost_fields(unknown), csv_costs),
+        ([&Value::Null, &Value::Null], ["", ""])
+    );
+}

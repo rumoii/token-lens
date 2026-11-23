@@ -138,7 +138,8 @@ impl Scope {
 }
 
 fn metrics(row: &Value) -> Value {
-    let micros = row["cost_micros"].as_i64().unwrap_or_default();
+    // The ledger sums priced rows and supplies zero when the range is empty.
+    let micros = row["cost_micros"].as_i64();
     json!({
         "input_tokens":row["input_tokens"],"output_tokens":row["output_tokens"],
         "cache_read_tokens":row["cache_read_tokens"],"cache_write_tokens":row["cache_write_tokens"],
@@ -146,7 +147,7 @@ fn metrics(row: &Value) -> Value {
         "request_count":row["request_count"].as_i64().unwrap_or_default(),
         "session_count":row["session_count"].as_i64().unwrap_or_default(),
         "unpriced_records":row["unpriced_records"].as_i64().unwrap_or_default(),
-        "cost_micros":micros,"cost_usd":pricing::format_micros(Some(micros),6),"currency":"USD",
+        "cost_micros":micros,"cost_usd":pricing::format_micros(micros,6),"currency":"USD",
     })
 }
 
