@@ -306,7 +306,9 @@ class _StatsPageState extends State<StatsPage> {
           valueListenable: window.pillState,
           child: panel,
           builder: (context, pill, compact) => Scaffold(
-            backgroundColor: pill == null ? null : Colors.transparent,
+            backgroundColor: pill == null
+                ? null
+                : LensPalette.of(context).surface,
             body: Semantics(
               container: true,
               explicitChildNodes: true,

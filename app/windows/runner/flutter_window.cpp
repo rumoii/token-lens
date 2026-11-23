@@ -15,10 +15,13 @@
 namespace {
 
 using flutter::EncodableList;
-// DWMWA_WINDOW_CORNER_PREFERENCE and its values in the Windows 11 SDK.
+// DWM attributes introduced in the Windows 11 SDK.
 constexpr DWORD kWindowCornerPreference = 33;
+constexpr DWORD kBorderColor = 34;
+constexpr COLORREF kDefaultBorder = 0xffffffff;
 constexpr int kDefaultCorner = 0;
 constexpr int kRoundCorner = 2;
+constexpr double kPillSnapDistance = 24.0;
 
 BOOL CALLBACK CollectWorkArea(HMONITOR monitor, HDC, LPRECT, LPARAM context) {
   MONITORINFO info = {sizeof(info)};
@@ -51,6 +54,18 @@ LRESULT ResizeEdge(HWND window, LPARAM position) {
   if (y < frame.top + edge) return left ? HTTOPLEFT : right ? HTTOPRIGHT : HTTOP;
   if (y >= frame.bottom - edge) return left ? HTBOTTOMLEFT : right ? HTBOTTOMRIGHT : HTBOTTOM;
   return left ? HTLEFT : right ? HTRIGHT : HTCLIENT;
+}
+
+bool NearHorizontalEdge(const RECT& frame) {
+  const POINT center = {(frame.left + frame.right) / 2,
+                        (frame.top + frame.bottom) / 2};
+  const HMONITOR monitor = MonitorFromPoint(center, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO info = {sizeof(info)};
+  if (!GetMonitorInfo(monitor, &info)) return false;
+  const double distance =
+      kPillSnapDistance * FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
+  return std::abs(frame.left - info.rcWork.left) < distance ||
+         std::abs(frame.right - info.rcWork.right) < distance;
 }
 
 }  // namespace
@@ -109,8 +124,7 @@ bool FlutterWindow::OnCreate() {
           const auto* args = call.arguments()
                                  ? std::get_if<EncodableList>(call.arguments())
                                  : nullptr;
-          if (!args || (args->size() != 4 && args->size() != 5 &&
-                        args->size() != 7) ||
+          if (!args || (args->size() != 4 && args->size() != 5) ||
               !std::all_of(args->begin(), args->end(), [](const auto& n) {
                 return std::holds_alternative<double>(n);
               })) {
@@ -123,14 +137,9 @@ bool FlutterWindow::OnCreate() {
           const double y = std::get<double>((*args)[1]);
           const POINT origin = {std::lround(x), std::lround(y)};
           HMONITOR monitor = MonitorFromPoint(origin, MONITOR_DEFAULTTONEAREST);
-          const double scale = args->size() >= 5
+          const double scale = args->size() == 5
                                    ? std::get<double>((*args)[4])
                                    : FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
-          pill_clip_.reset();
-          if (args->size() == 7) {
-            pill_clip_.emplace(std::lround(std::get<double>((*args)[5])),
-                               std::lround(std::get<double>((*args)[6])));
-          }
           // Round the two edges on each axis so an aligned far edge stays put.
           const int width = std::lround(x + std::get<double>((*args)[2]) * scale) - origin.x;
           const int height = std::lround(y + std::get<double>((*args)[3]) * scale) - origin.y;
@@ -139,10 +148,6 @@ bool FlutterWindow::OnCreate() {
           if (!SetWindowPos(GetHandle(), nullptr, origin.x, origin.y,
                             width, height, flags)) {
             result->Error("window-frame", "Unable to set the window frame.");
-            return;
-          }
-          if (pill_frame_ && !UpdatePillRegion()) {
-            result->Error("window-frame", "Unable to update the pill region.");
             return;
           }
           result->Success();
@@ -183,19 +188,33 @@ bool FlutterWindow::OnCreate() {
             return;
           }
           pill_frame_ = *pill;
-          if (!pill_frame_) SetPillTooltip(nullptr);
-          pill_clip_.reset();
-          // The pill is entirely client area. Restore the caption style for
-          // the compact and full frames.
+          if (!pill_frame_) {
+            SetPillTooltip(nullptr);
+            SetPillDragHighlight(false);
+            pill_drag_accent_.reset();
+          }
+          // Keep the caption style out of the pill. WM_NCCALCSIZE shares
+          // the one-pixel DWM frame with the compact window.
           const LONG_PTR style = GetWindowLongPtr(GetHandle(), GWL_STYLE);
           SetWindowLongPtr(GetHandle(), GWL_STYLE,
                            pill_frame_ ? style & ~WS_CAPTION : style | WS_CAPTION);
           if (!SetWindowPos(GetHandle(), nullptr, 0, 0, 0, 0,
                             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE |
-                                SWP_NOACTIVATE | SWP_NOZORDER) ||
-              !UpdatePillRegion()) {
+                                SWP_NOACTIVATE | SWP_NOZORDER)) {
             result->Error("window-frame", "Unable to change the pill frame.");
             return;
+          }
+          result->Success();
+          return;
+        }
+        if (call.method_name() == "setPillDragAccent") {
+          SetPillDragHighlight(false);
+          pill_drag_accent_.reset();
+          const auto* color = call.arguments()
+                                  ? std::get_if<int32_t>(call.arguments())
+                                  : nullptr;
+          if (pill_frame_ && color) {
+            pill_drag_accent_ = RGB(*color >> 16, *color >> 8, *color);
           }
           result->Success();
           return;
@@ -271,30 +290,13 @@ LRESULT CALLBACK FlutterWindow::ChildWindowProc(
   return DefSubclassProc(hwnd, message, wparam, lparam);
 }
 
-bool FlutterWindow::UpdatePillRegion() {
-  const HWND hwnd = GetHandle();
-  if (!pill_frame_) return SetWindowRgn(hwnd, nullptr, TRUE) != 0;
-  RECT frame;
-  if (!GetWindowRect(hwnd, &frame)) return false;
-  const int width = frame.right - frame.left;
-  const int height = frame.bottom - frame.top;
-  HRGN shape = CreateRoundRectRgn(0, 0, width + 1, height + 1, height, height);
-  if (!shape) return false;
-  if (pill_clip_) {
-    // A neighboring monitor may start at this edge. Clip painting and
-    // hit-testing there without moving the actual HWND back into the work area.
-    const auto [left, right] = *pill_clip_;
-    HRGN visible = CreateRectRgn(left - frame.left, 0, right - frame.left, height);
-    const bool clipped = visible && CombineRgn(shape, shape, visible, RGN_AND) != ERROR;
-    if (visible) DeleteObject(visible);
-    if (!clipped) {
-      DeleteObject(shape);
-      return false;
-    }
+void FlutterWindow::SetPillDragHighlight(bool near_edge) {
+  if (pill_drag_highlighted_ == near_edge) return;
+  const COLORREF color = near_edge ? pill_drag_accent_.value() : kDefaultBorder;
+  if (SUCCEEDED(DwmSetWindowAttribute(GetHandle(), kBorderColor, &color,
+                                       sizeof(color)))) {
+    pill_drag_highlighted_ = near_edge;
   }
-  if (SetWindowRgn(hwnd, shape, TRUE)) return true;
-  DeleteObject(shape);
-  return false;
 }
 
 bool FlutterWindow::SetPillTooltip(const std::string* text) {
@@ -339,8 +341,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         ? &reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam)->rgrc[0]
         : reinterpret_cast<RECT*>(lparam);
     // Keep a physical pixel of native frame for DWM to draw the border and
-    // shadow. The runner omits the caption while retaining the resize styles.
-    if (rounded_mini_frame_ && !pill_frame_) InflateRect(area, -1, -1);
+    // shadow. The runner omits the caption in both compact presentations.
+    if (rounded_mini_frame_) InflateRect(area, -1, -1);
     return 0;
   }
   if (message == WM_GETMINMAXINFO && (pill_frame_ || !mini_frame_)) {
@@ -354,6 +356,11 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     const LRESULT edge = ResizeEdge(hwnd, lparam);
     if (edge != HTCLIENT) return edge;
   }
+  if (message == WM_MOVING && pill_drag_accent_ && rounded_mini_frame_) {
+    SetPillDragHighlight(NearHorizontalEdge(*reinterpret_cast<RECT*>(lparam)));
+  } else if (message == WM_EXITSIZEMOVE) {
+    SetPillDragHighlight(false);
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -365,14 +372,6 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
-    case WM_DPICHANGED:
-      // The clipped window can overlap another monitor. Keep the caller's
-      // frame while Flutter updates its device pixel ratio.
-      if (pill_frame_ && pill_clip_) return 0;
-      break;
-    case WM_SIZE:
-      if (pill_frame_ && wparam != SIZE_MINIMIZED) UpdatePillRegion();
-      break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

@@ -126,7 +126,23 @@ class _MiniPillState extends State<MiniPill> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          const BrandMark(size: 18),
+          SizedBox.square(
+            dimension: 22,
+            child: DecoratedBox(
+              decoration: _focusHighlight
+                  ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(
+                        LensTokens.radii['sm']!,
+                      ),
+                      border: Border.all(
+                        color: p['clay-ink'],
+                        width: 1 / MediaQuery.devicePixelRatioOf(context),
+                      ),
+                    )
+                  : const BoxDecoration(),
+              child: const Center(child: BrandMark(size: 18)),
+            ),
+          ),
           if (c.busy)
             Positioned(
               right: 2,
@@ -142,7 +158,6 @@ class _MiniPillState extends State<MiniPill> {
       _miniMoney(c.preferences, c.miniUsage?.totals.costMicros),
     );
     final tuckedLeft = edge == MiniPillEdge.left && !widget.state.revealed;
-    final radius = BorderRadius.circular(LensTokens.radii['pill']!);
     return Semantics(
       container: true,
       button: true,
@@ -182,7 +197,11 @@ class _MiniPillState extends State<MiniPill> {
                 if (press?.$1 == event.pointer &&
                     (event.position - press!.$2).distance > 4) {
                   _press = null;
-                  _miniPillAction(widget.window.startPillDragging);
+                  _miniPillAction(
+                    () => widget.window.startPillDragging(
+                      edgeAccent: p['clay-ink'],
+                    ),
+                  );
                 }
               },
               onPointerUp: (event) {
@@ -193,55 +212,43 @@ class _MiniPillState extends State<MiniPill> {
               onPointerCancel: (event) {
                 if (_press?.$1 == event.pointer) _press = null;
               },
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: p.surface,
-                  borderRadius: radius,
-                  border: Border.all(
-                    color: _focusHighlight ? p['clay-ink'] : p['line'],
-                    width: _focusHighlight ? 2 : LensPalette.hairline(context),
-                  ),
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: MiniWindow.pillHeight,
-                  child: tuckedLeft
-                      ? Align(alignment: Alignment.centerRight, child: mark)
-                      : Row(
-                          children: [
-                            mark,
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  right: MiniPill._endPadding,
-                                ),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Row(
-                                    children: [
-                                      Text.rich(spans[0]),
-                                      const SizedBox(width: MiniPill._gap),
-                                      Text.rich(spans[1]),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: MiniPill._separatorSpace,
-                                        ),
-                                        child: SizedBox(
-                                          width: LensPalette.hairline(context),
-                                          height: 14,
-                                          child: ColoredBox(color: p['line']),
-                                        ),
+              child: SizedBox.expand(
+                child: tuckedLeft
+                    ? Align(alignment: Alignment.centerRight, child: mark)
+                    : Row(
+                        children: [
+                          mark,
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                right: MiniPill._endPadding,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  children: [
+                                    Text.rich(spans[0]),
+                                    const SizedBox(width: MiniPill._gap),
+                                    Text.rich(spans[1]),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: MiniPill._separatorSpace,
                                       ),
-                                      Text.rich(spans[2]),
-                                    ],
-                                  ),
+                                      child: SizedBox(
+                                        width: LensPalette.hairline(context),
+                                        height: 14,
+                                        child: ColoredBox(color: p['line']),
+                                      ),
+                                    ),
+                                    Text.rich(spans[2]),
+                                  ],
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                ),
+                          ),
+                        ],
+                      ),
               ),
             ),
           ),

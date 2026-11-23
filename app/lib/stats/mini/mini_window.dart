@@ -35,12 +35,8 @@ abstract interface class MiniWindowPlatform {
   bool get supportsPillTuck;
   Future<void> setPillFrame(bool value);
   Future<void> setPillTooltip(String? text);
-  Future<void> setPillBounds(
-    Rect value,
-    MiniDisplay display, {
-    bool clip = false,
-  });
-  Future<void> dragPill();
+  Future<void> setPillBounds(Rect value, MiniDisplay display);
+  Future<void> dragPill({Color? edgeAccent});
   Future<void> startDragging();
   void observeBounds(VoidCallback? callback, {ValueChanged<Size?>? onResize});
 }
@@ -151,25 +147,34 @@ class DesktopMiniWindowPlatform
       _channel.invokeMethod<void>('setPillTooltip', text);
 
   @override
-  Future<void> setPillBounds(
-    Rect b,
-    MiniDisplay display, {
-    bool clip = false,
-  }) => Platform.isWindows
+  Future<void> setPillBounds(Rect b, MiniDisplay display) => Platform.isWindows
       ? _channel.invokeMethod<void>('setFrame', [
           b.left,
           b.top,
           b.width,
           b.height,
           display.scale,
-          if (clip) ...[display.workArea.left, display.workArea.right],
         ])
       : setBounds(b);
 
   @override
-  Future<void> dragPill() => Platform.isWindows
-      ? startDragging()
-      : _channel.invokeMethod<void>('dragPill');
+  Future<void> dragPill({Color? edgeAccent}) async {
+    if (!Platform.isWindows) {
+      await _channel.invokeMethod<void>('dragPill');
+      return;
+    }
+    final rgb = edgeAccent?.toARGB32();
+    if (rgb == null) {
+      await startDragging();
+      return;
+    }
+    await _channel.invokeMethod<void>('setPillDragAccent', rgb & 0xffffff);
+    try {
+      await startDragging();
+    } finally {
+      await _channel.invokeMethod<void>('setPillDragAccent');
+    }
+  }
 
   @override
   void observeBounds(VoidCallback? callback, {ValueChanged<Size?>? onResize}) {
@@ -386,7 +391,7 @@ class MiniWindow {
     _pillFrame = frame;
     _pillDisplay = display;
     _pillState.value = (edge: edge, revealed: false);
-    await platform.setPillBounds(frame, display, clip: edge != null);
+    await platform.setPillBounds(frame, display);
   }
 
   Future<void> expandPill() => _run(() async {
@@ -436,7 +441,7 @@ class MiniWindow {
     );
   });
 
-  Future<void> startPillDragging() => _run(() async {
+  Future<void> startPillDragging({Color? edgeAccent}) => _run(() async {
     final state = _pillState.value;
     final from = _pillDisplay;
     if (state == null || from == null) return;
@@ -447,10 +452,11 @@ class MiniWindow {
         await platform.setPillBounds(_pillAnchor, from);
         if (!_disposed) _pillState.value = (edge: null, revealed: false);
       }
-      await platform.dragPill();
+      await platform.dragPill(edgeAccent: edgeAccent);
       if (_disposed) return;
       final frame = await platform.getFrame();
-      final display = _displayFor(frame, await platform.workAreas());
+      final displays = await platform.workAreas();
+      final display = _displayFor(frame, displays);
       final edge = platform.supportsPillTuck ? _snapEdge(frame, display) : null;
       final area = display.workArea;
       final size = _pillSize(_pillAnchor.width, display);
@@ -460,7 +466,11 @@ class MiniWindow {
         null => frame.bounds.left,
       };
       final anchor = _clampPill(Offset(x, frame.bounds.top), size, display);
-      await _placePill(anchor, display, edge);
+      await _placePill(
+        anchor,
+        display,
+        _exteriorEdge(anchor, display, edge, displays),
+      );
     } catch (_) {
       await _placePill(before, from, state.edge);
       rethrow;
@@ -484,12 +494,22 @@ class MiniWindow {
         _pillAnchor.left +
         (right ? (pillWidth - size.width) * display.scale : 0);
     final anchor = _clampPill(Offset(x, _pillAnchor.top), size, display);
-    final frame = state.revealed
-        ? anchor
-        : _tuckedFrame(anchor, display, state.edge);
-    await platform.setPillBounds(frame, display, clip: state.edge != null);
+    final edge = state.edge == null
+        ? null
+        : _exteriorEdge(
+            anchor,
+            display,
+            state.edge,
+            await platform.workAreas(),
+          );
+    final frame = state.revealed ? anchor : _tuckedFrame(anchor, display, edge);
+    await platform.setPillBounds(frame, display);
     _pillAnchor = anchor;
     _pillFrame = frame;
+    if (edge != state.edge) {
+      _pillHideTimer?.cancel();
+      _pillState.value = (edge: edge, revealed: false);
+    }
     await _savePill();
   });
 
@@ -541,7 +561,7 @@ class MiniWindow {
   void _writeSlideFrame(Rect frame, MiniDisplay display) {
     if (_disposed || switching) return;
     _pillSlideWrite = platform
-        .setPillBounds(frame, display, clip: true)
+        .setPillBounds(frame, display)
         .then<void>(
           (_) => _pillFrame = frame,
           onError: (Object error, StackTrace stack) {
@@ -601,11 +621,37 @@ class MiniWindow {
             : area.right - (size.width + 16) * display.scale,
     };
     final y = match != null ? old!.top : area.top + 16 * display.scale;
+    final anchor = _clampPill(Offset(x, y), size, display);
     return (
-      anchor: _clampPill(Offset(x, y), size, display),
+      anchor: anchor,
       display: display,
-      edge: edge,
+      edge: _exteriorEdge(anchor, display, edge, displays),
     );
+  }
+
+  MiniPillEdge? _exteriorEdge(
+    Rect anchor,
+    MiniDisplay display,
+    MiniPillEdge? edge,
+    List<MiniDisplay> displays,
+  ) {
+    if (edge == null) return null;
+    final tucked = _tuckedFrame(anchor, display, edge);
+    final scale = display.scale;
+    final area = display.workArea;
+    final bottom = tucked.top + tucked.height * scale;
+    final overhang = edge == MiniPillEdge.left
+        ? Rect.fromLTRB(tucked.left, tucked.top, area.left, bottom)
+        : Rect.fromLTRB(
+            area.right,
+            tucked.top,
+            tucked.left + tucked.width * scale,
+            bottom,
+          );
+    // Check physical display bounds over the whole tab height.
+    return displays.any((screen) => screen.bounds.overlaps(overhang))
+        ? null
+        : edge;
   }
 
   static const _fallbackDisplay = MiniDisplay(Rect.fromLTWH(0, 0, 1050, 800));

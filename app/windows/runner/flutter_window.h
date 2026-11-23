@@ -8,7 +8,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 
 #include "win32_window.h"
 
@@ -30,7 +29,7 @@ class FlutterWindow : public Win32Window {
   static LRESULT CALLBACK ChildWindowProc(HWND hwnd, UINT message, WPARAM wparam,
                                           LPARAM lparam, UINT_PTR subclass,
                                           DWORD_PTR ref);
-  bool UpdatePillRegion();
+  void SetPillDragHighlight(bool near_edge);
   bool SetPillTooltip(const std::string* text);
 
   // The project to run.
@@ -43,7 +42,8 @@ class FlutterWindow : public Win32Window {
   bool mini_frame_ = false;
   bool rounded_mini_frame_ = false;
   bool pill_frame_ = false;
-  std::optional<std::pair<LONG, LONG>> pill_clip_;
+  std::optional<COLORREF> pill_drag_accent_;
+  bool pill_drag_highlighted_ = false;
   HWND pill_tooltip_ = nullptr;
   std::wstring pill_tooltip_text_;
 };

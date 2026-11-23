@@ -222,6 +222,9 @@ void main() {
         final (c, platform, window) = await _window();
         await window.enterPill(150);
         const left = 1000.0, right = 2200.0;
+        platform.displays[0] = const MiniDisplay(
+          Rect.fromLTWH(0, 0, 1000, 128),
+        );
         platform.displays.add(
           MiniDisplay(const Rect.fromLTRB(left, 0, right, 900), scale),
         );
@@ -253,11 +256,61 @@ void main() {
           expect(c.preferences.mini.encode()['pillEdge'], isNull);
           expect(platform.bounds.top, y);
         }
-        // The leading edge is on the primary, but the center is on screen two.
+        // The leading x crosses the primary's range, but the center is on screen two.
         platform.dragTo = const Rect.fromLTWH(985, 160, 150, 36);
         await window.startPillDragging();
         expect(c.preferences.mini.encode()['pillEdge'], 'left');
         expect(platform.bounds.left, left - (150 - 26) * scale);
+        await c.shutdown();
+      },
+    );
+  }
+
+  for (final edge in MiniPillEdge.values) {
+    final left = edge == MiniPillEdge.left;
+    final neighborX = left ? -1000.0 : 1000.0;
+    final alignedX = left ? 0.0 : 850.0;
+    final tuckedX = left ? -124.0 : 974.0;
+    for (final adjacent in [true, false]) {
+      testWidgets(
+        '${edge.name} snap with neighbor at pill height = $adjacent',
+        (tester) async {
+          final (c, platform, window) = await _window(
+            extraDisplays: [
+              MiniDisplay(
+                Rect.fromLTWH(neighborX, adjacent ? 180 : 196, 1000, 500),
+              ),
+            ],
+          );
+          await window.enterPill(150);
+          platform.dragTo = Rect.fromLTWH(left ? 23 : 827, 160, 150, 36);
+          await window.startPillDragging();
+          expect(platform.bounds.left, adjacent ? alignedX : tuckedX);
+          expect(window.pillState.value?.edge, adjacent ? null : edge);
+          expect(c.preferences.mini.pillEdge, adjacent ? null : edge);
+          if (adjacent) {
+            window.setPillHovered(true, reduceMotion: true);
+            expect(platform.bounds.left, alignedX);
+          }
+          await c.shutdown();
+        },
+      );
+    }
+
+    testWidgets(
+      'restored ${edge.name} tuck stays visible beside a new screen',
+      (tester) async {
+        final (c, platform, window) = await _window(
+          saved: MiniPreferences(
+            pill: true,
+            pillBounds: Rect.fromLTWH(alignedX, 160, 150, 36),
+            pillEdge: edge,
+          ),
+          extraDisplays: [MiniDisplay(Rect.fromLTWH(neighborX, 0, 1000, 800))],
+        );
+        expect(platform.bounds, Rect.fromLTWH(alignedX, 160, 150, 36));
+        expect(window.pillState.value?.edge, isNull);
+        expect(c.preferences.mini.pillEdge, isNull);
         await c.shutdown();
       },
     );
@@ -326,6 +379,7 @@ Future<(StatsController, _PillPlatform, MiniWindow)> _window({
   Rect compact = const Rect.fromLTWH(500, 40, 330, 650),
   bool tuck = true,
   MiniPreferences? saved,
+  List<MiniDisplay> extraDisplays = const [],
 }) async {
   final c = StatsController(
     MiniGateway(),
@@ -334,7 +388,7 @@ Future<(StatsController, _PillPlatform, MiniWindow)> _window({
       mini: saved ?? MiniPreferences(bounds: compact, pinned: false),
     ),
   );
-  final platform = _PillPlatform(tuck);
+  final platform = _PillPlatform(tuck)..displays.addAll(extraDisplays);
   final window = MiniWindow(controller: c, platform: platform);
   addTearDown(c.dispose);
   addTearDown(window.dispose);
@@ -366,7 +420,7 @@ class _PillPlatform extends MiniPlatform {
   Future<void> setPillTooltip(String? text) async => tooltip = text;
 
   @override
-  Future<void> dragPill() async {
+  Future<void> dragPill({Color? edgeAccent}) async {
     bounds = dragTo!;
   }
 }
