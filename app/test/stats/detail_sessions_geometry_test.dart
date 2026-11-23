@@ -36,7 +36,13 @@ void main() {
     expect(find.bySemanticsLabel('会话详情'), findsOneWidget);
   });
   testWidgets('FIX1 明细窄屏：内容对齐卡片内边缘，命中区向两侧各扩 10', (tester) async {
-    await d.mountDetail(tester, d.DetailGateway(), width: 720, reduced: true);
+    await d.mountDetail(
+      tester,
+      d.DetailGateway(),
+      query: 'period=month&view=detail&dim=date',
+      width: 720,
+      reduced: true,
+    );
     final row = find.byKey(const Key('detail-row-2026-11-09'));
     final card = find.ancestor(of: row, matching: find.byType(LensCard)).first;
     final name = find.descendant(of: row, matching: find.text('11月9日 周一 · 今天'));
@@ -49,7 +55,12 @@ void main() {
     expect(d.pageQuery(tester)['bucket'], '2026-11-09');
   });
   testWidgets('明细宽屏：列留在卡片内并保留文字锚点', (tester) async {
-    await d.mountDetail(tester, d.DetailGateway(), reduced: true);
+    await d.mountDetail(
+      tester,
+      d.DetailGateway(),
+      query: 'period=month&view=detail&dim=date',
+      reduced: true,
+    );
     final row = find.byKey(const Key('detail-row-2026-11-09'));
     final card = find.ancestor(of: row, matching: find.byType(LensCard)).first;
     final name = find.descendant(of: row, matching: find.text('11月9日 周一 · 今天'));

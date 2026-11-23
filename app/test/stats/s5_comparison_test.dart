@@ -105,6 +105,7 @@ void main() {
       final query = Uri.splitQueryString(state.query as String);
       expect(query, containsPair('project', '/synthetic/project-0'));
       expect(query, containsPair('period', 'last7'));
+      expect(query, containsPair('dim', 'date'));
       expect(tester.takeException(), isNull);
     },
   );

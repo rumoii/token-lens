@@ -209,6 +209,15 @@ void main() {
       expect(find.text('这一页还在迁移'), findsNothing);
       expect(find.text('拆开看'), findsOneWidget);
       expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == '按项目' &&
+              widget.properties.selected == true,
+        ),
+        findsOneWidget,
+      );
+      expect(
         (tester.state(find.byType(StatsPage)) as dynamic).query,
         'period=week&view=detail',
       );

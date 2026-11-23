@@ -77,7 +77,7 @@ void main() {
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(d.pageQuery(tester)[drill.$3], drill.$4);
-      expect(d.pageQuery(tester)['dim'] ?? 'date', drill.$5);
+      expect(d.pageQuery(tester)['dim'], drill.$5);
     });
   }
   testWidgets('明细：菜单键盘选择、标签、四拆法、清除筛选和排序', (tester) async {
@@ -136,7 +136,11 @@ void main() {
   });
   testWidgets('明细：独立块失败、重试、空态', (tester) async {
     final fake = d.DetailGateway()..failingResource = 'timeseries:day';
-    final c = await d.mountDetail(tester, fake);
+    final c = await d.mountDetail(
+      tester,
+      fake,
+      query: 'period=month&view=detail&dim=date',
+    );
     expect(
       find.descendant(
         of: find.byType(StatsDetail),
@@ -348,6 +352,7 @@ void main() {
     expect(find.byType(StatsDetail), findsOneWidget);
     expect(d.pageQuery(tester)['period'], 'all');
     expect(d.pageQuery(tester)['tool'], 'codex');
+    expect(d.pageQuery(tester)['dim'], 'model');
     await tester.tap(find.text('概览'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('home-hero')), findsOneWidget);

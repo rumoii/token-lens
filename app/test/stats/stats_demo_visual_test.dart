@@ -39,7 +39,7 @@ void main() {
     const session = '00000000-0000-4000-8000-000000000601';
     const detail = '/dashboard?period=month&view=detail';
     final routes = {
-      'detail-date': detail,
+      'detail-date': '$detail&dim=date',
       'detail-tool': '$detail&dim=tool',
       'detail-model': '$detail&dim=model',
       'detail-project': '$detail&dim=project',

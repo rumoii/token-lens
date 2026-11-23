@@ -1,5 +1,12 @@
 import 'period.dart';
 
+const _dimensionFilters = ['tool', 'model', 'project'];
+const _missingFilters = ['project', 'model'];
+
+bool _hasDimensionFilter(Map<String, String> query) =>
+    _dimensionFilters.any((key) => query[key]?.isNotEmpty == true) ||
+    _missingFilters.contains(query['missing']);
+
 String detailSearch(
   StatsPeriod period, [
   Map<String, String> detail = const {},
@@ -7,12 +14,13 @@ String detailSearch(
   queryParameters: {
     ...Uri.splitQueryString(period.query),
     'view': 'detail',
-    for (final key in ['tool', 'model', 'project', 'bucket'])
+    for (final key in [..._dimensionFilters, 'bucket'])
       if (detail[key]?.isNotEmpty == true) key: detail[key]!,
-    if (detail['dim']?.isNotEmpty == true && detail['dim'] != 'date')
+    if (detail['dim']?.isNotEmpty == true &&
+        (detail['dim'] != 'project' || _hasDimensionFilter(detail)))
       'dim': detail['dim']!,
     if (detail['compare'] == '1') 'compare': '1',
-    if (['project', 'model'].contains(detail['missing']))
+    if (_missingFilters.contains(detail['missing']))
       'missing': detail['missing']!,
   },
 ).query;
@@ -49,7 +57,7 @@ Map<String, String> readDetail(String text) {
   final bucket = q['bucket'] ?? '';
   return {
     'view': q['view'] == 'detail' ? 'detail' : 'overview',
-    for (final key in ['tool', 'model', 'project']) key: q[key] ?? '',
+    for (final key in _dimensionFilters) key: q[key] ?? '',
     'bucket':
         bucketRange(bucket) != null ||
             RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:00:00$').hasMatch(bucket)
@@ -57,9 +65,11 @@ Map<String, String> readDetail(String text) {
         : '',
     'dim': ['date', 'tool', 'model', 'project', 'request'].contains(q['dim'])
         ? q['dim']!
-        : 'date',
+        : _hasDimensionFilter(q)
+        ? 'date'
+        : 'project',
     if (q['compare'] == '1') 'compare': '1',
-    if (['project', 'model'].contains(q['missing'])) 'missing': q['missing']!,
+    if (_missingFilters.contains(q['missing'])) 'missing': q['missing']!,
   };
 }
 

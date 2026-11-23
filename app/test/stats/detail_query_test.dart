@@ -14,27 +14,84 @@ void main() {
     expect(readDetail(query)['tool'], 'codex');
   });
   group('detail-query.test.js', () {
-    test('读写往返；空筛选和默认拆法不进地址', () {
+    test('读写往返；空筛选不进地址，显式按时间写进地址', () {
       final text = detailSearch(const StatsPeriod('month'), {
         'tool': 'dsh',
         'model': '',
         'dim': 'date',
       });
-      expect(text, 'period=month&view=detail&tool=dsh');
+      expect(text, 'period=month&view=detail&tool=dsh&dim=date');
       final d = readDetail('?$text');
       expect(d['view'], 'detail');
       expect(d['tool'], 'dsh');
       expect(d['model'], '');
       expect(d['dim'], 'date');
     });
-    test('不认识的拆法退回按时间', () {
-      expect(readDetail('?view=detail&dim=weird')['dim'], 'date');
+    test('不认识的拆法使用默认维度', () {
+      expect(readDetail('?view=detail&dim=weird')['dim'], 'project');
       expect(readDetail('?dim=model')['view'], 'overview');
+    });
+    test('无筛选且未指定维度时默认按项目', () {
+      final query = detailSearch(const StatsPeriod('month'));
+      expect(query, 'period=month&view=detail');
+      expect(readDetail(query)['dim'], 'project');
+    });
+    test('无筛选时显式按项目可以省略维度并往返', () {
+      final query = detailSearch(const StatsPeriod('month'), {
+        'model': '',
+        'dim': 'project',
+      });
+      expect(query, 'period=month&view=detail');
+      expect(readDetail(query)['dim'], 'project');
+    });
+    for (final (filter, value) in [
+      ('tool', 'codex'),
+      ('model', 'synthetic model'),
+      ('project', 'C:/synthetic/project'),
+      ('missing', 'project'),
+      ('missing', 'model'),
+    ]) {
+      test('$filter=$value 无显式维度时按时间，显式按项目可往返', () {
+        const period = StatsPeriod('month');
+        final query = detailSearch(period, {filter: value});
+        expect(Uri.splitQueryString(query), isNot(contains('dim')));
+        expect(readDetail(query), containsPair(filter, value));
+        expect(readDetail(query)['dim'], 'date');
+        expect(readDetail('$query&dim=weird')['dim'], 'date');
+
+        final explicit = detailSearch(period, {
+          filter: value,
+          'dim': 'project',
+        });
+        expect(Uri.splitQueryString(explicit)['dim'], 'project');
+        expect(readDetail(explicit)['dim'], 'project');
+      });
+    }
+    test('无筛选时显式按时间必须写进地址并能往返', () {
+      final query = detailSearch(const StatsPeriod('month'), {'dim': 'date'});
+      expect(Uri.splitQueryString(query)['dim'], 'date');
+      expect(readDetail(query)['dim'], 'date');
     });
     test('下钻后换一个拆法', () {
       expect(nextDim('tool'), 'model');
       expect(nextDim('bucket'), 'tool');
     });
+    for (final (filter, value, dim) in [
+      ('tool', 'codex', 'model'),
+      ('model', 'synthetic model', 'date'),
+      ('project', 'C:/synthetic/project', 'date'),
+      ('bucket', '2026-11-09', 'tool'),
+    ]) {
+      test('按 $filter 下钻后链接保留 $dim 维度', () {
+        final query = detailSearch(const StatsPeriod('month'), {
+          filter: value,
+          'dim': nextDim(filter),
+        });
+        expect(Uri.splitQueryString(query)['dim'], dim);
+        expect(readDetail(query), containsPair(filter, value));
+        expect(readDetail(query)['dim'], dim);
+      });
+    }
     test('时间桶换成日期范围；小时桶不支持', () {
       expect(bucketRange('2026-10-19'), (from: '2026-10-19', to: '2026-10-19'));
       expect(bucketRange('2026-02'), (from: '2026-02-01', to: '2026-02-28'));

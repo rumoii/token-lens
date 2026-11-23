@@ -144,7 +144,11 @@ void main() {
     expect(pageQuery(tester)['dim'], 'model');
   });
   testWidgets('DetailView 时间拆分的跨桶快照独立说明', (tester) async {
-    await mountDetail(tester, DetailGateway());
+    await mountDetail(
+      tester,
+      DetailGateway(),
+      query: 'period=month&view=detail&dim=date',
+    );
     expect(find.textContaining('不在这张表里'), findsOneWidget);
   });
   for (final partial in [false, true]) {
@@ -254,7 +258,7 @@ void main() {
     await mountDetail(
       tester,
       fake,
-      query: 'period=custom&from=2026-08-15&to=2026-11-04&view=detail&bucket=garbage',
+      query: 'period=custom&from=2026-08-15&to=2026-11-04&view=detail&bucket=garbage&dim=date',
     );
     expect(find.byTooltip('去掉时间筛选'), findsNothing);
     expect(find.textContaining('不在这张表里'), findsOneWidget);

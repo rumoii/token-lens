@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
+import 'package:token_lens_app/stats/logic/detail_query.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
@@ -132,31 +133,27 @@ void main() {
   });
   testWidgets('明细按钮、模型、趋势桶和会话携带筛选', (tester) async {
     final c = await mount(tester, FakeStatsGateway());
+    final state = tester.state(find.byType(StatsPage)) as dynamic;
+    String query() => state.query as String;
     await tester.tap(find.text('看明细'));
     await tester.pumpAndSettle();
-    expect(
-      (tester.state(find.byType(StatsPage)) as dynamic).query,
-      'period=week&view=detail',
-    );
+    expect(query(), 'period=week&view=detail');
+    expect(readDetail(query())['dim'], 'project');
     expect(find.text('拆开看'), findsOneWidget);
     await tester.tap(find.text('用量总览'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('claude-sonnet-5-5'));
     await tester.pumpAndSettle();
-    expect(
-      (tester.state(find.byType(StatsPage)) as dynamic).query,
-      'period=week&view=detail&model=claude-sonnet-5-5',
-    );
+    expect(query(), 'period=week&view=detail&model=claude-sonnet-5-5');
+    expect(readDetail(query())['dim'], 'date');
     await tester.tap(find.text('用量总览'));
     await tester.pumpAndSettle();
     final chart = find.byType(TrendChart);
     final at = tester.getTopLeft(chart);
     await tester.tapAt(at + const Offset(75, 100));
     await tester.pumpAndSettle();
-    expect(
-      (tester.state(find.byType(StatsPage)) as dynamic).query,
-      'period=week&view=detail&bucket=2026-11-09&dim=tool',
-    );
+    expect(query(), 'period=week&view=detail&bucket=2026-11-09&dim=tool');
+    expect(readDetail(query())['dim'], 'tool');
     expect(c.preferences.period.period, 'week');
   });
   testWidgets('数字入场、改值与 reduced motion', (tester) async {
