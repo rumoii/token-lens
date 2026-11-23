@@ -22,6 +22,7 @@ constexpr COLORREF kDefaultBorder = 0xffffffff;
 constexpr int kDefaultCorner = 0;
 constexpr int kRoundCorner = 2;
 constexpr double kPillSnapDistance = 24.0;
+constexpr double kPillDragThreshold = 4.0;
 
 BOOL CALLBACK CollectWorkArea(HMONITOR monitor, HDC, LPRECT, LPARAM context) {
   MONITORINFO info = {sizeof(info)};
@@ -189,6 +190,7 @@ bool FlutterWindow::OnCreate() {
           }
           pill_frame_ = *pill;
           if (!pill_frame_) {
+            pill_mouse_down_.reset();
             SetPillTooltip(nullptr);
             SetPillDragHighlight(false);
             pill_drag_accent_.reset();
@@ -282,6 +284,26 @@ LRESULT CALLBACK FlutterWindow::ChildWindowProc(
     HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam,
     UINT_PTR /*subclass*/, DWORD_PTR ref) {
   auto* window = reinterpret_cast<FlutterWindow*>(ref);
+  if (message == WM_LBUTTONUP || message == WM_CAPTURECHANGED ||
+      message == WM_CANCELMODE) {
+    window->pill_mouse_down_.reset();
+  }
+  if (window->pill_frame_ &&
+      (message == WM_LBUTTONDOWN ||
+       (message == WM_MOUSEMOVE && (wparam & MK_LBUTTON) &&
+        window->pill_mouse_down_))) {
+    POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+    if (message == WM_LBUTTONDOWN) {
+      window->pill_mouse_down_.reset();
+      if (ClientToScreen(hwnd, &point)) window->pill_mouse_down_ = point;
+    } else if (ClientToScreen(hwnd, &point)) {
+      const POINT down = *window->pill_mouse_down_;
+      const double threshold = kPillDragThreshold * GetDpiForWindow(hwnd) / 96.0;
+      // Resizing can move the client origin while the pointer stays put.
+      // Ignore these moves until the mouse has moved by the pill's drag threshold.
+      if (std::hypot(point.x - down.x, point.y - down.y) <= threshold) return 0;
+    }
+  }
   if (message == WM_NCHITTEST && window->mini_frame_ && !window->pill_frame_ &&
       ResizeEdge(window->GetHandle(), lparam) != HTCLIENT) {
     // Let the top-level window handle the resize grip inside the Flutter view.

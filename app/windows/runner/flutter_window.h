@@ -42,6 +42,7 @@ class FlutterWindow : public Win32Window {
   bool mini_frame_ = false;
   bool rounded_mini_frame_ = false;
   bool pill_frame_ = false;
+  std::optional<POINT> pill_mouse_down_;
   std::optional<COLORREF> pill_drag_accent_;
   bool pill_drag_highlighted_ = false;
   HWND pill_tooltip_ = nullptr;

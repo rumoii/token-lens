@@ -185,6 +185,92 @@ void main() {
     );
   }
 
+  for (final drag in [false, true]) {
+    testWidgets(
+      'a new pointer ${drag ? 'drags' : 'clicks'} after an orphaned press',
+      (tester) async {
+        final (c, platform, window) = await _window();
+        await window.enterPill(150);
+        await tester.pumpWidget(
+          AppLanguageScope(
+            strings: chineseStrings,
+            child: MaterialApp(
+              theme: const LensPalette(false).theme,
+              home: StatsPage(controller: c, miniWindow: window),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final position = tester.getCenter(find.byType(MiniPill));
+        await tester.sendEventToBinding(
+          PointerDownEvent(pointer: 81, position: position),
+        );
+        await tester.sendEventToBinding(
+          PointerDownEvent(pointer: 82, position: position),
+        );
+        if (drag) {
+          platform.dragTo = const Rect.fromLTWH(320, 180, 150, 36);
+          await tester.sendEventToBinding(
+            PointerMoveEvent(
+              pointer: 82,
+              position: position + const Offset(6, 0),
+              delta: const Offset(6, 0),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(platform.bounds.topLeft, const Offset(320, 180));
+        } else {
+          await tester.sendEventToBinding(
+            PointerUpEvent(pointer: 82, position: position),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(MiniPanel), findsOneWidget);
+        }
+        await tester.pumpWidget(const SizedBox());
+        await c.shutdown();
+      },
+    );
+  }
+
+  testWidgets(
+    'a synthesized move before pointer up does not turn a click into a drag',
+    (tester) async {
+      final (c, platform, window) = await _window();
+      await window.enterPill(150);
+      await tester.pumpWidget(
+        AppLanguageScope(
+          strings: chineseStrings,
+          child: MaterialApp(
+            theme: const LensPalette(false).theme,
+            home: StatsPage(controller: c, miniWindow: window),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final position = tester.getCenter(find.byType(MiniPill));
+      const delta = Offset(8, 0);
+      platform.dragTo = const Rect.fromLTWH(300, 150, 150, 36);
+      await tester.sendEventToBinding(
+        PointerDownEvent(pointer: 83, position: position),
+      );
+      await tester.sendEventToBinding(
+        PointerMoveEvent(
+          pointer: 83,
+          position: position + delta,
+          delta: delta,
+          synthesized: true,
+        ),
+      );
+      await tester.sendEventToBinding(
+        PointerUpEvent(pointer: 83, position: position + delta),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(MiniPanel), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await c.shutdown();
+    },
+  );
+
   testWidgets('pill focus ring follows keyboard and mouse interaction', (
     tester,
   ) async {

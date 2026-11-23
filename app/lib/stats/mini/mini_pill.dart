@@ -223,13 +223,14 @@ class _MiniPillState extends State<MiniPill> {
               onPointerSignal: (_) => _trackPointerInput(),
               onPointerDown: (event) {
                 _trackPointerInput();
-                if (_press == null && event.buttons & kPrimaryButton != 0) {
+                if (event.buttons & kPrimaryButton != 0) {
                   _press = (event.pointer, event.position);
                 }
               },
               onPointerMove: (event) {
                 final press = _press;
-                if (press?.$1 == event.pointer &&
+                if (!event.synthesized &&
+                    press?.$1 == event.pointer &&
                     (event.position - press!.$2).distance > 4) {
                   _press = null;
                   _miniPillAction(
@@ -240,12 +241,12 @@ class _MiniPillState extends State<MiniPill> {
                 }
               },
               onPointerUp: (event) {
-                if (_press?.$1 != event.pointer) return;
+                final activate = _press?.$1 == event.pointer;
                 _press = null;
-                _activate();
+                if (activate) _activate();
               },
               onPointerCancel: (event) {
-                if (_press?.$1 == event.pointer) _press = null;
+                _press = null;
               },
               child: SizedBox.expand(
                 child: tuckedLeft
