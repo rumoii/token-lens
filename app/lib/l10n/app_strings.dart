@@ -648,7 +648,7 @@ abstract class AppStrings {
   String get copyPricesFrom;
   String get copyPricesNone;
   String get copyPricesHelp;
-  String get copyBaseOnly;
+  String get copyBaseOnlyTag;
   String copiedPriceSource(String id);
   String get manualUsd;
   String get manualCny;

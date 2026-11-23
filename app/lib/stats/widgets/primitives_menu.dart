@@ -20,12 +20,13 @@ class LensMenu extends StatefulWidget {
     super.key,
     required this.entries,
     this.searchable = false,
+    this.clearSearchOnEscape = true,
     this.matches,
     this.rowHeight = 32,
   });
 
   final List<LensMenuEntry> entries;
-  final bool searchable;
+  final bool searchable, clearSearchOnEscape;
   final bool Function(int index, String query)? matches;
   final double rowHeight;
 
@@ -244,6 +245,7 @@ class _LensMenuState extends State<LensMenu> {
                 focusNode: searchFocus,
                 size: 'sm',
                 search: true,
+                clearSearchOnEscape: widget.clearSearchOnEscape,
                 hint: context.strings.filterSearch,
                 onChanged: (value) {
                   if (scroll.hasClients) scroll.jumpTo(0);

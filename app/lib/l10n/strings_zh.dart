@@ -1779,7 +1779,7 @@ final class ChineseStrings extends AppStrings {
   String get copyPricesHelp => '它其实是别的模型换了个名字时用，比如接入方自定义的模型名。';
 
   @override
-  String get copyBaseOnly => '（只复制基础价）';
+  String get copyBaseOnlyTag => '只复制基础价';
 
   @override
   String copiedPriceSource(String id) => '照 $id 的官方价';

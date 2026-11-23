@@ -2,16 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
+import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:token_lens_app/l10n/app_strings.dart';
 import 'package:token_lens_app/stats/settings_page.dart';
 import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 import 'package:token_lens_app/stats/widgets/settings_prices.dart';
+import 'package:token_lens_app/stats/widgets/manual_price_dialog.dart';
 import 'package:token_lens_app/stats/widgets/primitives.dart';
 import 'package:token_lens_app/update/update_check.dart';
 
@@ -263,7 +266,242 @@ Future<void> showPriceEstimate(
 
 Finder priceEstimate() => find.textContaining('条记录按这个价算，约');
 
+const copyTrigger = ValueKey('manual-price-copy');
+const copyChoices = [
+  StatsCopyPrice(id: 'claude-demo', prices: base, baseOnly: false),
+  StatsCopyPrice(
+    id: 'vendor-GPT-demo',
+    prices: StatsPrices(input: 4, output: 15, cacheWrite5M: 5),
+    baseOnly: true,
+  ),
+  StatsCopyPrice(id: 'gpt-complete', prices: base, baseOnly: false),
+];
+
+class PendingPriceGateway extends SettingsGateway {
+  PendingPriceGateway() : super([]);
+
+  final pendingSave = Completer<void>();
+
+  @override
+  Future<void> saveManualPrice(String text) {
+    attemptedSave = text;
+    return pendingSave.future;
+  }
+}
+
+Future<void> openCopyPriceDialog(
+  WidgetTester tester, {
+  AppStrings strings = chineseStrings,
+  SettingsGateway? gateway,
+}) async {
+  final controller = SettingsController(gateway ?? SettingsGateway([]));
+  addTearDown(controller.dispose);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: const LensPalette(false).theme,
+      builder: (_, child) => AppLanguageScope(strings: strings, child: child!),
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showManualPriceDialog(
+              context,
+              controller: controller,
+              pricing: const StatsPricing(
+                priceVersion: 'fixture',
+                currency: 'USD',
+                provisional: false,
+                models: [],
+                counts: StatsPriceCounts(
+                  verified: 0,
+                  aggregate: 0,
+                  unknown: 1,
+                  local: 0,
+                ),
+                snapshot: demoSnapshot,
+                copyPrices: copyChoices,
+              ),
+              model: model(
+                'unpriced-copy-target',
+                state: 'unknown',
+                prices: null,
+              ),
+              usage: null,
+            ),
+            child: const Text('Open manual price'),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('Open manual price'));
+  await tester.pumpAndSettle();
+}
+
+Finder copyMenuText(String text) =>
+    find.descendant(of: find.byType(LensMenu), matching: find.text(text));
+
+Finder copyField(int index) => find.byKey(ValueKey('manual-price-$index'));
+
+List<String> copyFieldValues(WidgetTester tester) => [
+  for (var i = 0; i < 4; i++)
+    tester.widget<LensInput>(copyField(i)).controller.text,
+];
+
 void main() {
+  testWidgets('复制菜单按目录顺序搜索并保留现有价格复制规则', (t) async {
+    await openCopyPriceDialog(t);
+    final trigger = find.byKey(copyTrigger);
+    await t.tap(trigger);
+    await t.pumpAndSettle();
+
+    final menu = find.byType(LensMenu);
+    final search = find.descendant(
+      of: menu,
+      matching: find.byType(EditableText),
+    );
+    expect(search, findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    expect(t.getSize(menu).width, t.getSize(trigger).width);
+    final names = [
+      chineseStrings.copyPricesNone,
+      ...copyChoices.map((c) => c.id),
+    ];
+    expect(
+      t
+          .widgetList<LensMenuRow>(find.byType(LensMenuRow))
+          .map((r) => r.entry.selected),
+      [true, false, false, false],
+    );
+    for (var i = 1; i < names.length; i++) {
+      expect(
+        t.getTopLeft(copyMenuText(names[i - 1])).dy,
+        lessThan(t.getTopLeft(copyMenuText(names[i])).dy),
+      );
+    }
+    await t.enterText(search, 'gpt');
+    await t.pumpAndSettle();
+    expect(find.byType(LensMenuRow), findsNWidgets(2));
+    expect(copyMenuText('vendor-GPT-demo'), findsOneWidget);
+    expect(copyMenuText('gpt-complete'), findsOneWidget);
+    expect(copyMenuText('只复制基础价'), findsOneWidget);
+    await t.tap(copyMenuText('gpt-complete'));
+    await t.pumpAndSettle();
+    expect(menu, findsNothing);
+    expect(copyFieldValues(t), ['2', '10', '0.1', '2.5']);
+
+    await t.tap(trigger);
+    await t.pumpAndSettle();
+    await t.tap(copyMenuText('vendor-GPT-demo'));
+    await t.pumpAndSettle();
+    expect(copyFieldValues(t), ['4', '15', '', '5']);
+    expect(
+      find.descendant(of: trigger, matching: find.text('vendor-GPT-demo')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: trigger, matching: find.text('只复制基础价')),
+      findsOneWidget,
+    );
+
+    await t.tap(trigger);
+    await t.pumpAndSettle();
+    expect(
+      t
+          .widgetList<LensMenuRow>(find.byType(LensMenuRow))
+          .map((r) => r.entry.selected),
+      [false, false, true, false],
+    );
+    await t.enterText(search, '自己填');
+    await t.pumpAndSettle();
+    expect(find.byType(LensMenuRow), findsOneWidget);
+    await t.tap(copyMenuText(chineseStrings.copyPricesNone));
+    await t.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: trigger,
+        matching: find.text(chineseStrings.copyPricesNone),
+      ),
+      findsOneWidget,
+    );
+    expect(copyFieldValues(t), ['4', '15', '', '5']);
+    await t.enterText(copyField(2), '0.2');
+    expect(copyFieldValues(t), ['4', '15', '0.2', '5']);
+  });
+
+  testWidgets('Tab 聚焦并用 Enter 或空格打开，Esc 关闭搜索且保留选择', (t) async {
+    await openCopyPriceDialog(t, strings: englishStrings);
+    final button = find.bySemanticsLabel(englishStrings.copyPricesFrom);
+    expect(
+      t.getSemantics(button),
+      matchesSemantics(
+        label: englishStrings.copyPricesFrom,
+        value: englishStrings.copyPricesNone,
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        isFocusable: true,
+        hasFocusAction: true,
+        hasTapAction: true,
+      ),
+    );
+
+    for (var i = 0; i < 3; i++) {
+      await t.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await t.sendKeyEvent(LogicalKeyboardKey.tab);
+      await t.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await t.pumpAndSettle();
+    }
+    expect(t.getSemantics(button).flagsCollection.isFocused, Tristate.isTrue);
+    await t.sendKeyEvent(LogicalKeyboardKey.enter);
+    await t.pumpAndSettle();
+    expect(copyMenuText('Base price only'), findsOneWidget);
+    await t.tap(copyMenuText('vendor-GPT-demo'));
+    await t.pumpAndSettle();
+    expect(t.getSemantics(button).value, contains('vendor-GPT-demo'));
+    expect(t.getSemantics(button).flagsCollection.isFocused, Tristate.isTrue);
+    await t.sendKeyEvent(LogicalKeyboardKey.space);
+    await t.pumpAndSettle();
+    final menu = find.byType(LensMenu);
+    final search = find.descendant(
+      of: menu,
+      matching: find.byType(EditableText),
+    );
+    await t.enterText(search, 'claude');
+    await t.pumpAndSettle();
+    await t.sendKeyEvent(LogicalKeyboardKey.escape);
+    await t.pumpAndSettle();
+    expect(menu, findsNothing);
+    expect(t.getSemantics(button).value, contains('vendor-GPT-demo'));
+    expect(copyFieldValues(t), ['4', '15', '', '5']);
+  });
+
+  testWidgets('保存请求未结束时，复制触发控件禁用', (t) async {
+    final gateway = PendingPriceGateway();
+    await openCopyPriceDialog(t, gateway: gateway);
+    await t.enterText(copyField(0), '2');
+    await t.enterText(copyField(1), '10');
+    await t.tap(find.text(chineseStrings.saveManual));
+    await t.pump();
+    expect(gateway.attemptedSave, isNotNull);
+
+    final button = t.getSemantics(
+      find.bySemanticsLabel(chineseStrings.copyPricesFrom),
+    );
+    expect(button.flagsCollection.isEnabled, Tristate.isFalse);
+    await t.tap(find.byKey(copyTrigger));
+    await t.pumpAndSettle();
+    expect(find.byType(LensMenu), findsNothing);
+    gateway.pendingSave.completeError(StateError('synthetic save rejection'));
+    await t.pumpAndSettle();
+    expect(
+      t
+          .getSemantics(find.bySemanticsLabel(chineseStrings.copyPricesFrom))
+          .flagsCollection
+          .isEnabled,
+      Tristate.isTrue,
+    );
+  });
+
   testWidgets('未定价模型可打开共用价格对话框', (t) async {
     await showSettings(
       t,
@@ -333,7 +571,7 @@ void main() {
     );
     await t.tap(copy);
     await t.pumpAndSettle();
-    await t.tap(find.text('catalog-model （只复制基础价）').last);
+    await t.tap(copyMenuText('catalog-model'));
     await t.pumpAndSettle();
     expect(t.widget<LensInput>(input).controller.text, '2');
     expect(t.widget<LensInput>(output).controller.text, '10');
@@ -344,7 +582,10 @@ void main() {
     await t.enterText(input, '-1');
     await t.tap(find.text('保存'));
     await t.pumpAndSettle();
-    expect(t.widget<DropdownButton<String>>(copy).value, '');
+    expect(
+      find.descendant(of: copy, matching: find.text('不用，自己填')),
+      findsOneWidget,
+    );
     expect(find.text('价格只能填 0 或正数。'), findsOneWidget);
     await t.enterText(input, '7');
     await t.tap(

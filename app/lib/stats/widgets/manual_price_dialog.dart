@@ -322,35 +322,23 @@ class _ManualPriceDialogState extends State<_ManualPriceDialog> {
                               s.manualPriceIntro,
                               style: p.text(13, p.secondary),
                             ),
-                          InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: s.copyPricesFrom,
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                key: const ValueKey('manual-price-copy'),
-                                isExpanded: true,
-                                isDense: true,
-                                value: copy,
-                                onChanged: saving ? null : _copy,
-                                items: [
-                                  DropdownMenuItem(
-                                    value: '',
-                                    child: Text(s.copyPricesNone),
-                                  ),
-                                  for (final choice in widget.choices)
-                                    DropdownMenuItem(
-                                      value: choice.id,
-                                      child: Text(
-                                        choice.baseOnly
-                                            ? '${choice.id} ${s.copyBaseOnly}'
-                                            : choice.id,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                ],
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            spacing: 4,
+                            children: [
+                              ExcludeSemantics(
+                                child: Text(
+                                  s.copyPricesFrom,
+                                  style: p.text(12.5, p.secondary),
+                                ),
                               ),
-                            ),
+                              _CopyPriceTrigger(
+                                key: const ValueKey('manual-price-copy'),
+                                value: copy,
+                                choices: widget.choices,
+                                onChanged: saving ? null : _copy,
+                              ),
+                            ],
                           ),
                           secondary(s.copyPricesHelp),
                           Align(
@@ -455,6 +443,171 @@ class _ManualPriceDialogState extends State<_ManualPriceDialog> {
                     ],
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CopyPriceTrigger extends StatefulWidget {
+  const _CopyPriceTrigger({
+    super.key,
+    required this.value,
+    required this.choices,
+    required this.onChanged,
+  });
+
+  final String value;
+  final List<StatsCopyPrice> choices;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<_CopyPriceTrigger> createState() => _CopyPriceTriggerState();
+}
+
+class _CopyPriceTriggerState extends State<_CopyPriceTrigger> {
+  bool _open = false;
+
+  Future<void> _showMenu() async {
+    if (_open) return;
+    final choices = widget.choices;
+    final names = [
+      context.strings.copyPricesNone.toLowerCase(),
+      for (final choice in choices) choice.id.toLowerCase(),
+    ];
+    final selected = widget.value;
+    final width = context.size!.width;
+    setState(() => _open = true);
+    final value = await LensMenu.show<String>(
+      context,
+      anchor: context,
+      width: width,
+      maxHeight: 300,
+      builder: (menuContext) {
+        LensMenuEntry entry(String id, {bool baseOnly = false}) =>
+            LensMenuEntry(
+              _caption(menuContext, id, baseOnly: baseOnly),
+              selected: selected == id,
+              onPressed: () => Navigator.pop(menuContext, id),
+            );
+        return LensMenu(
+          searchable: true,
+          clearSearchOnEscape: false,
+          matches: (index, query) => names[index].contains(query),
+          entries: [
+            entry(''),
+            for (final choice in choices)
+              entry(choice.id, baseOnly: choice.baseOnly),
+          ],
+        );
+      },
+    );
+    if (!mounted) return;
+    setState(() => _open = false);
+    if (value != null) widget.onChanged?.call(value);
+  }
+
+  Widget _caption(
+    BuildContext context,
+    String id, {
+    required bool baseOnly,
+    Color? color,
+  }) {
+    final p = LensPalette.of(context), s = context.strings;
+    if (id.isEmpty) {
+      return Text(
+        s.copyPricesNone,
+        style: p.text(13, color),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    return Row(
+      spacing: 8,
+      children: [
+        Expanded(
+          child: Text(
+            id,
+            style: p
+                .text(13)
+                .copyWith(
+                  fontFamily: LensPalette.monoFonts.first,
+                  fontFamilyFallback: LensPalette.monoFonts.skip(1).toList(),
+                  fontVariations: const [],
+                ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (baseOnly) Text(s.copyBaseOnlyTag, style: p.text(12, p.muted)),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = LensPalette.of(context), s = context.strings;
+    final enabled = widget.onChanged != null;
+    final baseOnly = widget.choices.any(
+      (choice) => choice.id == widget.value && choice.baseOnly,
+    );
+    final value = widget.value.isEmpty ? s.copyPricesNone : widget.value;
+    final radius = LensTokens.radii['lg']!;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: _open ? BorderSide(color: p['clay']) : BorderSide.none,
+    );
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: s.copyPricesFrom,
+      value: baseOnly ? '$value, ${s.copyBaseOnlyTag}' : value,
+      child: Opacity(
+        opacity: enabled ? 1 : LensTokens.disabledOpacity,
+        child: LensFocusOutline(
+          radius: radius,
+          child: Material(
+            color: p['fill-hover'],
+            shape: shape,
+            child: InkWell(
+              onTap: enabled ? _showMenu : null,
+              canRequestFocus: enabled,
+              customBorder: shape,
+              child: ExcludeSemantics(
+                child: SizedBox(
+                  height: 32,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      spacing: 8,
+                      children: [
+                        Expanded(
+                          child: _caption(
+                            context,
+                            widget.value,
+                            baseOnly: baseOnly,
+                            color: p.secondary,
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: _open ? .5 : 0,
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : LensTokens.fast,
+                          curve: LensTokens.ease,
+                          child: Icon(
+                            Icons.expand_more,
+                            size: 14,
+                            color: p.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

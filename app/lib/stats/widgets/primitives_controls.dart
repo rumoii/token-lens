@@ -308,6 +308,7 @@ class LensInput extends StatelessWidget {
     this.keyboardType,
     this.size = 'md',
     this.search = false,
+    this.clearSearchOnEscape = true,
     this.error = false,
     this.enabled = true,
     this.autofocus = false,
@@ -322,7 +323,7 @@ class LensInput extends StatelessWidget {
   final String? hint, label, clearLabel;
   final Widget? hintAccessory;
   final String size;
-  final bool search, error, enabled, autofocus;
+  final bool search, clearSearchOnEscape, error, enabled, autofocus;
   final int? maxLength;
 
   void _clear() {
@@ -349,6 +350,7 @@ class LensInput extends StatelessWidget {
       onKeyEvent: (_, event) {
         if (!enabled ||
             !search ||
+            !clearSearchOnEscape ||
             controller.text.isEmpty ||
             event is! KeyDownEvent ||
             event.logicalKey != LogicalKeyboardKey.escape) {

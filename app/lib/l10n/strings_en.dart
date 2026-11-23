@@ -1880,7 +1880,7 @@ final class EnglishStrings extends AppStrings {
       'Use this when it is another model under a different name, such as a provider-specific model ID.';
 
   @override
-  String get copyBaseOnly => '(base price only)';
+  String get copyBaseOnlyTag => 'Base price only';
 
   @override
   String copiedPriceSource(String id) => 'Same as $id list price';

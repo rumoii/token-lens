@@ -167,6 +167,11 @@ Future<void> tapText(WidgetTester tester, String text) async {
 }
 
 void main() {
+  test('manual price copy tag is available in both languages', () {
+    expect(chineseStrings.copyBaseOnlyTag, '只复制基础价');
+    expect(englishStrings.copyBaseOnlyTag, 'Base price only');
+  });
+
   test(
     'system mode resolves all Chinese locales and falls back to English',
     () {
