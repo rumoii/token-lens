@@ -128,7 +128,16 @@ class MiniPlatform implements MiniWindowPlatform {
   Future<void> setPillBounds(Rect value, MiniDisplay display) =>
       setBounds(value);
   @override
-  Future<void> dragPill({Color? edgeAccent}) => startDragging();
+  Future<bool> isPrimaryButtonDown() async => true;
+  @override
+  Future<bool> dragPill({
+    Color? edgeAccent,
+    bool requirePressed = false,
+  }) async {
+    await startDragging();
+    return true;
+  }
+
   @override
   Future<List<MiniDisplay>> workAreas() async => [
     const MiniDisplay(Rect.fromLTWH(0, 0, 1920, 1040)),

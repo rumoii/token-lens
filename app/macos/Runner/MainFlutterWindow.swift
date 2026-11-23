@@ -16,7 +16,7 @@ class MainFlutterWindow: NSWindow {
 
   private func dragPill(_ result: @escaping FlutterResult) {
     guard let event = pillMouseDown, NSEvent.pressedMouseButtons & 1 != 0 else {
-      result(nil)
+      result(false)
       return
     }
     pillMouseDown = nil
@@ -25,11 +25,12 @@ class MainFlutterWindow: NSWindow {
     let released = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
       guard let window = self else {
         timer.invalidate()
+        result(true)
         return
       }
       if NSEvent.pressedMouseButtons & 1 != 0 && window.isVisible { return }
       timer.invalidate()
-      result(nil)
+      result(true)
     }
     RunLoop.main.add(released, forMode: .common)
   }
@@ -95,8 +96,10 @@ class MainFlutterWindow: NSWindow {
       case "setPillTooltip":
         self?.contentView?.toolTip = call.arguments as? String
         result(nil)
+      case "isPrimaryButtonDown":
+        result(NSEvent.pressedMouseButtons & 1 != 0)
       case "dragPill":
-        if let window = self { window.dragPill(result) } else { result(nil) }
+        if let window = self { window.dragPill(result) } else { result(false) }
       case "liveFrameSize":
         if let window = self, window.inLiveResize {
           result([Double(window.frame.width), Double(window.frame.height)])

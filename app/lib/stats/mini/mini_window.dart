@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
@@ -36,7 +37,8 @@ abstract interface class MiniWindowPlatform {
   Future<void> setPillFrame(bool value);
   Future<void> setPillTooltip(String? text);
   Future<void> setPillBounds(Rect value, MiniDisplay display);
-  Future<void> dragPill({Color? edgeAccent});
+  Future<bool> isPrimaryButtonDown();
+  Future<bool> dragPill({Color? edgeAccent, bool requirePressed = false});
   Future<void> startDragging();
   void observeBounds(VoidCallback? callback, {ValueChanged<Size?>? onResize});
 }
@@ -158,19 +160,30 @@ class DesktopMiniWindowPlatform
       : setBounds(b);
 
   @override
-  Future<void> dragPill({Color? edgeAccent}) async {
+  Future<bool> isPrimaryButtonDown() async =>
+      await _channel.invokeMethod<bool>('isPrimaryButtonDown') ?? false;
+
+  @override
+  Future<bool> dragPill({
+    Color? edgeAccent,
+    bool requirePressed = false,
+  }) async {
     if (!Platform.isWindows) {
-      await _channel.invokeMethod<void>('dragPill');
-      return;
+      return await _channel.invokeMethod<bool>('dragPill') ?? false;
     }
-    final rgb = edgeAccent?.toARGB32();
-    if (rgb == null) {
+    Future<bool> start() async {
+      if (requirePressed) {
+        return await _channel.invokeMethod<bool>('dragPressedPill') ?? false;
+      }
       await startDragging();
-      return;
+      return true;
     }
+
+    final rgb = edgeAccent?.toARGB32();
+    if (rgb == null) return start();
     await _channel.invokeMethod<void>('setPillDragAccent', rgb & 0xffffff);
     try {
-      await startDragging();
+      return await start();
     } finally {
       await _channel.invokeMethod<void>('setPillDragAccent');
     }
@@ -224,6 +237,25 @@ class DesktopMiniWindowPlatform
   }
 }
 
+enum _MiniAction {
+  enter,
+  restorePill,
+  exit,
+  enterPill,
+  expandPill,
+  startPillDragging,
+  resizePill,
+  togglePin,
+}
+
+class _MiniTransition {
+  _MiniTransition(this.action, this.apply);
+
+  final _MiniAction action;
+  Future<void> Function() apply;
+  final completion = Completer<void>();
+}
+
 class MiniWindow {
   MiniWindow({required this.controller, required this.platform});
 
@@ -242,6 +274,8 @@ class MiniWindow {
   final MiniWindowPlatform platform;
   ({Rect bounds, bool maximized})? _full;
   Future<void>? _transition;
+  final _userQueue = Queue<_MiniTransition>();
+  _MiniTransition? _pendingResize;
   Timer? _saveTimer;
   final _liveSize = ValueNotifier<Size?>(null);
   ValueListenable<Size?> get sizeWhileResizing => _liveSize;
@@ -256,18 +290,56 @@ class MiniWindow {
   Ticker? _pillSlide;
   Future<void>? _pillSlideWrite;
   bool _disposed = false;
+  bool _closing = false;
   bool get switching => _transition != null;
 
-  Future<void> enter() => _run(() => _enter());
+  Future<void> enter() => _run(_MiniAction.enter, _enter);
   Future<void> restorePill() => controller.preferences.mini.pill
-      ? _run(() => _enter(restorePill: true))
+      ? _run(_MiniAction.restorePill, () => _enter(restorePill: true))
       : Future.value();
-  Future<void> exit() => _run(_exit);
+  Future<void> exit() => _run(_MiniAction.exit, _exit);
 
-  Future<void> _run(Future<void> Function() apply) {
-    if (_disposed) return Future.value();
-    return _transition ??= Future<void>.microtask(apply)
-        .whenComplete(() => _transition = null);
+  Future<void> _run(_MiniAction action, Future<void> Function() apply) {
+    if (_disposed || _closing) return Future.value();
+    final resizing = action == _MiniAction.resizePill;
+    final previous = resizing ? _pendingResize : _userQueue.lastOrNull;
+    if (previous != null &&
+        previous.action == action &&
+        action != _MiniAction.togglePin) {
+      if (resizing) previous.apply = apply;
+      return previous.completion.future;
+    }
+    final next = _MiniTransition(action, apply);
+    if (resizing) {
+      _pendingResize = next;
+    } else {
+      _userQueue.addLast(next);
+    }
+    _transition ??= Future<void>.microtask(_drainTransitions);
+    return next.completion.future;
+  }
+
+  Future<void> _drainTransitions() async {
+    try {
+      while (!_disposed) {
+        final _MiniTransition? next;
+        if (_userQueue.isNotEmpty) {
+          next = _userQueue.removeFirst();
+        } else {
+          next = _pendingResize;
+          _pendingResize = null;
+        }
+        if (next == null) break;
+        try {
+          await next.apply();
+          next.completion.complete();
+        } catch (error, stack) {
+          next.completion.completeError(error, stack);
+        }
+      }
+    } finally {
+      _transition = null;
+    }
   }
 
   Future<void> _enter({bool restorePill = false}) async {
@@ -337,7 +409,7 @@ class MiniWindow {
     }
   }
 
-  Future<void> enterPill(double width) => _run(() async {
+  Future<void> enterPill(double width) => _run(_MiniAction.enterPill, () async {
     if (_full == null || _pillState.value != null) return;
     _saveTimer?.cancel();
     _liveSize.value = null;
@@ -394,7 +466,7 @@ class MiniWindow {
     await platform.setPillBounds(frame, display);
   }
 
-  Future<void> expandPill() => _run(() async {
+  Future<void> expandPill() => _run(_MiniAction.expandPill, () async {
     final state = _pillState.value;
     final previousDisplay = _pillDisplay;
     if (state == null || previousDisplay == null) return;
@@ -441,19 +513,41 @@ class MiniWindow {
     );
   });
 
-  Future<void> startPillDragging({Color? edgeAccent}) => _run(() async {
+  Future<void> startPillDragging({Color? edgeAccent}) {
+    final queued = switching;
+    return _run(
+      _MiniAction.startPillDragging,
+      () => _dragPill(edgeAccent, queued),
+    );
+  }
+
+  Future<void> _dragPill(Color? edgeAccent, bool queued) async {
     final state = _pillState.value;
     final from = _pillDisplay;
     if (state == null || from == null) return;
+    if (queued && !await platform.isPrimaryButtonDown()) return;
+    if (_disposed) return;
     final before = _pillAnchor;
     await _stopPillMotion();
+    if (_disposed) return;
+    final previousFrame = _pillFrame;
     try {
       if (state.edge != null) {
         await platform.setPillBounds(_pillAnchor, from);
         if (!_disposed) _pillState.value = (edge: null, revealed: false);
       }
-      await platform.dragPill(edgeAccent: edgeAccent);
+      final started = await platform.dragPill(
+        edgeAccent: edgeAccent,
+        requirePressed: queued,
+      );
       if (_disposed) return;
+      if (!started) {
+        if (state.edge != null) {
+          await platform.setPillBounds(previousFrame, from);
+          if (!_disposed) _pillState.value = state;
+        }
+        return;
+      }
       final frame = await platform.getFrame();
       final displays = await platform.workAreas();
       final display = _displayFor(frame, displays);
@@ -476,45 +570,49 @@ class MiniWindow {
       rethrow;
     }
     await _savePill();
-  });
+  }
 
-  Future<void> resizePill(double width) => _run(() async {
-    final display = _pillDisplay;
-    final state = _pillState.value;
-    if (display == null || state == null || (width - pillWidth).abs() < 1) {
-      return;
-    }
-    final size = _pillSize(width, display);
-    if (size == _pillAnchor.size) return;
-    _cancelPillSlide();
-    await _pillSlideWrite;
-    if (_disposed) return;
-    final right = _alignRight(_pillAnchor, display, state.edge);
-    final x =
-        _pillAnchor.left +
-        (right ? (pillWidth - size.width) * display.scale : 0);
-    final anchor = _clampPill(Offset(x, _pillAnchor.top), size, display);
-    final edge = state.edge == null
-        ? null
-        : _exteriorEdge(
-            anchor,
-            display,
-            state.edge,
-            await platform.workAreas(),
-          );
-    final frame = state.revealed ? anchor : _tuckedFrame(anchor, display, edge);
-    await platform.setPillBounds(frame, display);
-    _pillAnchor = anchor;
-    _pillFrame = frame;
-    if (edge != state.edge) {
-      _pillHideTimer?.cancel();
-      _pillState.value = (edge: edge, revealed: false);
-    }
-    await _savePill();
-  });
+  Future<void> resizePill(double width) =>
+      _run(_MiniAction.resizePill, () async {
+        final display = _pillDisplay;
+        final state = _pillState.value;
+        if (display == null || state == null || (width - pillWidth).abs() < 1) {
+          return;
+        }
+        final size = _pillSize(width, display);
+        if (size == _pillAnchor.size) return;
+        _cancelPillSlide();
+        await _pillSlideWrite;
+        if (_disposed) return;
+        final right = _alignRight(_pillAnchor, display, state.edge);
+        final x =
+            _pillAnchor.left +
+            (right ? (pillWidth - size.width) * display.scale : 0);
+        final anchor = _clampPill(Offset(x, _pillAnchor.top), size, display);
+        final edge = state.edge == null
+            ? null
+            : _exteriorEdge(
+                anchor,
+                display,
+                state.edge,
+                await platform.workAreas(),
+              );
+        final frame = state.revealed
+            ? anchor
+            : _tuckedFrame(anchor, display, edge);
+        await platform.setPillBounds(frame, display);
+        _pillAnchor = anchor;
+        _pillFrame = frame;
+        if (edge != state.edge) {
+          _pillHideTimer?.cancel();
+          _pillState.value = (edge: edge, revealed: false);
+        }
+        await _savePill();
+      });
 
   void setPillHovered(bool value, {required bool reduceMotion}) {
-    if (_disposed || _pillState.value?.edge == null || switching) return;
+    if (_disposed || _closing || _pillState.value?.edge == null || switching)
+      return;
     _pillHideTimer?.cancel();
     if (value) {
       unawaited(_slidePill(true, reduceMotion));
@@ -768,7 +866,7 @@ class MiniWindow {
     );
   }
 
-  Future<void> togglePin() => _run(() async {
+  Future<void> togglePin() => _run(_MiniAction.togglePin, () async {
     final value = !controller.preferences.mini.pinned;
     await platform.setPinned(value);
     final prefs = controller.preferences;
@@ -780,7 +878,11 @@ class MiniWindow {
   Future<void> startDragging() => platform.startDragging();
 
   void _boundsChanged() {
-    if (_disposed || switching || _full == null || _pillState.value != null) {
+    if (_disposed ||
+        _closing ||
+        switching ||
+        _full == null ||
+        _pillState.value != null) {
       return;
     }
     _saveTimer?.cancel();
@@ -815,6 +917,7 @@ class MiniWindow {
   }
 
   Future<void> saveBeforeClose() async {
+    _closing = true;
     _saveTimer?.cancel();
     await _transition;
     if (_pillState.value != null) {
@@ -827,6 +930,12 @@ class MiniWindow {
 
   void dispose() {
     _disposed = true;
+    for (final next in _userQueue) {
+      next.completion.complete();
+    }
+    _userQueue.clear();
+    _pendingResize?.completion.complete();
+    _pendingResize = null;
     _saveTimer?.cancel();
     _pillHideTimer?.cancel();
     _cancelPillSlide();

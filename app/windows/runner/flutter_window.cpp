@@ -24,6 +24,11 @@ constexpr int kRoundCorner = 2;
 constexpr double kPillSnapDistance = 24.0;
 constexpr double kPillDragThreshold = 4.0;
 
+bool IsPrimaryButtonDown() {
+  const int button = GetSystemMetrics(SM_SWAPBUTTON) ? VK_RBUTTON : VK_LBUTTON;
+  return (GetAsyncKeyState(button) & 0x8000) != 0;
+}
+
 BOOL CALLBACK CollectWorkArea(HMONITOR monitor, HDC, LPRECT, LPARAM context) {
   MONITORINFO info = {sizeof(info)};
   if (!GetMonitorInfo(monitor, &info)) return TRUE;
@@ -219,6 +224,21 @@ bool FlutterWindow::OnCreate() {
             pill_drag_accent_ = RGB(*color >> 16, *color >> 8, *color);
           }
           result->Success();
+          return;
+        }
+        if (call.method_name() == "isPrimaryButtonDown") {
+          result->Success(flutter::EncodableValue(IsPrimaryButtonDown()));
+          return;
+        }
+        if (call.method_name() == "dragPressedPill") {
+          if (!pill_frame_ || !IsPrimaryButtonDown()) {
+            result->Success(flutter::EncodableValue(false));
+            return;
+          }
+          // Check again on the same thread that enters the system move loop.
+          ReleaseCapture();
+          SendMessageW(GetHandle(), WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
+          result->Success(flutter::EncodableValue(true));
           return;
         }
         if (call.method_name() == "setPillTooltip") {

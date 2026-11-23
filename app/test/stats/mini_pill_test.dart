@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show PointerDeviceKind;
 
@@ -409,6 +410,78 @@ void main() {
     await c.shutdown();
   });
 
+  testWidgets('expands once after resize and drains the queue before close', (
+    tester,
+  ) async {
+    final (c, platform, window) = await _window();
+    await window.enterPill(150);
+    final resize = platform.holdPillBounds();
+    final resizing = window.resizePill(165);
+    await tester.pump();
+    final first = window.expandPill();
+    final second = window.expandPill();
+    final closing = window.saveBeforeClose();
+    expect(window.switching, isTrue);
+    resize.complete();
+    await Future.wait([resizing, first, second, closing]);
+    expect(window.pillState.value, isNull);
+    expect(
+      platform.calls.where((call) => call == ('pill', false)),
+      hasLength(1),
+    );
+    expect(window.switching, isFalse);
+    await c.shutdown();
+  });
+
+  for (final pressed in [true, false]) {
+    testWidgets(
+      'queued drag checks primary button at execution (pressed=$pressed)',
+      (tester) async {
+        final (c, platform, window) = await _window();
+        await window.enterPill(150);
+        final resize = platform.holdPillBounds();
+        final resizing = window.resizePill(165);
+        await tester.pump();
+        platform.dragTo = const Rect.fromLTWH(320, 180, 165, 36);
+        final dragging = window.startPillDragging();
+        platform.primaryPressed = pressed;
+        resize.complete();
+        await Future.wait([resizing, dragging]);
+        expect(platform.primaryButtonReads, 1);
+        expect(platform.dragCount, pressed ? 1 : 0);
+        if (pressed) expect(platform.bounds.topLeft, const Offset(320, 180));
+        await c.shutdown();
+      },
+    );
+  }
+
+  testWidgets('user operations run before the latest pending resize', (
+    tester,
+  ) async {
+    final (c, platform, window) = await _window();
+    await window.enterPill(150);
+    platform.calls.clear();
+    final resize = platform.holdPillBounds();
+    final resizing = window.resizePill(165);
+    await tester.pump();
+    final outdated = window.resizePill(180);
+    final pin = window.togglePin();
+    final latest = window.resizePill(200);
+    resize.complete();
+    await Future.wait([resizing, outdated, pin, latest]);
+    expect(platform.calls.indexOf(('pin', true)), 1);
+    expect(
+      platform.calls.last,
+      isA<Rect>().having((bounds) => bounds.width, 'width', 200),
+    );
+    expect(
+      platform.calls.whereType<Rect>().map((bounds) => bounds.width),
+      isNot(contains(180)),
+    );
+    expect(window.pillWidth, 200);
+    await c.shutdown();
+  });
+
   for (final scale in [1.0, 1.5]) {
     testWidgets(
       'horizontal 24 DIP threshold on the center display at ${scale}x',
@@ -622,7 +695,27 @@ class _PillPlatform extends MiniPlatform {
   double scale = 1;
   Rect? dragTo;
   String? tooltip;
+  bool primaryPressed = true;
+  int primaryButtonReads = 0;
+  int dragCount = 0;
+  Completer<void>? _nextPillBounds;
   final displays = [const MiniDisplay(Rect.fromLTWH(0, 0, 1000, 800))];
+
+  Completer<void> holdPillBounds() => _nextPillBounds = Completer<void>();
+
+  @override
+  Future<bool> isPrimaryButtonDown() async {
+    primaryButtonReads++;
+    return primaryPressed;
+  }
+
+  @override
+  Future<void> setPillBounds(Rect value, MiniDisplay display) async {
+    final blocker = _nextPillBounds;
+    _nextPillBounds = null;
+    if (blocker != null) await blocker.future;
+    await super.setPillBounds(value, display);
+  }
 
   @override
   Future<List<MiniDisplay>> workAreas() async => displays;
@@ -634,7 +727,12 @@ class _PillPlatform extends MiniPlatform {
   Future<void> setPillTooltip(String? text) async => tooltip = text;
 
   @override
-  Future<void> dragPill({Color? edgeAccent}) async {
+  Future<bool> dragPill({
+    Color? edgeAccent,
+    bool requirePressed = false,
+  }) async {
+    dragCount++;
     bounds = dragTo!;
+    return true;
   }
 }

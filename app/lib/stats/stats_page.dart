@@ -98,7 +98,7 @@ class _StatsPageState extends State<StatsPage> {
 
   Future<void> _switchMini({bool enter = false, VoidCallback? restored}) async {
     final window = widget.miniWindow;
-    if (window == null || window.switching) return;
+    if (window == null) return;
     try {
       if (enter) {
         await window.enter();
