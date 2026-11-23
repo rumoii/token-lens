@@ -1641,6 +1641,7 @@ mod e5_tests {
     #[cfg(windows)]
     #[test]
     fn e5_globs_match_legacy_under_windows_acl_denials() {
+        use std::io::Write;
         use std::process::Command;
 
         struct Denied<'a> {
@@ -1687,16 +1688,51 @@ mod e5_tests {
         );
         let denied_dir = sessions.join("denied");
         let denied_file = sessions.join("rollout-unreadable.jsonl");
-        let _dir_acl = deny(&denied_dir, &sid, "RD");
-        let _file_acl = deny(&denied_file, &sid, "RD,RA");
-        assert_eq!(
-            fs::read_dir(&denied_dir).unwrap_err().kind(),
-            ErrorKind::PermissionDenied
-        );
-        assert_eq!(
-            fs::File::open(&denied_file).unwrap_err().kind(),
-            ErrorKind::PermissionDenied
-        );
+        let dir_acl = deny(&denied_dir, &sid, "RD");
+        let file_acl = deny(&denied_file, &sid, "RD,RA");
+        for (operation, path, result) in [
+            ("read_dir", &denied_dir, fs::read_dir(&denied_dir).map(drop)),
+            (
+                "File::open",
+                &denied_file,
+                fs::File::open(&denied_file).map(drop),
+            ),
+        ] {
+            if let Err(error) = result {
+                assert_eq!(
+                    error.kind(),
+                    ErrorKind::PermissionDenied,
+                    "{operation}({path:?}): {error}"
+                );
+                continue;
+            }
+            let privileges = Command::new("whoami")
+                .args(["/priv", "/fo", "csv", "/nh"])
+                .output();
+            let backup_enabled = privileges.as_ref().is_ok_and(|output| {
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout).lines().any(|row| {
+                        row.starts_with("\"SeBackupPrivilege\",") && row.ends_with(",\"Enabled\"")
+                    })
+            });
+            if backup_enabled {
+                drop(file_acl);
+                drop(dir_acl);
+                writeln!(
+                    std::io::stderr(),
+                    "Skipping Windows E5 ACL test: {operation}({path:?}) succeeded after ACL denial \
+                     and SeBackupPrivilege is enabled"
+                )
+                .unwrap();
+                return;
+            }
+            let acl = Command::new("icacls").arg(path).output();
+            panic!(
+                "{operation}({path:?}) succeeded after ACL denial, but an enabled \
+                 SeBackupPrivilege could not be confirmed.\nwhoami /priv: {privileges:?}\n\
+                 icacls: {acl:?}"
+            );
+        }
         for preview in [false, true] {
             let output = compare_globs(home, &sessions, CODEX, preview, &[]);
             assert_eq!(output.issues[0], ("permission_denied", 1));
