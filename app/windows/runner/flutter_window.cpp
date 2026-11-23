@@ -64,8 +64,8 @@ bool NearHorizontalEdge(const RECT& frame) {
   if (!GetMonitorInfo(monitor, &info)) return false;
   const double distance =
       kPillSnapDistance * FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
-  return std::abs(frame.left - info.rcWork.left) < distance ||
-         std::abs(frame.right - info.rcWork.right) < distance;
+  return frame.left - info.rcWork.left < distance ||
+         info.rcWork.right - frame.right < distance;
 }
 
 }  // namespace

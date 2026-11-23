@@ -682,8 +682,8 @@ class MiniWindow {
   MiniPillEdge? _snapEdge(MiniFrame frame, MiniDisplay display) {
     final b = frame.bounds;
     final area = display.workArea;
-    final left = (b.left - area.left).abs();
-    final right = (b.left + b.width * frame.scale - area.right).abs();
+    final left = b.left - area.left;
+    final right = area.right - (b.left + b.width * frame.scale);
     if (left < _pillSnap * display.scale && left <= right) {
       return MiniPillEdge.left;
     }

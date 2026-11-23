@@ -379,6 +379,26 @@ void main() {
     final neighborX = left ? -1000.0 : 1000.0;
     final alignedX = left ? 0.0 : 850.0;
     final tuckedX = left ? -124.0 : 974.0;
+    for (final overshoot in [1, 24, 200]) {
+      testWidgets('${edge.name} tucks after crossing by $overshoot DIP', (
+        tester,
+      ) async {
+        final (c, platform, window) = await _window();
+        await window.enterPill(150);
+        platform.dragTo = Rect.fromLTWH(
+          left ? -overshoot.toDouble() : alignedX + overshoot,
+          160,
+          150,
+          36,
+        );
+        await window.startPillDragging();
+        expect(window.pillState.value?.edge, edge);
+        expect(c.preferences.mini.pillEdge, edge);
+        expect(platform.bounds.left, tuckedX);
+        await c.shutdown();
+      });
+    }
+
     for (final adjacent in [true, false]) {
       testWidgets(
         '${edge.name} snap with neighbor at pill height = $adjacent',
