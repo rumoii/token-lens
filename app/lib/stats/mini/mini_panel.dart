@@ -220,7 +220,7 @@ class _MiniPanelState extends State<MiniPanel> {
                 size: 'xs',
                 icon: Icons.close_fullscreen,
                 tooltip: s.miniPillEnter,
-                color: p['clay-ink'],
+                color: color,
                 onPressed: () => _miniPillAction(
                   () => widget.window.enterPill(MiniPill.widthFor(context, c)),
                 ),

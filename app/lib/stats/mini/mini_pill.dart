@@ -77,10 +77,37 @@ class MiniPill extends StatefulWidget {
 class _MiniPillState extends State<MiniPill> {
   (int, Offset)? _press;
   bool _focused = false;
-  bool _focusHighlight = false;
+  bool _keyboardInput = false;
   String? _tooltip;
 
   void _activate() => _miniPillAction(widget.window.expandPill);
+
+  @override
+  void initState() {
+    super.initState();
+    FocusManager.instance.addEarlyKeyEventHandler(_trackKeyboardInput);
+  }
+
+  @override
+  void dispose() {
+    FocusManager.instance.removeEarlyKeyEventHandler(_trackKeyboardInput);
+    super.dispose();
+  }
+
+  KeyEventResult _trackKeyboardInput(KeyEvent event) {
+    // Tab can bring focus here after this event is routed.
+    if (event is KeyDownEvent &&
+        !event.synthesized &&
+        (_focused || event.logicalKey == LogicalKeyboardKey.tab) &&
+        !_keyboardInput) {
+      setState(() => _keyboardInput = true);
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _trackPointerInput() {
+    if (_keyboardInput) setState(() => _keyboardInput = false);
+  }
 
   void _hover(bool hovered) => widget.window.setPillHovered(
     hovered,
@@ -129,7 +156,7 @@ class _MiniPillState extends State<MiniPill> {
           SizedBox.square(
             dimension: 22,
             child: DecoratedBox(
-              decoration: _focusHighlight
+              decoration: _focused && _keyboardInput
                   ? BoxDecoration(
                       borderRadius: BorderRadius.circular(
                         LensTokens.radii['sm']!,
@@ -168,7 +195,10 @@ class _MiniPillState extends State<MiniPill> {
       child: FocusableActionDetector(
         autofocus: true,
         includeFocusSemantics: false,
-        onFocusChange: (value) => setState(() => _focused = value),
+        onFocusChange: (value) => setState(() {
+          _focused = value;
+          if (!value) _keyboardInput = false;
+        }),
         shortcuts: const {
           SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
           SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
@@ -178,8 +208,6 @@ class _MiniPillState extends State<MiniPill> {
             onInvoke: (_) => _activate(),
           ),
         },
-        onShowFocusHighlight: (value) =>
-            setState(() => _focusHighlight = value),
         child: ExcludeSemantics(
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
@@ -187,7 +215,14 @@ class _MiniPillState extends State<MiniPill> {
             onExit: (_) => _hover(false),
             child: Listener(
               behavior: HitTestBehavior.opaque,
+              onPointerHover: (event) {
+                if (!event.synthesized && event.delta != Offset.zero) {
+                  _trackPointerInput();
+                }
+              },
+              onPointerSignal: (_) => _trackPointerInput(),
               onPointerDown: (event) {
+                _trackPointerInput();
                 if (_press == null && event.buttons & kPrimaryButton != 0) {
                   _press = (event.pointer, event.position);
                 }

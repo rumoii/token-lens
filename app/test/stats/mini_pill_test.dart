@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:token_lens_app/stats/mini/mini_window.dart';
 import 'package:token_lens_app/stats/preferences.dart';
 import 'package:token_lens_app/stats/stats_page.dart';
 import 'package:token_lens_app/stats/theme/palette.dart';
+import 'package:token_lens_app/stats/widgets/primitives.dart' show BrandMark;
 import 'package:token_lens_app/stats_controller.dart';
 import 'package:token_lens_app/stats_gateway.dart';
 
@@ -182,6 +184,112 @@ void main() {
       },
     );
   }
+
+  testWidgets('pill focus ring follows keyboard and mouse interaction', (
+    tester,
+  ) async {
+    final manager = FocusManager.instance;
+    final previousStrategy = manager.highlightStrategy;
+    manager.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+    addTearDown(() => manager.highlightStrategy = previousStrategy);
+    final previous = FocusNode();
+    addTearDown(previous.dispose);
+    final (c, _, window) = await _window();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: const LensPalette(false).theme,
+        home: Column(
+          children: [
+            TextButton(
+              focusNode: previous,
+              onPressed: () {},
+              child: const Text('Previous'),
+            ),
+            Expanded(
+              child: StatsPage(controller: c, miniWindow: window),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    final shrink = tester.getCenter(
+      find.byTooltip(chineseStrings.miniPillEnter),
+    );
+    await mouse.addPointer(location: shrink);
+    await mouse.down(shrink);
+    await mouse.up();
+    await tester.pumpAndSettle();
+    final pill = find.byType(MiniPill);
+    final ring = find.descendant(
+      of: pill,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).border != null,
+      ),
+    );
+    bool pillHasFocus() =>
+        Focus.of(tester.element(find.byType(BrandMark))).hasPrimaryFocus;
+    expect(pillHasFocus(), isTrue);
+    expect(
+      ring,
+      findsNothing,
+      reason: 'Mouse entry must not show a keyboard focus ring',
+    );
+
+    previous.requestFocus();
+    await tester.pump();
+    expect(pillHasFocus(), isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(pillHasFocus(), isTrue);
+    expect(ring, findsOneWidget);
+
+    await mouse.moveTo(tester.getCenter(pill));
+    await tester.pumpAndSettle();
+    expect(pillHasFocus(), isTrue);
+    expect(ring, findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.pumpAndSettle();
+    expect(ring, findsOneWidget);
+    await mouse.removePointer();
+    await tester.pumpWidget(const SizedBox());
+    await c.shutdown();
+  });
+
+  testWidgets('shrink icon follows the neighboring header colors', (
+    tester,
+  ) async {
+    final (c, _, window) = await _window();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: const LensPalette(false).theme,
+        home: StatsPage(controller: c, miniWindow: window),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final shrink = find.byIcon(Icons.close_fullscreen);
+    final settings = find.byIcon(Icons.settings_outlined);
+    final expand = find.byIcon(Icons.open_in_full);
+    Color? color(Finder icon) => tester.widget<Icon>(icon).color;
+    final idle = color(settings);
+    expect(color(shrink), idle);
+    expect(color(expand), idle);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(shrink));
+    await tester.pumpAndSettle();
+    expect(color(settings), isNot(idle));
+    expect(color(shrink), color(settings));
+    expect(color(expand), color(settings));
+    await mouse.removePointer();
+    await tester.pumpWidget(const SizedBox());
+    await c.shutdown();
+  });
 
   testWidgets('pill aligns to the compact right edge and expands inwards', (
     tester,
