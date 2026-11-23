@@ -1,5 +1,6 @@
 use super::{replacement_targets, FileOutput, Input, Ledger, Result, Revisions};
 use std::{
+    borrow::Borrow,
     collections::{HashMap, HashSet, VecDeque},
     mem::size_of,
     num::NonZeroU32,
@@ -9,6 +10,32 @@ use std::{
 pub(super) const MEMORY_LIMIT: usize = 64 * 1024 * 1024;
 type Name = Arc<str>;
 type FileId = NonZeroU32;
+
+// A boxed string gives each shared key a one-word handle in both directions.
+#[derive(Clone, Hash, PartialEq, Eq)]
+struct RecordKey(Arc<Box<str>>);
+
+impl RecordKey {
+    fn new(text: &str) -> Self {
+        Self(Arc::new(text.into()))
+    }
+
+    fn bytes(text: &str) -> usize {
+        2 * size_of::<usize>() + size_of::<Box<str>>() + text.len()
+    }
+}
+
+impl AsRef<str> for RecordKey {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl Borrow<str> for RecordKey {
+    fn borrow(&self) -> &str {
+        self.as_ref()
+    }
+}
 
 fn name_bytes(text: &str) -> usize {
     (2 * size_of::<usize>() + text.len()).next_multiple_of(size_of::<usize>())
@@ -45,9 +72,9 @@ impl Links {
 
 #[derive(Default)]
 struct Keys {
-    links: HashMap<Name, Links>,
+    links: HashMap<RecordKey, Links>,
     // A second file in either relation is uncommon. Keep the common case inline.
-    extra: HashMap<Name, Vec<(Relation, FileId)>>,
+    extra: HashMap<RecordKey, Vec<(Relation, FileId)>>,
     text_bytes: usize,
     extra_bytes: usize,
     link_capacity: usize,
@@ -55,12 +82,18 @@ struct Keys {
 }
 
 impl Keys {
-    fn add(&mut self, text: &str, relation: Relation, file: FileId) -> Option<Name> {
+    fn add(
+        &mut self,
+        text: &str,
+        relation: Relation,
+        file: FileId,
+        new_key: impl FnOnce() -> RecordKey,
+    ) -> Option<RecordKey> {
         let name = if let Some((name, _)) = self.links.get_key_value(text) {
             name.clone()
         } else {
-            let name = Name::from(text);
-            self.text_bytes += name_bytes(&name);
+            let name = new_key();
+            self.text_bytes += RecordKey::bytes(text);
             self.links.insert(name.clone(), Links::default());
             self.link_capacity = self.link_capacity.max(self.links.capacity());
             name
@@ -116,7 +149,7 @@ impl Keys {
         }
         if links.raw.is_none() && links.owner.is_none() {
             self.links.remove(text);
-            self.text_bytes -= name_bytes(text);
+            self.text_bytes -= RecordKey::bytes(text);
         }
     }
 
@@ -137,14 +170,14 @@ impl Keys {
     fn bytes(&self) -> usize {
         self.text_bytes
             + self.extra_bytes
-            + table_bytes::<(Name, Links)>(self.link_capacity)
-            + table_bytes::<(Name, Vec<(Relation, FileId)>)>(self.extra_capacity)
+            + table_bytes::<(RecordKey, Links)>(self.link_capacity)
+            + table_bytes::<(RecordKey, Vec<(Relation, FileId)>)>(self.extra_capacity)
     }
 }
 
 pub(super) struct Summary {
     // Only graph membership is needed here. Settlement still reads ordered raw output.
-    keys: Vec<Name>,
+    keys: Vec<RecordKey>,
     pub(super) notes: HashMap<String, i64>,
     pub(super) attempted: usize,
     pub(super) copies: usize,
@@ -160,14 +193,14 @@ impl Summary {
                 .records
                 .iter()
                 .filter_map(|record| record["record_key"].as_str())
-                .map(Name::from),
+                .map(RecordKey::new),
         );
         keys.extend(
             output
                 .records
                 .iter()
                 .flat_map(replacement_targets)
-                .map(Name::from),
+                .map(RecordKey::new),
         );
         Self {
             keys,
@@ -180,7 +213,7 @@ impl Summary {
     }
 
     fn heap_bytes(&self) -> usize {
-        self.keys.capacity() * size_of::<Name>()
+        self.keys.capacity() * size_of::<RecordKey>()
             + table_bytes::<(String, i64)>(self.notes.capacity())
             + self.notes.keys().map(String::capacity).sum::<usize>()
     }
@@ -188,14 +221,18 @@ impl Summary {
     pub(super) fn staging_bytes(&self) -> usize {
         size_of::<Self>()
             + self.heap_bytes()
-            + self.keys.iter().map(|key| name_bytes(key)).sum::<usize>()
+            + self
+                .keys
+                .iter()
+                .map(|key| RecordKey::bytes(key.as_ref()))
+                .sum::<usize>()
     }
 }
 
 struct IndexedFile {
     path: Name,
     summary: Option<Summary>,
-    owners: Vec<Name>,
+    owners: Vec<RecordKey>,
 }
 
 #[derive(Default)]
@@ -213,7 +250,7 @@ pub(super) struct SourceIndex {
 
 pub(super) struct Affected {
     pub(super) files: HashSet<Name>,
-    keys: HashSet<Name>,
+    keys: HashSet<RecordKey>,
 }
 
 impl SourceIndex {
@@ -323,7 +360,7 @@ impl SourceIndex {
             if let Some(summary) = summary {
                 let file = Name::from(file.as_str());
                 for key in &summary.keys {
-                    let peers = new.entry(key).or_default();
+                    let peers = new.entry(key.as_ref()).or_default();
                     if peers.last() != Some(&file) {
                         peers.push(file.clone());
                     }
@@ -357,7 +394,11 @@ impl SourceIndex {
                 .chain(previous.into_iter().flat_map(|file| &file.owners))
             {
                 if keys.insert(key.clone()) {
-                    queue.extend(self.keys.files(key).map(|id| self.file(id).path.clone()));
+                    queue.extend(
+                        self.keys
+                            .files(key.as_ref())
+                            .map(|id| self.file(id).path.clone()),
+                    );
                     queue.extend(new.get(key.as_ref()).into_iter().flatten().cloned());
                 }
             }
@@ -373,7 +414,7 @@ impl SourceIndex {
             self.file_bytes -= summary.heap_bytes();
             self.replay.remove(&id);
             for key in summary.keys {
-                self.keys.remove(&key, Relation::Raw, id);
+                self.keys.remove(key.as_ref(), Relation::Raw, id);
             }
         }
     }
@@ -389,7 +430,10 @@ impl SourceIndex {
         let id = self.file_id(file);
         self.remove_raw(id);
         summary.keys.retain_mut(|text| {
-            if let Some(name) = self.keys.add(text, Relation::Raw, id) {
+            if let Some(name) = self
+                .keys
+                .add(text.as_ref(), Relation::Raw, id, || text.clone())
+            {
                 *text = name;
                 true
             } else {
@@ -407,9 +451,9 @@ impl SourceIndex {
     fn remove_owners(&mut self, file: &str) {
         if let Some(&id) = self.paths.get(file) {
             let owners = std::mem::take(&mut self.file_mut(id).owners);
-            self.file_bytes -= owners.capacity() * size_of::<Name>();
+            self.file_bytes -= owners.capacity() * size_of::<RecordKey>();
             for key in owners {
-                self.keys.remove(&key, Relation::Owner, id);
+                self.keys.remove(key.as_ref(), Relation::Owner, id);
             }
             self.prune(id);
         }
@@ -463,11 +507,14 @@ impl SourceIndex {
                 return Ok(false);
             };
             let id = self.file_id(file);
-            if let Some(key) = self.keys.add(key, Relation::Owner, id) {
+            if let Some(key) = self
+                .keys
+                .add(key, Relation::Owner, id, || RecordKey::new(key))
+            {
                 let owners = &mut self.file_mut(id).owners;
                 let before = owners.capacity();
                 owners.push(key);
-                self.file_bytes += (owners.capacity() - before) * size_of::<Name>();
+                self.file_bytes += (owners.capacity() - before) * size_of::<RecordKey>();
             }
             if row.get::<_, bool>(3)? && revisions.timing.is_some() {
                 self.timing_current &=
