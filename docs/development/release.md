@@ -8,7 +8,7 @@
 
 ## 步骤
 
-1. **准备**：改两处版本号（`app/rust/Cargo.lock` 随之更新），在 `docs/releases/<版本>.md` 写版本说明，一起提交到 main。main 上的桌面检查要先通过。
+1. **准备**：改两处版本号（`app/rust/Cargo.lock` 随之更新），在 `docs/releases/<版本>.md` 写版本说明（中文在前；英文放在 `<details>` 里，Release 页面上默认折叠），一起提交到 main。main 上的桌面检查要先通过。
 2. **打标签**：在这个提交上打 `v<版本>`（例如 `v0.1.0`）并推送。
 3. **构建草稿**：推送标签触发 `.github/workflows/release.yml`：
    - 核对标签与两处版本号一致，不一致就失败；
