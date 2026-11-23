@@ -3,6 +3,9 @@ pub use super::discovery::Environment;
 #[path = "ingest_cache_tests.rs"]
 mod cache_tests;
 #[cfg(test)]
+#[path = "ingest_oracle_tests.rs"]
+mod oracle_tests;
+#[cfg(test)]
 use super::pricing;
 use super::{
     adapters,
