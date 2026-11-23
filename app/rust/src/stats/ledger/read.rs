@@ -425,7 +425,8 @@ impl Ledger {
     pub fn data_version(&self) -> Result<i64> {
         Ok(self
             .db
-            .query_row("PRAGMA data_version", [], |row| row.get(0))?)
+            .prepare_cached("PRAGMA data_version")?
+            .query_row([], |row| row.get(0))?)
     }
 
     fn use_observed_index(&self, from: Option<String>, to: Option<String>) -> Result<bool> {

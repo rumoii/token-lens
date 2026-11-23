@@ -12,6 +12,7 @@ struct Oracle {
     home: PathBuf,
     data: [PathBuf; 2],
     round: i64,
+    revisions: Option<Revisions>,
 }
 
 impl Oracle {
@@ -44,6 +45,7 @@ impl Oracle {
             home,
             data,
             round: 0,
+            revisions: None,
         }
     }
 
@@ -61,6 +63,10 @@ impl Oracle {
     }
 
     fn compare_round(&mut self, label: &str) -> Value {
+        self.compare_profiled_round(label).0
+    }
+
+    fn compare_profiled_round(&mut self, label: &str) -> (Value, Value) {
         self.round += 1;
         let context = format!("{label}, round {}", self.round);
         let run = |side: usize, no_cache| {
@@ -71,24 +77,44 @@ impl Oracle {
                 Clock::Fixed(self.now()),
                 &LocalZone::Fixed(0),
                 &AtomicBool::new(false),
-                SyncOptions::new(no_cache),
+                SyncOptions {
+                    revisions: self.revisions,
+                    ..SyncOptions::new(no_cache)
+                },
             )
             .unwrap_or_else(|error| panic!("{context}, no_cache={no_cache}: {error}"))
-            .0
         };
         // The same immutable input tree is read by both passes, including its absolute paths.
-        let cached = run(0, false);
-        let replay = run(1, true);
+        let (cached, phases) = run(0, false);
+        let (replay, replay_phases) = run(1, true);
         assert_eq!(replay["cachedFiles"], 0, "{context}");
         assert_eq!(replay["skippedFiles"], 0, "{context}");
+        assert_eq!(replay_phases["writeSkippedFiles"], 0, "{context}");
+        assert_eq!(
+            replay_phases["writeTransactions"], replay["fileCount"],
+            "{context}"
+        );
         assert_eq!(replay["parsedFiles"], replay["fileCount"], "{context}");
         assert_eq!(cached["fileCount"], replay["fileCount"], "{context}");
         for result in [&cached, &replay] {
             assert_eq!(result["counts"]["read_failed"], 0, "{context}");
             assert_eq!(result["rejected"], 0, "{context}");
         }
+        if cached["skippedFiles"] == 0 {
+            for key in [
+                "attempted",
+                "inserted",
+                "updated",
+                "unchanged",
+                "rejected",
+                "counts",
+            ] {
+                assert_eq!(cached[key], replay[key], "{context}: {key}");
+            }
+            assert_eq!(cached["anomalies"], replay["anomalies"], "{context}");
+        }
         compare_ledgers(&self.ledger(0), &self.ledger(1), &context);
-        cached
+        (cached, phases)
     }
 }
 
@@ -624,7 +650,7 @@ fn replacement(oracle: &Oracle, declaration_first: bool) {
 fn assert_replacement(oracle: &Oracle, pending: bool) {
     let rows = select(
         &oracle.ledger(0),
-        "SELECT id,active,superseded_by FROM usage_records ORDER BY id",
+        "SELECT id,active,superseded_by FROM usage_records WHERE session_id='oracle-session' ORDER BY id",
     );
     if pending {
         assert_eq!(
@@ -651,15 +677,163 @@ fn declaration_before_target_replays_then_skips_on_the_third_round() {
         0
     );
     assert_replacement(&oracle, true);
+    let independent = Source::Codex.path(&oracle.home, 2, false);
+    let mut unrelated = codex_usage(2, json!({"response_id":"resp_oracle_independent"}), 22);
+    unrelated["payload"]["session_id"] = json!("independent-session");
+    oracle.write(&independent, jsonl([unrelated]));
     let replay = oracle.compare_round("pending declaration replay");
     assert_eq!(replay["cachedFiles"], 2);
     assert_eq!(replay["counts"]["replaced"], 1);
     assert_replacement(&oracle, false);
-    assert_eq!(
-        oracle.compare_round("settled source skips")["skippedFiles"],
-        2
-    );
+    let (settled, phases) = oracle.compare_profiled_round("settled declaration still replays");
+    assert_eq!(settled["cachedFiles"], 3);
+    assert_eq!(settled["skippedFiles"], 0);
+    assert_eq!(settled["counts"]["replaced"], 0);
+    assert_eq!(phases["writeSkippedFiles"], 1);
+    assert_eq!(phases["writeTransactions"], 2);
     assert_replacement(&oracle, false);
+}
+
+#[test]
+fn manual_price_changes_with_a_cached_file_in_a_processed_source() {
+    let mut oracle = Oracle::new();
+    let [first, second] = [0, 1].map(|index| Source::Codex.path(&oracle.home, index, false));
+    let unknown_model = "oracle-priced-by-hand";
+    let mut usage = codex_usage(0, json!({"response_id":TARGET}), 100);
+    usage["payload"]["usage"]["model"] = json!(unknown_model);
+    oracle.write(&first, jsonl([usage]));
+    oracle.compare_round("usage before manual price");
+    let sql = "SELECT revision,cost_micros,price_source FROM usage_records WHERE model='oracle-priced-by-hand'";
+    assert_eq!(
+        select(&oracle.ledger(0), sql)[0]["cost_micros"],
+        Value::Null
+    );
+    for side in 0..2 {
+        crate::stats::pricing::store::save_manual(
+            &oracle.data[side],
+            &oracle.ledger(side),
+            &json!({"model":unknown_model,"currency":"USD","input":10,"output":0}).to_string(),
+        )
+        .unwrap();
+    }
+    oracle.write(
+        &second,
+        jsonl([codex_usage(
+            1,
+            json!({"response_id":"resp_oracle_new_price_round"}),
+            20,
+        )]),
+    );
+    let (result, phases) = oracle.compare_profiled_round("apply manual price");
+    assert_eq!(result["repriced"], 1);
+    assert_eq!(phases["writeSkippedFiles"], 1);
+    assert_eq!(
+        select(&oracle.ledger(0), sql),
+        [json!({"revision":1,"cost_micros":990,"price_source":"manual:oracle-priced-by-hand"})]
+    );
+}
+
+#[test]
+fn timing_revision_only_replays_without_changing_usage() {
+    let mut oracle = Oracle::new();
+    let path = Source::Codex.path(&oracle.home, 0, false);
+    oracle.write(
+        &path,
+        encode(
+            Source::Codex,
+            &[Event {
+                id: 1,
+                minute: 0,
+                tokens: 20,
+            }],
+        ),
+    );
+    oracle.compare_round("before timing upgrade");
+    let sql = "SELECT * FROM usage_records";
+    let usage = select(&oracle.ledger(0), sql);
+    let timing_rev = adapters::timing_rev("codex").unwrap() + 1;
+    oracle.revisions = Some(Revisions {
+        usage: Some(adapters::parser_rev("codex")),
+        timing: Some(timing_rev),
+    });
+    let (result, phases) = oracle.compare_profiled_round("after timing upgrade");
+    assert_eq!(result["parsedFiles"], 1);
+    assert_eq!(phases["writeTransactions"], 1);
+    assert_eq!(phases["writeSkippedFiles"], 0);
+    assert_eq!(select(&oracle.ledger(0), sql), usage);
+    assert_eq!(
+        select(&oracle.ledger(0), "SELECT parser_rev FROM usage_timings"),
+        [json!({"parser_rev":timing_rev})]
+    );
+}
+
+#[test]
+fn cached_output_replays_to_fix_its_timing_and_report_omissions() {
+    let mut oracle = Oracle::new();
+    let [stale, truncated, changed] =
+        [0, 1, 2].map(|index| Source::Codex.path(&oracle.home, index, false));
+    let event = |id| Event {
+        id,
+        minute: id as i64,
+        tokens: 20,
+    };
+    oracle.write(&stale, encode(Source::Codex, &[event(1)]));
+    oracle.write(&truncated, encode(Source::Codex, &[event(2), event(3)]));
+    oracle.compare_round("complete files");
+    oracle.write(&truncated, encode(Source::Codex, &[event(2)]));
+    oracle.compare_round("one same-revision usage vanished");
+
+    for side in 0..2 {
+        oracle
+            .ledger(side)
+            .db
+            .execute(
+                "UPDATE usage_timings SET parser_rev=0, generation_ms=5
+             WHERE record_key LIKE '%resp_oracle_event_00000001'",
+                [],
+            )
+            .unwrap();
+    }
+    oracle.write(&changed, encode(Source::Codex, &[event(4)]));
+    let (result, phases) = oracle.compare_profiled_round("stale timing and persistent omission");
+    assert_eq!(result["cachedFiles"], 2);
+    assert_eq!(result["counts"]["vanished"], 1);
+    assert_eq!(phases["writeSkippedFiles"], 0);
+    assert_eq!(phases["writeTransactions"], 3);
+    assert_eq!(
+        select(&oracle.ledger(0),
+            "SELECT parser_rev,generation_ms FROM usage_timings WHERE record_key LIKE '%resp_oracle_event_00000001'"),
+        [json!({"parser_rev":adapters::timing_rev("codex"),"generation_ms":600})],
+    );
+}
+
+#[test]
+fn earlier_new_declaration_can_supersede_a_cached_target() {
+    let mut oracle = Oracle::new();
+    let [first, second, third] =
+        [0, 1, 2].map(|index| Source::Codex.path(&oracle.home, index, false));
+    oracle.write(
+        &second,
+        jsonl([codex_usage(0, json!({"response_id":TARGET}), 20)]),
+    );
+    oracle.write(
+        &third,
+        jsonl([codex_usage(
+            2,
+            json!({"response_id":"resp_oracle_unaffected"}),
+            22,
+        )]),
+    );
+    oracle.compare_round("current target and unaffected file");
+    oracle.write(
+        &first,
+        jsonl([codex_usage(1, json!({"turn_id":TARGET}), 40)]),
+    );
+    let (result, phases) = oracle.compare_profiled_round("earlier batch supersedes a cached row");
+    assert_eq!(result["counts"]["replaced"], 1);
+    assert_eq!(result["unchanged"], 1);
+    assert_eq!(phases["writeSkippedFiles"], 1);
+    assert_eq!(phases["writeTransactions"], 2);
 }
 
 #[test]
@@ -671,10 +845,10 @@ fn target_before_declaration_is_replaced_in_the_first_round() {
         1
     );
     assert_replacement(&oracle, false);
-    assert_eq!(
-        oracle.compare_round("no pending replacement")["skippedFiles"],
-        2
-    );
+    let settled = oracle.compare_round("no pending replacement");
+    assert_eq!(settled["cachedFiles"], 2);
+    assert_eq!(settled["skippedFiles"], 0);
+    assert_eq!(settled["counts"]["replaced"], 0);
 }
 
 #[test]
@@ -704,7 +878,6 @@ fn codex_changes_format_in_both_directions() {
 }
 
 #[test]
-#[ignore = "An unchanged Codex source skips while replaying two values for one long ID increments revision twice"]
 fn reused_long_id_should_match_full_replay() {
     let mut oracle = Oracle::new();
     let path = Source::Codex.path(&oracle.home, 0, false);
@@ -720,5 +893,29 @@ fn reused_long_id_should_match_full_replay() {
         select(&oracle.ledger(0), "SELECT revision FROM usage_records"),
         [json!({"revision":2})]
     );
-    oracle.compare_round("duplicate long ID unchanged");
+    // A v7 cache written by an older version has no replay metadata.
+    let old_fingerprint = fingerprint::fingerprint(
+        "codex",
+        &path,
+        Some("fixed:0"),
+        Revisions {
+            usage: Some(adapters::parser_rev("codex")),
+            timing: adapters::timing_rev("codex"),
+        },
+    )
+    .unwrap();
+    oracle
+        .ledger(0)
+        .db
+        .execute("UPDATE ingest_files SET fingerprint=?", [old_fingerprint])
+        .unwrap();
+    for label in ["legacy cache replay", "classified cache replay"] {
+        let result = oracle.compare_round(label);
+        assert_eq!(result["cachedFiles"], 1);
+        assert_eq!(result["updated"], 2);
+    }
+    assert_eq!(
+        select(&oracle.ledger(0), "SELECT revision FROM usage_records"),
+        [json!({"revision":6})]
+    );
 }

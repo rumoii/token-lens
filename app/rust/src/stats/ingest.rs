@@ -12,7 +12,7 @@ use super::{
     clock::Clock,
     discovery,
     jscompat::{self, LocalZone},
-    ledger::{CachedFile, FileOutput, Ledger, Revisions},
+    ledger::{CachedFile, FileOutput, Ledger, Revisions, WriteCandidate, BATCH_COUNT_FIELDS},
     lock::SyncLock,
     Error, Result,
 };
@@ -47,6 +47,8 @@ struct SyncPhases {
     write_ns: u64,
     write_records: usize,
     write_transactions: usize,
+    write_skipped_files: usize,
+    write_skip_check_ns: u64,
     timing_file_revisions_read_ns: u64,
     reprice_ns: u64,
     finish_run_ns: u64,
@@ -457,6 +459,57 @@ enum CacheUpdate {
     Keep,
     Invalidate,
     Store(CachedFile),
+    MarkReplay(String),
+}
+
+// Store replay metadata alongside the input fingerprint. A bare fingerprint
+// from an older build still hits the payload cache, but needs classification.
+#[derive(Clone, Copy)]
+enum CacheReplay {
+    Unknown,
+    Events,
+    Other,
+    Required,
+}
+
+impl CacheReplay {
+    fn from_fingerprint(fingerprint: &str) -> (&str, Self) {
+        for (suffix, replay) in [
+            (";events", Self::Events),
+            (";other", Self::Other),
+            (";replay", Self::Required),
+        ] {
+            if let Some(input) = fingerprint.strip_suffix(suffix) {
+                return (input, replay);
+            }
+        }
+        (fingerprint, Self::Unknown)
+    }
+
+    fn mark(fingerprint: String, records: &[Value]) -> String {
+        let mut keys = HashSet::new();
+        let mut only_events = true;
+        for record in records {
+            if record.get("replaces").is_some()
+                || record["record_key"]
+                    .as_str()
+                    .is_some_and(|key| !keys.insert(key))
+            {
+                return fingerprint + ";replay";
+            }
+            only_events &= record["kind"].as_str().unwrap_or("event") == "event";
+        }
+        fingerprint + if only_events { ";events" } else { ";other" }
+    }
+
+    fn permits_source_skip(self, files: usize) -> bool {
+        match self {
+            Self::Events => true,
+            // Cross-file settlement only deduplicates events.
+            Self::Other => files == 1,
+            Self::Unknown | Self::Required => false,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -494,6 +547,7 @@ struct Input<'a> {
     fingerprint: Option<String>,
     hit: bool,
     had_cache: bool,
+    replay: CacheReplay,
 }
 
 fn merge_counts(totals: &mut Value, counts: impl IntoIterator<Item = (impl AsRef<str>, i64)>) {
@@ -620,20 +674,27 @@ fn sync_profiled(
                         })
                         .flatten();
                     let old = previous.remove(&file);
-                    let hit = !options.no_cache && fingerprint.is_some() && fingerprint == old;
+                    let (old_input, replay) =
+                        old.as_deref().map(CacheReplay::from_fingerprint).unzip();
+                    let hit = !options.no_cache
+                        && fingerprint.is_some()
+                        && fingerprint.as_deref() == old_input;
                     candidates.push(Input {
                         path,
                         file,
                         fingerprint,
                         hit,
                         had_cache: old.is_some(),
+                        replay: replay.unwrap_or(CacheReplay::Unknown),
                     });
                 }
                 let fingerprint_ns = start.elapsed().as_nanos() as u64;
                 let skip = cache_source
                     && !options.no_cache
                     && previous.is_empty()
-                    && candidates.iter().all(|input| input.hit)
+                    && candidates
+                        .iter()
+                        .all(|input| input.hit && input.replay.permits_source_skip(source_files))
                     && !ledger.cache_needs_replay(&source)?;
                 let cache_read_ns = start.elapsed().as_nanos() as u64;
                 phases.cache_read_ns += cache_read_ns;
@@ -661,6 +722,7 @@ fn sync_profiled(
                     fingerprint: before,
                     hit,
                     had_cache,
+                    replay,
                 } in candidates
                 {
                     if cancel.load(Ordering::Acquire) {
@@ -676,11 +738,19 @@ fn sync_profiled(
                         if let Some(output) = output {
                             merge_counts(&mut totals, output.notes);
                             phases.cached_files += 1;
+                            let update = if matches!(replay, CacheReplay::Unknown) {
+                                CacheUpdate::MarkReplay(CacheReplay::mark(
+                                    before.expect("cache hit requires a fingerprint"),
+                                    &output.records,
+                                ))
+                            } else {
+                                CacheUpdate::Keep
+                            };
                             parsed.push(Parsed {
                                 file,
                                 records: output.records,
                             });
-                            updates.push(CacheUpdate::Keep);
+                            updates.push(update);
                             if let Some(progress) = options.progress.as_deref_mut() {
                                 progress(Progress::FilesProcessed {
                                     count: 1,
@@ -756,11 +826,12 @@ fn sync_profiled(
                                 if after.as_ref() == Some(&before) {
                                     let start = Instant::now();
                                     let replaces = replacement_keys(&records);
+                                    let fingerprint = CacheReplay::mark(before, &records);
                                     let output = FileOutput { records, notes };
                                     let payload = serde_json::to_vec(&output)?;
                                     records = output.records;
                                     update = CacheUpdate::Store(CachedFile {
-                                        fingerprint: before,
+                                        fingerprint,
                                         payload,
                                         replaces,
                                     });
@@ -816,7 +887,46 @@ fn sync_profiled(
                         &crate::diagnostics::safe_anomaly(note, &files),
                     );
                 }
-                for (file, update) in parsed.into_iter().zip(updates) {
+                let cancelled = || cancel.load(Ordering::Acquire);
+                let write_skips = if options.no_cache {
+                    None
+                } else {
+                    let start = Instant::now();
+                    let candidates: Vec<_> = parsed
+                        .iter()
+                        .zip(&updates)
+                        .map(|(file, update)| WriteCandidate {
+                            file: &file.file,
+                            records: &file.records,
+                            elsewhere: elsewhere.get(&file.file).map_or(&[], Vec::as_slice),
+                            cache_unchanged: matches!(update, CacheUpdate::Keep),
+                        })
+                        .collect();
+                    let skips = ledger.write_skips(&candidates, revisions, cancelled)?;
+                    phases.write_skip_check_ns += start.elapsed().as_nanos() as u64;
+                    Some(skips)
+                };
+                for (index, (file, update)) in parsed.into_iter().zip(updates).enumerate() {
+                    if let Some(skips) = &write_skips {
+                        if cancelled() {
+                            return Err(Error("cancelled".into()));
+                        }
+                        let start = Instant::now();
+                        let skip = skips.contains(index, &ledger)?;
+                        phases.write_skip_check_ns += start.elapsed().as_nanos() as u64;
+                        if skip {
+                            if phases.write_skipped_files == 0 {
+                                merge_counts(&mut totals, BATCH_COUNT_FIELDS.map(|key| (key, 0)));
+                            }
+                            phases.write_skipped_files += 1;
+                            for field in ["attempted", "unchanged"] {
+                                totals[field] = json!(
+                                    totals[field].as_u64().unwrap() + file.records.len() as u64
+                                );
+                            }
+                            continue;
+                        }
+                    }
                     let start = Instant::now();
                     let cache_before = phases.cache_write_ns;
                     let (stats, timing_file_revisions_read_ns) = ledger.batch_with_commit(
@@ -827,15 +937,36 @@ fn sync_profiled(
                             elsewhere.get(&file.file).map(Vec::as_slice).unwrap_or(&[]),
                         ),
                         |record| ledger.prices.cost_of(record),
-                        || cancel.load(Ordering::Acquire),
+                        cancelled,
                         |transaction| {
-                            let cached = match &update {
-                                CacheUpdate::Keep => return Ok(()),
-                                CacheUpdate::Invalidate => None,
-                                CacheUpdate::Store(cached) => Some(cached),
-                            };
                             let start = Instant::now();
-                            Ledger::write_ingest_file(transaction, &source, &file.file, cached)?;
+                            match &update {
+                                CacheUpdate::Keep => return Ok(()),
+                                CacheUpdate::Invalidate => {
+                                    Ledger::write_ingest_file(
+                                        transaction,
+                                        &source,
+                                        &file.file,
+                                        None,
+                                    )?;
+                                }
+                                CacheUpdate::Store(cached) => {
+                                    Ledger::write_ingest_file(
+                                        transaction,
+                                        &source,
+                                        &file.file,
+                                        Some(cached),
+                                    )?;
+                                }
+                                CacheUpdate::MarkReplay(fingerprint) => {
+                                    Ledger::mark_ingest_file(
+                                        transaction,
+                                        &source,
+                                        &file.file,
+                                        fingerprint,
+                                    )?;
+                                }
+                            }
                             phases.cache_write_ns += start.elapsed().as_nanos() as u64;
                             Ok(())
                         },
@@ -1041,6 +1172,7 @@ mod tests {
             "cacheReplayCheckNs",
             "cachePayloadReadNs",
             "settleNs",
+            "writeSkipCheckNs",
             "writeNs",
             "repriceNs",
             "finishRunNs",
@@ -1056,10 +1188,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let home = directory.path().join("home");
         let data = directory.path().join("data");
-        let logs = home.join(".claude/projects");
+        let logs = home.join(".codex/sessions");
         std::fs::create_dir_all(&logs).unwrap();
-        let text = r#"{"sessionId":"session","timestamp":"2026-01-15T01:00:00Z","message":{"id":"message","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":2}}}"#;
-        std::fs::write(logs.join("original.jsonl"), text).unwrap();
+        let text = r#"{"type":"token_usage_record","timestamp":"2026-01-15T01:00:00Z","payload":{"session_id":"session","response_id":"resp_synthetic_original","usage":{"model":"gpt-5.3-codex","input_tokens":10,"output_tokens":2}}}"#;
+        std::fs::write(logs.join("rollout-original.jsonl"), text).unwrap();
         let env = Environment::default();
         let clock = Clock::Fixed(1768478400000);
         let run = || {
@@ -1084,8 +1216,8 @@ mod tests {
             .unwrap();
         assert!(blob_bytes > 0);
         std::fs::write(
-            logs.join("changed.jsonl"),
-            text.replace("\"id\":\"message\"", "\"id\":\"other\""),
+            logs.join("rollout-changed.jsonl"),
+            text.replace("resp_synthetic_original", "resp_synthetic_other"),
         )
         .unwrap();
         let (result, phases) = run();
@@ -1102,8 +1234,11 @@ mod tests {
         .map(|key| phases[key].as_u64().unwrap())
         .sum();
         assert_eq!(phases["cacheReadNs"], cache_read_ns);
-        assert_eq!(phases["writeRecords"], 2);
-        assert_eq!(phases["writeTransactions"], 2);
+        assert_eq!(result["attempted"], 2);
+        assert_eq!(result["unchanged"], 1);
+        assert_eq!(phases["writeTransactions"], 1);
+        assert_eq!(phases["writeRecords"], 1);
+        assert_eq!(phases["writeSkippedFiles"], 1);
 
         let export = crate::diagnostics::RuntimeLog::new(&data, Some(&home))
             .export(&ledger, &directory.path().join("export"), &home, &env)

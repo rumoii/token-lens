@@ -18,7 +18,9 @@ use std::sync::LazyLock;
 use std::time::Instant;
 mod ingest_cache;
 mod read;
+mod skip_write;
 pub(in crate::stats) use ingest_cache::{CachedFile, FileOutput};
+pub(in crate::stats) use skip_write::WriteCandidate;
 
 const TOKENS: [&str; 4] = [
     "input_tokens",
@@ -55,6 +57,15 @@ static INSERT_USAGE: LazyLock<String> = LazyLock::new(|| {
     )
 });
 const DELETE_TIMING: &str = "DELETE FROM usage_timings WHERE record_key=?";
+pub(in crate::stats) const BATCH_COUNT_FIELDS: [&str; 7] = [
+    "relabeled",
+    "reactivated",
+    "replaced",
+    "deactivated",
+    "vanished",
+    "rev_corrections",
+    "cumulative_decrease",
+];
 
 pub struct Ledger {
     pub db: Connection,
@@ -595,7 +606,11 @@ impl Ledger {
         let transaction = Transaction::new_unchecked(&self.db, TransactionBehavior::Immediate)?;
         let before = self.db.total_changes();
         let mut timing_upserted = false;
-        let mut stats = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"counts":{"relabeled":0,"reactivated":0,"replaced":0,"deactivated":0,"vanished":0,"rev_corrections":0,"cumulative_decrease":0},"anomalies":[]});
+        let counts = BATCH_COUNT_FIELDS
+            .into_iter()
+            .map(|field| (field.to_owned(), json!(0)))
+            .collect::<serde_json::Map<_, _>>();
+        let mut stats = json!({"attempted":0,"inserted":0,"updated":0,"unchanged":0,"rejected":0,"counts":counts,"anomalies":[]});
         let mut produced = HashSet::new();
         for record in records {
             if cancelled() {
@@ -761,10 +776,7 @@ impl Ledger {
         if let (Some(file), Some(revision)) = (file, revisions.timing) {
             // A successful new timing revision may revoke timings even when the empty-output
             // guard deliberately preserves the historical usage rows.
-            let data_version = self
-                .db
-                .prepare_cached("PRAGMA data_version")?
-                .query_row([], |row| row.get(0))?;
+            let data_version = self.data_version()?;
             let previous = self.timing_revisions.borrow_mut().take();
             let current = match previous {
                 Some(mut previous)

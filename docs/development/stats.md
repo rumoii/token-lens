@@ -140,32 +140,32 @@ D3 的 Node 对拍基线仍为 v5。桌面版增加独立的 `usage_timings`，�
 
 **分段计时**：每次成功的同步在运行日志的 `end` 行后写一行 `phases {…}`，记录发现、读取、解压、文本解析、SQLite 来源读取加解析、settle、写入、缓存读写、重新计价和收尾各段的纳秒耗时，以及文件数、字节数、写入事务数、`parsedFiles`/`cachedFiles`/`skippedFiles` 和各来源耗时。这一行只含数字和来源名，不含路径或日志内容。`app/rust/examples/sync_bench.rs` 用固定种子生成合成日志，测冷同步和文件不变的重同步，并导出规范化快照的 SHA-256（去掉自增 id 和导入时间，`superseded_by` 换成记录键）；后续改动以快照哈希不变证明结果不变。
 
-**写入路径**：批处理里的常用语句使用连接的预编译语句缓存；当前记录没有计时且确认没有旧计时行时不发 DELETE。每个文件结束时的计时版本撤销查询（按 source_file 和 TIMING_REV 筛 `usage_timings`）只在该文件可能有旧版本计时时执行：账本连接在内存里记下每个文件已有的计时版本，在写事务里读取，用 `PRAGMA data_version` 和 `total_changes` 识别两次文件事务之间其他连接或本连接的修改，一旦不一致就重新读取；只在事务提交成功后保存，出错或取消时丢弃。每个文件仍是一个事务。
+**写入路径**：每个实际写入的文件各用一个事务。批处理里的常用语句使用连接的预编译语句缓存。当前记录没有计时且确认没有旧计时行时不发 DELETE。文件可能有旧版本计时时，批处理按 `source_file` 和 `TIMING_REV` 查询需要撤销的行。账本连接在内存里记录各文件的计时版本，用 `PRAGMA data_version` 和 `total_changes` 识别两次文件事务之间的修改，发现修改就重读。事务提交成功后才保存该记录，出错或取消时丢弃。
 
 **文件缓存**：v7 在 `ledger.db` 里增加四张表，不改 `usage_records`、`usage_timings` 和 `ingest_runs` 的列：
 
 | 表 | 内容 |
 | --- | --- |
-| `ingest_files` | 主键 `(source, path)`。`fingerprint` 是命中条件的编码；`payload` 是该文件上一次完整解析的输出：无效时间过滤之后、settle 之前的有序记录（保留 NULL、文件内重复身份、`replaces` 和完整 timing 对象）以及适配器 notes。不存日志原文。 |
+| `ingest_files` | 主键 `(source, path)`。`fingerprint` 编码命中条件，可附带整源跳过所需的重放标记。`payload` 保存上一次完整解析的有序输出（无效时间过滤后、settle 前，保留 NULL、文件内重复键、`replaces` 和完整 timing 对象）及适配器 notes。不存日志原文。 |
 | `ingest_file_replaces` | 主键 `(source, path, target)`，缓存记录里非空且不指向自身的 `replaces` 目标，随对应文件的缓存级联删除。 |
 | `ingest_pending_sources` | 一个来源开始逐文件提交前写入，整个来源处理完后清除；进程中断后，即使剩余文件全部命中，下一轮也按原顺序重新处理这个来源。 |
 | `ingest_run_files` | 主键 `run_id`（关联 `ingest_runs.id`），记录该次运行的 `parsed_files`、`cached_files`、`skipped_files`，与运行结果一起提交。 |
 
 命中要求以下各项都与缓存一致：文件身份路径、大小、系统给出的最高精度修改时间、全部旁文件的路径和状态（含“不存在”）、该来源的 `PARSER_REV` 和 `TIMING_REV`、解析时区身份、缓存格式版本（当前为 1）。有任何一项缺失或不同就重新解析。旁文件：Grok 与 `updates.jsonl` 同级的 `summary.json`；Cline（含 Roo）与 `api_conversation_history.json` 同级的 `ui_messages.json`；CodeBuddy 桌面 JSON 主文件上两级目录的 `index.json`；OpenHands `base_state.json` 同级 `events/` 下按适配器规则匹配的事件文件（按文件名排序）。时区身份在 Windows 上取系统动态时区 ID、偏差和夏令时规则，其他平台取系统时区身份和本机时区规则文件的状态；时区变化让全部普通文件的缓存失效。
 
-SQLite 来源（hermes、cursor 数据库、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm、antigravity）不缓存，每轮照常读取、settle 和写入，因为已提交数据可能只在 WAL 里。Copilot 的 `session-store.db` 和 Antigravity 的 `conversation_summaries.db` 同样每轮实时读取。Cursor 的 CSV 是普通文件，参与缓存。
+SQLite 来源（hermes、cursor 数据库、opencode、kilo、goose、zed、copilot、mimo、minimax、zcode、anythingllm、antigravity）每轮实时读取并 settle，因为已提交数据可能只在 WAL 里。Copilot 的 `session-store.db` 和 Antigravity 的 `conversation_summaries.db` 同样每轮实时读取。Cursor 的 CSV 是普通文件，参与缓存。
 
 按来源处理：
 
-- 来源的发现文件集合与上次相同、每个文件都命中、没有待处理标记，且缓存里没有 `replaces` 指向账本中仍然有效的行时，跳过该来源的 settle 和全部账本写入。最后一条防止“同一文件里替换记录排在被替换记录前面”这种要两轮才收敛的情况在第二轮被跳过；这种情况下第二轮用缓存结果重新处理一次，结果与不用缓存逐轮一致。
-- 来源有任何变化时，命中的文件加载缓存结果，未命中的重新解析，然后对整个来源照原样 settle，并对每个文件照原样写入。文件缓存行与该文件的用量、计时在同一事务提交；取消或出错时一起回滚，下一轮补上。
+- 发现文件集合与上次相同、全部命中、没有待处理标记或仍有效的替换目标，且重放标记确认解析输出没有文件内重复键和 `replaces` 时，可以整源跳过。多个文件还要求全部是事件记录，因为 settle 只合并事件副本。旧缓存没有重放标记时，复用原解析输出并在处理文件时补记。
+- 来源未整源跳过时，命中的文件加载缓存结果，未命中的重新解析，再对整个来源 settle。如果只读查询能证明文件批次不会改动账本、更新文件缓存或产生其他计数与异常，就跳过该笔事务。其他文件保持原顺序。文件缓存与该文件的用量、计时在同一事务提交，取消或出错时一起回滚。
 - 解析前后各取一次指纹，不一致时本轮照常使用解析结果但不写缓存，下轮重新解析。无法反序列化的缓存在需要时回源重读。
 - 读取失败计入 `read_failed`，排除出 settle，不发 batch，并让该文件的缓存失效。退出发现集合的文件删除缓存；账本里的历史用量照原规则保留（vanished）。
 - 价格变化不让采集解析缓存失效。全部来源都跳过时，同步仍按生效价格版本检查并重算有效记录。查询保留账本已存总额，记录版本与当前生效版本不同时分项暂为空。联机价格表与手填价的格式和版本规则见 [定价与金额契约](pricing.md)。
 
 **快速模式的已知限制**：大小和修改时间都不变、内容却变了的文件，缓存发现不了。此时用“重新读取全部日志”（`reread`）：它不看缓存，重新解析每个候选文件，对全部来源照原样写入并重建缓存。它不清空账本，vanished 保留等规则照旧。
 
-**同步结果**：`sync` 返回和 `StatsSync` 保留原字段，并新增 `parsedFiles`（本轮交给适配器解析的文件数，含 SQLite 和读取失败项）、`cachedFiles`（本轮处理的来源里沿用缓存的文件数）、`skippedFiles`（整个来源被跳过的文件数）。`fileCount` 仍是发现的文件总数。`attempted`、`inserted`、`updated`、`unchanged`、`rejected` 和 `counts` 只统计本轮实际处理的部分，被跳过的来源计 0。与 Node 对拍的 golden 用 `reread` 路径运行；缓存路径由缓存、重读、基线三方逐步对拍和单元测试覆盖。
+**同步结果**：`parsedFiles` 是交给适配器解析的文件数（含 SQLite 和读取失败项），`cachedFiles` 是本轮处理的来源里沿用缓存的文件数，`skippedFiles` 是整源跳过的文件数，`fileCount` 是发现的文件总数。整源跳过的文件不计入用量计数。完成 settle 后跳过写事务的文件，其记录照常计入 `attempted` 和 `unchanged`。仅在 `sync phases` 里记录实际交给写入器的 `writeRecords`、已提交的文件事务数 `writeTransactions`、省掉的文件事务数 `writeSkippedFiles` 和判断耗时 `writeSkipCheckNs`。Node golden 用 `reread` 运行。增量同步对照器用两份独立账本比较普通同步与 `no_cache` 的用量和计时全列及汇总。
 
 **v7 迁移与回退**：已有磁盘账本升 v7 前，用单独的只读连接 `VACUUM INTO` 生成一致的 v6 备份 `ledger-v6-YYYY-MM-DD-<毫秒时间>-<序号>.db`（同目录，不覆盖已有文件），再在一个事务里建上述四张表并设 user_version=7，提交后写一行 `migration schema=6->7`。v6 的桌面程序拒绝打开 v7；恢复方法与 v5 备份相同，见 app/README.md。升级后第一轮同步全部未命中，等同一次完整读取。
 

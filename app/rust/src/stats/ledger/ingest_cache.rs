@@ -147,4 +147,16 @@ impl Ledger {
         }
         Ok(())
     }
+
+    pub(in crate::stats) fn mark_ingest_file(
+        transaction: &Transaction<'_>,
+        source: &str,
+        path: &str,
+        fingerprint: &str,
+    ) -> Result<()> {
+        transaction
+            .prepare_cached("UPDATE ingest_files SET fingerprint=? WHERE source=? AND path=?")?
+            .execute(params![fingerprint, source, path])?;
+        Ok(())
+    }
 }
