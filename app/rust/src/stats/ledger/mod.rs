@@ -227,6 +227,47 @@ fn gross(record: &Value) -> i64 {
         .sum()
 }
 
+const TIMING_FIELDS: [&str; 9] = [
+    "ttft_ms",
+    "ttft_method",
+    "generation_ms",
+    "generation_method",
+    "duration_ms",
+    "duration_method",
+    "timing_output_tokens",
+    "scope",
+    "status",
+];
+static UNKNOWN_TIMING_STATUS: LazyLock<Value> = LazyLock::new(|| json!("unknown"));
+
+fn timing_values<'a>(
+    record: &'a Value,
+    retainable: Option<[&'a Value; TIMING_FIELDS.len()]>,
+) -> Option<[&'a Value; TIMING_FIELDS.len()]> {
+    let parsed = &record["timing"];
+    let retained = retainable.filter(|old| {
+        old[8] == "completed"
+            || !parsed.is_object()
+            || [0, 2, 4]
+                .into_iter()
+                .any(|i| !old[i].is_null() && parsed[TIMING_FIELDS[i]].is_null())
+    });
+    if record["kind"].as_str().unwrap_or("event") != "event"
+        || (!parsed.is_object() && retained.is_none())
+    {
+        return None;
+    }
+    let mut values = retained.unwrap_or_else(|| TIMING_FIELDS.map(|key| &parsed[key]));
+    if values[8].is_null() {
+        values[8] = &UNKNOWN_TIMING_STATUS;
+    }
+    Some(values)
+}
+
+fn timing_hash(values: &[&Value; TIMING_FIELDS.len()]) -> Result<String> {
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(values)?)))
+}
+
 #[derive(Clone, Copy)]
 pub struct Revisions {
     pub usage: Option<i64>,
@@ -438,55 +479,29 @@ impl Ledger {
         );
         // Both metrics belong to one usage payload and one first-output instant.
         // Changed usage must replace its timing even in the same file and revision.
-        let retain_old = usage_unchanged
-            && old.as_ref().is_some_and(|row| {
+        let retainable = old
+            .as_ref()
+            .filter(|row| {
                 let old_revision = row["parser_rev"].as_i64().unwrap_or(1);
-                revision.unwrap_or(old_revision) == old_revision
+                usage_unchanged
+                    && revision.unwrap_or(old_revision) == old_revision
                     && source_file == row["source_file"]
-                    && (row["status"] == "completed"
-                        || !record["timing"].is_object()
-                        || ["ttft_ms", "generation_ms", "duration_ms"]
-                            .iter()
-                            .any(|metric| {
-                                !row[*metric].is_null() && record["timing"][*metric].is_null()
-                            }))
-            });
-        if record["kind"].as_str().unwrap_or("event") != "event"
-            || (!record["timing"].is_object() && !retain_old)
-        {
+            })
+            .map(|row| TIMING_FIELDS.map(|key| &row[key]));
+        let Some(values) = timing_values(record, retainable) else {
             if old.is_some() {
                 self.db
                     .prepare_cached(DELETE_TIMING)?
                     .execute([record["record_key"].as_str()])?;
             }
             return Ok(false);
-        }
-        let mut timing = if retain_old {
-            old.as_ref().unwrap().clone()
-        } else {
-            record["timing"].clone()
         };
-        if timing["status"].is_null() {
-            timing["status"] = json!("unknown");
-        }
-        let fields = [
-            "ttft_ms",
-            "ttft_method",
-            "generation_ms",
-            "generation_method",
-            "duration_ms",
-            "duration_method",
-            "timing_output_tokens",
-            "scope",
-            "status",
-        ];
-        let values: Vec<Value> = fields.iter().map(|key| timing[*key].clone()).collect();
-        let hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&values)?));
-        let mut args = vec![record["record_key"].clone(), record["source"].clone()];
+        let hash = json!(timing_hash(&values)?);
+        let mut args = vec![&record["record_key"], &record["source"]];
         args.extend(values);
-        args.extend([source_file, timing_rev, json!(hash)]);
+        args.extend([&source_file, &timing_rev, &hash]);
         let written = self.db.prepare_cached("INSERT INTO usage_timings(record_key,source,ttft_ms,ttft_method,generation_ms,generation_method,duration_ms,duration_method,timing_output_tokens,scope,status,source_file,parser_rev,timing_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(record_key) DO UPDATE SET source=excluded.source,ttft_ms=excluded.ttft_ms,ttft_method=excluded.ttft_method,generation_ms=excluded.generation_ms,generation_method=excluded.generation_method,duration_ms=excluded.duration_ms,duration_method=excluded.duration_method,timing_output_tokens=excluded.timing_output_tokens,scope=excluded.scope,status=excluded.status,source_file=excluded.source_file,parser_rev=excluded.parser_rev,timing_hash=excluded.timing_hash WHERE usage_timings.timing_hash!=excluded.timing_hash OR usage_timings.source_file IS NOT excluded.source_file OR usage_timings.parser_rev IS NOT excluded.parser_rev")?
-            .execute(params_from_iter(args.iter().map(sql_value)))?;
+            .execute(params_from_iter(args.into_iter().map(sql_value)))?;
         Ok(written > 0)
     }
 
