@@ -748,6 +748,36 @@ fn oversized_index_falls_back_to_full_replay_and_idle_skip() {
 }
 
 #[test]
+fn oversized_index_disables_later_sources_in_the_same_round() {
+    let mut oracle = Oracle::new();
+    let event = |id| Event {
+        id,
+        minute: id as i64,
+        tokens: 10,
+    };
+    for source in [Source::Claude, Source::Codex] {
+        for id in 0..4 {
+            oracle.write(
+                &source.path(&oracle.home, id, false),
+                encode(source, &[event(id)]),
+            );
+        }
+    }
+    let (_, (_, cold)) = oracle.compare_all("both sources build an index");
+    assert_eq!(cold["indexRebuilds"], 2);
+
+    oracle.executor.memory_limit = Some(1);
+    for source in [Source::Claude, Source::Codex] {
+        let active = source.path(&oracle.home, 0, false);
+        oracle.write(&active, encode(source, &[event(0), event(4)]));
+    }
+    let (_, (receipt, hot)) = oracle.compare_all("the first source exhausts the budget");
+    assert_eq!(hot["indexHits"], 3);
+    assert_eq!(receipt["cachedFiles"], 3);
+    assert_eq!(hot["indexMemoryBytes"], 0);
+}
+
+#[test]
 fn persistent_hot_round_only_decodes_an_affected_cache_hit() {
     for source in [Source::Codex, Source::Claude] {
         let mut oracle = Oracle::new();

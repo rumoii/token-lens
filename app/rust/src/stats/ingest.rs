@@ -1066,7 +1066,9 @@ fn sync_profiled(
                 let indexed = indexes.usable && target;
                 let mut remove: Vec<String> = previous.into_keys().collect();
                 let mut state = indexes.sources.remove(&source).filter(|state| {
-                    state.revisions == revisions && state.index.compatible(&candidates, &remove)
+                    indexed
+                        && state.revisions == revisions
+                        && state.index.compatible(&candidates, &remove)
                 });
                 if state.is_some()
                     && candidates
