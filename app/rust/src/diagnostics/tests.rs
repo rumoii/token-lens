@@ -573,6 +573,48 @@ fn diag_log_concurrent_writes_survive_a_stalled_writer() {
 }
 
 #[test]
+fn settings_export_includes_sync_phases_after_short_writer_backlog() {
+    if run_lock_test_in_child(
+        "diagnostics::tests::settings_export_includes_sync_phases_after_short_writer_backlog",
+    ) {
+        return;
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let data = temp.path().join("data");
+    let home = temp.path().join("home");
+    fs::create_dir(&home).unwrap();
+    let ledger = Ledger::open(&data.join("ledger.db"), Clock::System).unwrap();
+    let log = RuntimeLog::new(&data, Some(&home));
+    wait_for_logs();
+    let gate = WRITER.lock().unwrap();
+    log.write("INFO", "sync", r#"phases {"attempted":2}"#);
+    let (flush_started, flushing) = std::sync::mpsc::channel();
+    *writer::FLUSH_STARTED.lock().unwrap() = Some(flush_started);
+
+    std::thread::scope(|scope| {
+        let (exported, export) = std::sync::mpsc::channel();
+        let destination = temp.path().join("export");
+        scope.spawn(move || {
+            let path = log
+                .export(&ledger, &destination, &home, &Environment::default())
+                .unwrap();
+            exported.send(fs::read_to_string(path).unwrap()).unwrap();
+        });
+        let started = flushing.recv_timeout(StdDuration::from_secs(2));
+        // Keep the accepted phase line pending beyond the old 200 ms deadline.
+        let early = export.recv_timeout(StdDuration::from_millis(400));
+        drop(gate);
+        started.unwrap();
+        let text =
+            early.unwrap_or_else(|_| export.recv_timeout(StdDuration::from_secs(5)).unwrap());
+        assert!(
+            text.contains(r#" INFO sync phases {"attempted":2}"#),
+            "{text}"
+        );
+    });
+}
+
+#[test]
 fn diag_log_runtime_exit_flushes_before_returning() {
     let temp = tempfile::tempdir().unwrap();
     let log = RuntimeLog::new(temp.path(), None);

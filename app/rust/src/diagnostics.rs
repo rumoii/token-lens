@@ -16,6 +16,7 @@ const LOG_LIMIT: u64 = 5 * 1024 * 1024;
 const EXPORT_LIMIT: usize = 8 * 1024 * 1024;
 const LIMIT_MARK: &str = "已达上限";
 pub(crate) const LOG_FLUSH_TIMEOUT: StdDuration = StdDuration::from_millis(200);
+const SETTINGS_EXPORT_FLUSH_TIMEOUT: StdDuration = StdDuration::from_secs(5);
 
 mod writer;
 
@@ -707,9 +708,16 @@ impl RuntimeLog {
             }
         };
         let mut text = sanitize(&text);
+        let flush_timeout = if startup.is_some() {
+            LOG_FLUSH_TIMEOUT
+        } else {
+            SETTINGS_EXPORT_FLUSH_TIMEOUT
+        };
+        if !flush_runtime_log(flush_timeout) && startup.is_none() {
+            text.push_str("[运行日志写入尚未完成，最近的日志可能缺失]\n");
+        }
         let mut budget = EXPORT_LIMIT.saturating_sub(text.len().saturating_add(256));
         let mut skipped = 0_u64;
-        let _ = flush_runtime_log(LOG_FLUSH_TIMEOUT);
         let log_dir = self.data.join("logs");
         if (startup.is_none() || self.data.is_absolute()) && checked_existing_directory(&log_dir) {
             let entries = match fs::read_dir(&log_dir) {
