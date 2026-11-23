@@ -6,6 +6,9 @@
 #include <flutter/method_channel.h>
 
 #include <memory>
+#include <optional>
+#include <string>
+#include <utility>
 
 #include "win32_window.h"
 
@@ -27,6 +30,8 @@ class FlutterWindow : public Win32Window {
   static LRESULT CALLBACK ChildWindowProc(HWND hwnd, UINT message, WPARAM wparam,
                                           LPARAM lparam, UINT_PTR subclass,
                                           DWORD_PTR ref);
+  bool UpdatePillRegion();
+  bool SetPillTooltip(const std::string* text);
 
   // The project to run.
   flutter::DartProject project_;
@@ -37,6 +42,10 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_channel_;
   bool mini_frame_ = false;
   bool rounded_mini_frame_ = false;
+  bool pill_frame_ = false;
+  std::optional<std::pair<LONG, LONG>> pill_clip_;
+  HWND pill_tooltip_ = nullptr;
+  std::wstring pill_tooltip_text_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_
