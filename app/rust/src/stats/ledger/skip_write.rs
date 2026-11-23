@@ -1,6 +1,6 @@
 use super::{
-    payload_hash, timing_hash, timing_values, validate, Error, HashMap, HashSet, Ledger, Result,
-    Revisions, Value, ValueRef, TIMING_FIELDS,
+    payload_hash, replacement_targets, timing_hash, timing_values, validate, Error, HashMap,
+    HashSet, Ledger, Result, Revisions, Value, ValueRef, TIMING_FIELDS,
 };
 use rusqlite::{params, Row};
 use serde_json::json;
@@ -51,23 +51,25 @@ impl Ledger {
                 isolated[index] = false;
                 isolated[other] = false;
             }
-            // Include even batches that cannot skip: they can update or supersede
-            // a key before a later batch would read it.
-            for record in input.records {
-                let key = record["record_key"].as_str();
-                for touched in key.into_iter().chain(
-                    record["replaces"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_str),
-                ) {
-                    if let Some(other) = keys.insert(touched, index) {
-                        if other != index {
-                            isolated[index] = false;
-                            isolated[other] = false;
-                        }
-                    }
+            for key in input
+                .records
+                .iter()
+                .filter_map(|r| r["record_key"].as_str())
+            {
+                if let Some(other) = keys.insert(key, index).filter(|other| *other != index) {
+                    isolated[index] = false;
+                    isolated[other] = false;
+                }
+            }
+        }
+        for (index, input) in files.iter().enumerate() {
+            check_cancelled(&cancelled)?;
+            // A batch may activate a later batch's target, or supersede a key
+            // read by another batch. Two declarations alone can only deactivate it.
+            for target in input.records.iter().flat_map(replacement_targets) {
+                if let Some(other) = keys.get(target).copied().filter(|other| *other != index) {
+                    isolated[index] = false;
+                    isolated[other] = false;
                 }
             }
         }
@@ -79,8 +81,7 @@ impl Ledger {
             }
             let mut records = HashMap::with_capacity(input.records.len());
             let eligible = input.records.iter().all(|record| {
-                record.get("replaces").is_none()
-                    && matches!(record["kind"].as_str(), Some("event" | "cumulative"))
+                matches!(record["kind"].as_str(), Some("event" | "cumulative"))
                     && validate(record).is_none()
                     && records
                         .insert(record["record_key"].as_str().unwrap(), record)
@@ -108,6 +109,35 @@ impl Ledger {
         // file nor reach its checked keys. File-level cleanup can only remove
         // rows, so an already covered omission set stays covered.
         let data_version = self.data_version()?;
+        let targets: HashSet<_> = proofs
+            .values()
+            .flat_map(|proof| proof.records.values())
+            .flat_map(|record| replacement_targets(record))
+            .collect();
+        if !targets.is_empty() {
+            let mut statement = self.db.prepare_cached(
+                "SELECT u.record_key FROM json_each(?) AS target
+                 JOIN usage_records u ON u.record_key=target.value WHERE u.active=1",
+            )?;
+            let mut rows = statement.query([serde_json::to_string(&targets)?])?;
+            let mut active = HashSet::new();
+            while let Some(row) = rows.next()? {
+                check_cancelled(&cancelled)?;
+                active.insert(row.get::<_, String>(0)?);
+            }
+            if !active.is_empty() {
+                proofs.retain(|_, proof| {
+                    !proof
+                        .records
+                        .values()
+                        .flat_map(|record| replacement_targets(record))
+                        .any(|target| active.contains(target))
+                });
+                if proofs.is_empty() {
+                    return Ok(WriteSkips::default());
+                }
+            }
+        }
         let paths = serde_json::to_string(&proofs.keys().collect::<Vec<_>>())?;
         let timing_fields = TIMING_FIELDS.map(|field| format!("t.{field}")).join(",");
         let sql = format!(

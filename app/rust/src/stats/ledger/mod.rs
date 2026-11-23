@@ -184,6 +184,16 @@ pub fn payload_hash(record: &Value) -> String {
     format!("{:x}", Sha256::digest(payload_input(record).as_bytes()))[..32].into()
 }
 
+pub(in crate::stats) fn replacement_targets(record: &Value) -> impl Iterator<Item = &str> {
+    let key = record["record_key"].as_str();
+    record["replaces"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(move |target| !target.is_empty() && Some(*target) != key)
+}
+
 fn validate(r: &Value) -> Option<String> {
     if !r.is_object() {
         return Some("record 不是对象".into());
@@ -517,18 +527,12 @@ impl Ledger {
     }
 
     fn supersede(&self, record: &Value, id: i64, stats: &mut Value) -> Result<()> {
-        if let Some(replaces) = record["replaces"].as_array() {
-            for key in replaces {
-                if key.as_str().is_some_and(|k| !k.is_empty()) && *key != record["record_key"] {
-                    let count = self.db.prepare_cached("UPDATE usage_records SET active=0,superseded_by=? WHERE record_key=? AND active=1")?
-                        .execute(params![id, key.as_str()])?;
-                    if count > 0 {
-                        self.db
-                            .prepare_cached(DELETE_TIMING)?
-                            .execute([key.as_str()])?;
-                        increment(&mut stats["counts"], "replaced");
-                    }
-                }
+        for key in replacement_targets(record) {
+            let count = self.db.prepare_cached("UPDATE usage_records SET active=0,superseded_by=? WHERE record_key=? AND active=1")?
+                .execute(params![id, key])?;
+            if count > 0 {
+                self.db.prepare_cached(DELETE_TIMING)?.execute([key])?;
+                increment(&mut stats["counts"], "replaced");
             }
         }
         Ok(())
