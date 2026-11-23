@@ -115,9 +115,12 @@ impl Ledger {
             .flat_map(|record| replacement_targets(record))
             .collect();
         if !targets.is_empty() {
+            // Drive the join from the target list so each lookup uses the
+            // unique record_key index instead of rescanning the JSON per active row.
             let mut statement = self.db.prepare_cached(
                 "SELECT u.record_key FROM json_each(?) AS target
-                 JOIN usage_records u ON u.record_key=target.value WHERE u.active=1",
+                 CROSS JOIN usage_records u ON u.record_key=target.value
+                 WHERE u.active=1",
             )?;
             let mut rows = statement.query([serde_json::to_string(&targets)?])?;
             let mut active = HashSet::new();
