@@ -333,6 +333,7 @@ class StatsController extends ChangeNotifier {
       ].contains(overview?.sources.lastRun?.status);
   bool _closed = false, _disposed = false, _started = false;
   int _generation = 0, _statusGeneration = 0;
+  bool _syncTimerEnabled = false;
   Timer? _timer, _conflictTimer;
   String? _syncTrigger;
   Future<void>? _sync, _shutdown, _statusRead;
@@ -400,23 +401,28 @@ class StatsController extends ChangeNotifier {
   }
 
   void _startSyncTimer() {
-    if (!_started || _closed) return;
-    _timer ??= Timer.periodic(
+    if (!_started || _closed || _syncTimerEnabled) return;
+    _syncTimerEnabled = true;
+    _restartSyncTimer();
+  }
+
+  void _restartSyncTimer() {
+    if (!_syncTimerEnabled || _closed) return;
+    _timer?.cancel();
+    _timer = null;
+    if (_sync != null) return;
+    _timer = Timer(
       Duration(seconds: miniMode ? preferences.mini.seconds : 300),
-      (_) {
-        if (_sync != null || _statusRead != null || _miniRead != null || busy) {
+      () {
+        _timer = null;
+        if (_sync != null) return;
+        if (_statusRead != null || _miniRead != null || busy) {
+          _restartSyncTimer();
           return;
         }
         unawaited(sync(trigger: 'timer'));
       },
     );
-  }
-
-  void _restartSyncTimer() {
-    if (_timer == null) return;
-    _timer!.cancel();
-    _timer = null;
-    _startSyncTimer();
   }
 
   Future<void> setMiniMode(bool value) async {
@@ -805,7 +811,10 @@ class StatsController extends ChangeNotifier {
 
   Future<void> sync({String trigger = 'manual'}) {
     if (_closed || phase == StatsSyncPhase.conflict) return Future.value();
-    return _sync ??= _synchronize(trigger).whenComplete(() => _sync = null);
+    return _sync ??= _synchronize(trigger).whenComplete(() {
+      _sync = null;
+      _restartSyncTimer();
+    });
   }
 
   Future<void> rereadLogs() => sync(trigger: 'reread');

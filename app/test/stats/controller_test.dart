@@ -35,7 +35,222 @@ class StatusGateway extends FakeStatsGateway {
   }
 }
 
+StatsController pacingController(
+  FakeStatsGateway gateway, {
+  bool onboarded = true,
+}) {
+  final controller = StatsController(
+    gateway,
+    preferences: UiPreferences(
+      onboarded: onboarded,
+      autoCheckUpdates: false,
+      miniHintDismissed: true,
+      mini: const MiniPreferences(seconds: 10),
+    ),
+    clock: () => demoNow,
+    prefetchEnabled: false,
+  );
+  addTearDown(controller.dispose);
+  return controller;
+}
+
 void main() {
+  group('定时同步从上次结束开始计时', () {
+    for (final onboarded in [true, false]) {
+      testWidgets(onboarded ? '启动同步结束后等满间隔' : '首次引导同步结束后等满间隔', (tester) async {
+        final fake = FakeStatsGateway()..empty = true;
+        final c = pacingController(fake, onboarded: onboarded);
+        try {
+          await c.setMiniMode(true);
+          if (!onboarded) {
+            await c.start();
+            await tester.pump(const Duration(minutes: 6));
+            expect(fake.syncs, 0);
+          }
+
+          final barrier = fake.syncBarrier = Completer<void>();
+          final first = onboarded ? c.start() : c.startOnboardingSync();
+          await tester.pump();
+          expect(fake.syncs, 1);
+          await tester.pump(const Duration(seconds: 3));
+          barrier.complete();
+          await first;
+
+          await tester.pump(const Duration(seconds: 9));
+          expect(fake.syncs, 1);
+          await tester.pump(const Duration(seconds: 1));
+          expect(fake.syncs, 2);
+        } finally {
+          await c.shutdown();
+        }
+      });
+    }
+
+    testWidgets('手动同步耗时 30 秒，结束后再等满 10 秒', (tester) async {
+      final fake = FakeStatsGateway();
+      final c = pacingController(fake);
+      try {
+        await c.setMiniMode(true);
+        await c.start();
+        await tester.pump(const Duration(seconds: 3));
+        final barrier = fake.syncBarrier = Completer<void>();
+        final manual = c.sync();
+        expect(fake.syncs, 2);
+        await tester.pump(const Duration(seconds: 30));
+        expect(fake.syncs, 2);
+        barrier.complete();
+        await manual;
+
+        await tester.pump(const Duration(seconds: 9));
+        expect(fake.syncs, 2);
+        await tester.pump(const Duration(seconds: 1));
+        expect(fake.syncs, 3);
+        await tester.pump(const Duration(seconds: 10));
+        expect(fake.syncs, 4);
+      } finally {
+        await c.shutdown();
+      }
+    });
+
+    for (final failure in ['fixture failure', 'cancelled']) {
+      testWidgets('重读结束为 $failure 时重新计时', (tester) async {
+        final fake = FakeStatsGateway();
+        final c = pacingController(fake);
+        try {
+          await c.setMiniMode(true);
+          await c.start();
+          await tester.pump(const Duration(seconds: 3));
+          final barrier = fake.syncBarrier = Completer<void>();
+          final reread = c.rereadLogs();
+          await tester.pump(const Duration(seconds: 4));
+          barrier.completeError(StateError(failure));
+          await reread;
+          expect(c.phase, StatsSyncPhase.error);
+          fake.syncBarrier = null;
+
+          await tester.pump(const Duration(seconds: 9));
+          expect(fake.syncs, 2);
+          await tester.pump(const Duration(seconds: 1));
+          expect(fake.syncs, 3);
+          expect(c.phase, StatsSyncPhase.success);
+        } finally {
+          await c.shutdown();
+        }
+      });
+    }
+
+    testWidgets('SYNC_BUSY 结束后重新计时，冲突期间跳过并继续调度', (tester) async {
+      final fake = StatusGateway()
+        ..statusFails = false
+        ..status = 'running';
+      final c = pacingController(fake);
+      try {
+        await c.setMiniMode(true);
+        await c.start();
+        await tester.pump(const Duration(seconds: 3));
+        fake.syncFailure = 'SYNC_BUSY';
+        await c.sync();
+        fake.syncFailure = null;
+
+        await tester.pump(const Duration(seconds: 10));
+        expect(c.phase, StatsSyncPhase.conflict);
+        expect(fake.syncs, 2);
+        fake.status = 'ok';
+        await tester.pump(const Duration(seconds: 2));
+        expect(c.phase, StatsSyncPhase.success);
+        await tester.pump(const Duration(seconds: 7));
+        expect(fake.syncs, 2);
+        await tester.pump(const Duration(seconds: 1));
+        expect(fake.syncs, 3);
+      } finally {
+        await c.shutdown();
+      }
+    });
+
+    testWidgets('到点时 busy 跳过，下个间隔继续同步', (tester) async {
+      final fake = FakeStatsGateway();
+      final c = pacingController(fake);
+      try {
+        await c.setMiniMode(true);
+        await c.start();
+        c.phase = StatsSyncPhase.running;
+        await tester.pump(const Duration(seconds: 10));
+        expect(c.busy, isTrue);
+        expect(fake.syncs, 1);
+        c.phase = StatsSyncPhase.success;
+        await tester.pump(const Duration(seconds: 9));
+        expect(fake.syncs, 1);
+        await tester.pump(const Duration(seconds: 1));
+        expect(fake.syncs, 2);
+      } finally {
+        await c.shutdown();
+      }
+    });
+
+    testWidgets('重算价格期间退出迷你模式，结束后按 300 秒计时', (tester) async {
+      final fake = FakeStatsGateway();
+      final c = pacingController(fake);
+      try {
+        await c.setMiniMode(true);
+        await c.start();
+        final barrier = fake.syncBarrier = Completer<void>();
+        final pricing = c.reprice();
+        await tester.pump(const Duration(seconds: 3));
+        expect(fake.syncs, 2);
+        await c.setMiniMode(false);
+        await tester.pump(const Duration(seconds: 4));
+        barrier.complete();
+        expect(await pricing, isTrue);
+
+        await tester.pump(const Duration(seconds: 299));
+        expect(fake.syncs, 2);
+        await tester.pump(const Duration(seconds: 1));
+        expect(fake.syncs, 3);
+      } finally {
+        await c.shutdown();
+      }
+    });
+
+    testWidgets('空闲时修改迷你刷新间隔，从修改时重新计时', (tester) async {
+      final fake = FakeStatsGateway();
+      final c = pacingController(fake);
+      try {
+        await c.setMiniMode(true);
+        await c.start();
+        await tester.pump(const Duration(seconds: 3));
+        await c.setPreferences(
+          c.preferences.copyWith(mini: const MiniPreferences(seconds: 5)),
+        );
+        await tester.pump(const Duration(seconds: 4));
+        expect(fake.syncs, 1);
+        await tester.pump(const Duration(seconds: 1));
+        expect(fake.syncs, 2);
+      } finally {
+        await c.shutdown();
+      }
+    });
+
+    testWidgets('关闭时正在进行的同步结束后不再排定时同步', (tester) async {
+      final fake = FakeStatsGateway();
+      final c = pacingController(fake);
+      try {
+        await c.setMiniMode(true);
+        await c.start();
+        fake.syncBarrier = Completer<void>();
+        await tester.pump(const Duration(seconds: 10));
+        expect(fake.syncs, 2);
+        expect(c.phase, StatsSyncPhase.running);
+        await c.shutdown();
+
+        await tester.pump(const Duration(hours: 1));
+        expect(fake.syncs, 2);
+        expect(fake.closes, 1);
+      } finally {
+        await c.shutdown();
+      }
+    });
+  });
+
   testWidgets('状态错误保留原始详情，重试仍失败时只查状态', (tester) async {
     final fake = StatusGateway()..syncFailure = 'SYNC_BUSY';
     final c = StatsController(fake, clock: () => demoNow);
