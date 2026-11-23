@@ -24,6 +24,7 @@ typedef MiniFrame = ({Rect bounds, double scale});
 typedef MiniPillState = ({MiniPillEdge? edge, bool revealed});
 
 abstract interface class MiniWindowPlatform {
+  String? get pendingMethod;
   Future<Rect> getBounds();
   Future<MiniFrame> getFrame();
   Future<List<MiniDisplay>> workAreas();
@@ -47,12 +48,36 @@ class DesktopMiniWindowPlatform
     with WindowListener
     implements MiniWindowPlatform {
   static const _channel = MethodChannel('token_lens/window');
+  static const _managerChannel = MethodChannel('window_manager');
+  final _pendingMethods = <Object, String>{};
   Future<void>? _initializing;
   VoidCallback? _onBoundsChanged;
   ValueChanged<Size?>? _onResize;
   int _resizeTicket = 0;
 
-  Future<void> _ready() => _initializing ??= windowManager.ensureInitialized();
+  @override
+  String? get pendingMethod => _pendingMethods.values.lastOrNull;
+
+  Future<T> _track<T>(String name, Future<T> Function() call) async {
+    final token = Object();
+    _pendingMethods[token] = name;
+    try {
+      return await call();
+    } finally {
+      _pendingMethods.remove(token);
+    }
+  }
+
+  Future<T?> _invoke<T>(String name, [Object? arguments]) =>
+      _track(name, () => _channel.invokeMethod<T>(name, arguments));
+
+  Future<List<T>?> _invokeList<T>(String name) =>
+      _track(name, () => _channel.invokeListMethod<T>(name));
+
+  Future<void> _ready() => _initializing ??= _track(
+    'ensureInitialized',
+    windowManager.ensureInitialized,
+  );
 
   List<double> _coordinates(Object? value) =>
       (value as List).map((n) => (n as num).toDouble()).toList();
@@ -64,16 +89,18 @@ class DesktopMiniWindowPlatform
   Future<MiniFrame> getFrame() async {
     await _ready();
     if (!Platform.isWindows) {
-      return (bounds: await windowManager.getBounds(), scale: 1.0);
+      return (
+        bounds: await _track('getBounds', windowManager.getBounds),
+        scale: 1.0,
+      );
     }
-    final b = _coordinates(await _channel.invokeMethod('getFrame'));
+    final b = _coordinates(await _invoke<Object?>('getFrame'));
     return (bounds: Rect.fromLTWH(b[0], b[1], b[2], b[3]), scale: b[4]);
   }
 
   @override
   Future<List<MiniDisplay>> workAreas() async {
-    final displays =
-        await _channel.invokeListMethod<Object?>('workAreas') ?? [];
+    final displays = await _invokeList<Object?>('workAreas') ?? [];
     return displays.map((display) {
       final b = _coordinates(display);
       return MiniDisplay(
@@ -87,50 +114,53 @@ class DesktopMiniWindowPlatform
   @override
   Future<bool> isMaximized() async {
     await _ready();
-    return windowManager.isMaximized();
+    return _track('isMaximized', windowManager.isMaximized);
   }
 
   @override
-  Future<void> setMaximized(bool value) =>
-      value ? windowManager.maximize() : windowManager.unmaximize();
+  Future<void> setMaximized(bool value) => value
+      ? _track('maximize', windowManager.maximize)
+      : _track('unmaximize', windowManager.unmaximize);
 
   @override
   Future<void> setCompact(bool value, {required bool rounded}) async {
     if (Platform.isWindows) {
-      await _channel.invokeMethod<void>('setMiniFrame', [value, rounded]);
+      await _invoke<void>('setMiniFrame', [value, rounded]);
     } else {
-      await windowManager.setTitleBarStyle(
-        value ? TitleBarStyle.hidden : TitleBarStyle.normal,
-        windowButtonVisibility: !value,
+      await _track(
+        'setTitleBarStyle',
+        () => windowManager.setTitleBarStyle(
+          value ? TitleBarStyle.hidden : TitleBarStyle.normal,
+          windowButtonVisibility: !value,
+        ),
       );
-      await _channel.invokeMethod<void>('setMiniFrame', value);
+      await _invoke<void>('setMiniFrame', value);
     }
-    await windowManager.setMaximizable(!value);
+    await _track('setMaximizable', () => windowManager.setMaximizable(!value));
   }
 
   @override
-  Future<void> setPinned(bool value) => windowManager.setAlwaysOnTop(value);
+  Future<void> setPinned(bool value) =>
+      _track('setAlwaysOnTop', () => windowManager.setAlwaysOnTop(value));
 
   @override
   Future<void> setLimits(Size min, Size? max) async {
-    await windowManager.setMinimumSize(min);
-    await windowManager.setMaximumSize(
-      max ??
-          (Platform.isMacOS
-              ? const Size(1000000, 1000000)
-              : const Size(-1, -1)),
+    await _track('setMinimumSize', () => windowManager.setMinimumSize(min));
+    await _track(
+      'setMaximumSize',
+      () => windowManager.setMaximumSize(
+        max ??
+            (Platform.isMacOS
+                ? const Size(1000000, 1000000)
+                : const Size(-1, -1)),
+      ),
     );
   }
 
   @override
   Future<void> setBounds(Rect b) => Platform.isWindows
-      ? _channel.invokeMethod<void>('setFrame', [
-          b.left,
-          b.top,
-          b.width,
-          b.height,
-        ])
-      : windowManager.setBounds(b);
+      ? _invoke<void>('setFrame', [b.left, b.top, b.width, b.height])
+      : _track('setBounds', () => windowManager.setBounds(b));
 
   @override
   Future<void> startDragging() => windowManager.startDragging();
@@ -140,17 +170,17 @@ class DesktopMiniWindowPlatform
 
   @override
   Future<void> setPillFrame(bool value) async {
-    await windowManager.setResizable(!value);
-    await _channel.invokeMethod<void>('setPillFrame', value);
+    await _track('setResizable', () => windowManager.setResizable(!value));
+    await _invoke<void>('setPillFrame', value);
   }
 
   @override
   Future<void> setPillTooltip(String? text) =>
-      _channel.invokeMethod<void>('setPillTooltip', text);
+      _invoke<void>('setPillTooltip', text);
 
   @override
   Future<void> setPillBounds(Rect b, MiniDisplay display) => Platform.isWindows
-      ? _channel.invokeMethod<void>('setFrame', [
+      ? _invoke<void>('setFrame', [
           b.left,
           b.top,
           b.width,
@@ -161,7 +191,7 @@ class DesktopMiniWindowPlatform
 
   @override
   Future<bool> isPrimaryButtonDown() async =>
-      await _channel.invokeMethod<bool>('isPrimaryButtonDown') ?? false;
+      await _invoke<bool>('isPrimaryButtonDown') ?? false;
 
   @override
   Future<bool> dragPill({
@@ -169,23 +199,30 @@ class DesktopMiniWindowPlatform
     bool requirePressed = false,
   }) async {
     if (!Platform.isWindows) {
-      return await _channel.invokeMethod<bool>('dragPill') ?? false;
+      return await _invoke<bool>('dragPill') ?? false;
     }
     Future<bool> start() async {
       if (requirePressed) {
-        return await _channel.invokeMethod<bool>('dragPressedPill') ?? false;
+        return await _invoke<bool>('dragPressedPill') ?? false;
       }
-      await startDragging();
+      // Match window_manager's full-screen guard while tracking both calls.
+      if (await _track('isFullScreen', windowManager.isFullScreen)) {
+        return false;
+      }
+      await _track(
+        'startDragging',
+        () => _managerChannel.invokeMethod<void>('startDragging'),
+      );
       return true;
     }
 
     final rgb = edgeAccent?.toARGB32();
     if (rgb == null) return start();
-    await _channel.invokeMethod<void>('setPillDragAccent', rgb & 0xffffff);
+    await _invoke<void>('setPillDragAccent', rgb & 0xffffff);
     try {
       return await start();
     } finally {
-      await _channel.invokeMethod<void>('setPillDragAccent');
+      await _invoke<void>('setPillDragAccent');
     }
   }
 
@@ -206,7 +243,7 @@ class DesktopMiniWindowPlatform
         size = (await getBounds()).size;
       } else {
         // AppKit also emits resize for programmatic window changes.
-        final frame = await _channel.invokeListMethod<num>('liveFrameSize');
+        final frame = await _invokeList<num>('liveFrameSize');
         if (frame != null) {
           size = Size(frame[0].toDouble(), frame[1].toDouble());
         }
@@ -249,15 +286,17 @@ enum _MiniAction {
 }
 
 class _MiniTransition {
-  _MiniTransition(this.action, this.apply);
+  _MiniTransition(this.id, this.action, this.apply);
 
+  final int id;
   final _MiniAction action;
   Future<void> Function() apply;
   final completion = Completer<void>();
+  int merged = 0;
 }
 
 class MiniWindow {
-  MiniWindow({required this.controller, required this.platform});
+  MiniWindow({required this.controller, required this.platform, this._log});
 
   static const fullMin = Size(700, 500);
   static const min = Size(296, 480);
@@ -272,10 +311,14 @@ class MiniWindow {
 
   final StatsController controller;
   final MiniWindowPlatform platform;
+  final void Function(String level, String message)? _log;
   ({Rect bounds, bool maximized})? _full;
   Future<void>? _transition;
   final _userQueue = Queue<_MiniTransition>();
   _MiniTransition? _pendingResize;
+  _MiniTransition? _activeTransition;
+  Timer? _transitionWarning;
+  int _nextTransitionId = 0;
   Timer? _saveTimer;
   final _liveSize = ValueNotifier<Size?>(null);
   ValueListenable<Size?> get sizeWhileResizing => _liveSize;
@@ -293,6 +336,23 @@ class MiniWindow {
   bool _closing = false;
   bool get switching => _transition != null;
 
+  void _emit(String level, String message) {
+    try {
+      _log?.call(level, message);
+    } catch (_) {
+      // A failed diagnostic must not interrupt window operations.
+    }
+  }
+
+  void reportStalePress(int oldPointer, int newPointer) =>
+      _emit('INFO', 'stale press replaced old=$oldPointer new=$newPointer');
+
+  String _transitionLabel(_MiniTransition next) =>
+      'action=${next.action.name} id=${next.id}';
+
+  void _discard(_MiniTransition next, String reason) =>
+      _emit('INFO', 'discard ${_transitionLabel(next)} reason=$reason');
+
   Future<void> enter() => _run(_MiniAction.enter, _enter);
   Future<void> restorePill() => controller.preferences.mini.pill
       ? _run(_MiniAction.restorePill, () => _enter(restorePill: true))
@@ -307,9 +367,11 @@ class MiniWindow {
         previous.action == action &&
         action != _MiniAction.togglePin) {
       if (resizing) previous.apply = apply;
+      previous.merged++;
       return previous.completion.future;
     }
-    final next = _MiniTransition(action, apply);
+    final next = _MiniTransition(++_nextTransitionId, action, apply);
+    if (switching) _emit('INFO', 'queued ${_transitionLabel(next)}');
     if (resizing) {
       _pendingResize = next;
     } else {
@@ -330,15 +392,53 @@ class MiniWindow {
           _pendingResize = null;
         }
         if (next == null) break;
-        try {
-          await next.apply();
+        final failure = await _executeTransition(next);
+        if (failure == null) {
           next.completion.complete();
-        } catch (error, stack) {
-          next.completion.completeError(error, stack);
+        } else {
+          next.completion.completeError(failure.error, failure.stack);
         }
       }
     } finally {
       _transition = null;
+    }
+  }
+
+  Future<({Object error, StackTrace stack})?> _executeTransition(
+    _MiniTransition next,
+  ) async {
+    _activeTransition = next;
+    final label = _transitionLabel(next);
+    final elapsed = Stopwatch()..start();
+    _emit('INFO', 'start $label');
+    if (_log != null) {
+      _transitionWarning = Timer(const Duration(seconds: 5), () {
+        final method = platform.pendingMethod ?? 'none';
+        _emit(
+          'WARN',
+          'waiting $label elapsedMs=${elapsed.elapsedMilliseconds} platformMethod=$method',
+        );
+      });
+    }
+    Object? failure;
+    try {
+      await next.apply();
+      return null;
+    } catch (error, stack) {
+      failure = error;
+      return (error: error, stack: stack);
+    } finally {
+      _transitionWarning?.cancel();
+      _transitionWarning = null;
+      _activeTransition = null;
+      final merged = next.merged == 0 ? '' : ' merged=${next.merged}';
+      final outcome = failure == null
+          ? 'ok'
+          : 'error errorType=${failure.runtimeType}';
+      _emit(
+        'INFO',
+        'end $label elapsedMs=${elapsed.elapsedMilliseconds} result=$outcome$merged',
+      );
     }
   }
 
@@ -525,7 +625,10 @@ class MiniWindow {
     final state = _pillState.value;
     final from = _pillDisplay;
     if (state == null || from == null) return;
-    if (queued && !await platform.isPrimaryButtonDown()) return;
+    if (queued && !await platform.isPrimaryButtonDown()) {
+      _discard(_activeTransition!, 'primary_button_released');
+      return;
+    }
     if (_disposed) return;
     final before = _pillAnchor;
     await _stopPillMotion();
@@ -542,6 +645,10 @@ class MiniWindow {
       );
       if (_disposed) return;
       if (!started) {
+        _discard(
+          _activeTransition!,
+          queued ? 'native_drag_guard' : 'native_drag_unavailable',
+        );
         if (state.edge != null) {
           await platform.setPillBounds(previousFrame, from);
           if (!_disposed) _pillState.value = state;
@@ -611,8 +718,9 @@ class MiniWindow {
       });
 
   void setPillHovered(bool value, {required bool reduceMotion}) {
-    if (_disposed || _closing || _pillState.value?.edge == null || switching)
+    if (_disposed || _closing || _pillState.value?.edge == null || switching) {
       return;
+    }
     _pillHideTimer?.cancel();
     if (value) {
       unawaited(_slidePill(true, reduceMotion));
@@ -930,11 +1038,16 @@ class MiniWindow {
 
   void dispose() {
     _disposed = true;
+    _transitionWarning?.cancel();
     for (final next in _userQueue) {
+      _discard(next, 'disposed');
       next.completion.complete();
     }
     _userQueue.clear();
-    _pendingResize?.completion.complete();
+    if (_pendingResize case final resize?) {
+      _discard(resize, 'disposed');
+      resize.completion.complete();
+    }
     _pendingResize = null;
     _saveTimer?.cancel();
     _pillHideTimer?.cancel();

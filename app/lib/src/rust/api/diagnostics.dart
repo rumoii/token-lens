@@ -48,3 +48,17 @@ Future<void> writeRuntimeError({
   message: message,
   stack: stack,
 );
+
+Future<void> writeRuntimeLog({
+  required String dataDir,
+  String? logsHome,
+  required String level,
+  required String module,
+  required String message,
+}) => RustLib.instance.api.crateApiDiagnosticsWriteRuntimeLog(
+  dataDir: dataDir,
+  logsHome: logsHome,
+  level: level,
+  module: module,
+  message: message,
+);

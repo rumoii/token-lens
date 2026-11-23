@@ -111,6 +111,9 @@ class MiniGateway extends FakeStatsGateway implements StatsMiniGateway {
 }
 
 class MiniPlatform implements MiniWindowPlatform {
+  @override
+  String? get pendingMethod => null;
+
   final calls = <Object>[];
   ValueChanged<Size?>? onResize;
   Rect bounds = const Rect.fromLTWH(240, 96, 1050, 800);
@@ -193,6 +196,81 @@ List<double> _paintedMiniTicks(WidgetTester tester, Finder chart) {
 }
 
 void main() {
+  testWidgets('a normal mini transition logs only start and end', (
+    tester,
+  ) async {
+    final controller = StatsController(MiniGateway(), clock: () => demoNow);
+    final messages = <(String, String)>[];
+    final window = MiniWindow(
+      controller: controller,
+      platform: MiniPlatform(),
+      log: (level, message) => messages.add((level, message)),
+    );
+    addTearDown(controller.dispose);
+    addTearDown(window.dispose);
+    await window.enter();
+    await tester.pump(const Duration(seconds: 6));
+    expect(messages, hasLength(2));
+    expect(messages.first, ('INFO', 'start action=enter id=1'));
+    expect(messages.last.$1, 'INFO');
+    expect(
+      messages.last.$2,
+      matches(r'^end action=enter id=1 elapsedMs=\d+ result=ok$'),
+    );
+    await controller.shutdown();
+  });
+
+  testWidgets('warns after five seconds with the pending platform method', (
+    tester,
+  ) async {
+    const channel = MethodChannel('token_lens/window');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final reply = Completer<Object?>();
+    final sent = Completer<void>();
+    messenger.setMockMethodCallHandler(channel, (call) {
+      expect(call.method, 'workAreas');
+      sent.complete();
+      return reply.future;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final controller = StatsController(MiniGateway(), clock: () => demoNow);
+    final platform = DesktopMiniWindowPlatform();
+    final messages = <(String, String)>[];
+    final window = MiniWindow(
+      controller: controller,
+      platform: platform,
+      log: (level, message) => messages.add((level, message)),
+    );
+    addTearDown(controller.dispose);
+    addTearDown(window.dispose);
+
+    final result = window.enter().then<Object?>(
+      (_) => null,
+      onError: (Object error) => error,
+    );
+    await sent.future;
+    expect(platform.pendingMethod, 'workAreas');
+    await tester.pump(const Duration(milliseconds: 4999));
+    expect(messages, [('INFO', 'start action=enter id=1')]);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(messages.last.$1, 'WARN');
+    expect(messages.last.$2, contains('platformMethod=workAreas'));
+    expect(window.switching, isTrue);
+    await tester.pump(const Duration(seconds: 5));
+    expect(messages.where((entry) => entry.$1 == 'WARN'), hasLength(1));
+
+    reply.completeError(PlatformException(code: 'synthetic-error'));
+    expect(await result, isA<PlatformException>());
+    expect(platform.pendingMethod, isNull);
+    expect(window.switching, isFalse);
+    expect(
+      messages.last.$2,
+      endsWith('result=error errorType=PlatformException'),
+    );
+    await controller.shutdown();
+  });
+
   testWidgets('mini window entry is in both page headers', (tester) async {
     final c = StatsController(
       MiniGateway(),

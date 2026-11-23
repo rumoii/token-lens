@@ -191,6 +191,17 @@ class _TokenLensAppState extends State<TokenLensApp>
           _miniWindow = MiniWindow(
             controller: statsController,
             platform: platform,
+            log: (level, message) => unawaited(
+              writeRuntimeEvent(
+                () => diagnostics.writeRuntimeLog(
+                  dataDir: dataDir,
+                  logsHome: logsHome,
+                  level: level,
+                  module: 'mini-window',
+                  message: message,
+                ),
+              ),
+            ),
           );
         }
       });

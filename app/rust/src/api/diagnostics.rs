@@ -87,3 +87,64 @@ pub fn write_runtime_error(
         &stack,
     );
 }
+
+pub fn write_runtime_log(
+    data_dir: String,
+    logs_home: Option<String>,
+    level: String,
+    module: String,
+    message: String,
+) {
+    if !matches!(level.as_str(), "INFO" | "WARN")
+        || module.is_empty()
+        || module.len() > 32
+        || !module
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return;
+    }
+    RuntimeLog::new(Path::new(&data_dir), logs_home.as_deref().map(Path::new))
+        .write(&level, &module, &message);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flutter_runtime_log_accepts_info_and_warn_with_a_bounded_module() {
+        let data = tempfile::tempdir().unwrap();
+        let write = |level: &str, module: &str, message: &str| {
+            write_runtime_log(
+                data.path().to_str().unwrap().into(),
+                None,
+                level.into(),
+                module.into(),
+                message.into(),
+            );
+        };
+        let long_module = "x".repeat(32);
+        write("INFO", "mini-window", "started");
+        write("WARN", &long_module, "waiting");
+        write("ERROR", "mini-window", "rejected level");
+        write("warn", "mini-window", "rejected spelling");
+        write("INFO", "", "rejected empty module");
+        write("INFO", "mini\nwindow", "rejected multiline module");
+        write("INFO", &(long_module.clone() + "x"), "rejected long module");
+
+        assert!(diagnostics::flush_runtime_log(
+            std::time::Duration::from_secs(2)
+        ));
+        let mut logs = String::new();
+        for entry in std::fs::read_dir(data.path().join("logs")).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|extension| extension.to_str()) == Some("log") {
+                logs.push_str(&std::fs::read_to_string(path).unwrap());
+            }
+        }
+        assert_eq!(logs.lines().count(), 2);
+        assert!(logs.contains("INFO mini-window started"));
+        assert!(logs.contains(&format!("WARN {long_module} waiting")));
+    }
+}

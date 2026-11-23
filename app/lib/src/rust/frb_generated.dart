@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1555750079;
+  int get rustContentHash => 2071319054;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -315,6 +315,14 @@ abstract class RustLibApi extends BaseApi {
     required String errorType,
     required String message,
     required String stack,
+  });
+
+  Future<void> crateApiDiagnosticsWriteRuntimeLog({
+    required String dataDir,
+    String? logsHome,
+    required String level,
+    required String module,
+    required String message,
   });
 
   RustArcIncrementStrongCountFnType
@@ -2099,6 +2107,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "write_runtime_error",
         argNames: ["dataDir", "logsHome", "errorType", "message", "stack"],
+      );
+
+  @override
+  Future<void> crateApiDiagnosticsWriteRuntimeLog({
+    required String dataDir,
+    String? logsHome,
+    required String level,
+    required String module,
+    required String message,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dataDir, serializer);
+          sse_encode_opt_String(logsHome, serializer);
+          sse_encode_String(level, serializer);
+          sse_encode_String(module, serializer);
+          sse_encode_String(message, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 48,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDiagnosticsWriteRuntimeLogConstMeta,
+        argValues: [dataDir, logsHome, level, module, message],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDiagnosticsWriteRuntimeLogConstMeta =>
+      const TaskConstMeta(
+        debugName: "write_runtime_log",
+        argNames: ["dataDir", "logsHome", "level", "module", "message"],
       );
 
   RustArcIncrementStrongCountFnType

@@ -224,6 +224,10 @@ class _MiniPillState extends State<MiniPill> {
               onPointerDown: (event) {
                 _trackPointerInput();
                 if (event.buttons & kPrimaryButton != 0) {
+                  final previous = _press?.$1;
+                  if (previous != null && previous != event.pointer) {
+                    widget.window.reportStalePress(previous, event.pointer);
+                  }
                   _press = (event.pointer, event.position);
                 }
               },
