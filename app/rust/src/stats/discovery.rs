@@ -2,9 +2,11 @@ use super::Result;
 use crate::api::stats::{StatsDiscoveredTool, StatsLogDirectory};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ffi::OsString;
 use std::fs::{self, DirEntry, FileType};
 use std::io::{self, ErrorKind};
 use std::path::{Component, Path, PathBuf};
+use std::rc::Rc;
 use std::time::Instant;
 
 #[derive(Clone, Default)]
@@ -105,6 +107,19 @@ struct Scan<'a> {
     checked_dirs: HashSet<PathBuf>,
     failed_entries: HashSet<PathBuf>,
     path_errors: Option<Vec<(PathBuf, ErrorKind)>>,
+    verified_glob_files: HashSet<OsString>,
+    #[cfg(test)]
+    io_counts: ScanIoCounts,
+    #[cfg(test)]
+    iteration_errors: HashMap<PathBuf, ErrorKind>,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct ScanIoCounts {
+    read_dir: usize,
+    metadata: usize,
+    reads_by_dir: Option<HashMap<PathBuf, usize>>,
 }
 
 impl<'a> Scan<'a> {
@@ -116,6 +131,11 @@ impl<'a> Scan<'a> {
             checked_dirs: HashSet::new(),
             failed_entries: HashSet::new(),
             path_errors: None,
+            verified_glob_files: HashSet::new(),
+            #[cfg(test)]
+            io_counts: ScanIoCounts::default(),
+            #[cfg(test)]
+            iteration_errors: HashMap::new(),
         }
     }
 
@@ -159,10 +179,16 @@ impl<'a> Scan<'a> {
     }
 
     fn read_dir<T>(&mut self, root: &Path, read: impl FnOnce(&Path) -> io::Result<T>) -> Option<T> {
-        match self
-            .allowed(root)
-            .and_then(|allowed| allowed.then(|| read(root)).transpose())
-        {
+        let allowed = self.allowed(root);
+        #[cfg(test)]
+        let read = |path: &Path| {
+            self.io_counts.read_dir += 1;
+            if let Some(dirs) = &mut self.io_counts.reads_by_dir {
+                *dirs.entry(normalize(path)).or_default() += 1;
+            }
+            read(path)
+        };
+        match allowed.and_then(|allowed| allowed.then(|| read(root)).transpose()) {
             Ok(entries) => entries,
             Err(error) => {
                 self.dir_error(root, error);
@@ -173,41 +199,58 @@ impl<'a> Scan<'a> {
 
     fn entries(&mut self, root: &Path) -> Vec<DirEntry> {
         self.checked_dirs.insert(normalize(root));
-        let entries = self.read_dir(root, |path| fs::read_dir(path));
-        let mut errors = Vec::new();
-        let mut list = self.read_entries(entries.into_iter().flatten().inspect(|entry| {
-            if let Err(error) = entry {
-                errors.push(error.kind());
-            }
-        }));
-        for kind in errors {
-            self.record_error(root, kind);
-        }
+        let (mut list, errors) = self.list_entries(root);
+        self.report_iteration_errors(root, &errors);
         list.sort_by_key(|entry| entry.file_name());
         list
     }
 
-    fn read_entries<T>(&mut self, entries: impl Iterator<Item = io::Result<T>>) -> Vec<T> {
-        entries
-            .filter_map(|entry| match entry {
-                Ok(entry) => Some(entry),
-                Err(_) => {
-                    self.issue.unreadable_entries += 1;
-                    None
-                }
-            })
-            .collect()
+    fn list_entries(&mut self, root: &Path) -> (Vec<DirEntry>, Vec<ErrorKind>) {
+        let entries = self.read_dir(root, |path| fs::read_dir(path));
+        #[cfg(test)]
+        let injected = self
+            .iteration_errors
+            .get(root)
+            .copied()
+            .map(io::Error::from);
+        let entries = entries.into_iter().flatten();
+        #[cfg(test)]
+        let entries = entries.chain(injected.map(Err));
+        Self::read_entries(entries)
+    }
+
+    fn report_iteration_errors(&mut self, root: &Path, errors: &[ErrorKind]) {
+        self.issue.unreadable_entries += errors.len();
+        for &kind in errors {
+            self.record_error(root, kind);
+        }
+    }
+
+    fn read_entries<T>(entries: impl Iterator<Item = io::Result<T>>) -> (Vec<T>, Vec<ErrorKind>) {
+        let mut list = Vec::new();
+        let mut errors = Vec::new();
+        for entry in entries {
+            match entry {
+                Ok(entry) => list.push(entry),
+                Err(error) => errors.push(error.kind()),
+            }
+        }
+        (list, errors)
     }
 
     fn entry_type(&mut self, entry: &DirEntry) -> Option<FileType> {
         match entry.file_type() {
             Ok(kind) => Some(kind),
             Err(error) => {
-                self.record_error(&entry.path(), error.kind());
-                self.entry_error(&entry.path());
+                self.report_type_error(&entry.path(), error.kind());
                 None
             }
         }
+    }
+
+    fn report_type_error(&mut self, path: &Path, kind: ErrorKind) {
+        self.record_error(path, kind);
+        self.entry_error(path);
     }
 
     fn record_error(&mut self, path: &Path, kind: ErrorKind) {
@@ -229,10 +272,22 @@ impl<'a> Scan<'a> {
                 self.read_dir(parent, |path| fs::read_dir(path));
             }
         }
-        match self
-            .allowed(path)
-            .and_then(|allowed| allowed.then(|| fs::metadata(path)).transpose())
-        {
+        self.stat_file(path)
+    }
+
+    fn stat_file(&mut self, path: &Path) -> bool {
+        let allowed = self.allowed(path);
+        match allowed.and_then(|allowed| {
+            allowed
+                .then(|| {
+                    #[cfg(test)]
+                    {
+                        self.io_counts.metadata += 1;
+                    }
+                    fs::metadata(path)
+                })
+                .transpose()
+        }) {
             Ok(metadata) => metadata.is_some_and(|metadata| metadata.is_file()),
             Err(error) => {
                 if error.kind() != ErrorKind::NotFound
@@ -252,6 +307,7 @@ impl<'a> Scan<'a> {
         self.failed_dirs.clear();
         self.checked_dirs.clear();
         self.failed_entries.clear();
+        self.verified_glob_files.clear();
         let mut issue = std::mem::take(&mut self.issue);
         issue.source = source.into();
         issue
@@ -313,11 +369,152 @@ fn wildcard(pattern: &str, name: &str) -> bool {
     i == p.len()
 }
 fn glob(scan: &mut Scan<'_>, root: &Path, pattern: &str) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    // Only recursive walks and wildcard alternatives can list a directory again.
+    let share_listings =
+        pattern.contains("**") || (pattern.contains('{') && pattern.contains(['*', '?']));
+    let mut glob = Glob {
+        directories: share_listings.then(HashMap::new),
+    };
+    glob.expand(scan, root, pattern, &mut out);
+    out
+}
+
+struct Glob {
+    directories: Option<HashMap<PathBuf, Rc<GlobDirectory>>>,
+}
+
+struct GlobDirectory {
+    entries: Vec<GlobEntry>,
+    errors: Vec<ErrorKind>,
+}
+
+struct GlobEntry {
+    name: OsString,
+    kind: std::result::Result<FileType, ErrorKind>,
+}
+
+impl GlobEntry {
+    fn is_dir(&self, scan: &mut Scan<'_>, parent: &Path) -> bool {
+        match self.kind {
+            Ok(kind) => kind.is_dir(),
+            Err(error) => {
+                scan.report_type_error(&parent.join(&self.name), error);
+                false
+            }
+        }
+    }
+}
+
+impl Glob {
+    fn directory(&mut self, scan: &mut Scan<'_>, root: &Path) -> Rc<GlobDirectory> {
+        if let Some(directory) = self.directories.as_ref().and_then(|dirs| dirs.get(root)) {
+            return Rc::clone(directory);
+        }
+        scan.checked_dirs.insert(normalize(root));
+        let (entries, errors) = scan.list_entries(root);
+        // Keep names and types only. DirEntry can keep a directory handle open on Unix.
+        let mut entries: Vec<_> = entries
+            .into_iter()
+            .map(|entry| GlobEntry {
+                name: entry.file_name(),
+                kind: entry.file_type().map_err(|error| error.kind()),
+            })
+            .collect();
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        let directory = Rc::new(GlobDirectory { entries, errors });
+        if let Some(dirs) = &mut self.directories {
+            dirs.insert(root.to_owned(), Rc::clone(&directory));
+        }
+        directory
+    }
+
+    fn entries(&mut self, scan: &mut Scan<'_>, root: &Path) -> Rc<GlobDirectory> {
+        let directory = self.directory(scan, root);
+        // A partial listing counted once per logical pass, in traversal order.
+        scan.report_iteration_errors(root, &directory.errors);
+        directory
+    }
+
+    fn expand(&mut self, scan: &mut Scan<'_>, root: &Path, pattern: &str, out: &mut Vec<PathBuf>) {
+        if let Some(start) = pattern.find('{') {
+            let end = start + pattern[start..].find('}').unwrap();
+            for choice in pattern[start + 1..end].split(',') {
+                self.expand(
+                    scan,
+                    root,
+                    &format!("{}{choice}{}", &pattern[..start], &pattern[end + 1..]),
+                    out,
+                );
+            }
+        } else {
+            self.walk(scan, root, &pattern.split('/').collect::<Vec<_>>(), out);
+        }
+    }
+
+    fn walk(&mut self, scan: &mut Scan<'_>, root: &Path, parts: &[&str], out: &mut Vec<PathBuf>) {
+        let Some((&part, rest)) = parts.split_first() else {
+            // A fixed filename can be stat'ed even if the parent cannot be listed.
+            let is_file = if self.directories.is_some() {
+                if let Some(parent) = root.parent() {
+                    if !scan.checked_dirs.contains(&normalize(parent)) {
+                        self.directory(scan, parent);
+                    }
+                }
+                scan.stat_file(root)
+            } else {
+                scan.file(root)
+            };
+            if is_file {
+                out.push(normalize(root));
+            }
+            return;
+        };
+        if part == "**" {
+            self.walk(scan, root, rest, out);
+            for entry in &self.entries(scan, root).entries {
+                if !entry.name.to_string_lossy().starts_with('.') && entry.is_dir(scan, root) {
+                    self.walk(scan, &root.join(&entry.name), parts, out);
+                }
+            }
+        } else if part.contains(['*', '?']) {
+            for entry in &self.entries(scan, root).entries {
+                let name = entry.name.to_string_lossy();
+                if (name.starts_with('.') && !part.starts_with('.')) || !wildcard(part, &name) {
+                    continue;
+                }
+                if rest.is_empty() {
+                    let path = root.join(&entry.name);
+                    if scan.stat_file(&path) {
+                        let normalized = normalize(&path);
+                        // Listing a directory can succeed even when stat on a child fails.
+                        // Reuse a successful stat only for ordinary, non-preview entries.
+                        if scan.preview.is_none()
+                            && entry.kind.is_ok_and(|kind| kind.is_file())
+                            && path == normalized
+                        {
+                            scan.verified_glob_files
+                                .insert(normalized.as_os_str().to_owned());
+                        }
+                        out.push(normalized);
+                    }
+                } else if entry.is_dir(scan, root) {
+                    self.walk(scan, &root.join(&entry.name), rest, out);
+                }
+            }
+        } else {
+            self.walk(scan, &root.join(part), rest, out);
+        }
+    }
+}
+
+#[cfg(test)]
+fn legacy_glob(scan: &mut Scan<'_>, root: &Path, pattern: &str) -> Vec<PathBuf> {
     if let Some(start) = pattern.find('{') {
         let end = start + pattern[start..].find('}').unwrap();
         let mut out = Vec::new();
         for choice in pattern[start + 1..end].split(',') {
-            out.extend(glob(
+            out.extend(legacy_glob(
                 scan,
                 root,
                 &format!("{}{choice}{}", &pattern[..start], &pattern[end + 1..]),
@@ -904,6 +1101,23 @@ pub(crate) struct Discovery {
     pub tools: Vec<StatsDiscoveredTool>,
 }
 
+fn unique_files(scan: &mut Scan<'_>, files: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut unique = Vec::new();
+    // Approved difference from Node's ineffective nodir option: only ordinary files enter discovery.
+    for file in files
+        .into_iter()
+        .filter(|file| scan.verified_glob_files.contains(file.as_os_str()) || scan.file(file))
+    {
+        if !unique
+            .iter()
+            .any(|p: &PathBuf| p.as_os_str() == file.as_os_str())
+        {
+            unique.push(file);
+        }
+    }
+    unique
+}
+
 pub(crate) fn discover_profiled(
     home: &Path,
     env: &Environment,
@@ -921,16 +1135,7 @@ pub(crate) fn discover_profiled(
     scan.path_errors = include_tools.then(Vec::new);
     let mut started = source_ns.is_some().then(Instant::now);
     let mut add = |scan: &mut Scan<'_>, source: &str, files: Vec<PathBuf>| {
-        let mut unique = Vec::new();
-        // Approved difference from Node's ineffective nodir option: only ordinary files enter discovery.
-        for file in files.into_iter().filter(|file| scan.file(file)) {
-            if !unique
-                .iter()
-                .any(|p: &PathBuf| p.as_os_str() == file.as_os_str())
-            {
-                unique.push(file);
-            }
-        }
+        let unique = unique_files(scan, files);
         if let Some(errors) = scan.path_errors.as_mut().map(std::mem::take) {
             out.tools
                 .push(describe_tool(scan, home, env, source, &unique, &errors));
@@ -1129,6 +1334,386 @@ pub fn discover(home: &Path) -> Result<Vec<(String, Vec<PathBuf>)>> {
 }
 
 #[cfg(test)]
+mod e5_tests {
+    use super::*;
+    use std::time::Duration;
+
+    const CODEX: &str = "**/rollout-*.{jsonl,jsonl.zst}";
+    type GlobFn = fn(&mut Scan<'_>, &Path, &str) -> Vec<PathBuf>;
+
+    fn file(root: &Path, relative: &str) {
+        let path = root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, b"").unwrap();
+    }
+
+    fn codex_fixture(root: &Path) -> PathBuf {
+        let sessions = root.join(".codex/sessions");
+        for year in 2025..=2026 {
+            for month in 1..=12 {
+                for day in 1..=5 {
+                    let date = format!("{year}/{month:02}/{day:02}");
+                    for index in 0..21 {
+                        let suffix = if index == 20 { "jsonl.zst" } else { "jsonl" };
+                        file(&sessions, &format!("{date}/rollout-{index}.{suffix}"));
+                    }
+                    file(&sessions, &format!("{date}/other.jsonl"));
+                }
+            }
+        }
+        file(&sessions, ".hidden/rollout-no.jsonl");
+        fs::create_dir(sessions.join("empty")).unwrap();
+        sessions
+    }
+
+    fn measure_codex(
+        discover: GlobFn,
+        home: &Path,
+        sessions: &Path,
+    ) -> (Duration, ScanIoCounts, Vec<PathBuf>) {
+        let mut scan = Scan::new(home, &Environment::default());
+        let start = Instant::now();
+        let files = discover(&mut scan, sessions, CODEX);
+        let files = unique_files(&mut scan, files);
+        let elapsed = start.elapsed();
+        assert_eq!(files.len(), 2520);
+        assert!(scan
+            .take_issue("codex")
+            .counts()
+            .iter()
+            .all(|(_, n)| *n == 0));
+        (elapsed, scan.io_counts, files)
+    }
+
+    #[test]
+    #[ignore = "manual filesystem timing on a synthetic Codex tree"]
+    fn e5_codex_discovery_measurement() {
+        let home = tempfile::tempdir().unwrap();
+        let sessions = codex_fixture(home.path());
+        for run in 1..=5 {
+            let mut outputs = Vec::new();
+            let mut walkers: [(_, GlobFn); 2] = [("old", legacy_glob), ("new", glob)];
+            if run % 2 == 0 {
+                walkers.reverse();
+            }
+            for (version, discover) in walkers {
+                let (elapsed, counts, files) = measure_codex(discover, home.path(), &sessions);
+                println!(
+                    "{version} run {run}: read_dir={} metadata={} elapsed_us={}",
+                    counts.read_dir,
+                    counts.metadata,
+                    elapsed.as_micros()
+                );
+                outputs.push(files);
+            }
+            assert_eq!(outputs[0], outputs[1]);
+        }
+    }
+
+    #[test]
+    fn e5_codex_lists_each_directory_once() {
+        let home = tempfile::tempdir().unwrap();
+        let sessions = codex_fixture(home.path());
+        let mut scan = Scan::new(home.path(), &Environment::default());
+        scan.io_counts.reads_by_dir = Some(HashMap::new());
+        let files = glob(&mut scan, &sessions, CODEX);
+        assert_eq!(unique_files(&mut scan, files).len(), 2520);
+        let dirs = scan.io_counts.reads_by_dir.unwrap();
+        assert_eq!(dirs.len(), 148);
+        assert_eq!(scan.io_counts.read_dir, dirs.len());
+        assert!(dirs.values().all(|&count| count == 1));
+        assert_eq!(scan.io_counts.metadata, 2520);
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct GlobOutput {
+        files: Vec<PathBuf>,
+        issues: [(&'static str, usize); 3],
+        path_errors: Vec<(PathBuf, ErrorKind)>,
+    }
+
+    fn compare_globs(
+        home: &Path,
+        root: &Path,
+        pattern: &str,
+        preview: bool,
+        partial: &[&str],
+    ) -> GlobOutput {
+        let run = |discover: GlobFn| {
+            let env = Environment {
+                preview,
+                ..Environment::default()
+            };
+            let mut scan = Scan::new(home, &env);
+            scan.path_errors = Some(Vec::new());
+            scan.iteration_errors = partial
+                .iter()
+                .map(|path| (root.join(path), ErrorKind::Other))
+                .collect();
+            let files = discover(&mut scan, root, pattern);
+            let files = unique_files(&mut scan, files);
+            GlobOutput {
+                files,
+                issues: scan.take_issue("test").counts(),
+                path_errors: scan.path_errors.unwrap(),
+            }
+        };
+        let actual = run(glob);
+        assert_eq!(
+            actual,
+            run(legacy_glob),
+            "pattern {pattern}, preview {preview}"
+        );
+        actual
+    }
+
+    #[test]
+    fn e5_globs_match_legacy_paths_in_order() {
+        let home = tempfile::tempdir().unwrap();
+        let root = home.path();
+        for path in [
+            "rollout-2.jsonl",
+            "rollout-10.jsonl",
+            "rollout-Z.jsonl",
+            "rollout-a.JSONL",
+            "rollout-1.jsonl.zst",
+            "rollout-9.JSONL.ZST",
+            "a/deep/more/rollout-5.jsonl",
+            "a/rollout-1.jsonl.zst",
+            "z/rollout-3.jsonl",
+            ".rollout-hidden.jsonl",
+            ".hidden/rollout-hidden.jsonl",
+            "rollout-7.json",
+            "other.jsonl",
+            "rollout-dir.jsonl/rollout-child.jsonl",
+            "cline/12/api_conversation_history.json",
+            "cline/2/api_conversation_history.json",
+            "cline/.hidden/api_conversation_history.json",
+            "sessions/x/one.jsonl",
+            "sessions/zero.json",
+            "logs/b.json",
+            "logs/a.jsonl",
+            "agent/sessions/part.txt/one.jsonl",
+            "agent/session-sqlite-import-archive/two.jsonl.zst",
+            "data.db",
+            "session-store.db",
+        ] {
+            file(root, path);
+        }
+        fs::create_dir(root.join("empty")).unwrap();
+        for preview in [false, true] {
+            for (dir, pattern) in [
+                ("", CODEX),
+                ("", "**/*.jsonl"),
+                ("", "**/.*.jsonl"),
+                ("", "rollout-?.json?"),
+                ("", "**/rollout-2.jsonl"),
+                ("cline", "*/api_conversation_history.json"),
+                ("", "sessions/**/*.{json,jsonl}"),
+                ("", "{sessions,logs}/**/*.{json,jsonl}"),
+                ("", "*/{sessions,session-sqlite-import-archive}/*.jsonl*"),
+                ("", "{session-store.db,data.db}"),
+                ("", "rollout-*.{jsonl,JSONL}"),
+                ("empty", CODEX),
+                ("missing", CODEX),
+            ] {
+                assert!(compare_globs(root, &root.join(dir), pattern, preview, &[])
+                    .path_errors
+                    .is_empty());
+            }
+            let files = compare_globs(root, root, CODEX, preview, &[]).files;
+            let expected = [
+                "rollout-10.jsonl",
+                "rollout-2.jsonl",
+                "rollout-Z.jsonl",
+                "rollout-a.JSONL",
+                "a/deep/more/rollout-5.jsonl",
+                "rollout-dir.jsonl/rollout-child.jsonl",
+                "z/rollout-3.jsonl",
+                "rollout-1.jsonl.zst",
+                "rollout-9.JSONL.ZST",
+                "a/rollout-1.jsonl.zst",
+            ];
+            assert_eq!(files, expected.map(|path| normalize(&root.join(path))));
+        }
+    }
+
+    #[test]
+    fn e5_glob_replays_partial_errors_at_each_legacy_listing() {
+        let home = tempfile::tempdir().unwrap();
+        let root = home.path();
+        file(root, "sessions/rollout-1.jsonl");
+        file(root, "sessions/a/rollout-1.jsonl.zst");
+        let sessions = root.join("sessions");
+        let partial = compare_globs(root, &sessions, CODEX, false, &["", "a"]);
+        let pair = [(&sessions, 2), (&sessions.join("a"), 2)];
+        let errors: Vec<_> = pair
+            .into_iter()
+            .chain(pair)
+            .flat_map(|(path, n)| std::iter::repeat_n((normalize(path), ErrorKind::Other), n))
+            .collect();
+        assert_eq!(partial.path_errors, errors);
+        assert_eq!(
+            partial.issues,
+            [
+                ("permission_denied", 0),
+                ("io_errors", 0),
+                ("unreadable_entries", 8)
+            ]
+        );
+        assert_eq!(partial.files.len(), 2);
+        let non_dir = sessions.join("rollout-1.jsonl");
+        let failed = compare_globs(root, &non_dir, CODEX, false, &[]);
+        assert!(failed.files.is_empty());
+        assert_eq!(
+            failed.path_errors,
+            [(normalize(&non_dir), ErrorKind::NotADirectory)]
+        );
+        assert_eq!(failed.issues[1], ("io_errors", 1));
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn e5_glob_follows_file_links_only_outside_preview() {
+        #[cfg(unix)]
+        use std::os::unix::fs::symlink as symlink_file;
+        #[cfg(windows)]
+        use std::os::windows::fs::symlink_file;
+
+        let fixture = tempfile::tempdir().unwrap();
+        let home = fixture.path().join("home");
+        let outside = fixture.path().join("outside");
+        file(&home, "sessions/rollout-1.jsonl");
+        file(&outside, "rollout-outside.jsonl");
+        let sessions = home.join("sessions");
+        let mut linked_files = Vec::new();
+        let target = outside.join("rollout-outside.jsonl");
+        let valid = sessions.join("rollout-link.jsonl");
+        match symlink_file(&target, &valid) {
+            Ok(()) => {
+                symlink_file(
+                    outside.join("missing"),
+                    sessions.join("rollout-broken.jsonl"),
+                )
+                .unwrap();
+                linked_files.push(normalize(&valid));
+            }
+            #[cfg(windows)]
+            Err(error) if error.raw_os_error() == Some(1314) => {
+                eprintln!("Windows file symlinks unavailable: {error}");
+            }
+            Err(error) => panic!("file symlink: {error}"),
+        }
+        let linked_dir = sessions.join("rollout-folder.jsonl");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside, &linked_dir).unwrap();
+        #[cfg(windows)]
+        {
+            let output = std::process::Command::new("cmd")
+                .args(["/D", "/C", "mklink", "/J"])
+                .arg(&linked_dir)
+                .arg(&outside)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "directory junction: {output:?}");
+        }
+
+        let ordinary = normalize(&sessions.join("rollout-1.jsonl"));
+        let normal = compare_globs(&home, &sessions, CODEX, false, &[]);
+        assert_eq!(
+            normal.files,
+            [vec![ordinary.clone()], linked_files].concat()
+        );
+        assert!(normal.path_errors.is_empty());
+        let preview = compare_globs(&home, &sessions, CODEX, true, &[]);
+        assert_eq!(preview.files, [ordinary]);
+        assert!(preview.path_errors.is_empty());
+        let pattern = "rollout-folder.jsonl/**/rollout-*.jsonl";
+        assert_eq!(
+            compare_globs(&home, &sessions, pattern, false, &[]).files,
+            [normalize(&linked_dir.join("rollout-outside.jsonl"))]
+        );
+        assert!(compare_globs(&home, &sessions, pattern, true, &[])
+            .files
+            .is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn e5_globs_match_legacy_under_windows_acl_denials() {
+        use std::process::Command;
+
+        struct Denied<'a> {
+            path: &'a Path,
+            sid: &'a str,
+        }
+        impl Drop for Denied<'_> {
+            fn drop(&mut self) {
+                assert!(Command::new("icacls")
+                    .arg(self.path)
+                    .args(["/remove:d", self.sid])
+                    .output()
+                    .unwrap()
+                    .status
+                    .success());
+            }
+        }
+        fn deny<'a>(path: &'a Path, sid: &'a str, rights: &str) -> Denied<'a> {
+            let output = Command::new("icacls")
+                .arg(path)
+                .args(["/deny", &format!("{sid}:({rights})")])
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            Denied { path, sid }
+        }
+
+        let fixture = tempfile::tempdir().unwrap();
+        let home = fixture.path();
+        let sessions = home.join("sessions");
+        file(&sessions, "denied/rollout-private.jsonl");
+        file(&sessions, "rollout-unreadable.jsonl");
+        let user = Command::new("whoami")
+            .args(["/user", "/fo", "csv", "/nh"])
+            .output()
+            .unwrap();
+        assert!(user.status.success());
+        let row = String::from_utf8_lossy(&user.stdout);
+        let sid = format!(
+            "*{}",
+            row.split('"')
+                .find(|value| value.starts_with("S-1-"))
+                .unwrap()
+        );
+        let denied_dir = sessions.join("denied");
+        let denied_file = sessions.join("rollout-unreadable.jsonl");
+        let _dir_acl = deny(&denied_dir, &sid, "RD");
+        let _file_acl = deny(&denied_file, &sid, "RD,RA");
+        assert_eq!(
+            fs::read_dir(&denied_dir).unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
+        assert_eq!(
+            fs::File::open(&denied_file).unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
+        for preview in [false, true] {
+            let output = compare_globs(home, &sessions, CODEX, preview, &[]);
+            assert_eq!(output.issues[0], ("permission_denied", 1));
+            assert!(output
+                .path_errors
+                .contains(&(normalize(&denied_dir), ErrorKind::PermissionDenied)));
+            let pattern = "{denied/rollout-private.jsonl,**/rollout-*.jsonl}";
+            compare_globs(home, &sessions, pattern, preview, &[]);
+        }
+        eprintln!(
+            "Windows directory listing and file content open both returned PermissionDenied; file metadata: {:?}",
+            fs::metadata(&denied_file).map(|metadata| metadata.is_file()).map_err(|error| error.kind())
+        );
+    }
+}
+
+#[cfg(test)]
 #[test]
 fn s0a_classifies_directory_io_and_partial_iteration() {
     let home = tempfile::tempdir().unwrap();
@@ -1150,10 +1735,10 @@ fn s0a_classifies_directory_io_and_partial_iteration() {
             ErrorKind::PermissionDenied.into()
         ))
         .is_none());
-    assert_eq!(
-        scan.read_entries([Ok("a"), Err(ErrorKind::Other.into()), Ok("b")].into_iter()),
-        vec!["a", "b"]
-    );
+    let (entries, errors) =
+        Scan::read_entries([Ok("a"), Err(ErrorKind::Other.into()), Ok("b")].into_iter());
+    scan.report_iteration_errors(root, &errors);
+    assert_eq!(entries, vec!["a", "b"]);
     let issue = scan.take_issue("claude");
     assert_eq!(
         (
