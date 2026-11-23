@@ -302,7 +302,20 @@ class _StatsPageState extends State<StatsPage> {
             }
           },
         );
-        return Scaffold(body: panel);
+        return ValueListenableBuilder(
+          valueListenable: window.pillState,
+          child: panel,
+          builder: (context, pill, compact) => Scaffold(
+            backgroundColor: pill == null ? null : Colors.transparent,
+            body: Semantics(
+              container: true,
+              explicitChildNodes: true,
+              child: pill == null
+                  ? compact
+                  : MiniPill(controller: c, window: window, state: pill),
+            ),
+          ),
+        );
       }
       if (page == 'news' && !newsVisible) {
         page = 'home';

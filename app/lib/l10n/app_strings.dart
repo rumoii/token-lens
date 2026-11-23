@@ -60,6 +60,9 @@ abstract class AppStrings {
   String get miniUnpin;
   String get miniSettings;
   String get miniExpand;
+  String get miniPillEnter;
+  String miniPillLabel(String tokens, String cost);
+  String get miniPillTooltip;
   String miniEstimate(String amount);
   String miniInterval(int seconds);
   String miniUpdated(int age, int interval);

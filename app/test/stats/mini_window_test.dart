@@ -117,6 +117,22 @@ class MiniPlatform implements MiniWindowPlatform {
   @override
   Future<Rect> getBounds() async => bounds;
   @override
+  Future<MiniFrame> getFrame() async => (bounds: bounds, scale: 1.0);
+  @override
+  bool get supportsPillTuck => false;
+  @override
+  Future<void> setPillFrame(bool value) async => calls.add(('pill', value));
+  @override
+  Future<void> setPillTooltip(String? text) async {}
+  @override
+  Future<void> setPillBounds(
+    Rect value,
+    MiniDisplay display, {
+    bool clip = false,
+  }) => setBounds(value);
+  @override
+  Future<void> dragPill() => startDragging();
+  @override
   Future<List<MiniDisplay>> workAreas() async => [
     const MiniDisplay(Rect.fromLTWH(0, 0, 1920, 1040)),
   ];

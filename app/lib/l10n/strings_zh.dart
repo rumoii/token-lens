@@ -59,6 +59,16 @@ final class ChineseStrings extends AppStrings {
   String get miniExpand => '展开完整窗口';
 
   @override
+  String get miniPillEnter => '缩成迷你模式';
+
+  @override
+  String miniPillLabel(String tokens, String cost) =>
+      '今天 $tokens token，约 $cost。点击展开小窗';
+
+  @override
+  String get miniPillTooltip => '点击展开小窗，拖到屏幕左右边缘可以藏起来';
+
+  @override
   String miniEstimate(String amount) => '约 $amount';
 
   @override

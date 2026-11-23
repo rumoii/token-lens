@@ -6,6 +6,8 @@ import 'logic/period.dart';
 import 'logic/format.dart';
 import '../update/update_check.dart';
 
+enum MiniPillEdge { left, right }
+
 class MiniPreferences {
   const MiniPreferences({
     this.bounds,
@@ -13,12 +15,18 @@ class MiniPreferences {
     this.seconds = 10,
     this.projects = -1,
     this.chartMinutes = 15,
+    this.pill = false,
+    this.pillBounds,
+    this.pillEdge,
   });
 
   static const intervals = [5, 10, 15, 30, 60, 300];
   static const projectCounts = [-1, 3, 5, 10, 0];
   static const chartRanges = [15, 30, 60];
   final Rect? bounds;
+  final Rect? pillBounds;
+  final MiniPillEdge? pillEdge;
+  final bool pill;
   final bool pinned;
   final int seconds, projects, chartMinutes;
 
@@ -28,29 +36,36 @@ class MiniPreferences {
     int? seconds,
     int? projects,
     int? chartMinutes,
+    bool? pill,
+    Rect? pillBounds,
+    MiniPillEdge? pillEdge,
   }) => MiniPreferences(
     bounds: bounds ?? this.bounds,
     pinned: pinned ?? this.pinned,
     seconds: seconds ?? this.seconds,
     projects: projects ?? this.projects,
     chartMinutes: chartMinutes ?? this.chartMinutes,
+    pill: pill ?? this.pill,
+    pillBounds: pillBounds ?? this.pillBounds,
+    pillEdge: pillBounds == null ? this.pillEdge : pillEdge,
   );
+
+  static Rect? _decodeBounds(Object? value) =>
+      value is List &&
+          value.length == 4 &&
+          value.every((part) => part is num && part.isFinite)
+      ? Rect.fromLTWH(
+          (value[0] as num).toDouble(),
+          (value[1] as num).toDouble(),
+          (value[2] as num).toDouble(),
+          (value[3] as num).toDouble(),
+        )
+      : null;
 
   static MiniPreferences decode(Object? value) {
     if (value is! Map) return const MiniPreferences();
-    final rect = value['bounds'];
     return MiniPreferences(
-      bounds:
-          rect is List &&
-              rect.length == 4 &&
-              rect.every((part) => part is num && part.isFinite)
-          ? Rect.fromLTWH(
-              (rect[0] as num).toDouble(),
-              (rect[1] as num).toDouble(),
-              (rect[2] as num).toDouble(),
-              (rect[3] as num).toDouble(),
-            )
-          : null,
+      bounds: _decodeBounds(value['bounds']),
       pinned: value['pinned'] != false,
       seconds: value['seconds'] is int && intervals.contains(value['seconds'])
           ? value['seconds'] as int
@@ -64,6 +79,13 @@ class MiniPreferences {
               chartRanges.contains(value['chartMinutes'])
           ? value['chartMinutes'] as int
           : 15,
+      pill: value['pill'] == true,
+      pillBounds: _decodeBounds(value['pillBounds']),
+      pillEdge: switch (value['pillEdge']) {
+        'left' => MiniPillEdge.left,
+        'right' => MiniPillEdge.right,
+        _ => null,
+      },
     );
   }
 
@@ -73,6 +95,10 @@ class MiniPreferences {
     'seconds': seconds,
     'projects': projects,
     'chartMinutes': chartMinutes,
+    if (pill) 'pill': true,
+    if (pillBounds case final b?)
+      'pillBounds': [b.left, b.top, b.width, b.height],
+    if (pillEdge case final edge?) 'pillEdge': edge.name,
   };
 }
 

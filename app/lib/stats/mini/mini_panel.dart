@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals, ValueListenable;
+import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -22,6 +23,7 @@ import 'mini_window.dart';
 part 'mini_rows.dart';
 part 'mini_motion.dart';
 part 'mini_chart.dart';
+part 'mini_pill.dart';
 
 enum _MiniSetting { refresh, chart, projects }
 
@@ -212,6 +214,15 @@ class _MiniPanelState extends State<MiniPanel> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: p.text(11.5, p.faint),
+                ),
+              ),
+              LensIconButton(
+                size: 'xs',
+                icon: Icons.close_fullscreen,
+                tooltip: s.miniPillEnter,
+                color: p['clay-ink'],
+                onPressed: () => _miniPillAction(
+                  () => widget.window.enterPill(MiniPill.widthFor(context, c)),
                 ),
               ),
               AnimatedRotation(

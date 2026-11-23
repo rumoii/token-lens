@@ -64,6 +64,17 @@ final class EnglishStrings extends AppStrings {
   String get miniExpand => 'Open full window';
 
   @override
+  String get miniPillEnter => 'Shrink to mini mode';
+
+  @override
+  String miniPillLabel(String tokens, String cost) =>
+      'Today $tokens tokens, about $cost. Click to open the compact window';
+
+  @override
+  String get miniPillTooltip =>
+      'Click to open the compact window. Drag to the left or right edge of the screen to tuck it away.';
+
+  @override
   String miniEstimate(String amount) => 'Est. $amount';
 
   @override

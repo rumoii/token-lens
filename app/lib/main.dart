@@ -196,6 +196,11 @@ class _TokenLensAppState extends State<TokenLensApp>
       });
       if (statsController == null) unawaited(controller.start());
       statsController?.addListener(_statsChanged);
+      try {
+        await _miniWindow?.restorePill();
+      } catch (error, stack) {
+        _runtimeErrors.report(error, stack);
+      }
       if (statsController != null) unawaited(statsController.start());
     } catch (error, stack) {
       await _showStartupFailure(parseStartupFailure(error), error, stack);
